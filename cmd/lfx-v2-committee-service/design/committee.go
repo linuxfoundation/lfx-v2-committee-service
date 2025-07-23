@@ -43,7 +43,6 @@ var _ = dsl.Service("committee", func() {
 			PublicAttribute()
 			PublicNameAttribute()
 			ParentCommitteeIDAttribute()
-			StatusAttribute()
 			WritersAttribute()
 
 			dsl.Required("name", "category")
