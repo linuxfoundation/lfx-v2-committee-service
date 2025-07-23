@@ -23,6 +23,7 @@ var Committee = dsl.Type("committee", func() {
 	SSOGroupEnabledAttribute()
 	IsAuditEnabledAttribute()
 	PublicAttribute()
+	CalendarAttribute()
 	PublicNameAttribute()
 	ParentCommitteeIDAttribute()
 	WritersAttribute()
@@ -38,8 +39,9 @@ func IDAttribute() {
 
 // ProjectIDAttribute is the DSL attribute for project ID.
 func ProjectIDAttribute() {
-	dsl.Attribute("project_id", dsl.String, "The project identifier this committee belongs to", func() {
-		dsl.Example("a0956000001FwZVAA0")
+	dsl.Attribute("project_id", dsl.String, "The project identifier this committee belongs to -- v2 id, not related to v1 id directly", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
 	})
 }
 
@@ -130,9 +132,20 @@ func IsAuditEnabledAttribute() {
 
 // PublicAttribute is the DSL attribute for public visibility.
 func PublicAttribute() {
-	dsl.Attribute("public", dsl.Boolean, "Whether the committee is publicly visible", func() {
+	dsl.Attribute("public", dsl.Boolean, "General committee visibility/access permissions", func() {
 		dsl.Default(false)
 		dsl.Example(true)
+	})
+}
+
+// CalendarAttribute is the DSL attribute for calendar public visibility.
+func CalendarAttribute() {
+	dsl.Attribute("calendar", func() {
+		dsl.Description("Settings related to the committee calendar")
+		dsl.Attribute("public", dsl.Boolean, "Whether the committee calendar is publicly visible", func() {
+			dsl.Default(false)
+			dsl.Example(true)
+		})
 	})
 }
 
