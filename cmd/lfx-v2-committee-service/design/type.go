@@ -139,6 +139,7 @@ func PublicAttribute() {
 // PublicNameAttribute is the DSL attribute for public name.
 func PublicNameAttribute() {
 	dsl.Attribute("public_name", dsl.String, "The public display name of the committee", func() {
+		dsl.MaxLength(100)
 		dsl.Example("TSC Committee Calendar")
 	})
 }
