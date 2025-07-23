@@ -21,7 +21,6 @@ var Committee = dsl.Type("committee", func() {
 	EnableVotingAttribute()
 	BusinessEmailRequiredAttribute()
 	SSOGroupEnabledAttribute()
-	SSOGroupNameAttribute()
 	IsAuditEnabledAttribute()
 	PublicAttribute()
 	PublicNameAttribute()
@@ -119,13 +118,6 @@ func SSOGroupEnabledAttribute() {
 	dsl.Attribute("sso_group_enabled", dsl.Boolean, "Whether SSO group integration is enabled", func() {
 		dsl.Default(false)
 		dsl.Example(true)
-	})
-}
-
-// SSOGroupNameAttribute is the DSL attribute for SSO group name.
-func SSOGroupNameAttribute() {
-	dsl.Attribute("sso_group_name", dsl.String, "The name of the SSO group", func() {
-		dsl.Example("cncf-technical-steering")
 	})
 }
 
