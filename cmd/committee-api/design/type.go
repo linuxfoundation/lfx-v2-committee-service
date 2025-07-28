@@ -93,14 +93,12 @@ var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 
 var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-readonly-attributes", func() {
 	dsl.Description("A representation of LF Committee settings with readonly attributes.")
-
 	CommitteeUIDAttribute()
 
 	CommitteeSettingsAttributes()
 
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
-
 })
 
 // CommitteeUIDAttribute is the DSL attribute for committee UID.
