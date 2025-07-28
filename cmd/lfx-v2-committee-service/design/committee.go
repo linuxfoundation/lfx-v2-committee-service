@@ -17,39 +17,31 @@ var JWTAuth = dsl.JWTSecurity("jwt", func() {
 })
 
 // Service describes the committee service
-var _ = dsl.Service("committee", func() {
+var _ = dsl.Service("committee-service", func() {
 	dsl.Description("Committee management service")
 
+	// Base committee endpoints
+	// used by public users, readers, and writers.
 	dsl.Method("create-committee", func() {
 		dsl.Description("Create Committee")
 
 		dsl.Security(JWTAuth)
 
 		dsl.Payload(func() {
-			dsl.Token("bearer_token", dsl.String, func() {
-				dsl.Description("JWT token issued by Heimdall")
-				dsl.Example("eyJhbGci...")
-			})
+			BearerTokenAttribute()
 			VersionAttribute()
 
-			NameAttribute()
-			CategoryAttribute()
-			DescriptionAttribute()
-			WebsiteAttribute()
-			EnableVotingAttribute()
-			BusinessEmailRequiredAttribute()
-			SSOGroupEnabledAttribute()
-			IsAuditEnabledAttribute()
-			PublicAttribute()
-			CalendarAttribute()
-			PublicNameAttribute()
-			ParentCommitteeIDAttribute()
+			CommitteeBaseAttributes()
+
+			CommitteeSettingsAttributes()
+
 			WritersAttribute()
+			AuditorsAttribute()
 
 			dsl.Required("name", "category")
 		})
 
-		dsl.Result(Committee)
+		dsl.Result(CommitteeFull)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("Conflict", ConflictError, "Conflict")
@@ -69,24 +61,21 @@ var _ = dsl.Service("committee", func() {
 		})
 	})
 
-	dsl.Method("get-committee", func() {
+	dsl.Method("get-committee-base", func() {
 		dsl.Description("Get Committee")
 
 		dsl.Security(JWTAuth)
 
 		dsl.Payload(func() {
-			dsl.Token("bearer_token", dsl.String, func() {
-				dsl.Description("JWT token issued by Heimdall")
-				dsl.Example("eyJhbGci...")
-			})
+			BearerTokenAttribute()
 			VersionAttribute()
-			CommitteeIDAttribute()
+			CommitteeUIDAttribute()
 		})
 
 		dsl.Result(func() {
-			dsl.Attribute("committee", Committee)
-			dsl.Attribute("etag", dsl.String, "ETag header value")
-			dsl.Required("committee")
+			dsl.Attribute("committee-base", CommitteeBaseWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-base")
 		})
 
 		dsl.Error("NotFound", NotFoundError, "Resource not found")
@@ -94,12 +83,12 @@ var _ = dsl.Service("committee", func() {
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
-			dsl.GET("/committees/{id}")
+			dsl.GET("/committees/{uid}")
 			dsl.Param("version:v")
-			dsl.Param("id")
+			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK, func() {
-				dsl.Body("committee")
+				dsl.Body("committee-base")
 				dsl.Header("etag:ETag")
 			})
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -108,39 +97,23 @@ var _ = dsl.Service("committee", func() {
 		})
 	})
 
-	dsl.Method("update-committee", func() {
+	dsl.Method("update-committee-base", func() {
 		dsl.Description("Update Committee")
 
 		dsl.Security(JWTAuth)
 
 		dsl.Payload(func() {
-			dsl.Token("bearer_token", dsl.String, func() {
-				dsl.Description("JWT token issued by Heimdall")
-				dsl.Example("eyJhbGci...")
-			})
+			BearerTokenAttribute()
 			VersionAttribute()
 			ETagAttribute()
 
-			CommitteeIDAttribute()
-			ProjectIDAttribute()
-			NameAttribute()
-			CategoryAttribute()
-			DescriptionAttribute()
-			WebsiteAttribute()
-			EnableVotingAttribute()
-			BusinessEmailRequiredAttribute()
-			SSOGroupEnabledAttribute()
-			IsAuditEnabledAttribute()
-			PublicAttribute()
-			CalendarAttribute()
-			PublicNameAttribute()
-			ParentCommitteeIDAttribute()
-			WritersAttribute()
-
+			CommitteeUIDAttribute()
+			CommitteeBaseAttributes()
+			
 			dsl.Required("name", "category")
 		})
 
-		dsl.Result(Committee)
+		dsl.Result(CommitteeBaseWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Resource not found")
@@ -148,9 +121,9 @@ var _ = dsl.Service("committee", func() {
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
-			dsl.PUT("/committees/{id}")
+			dsl.PUT("/committees/{uid}")
 			dsl.Param("version:v")
-			dsl.Param("id")
+			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("etag:ETag")
 			dsl.Response(dsl.StatusOK)
@@ -167,13 +140,10 @@ var _ = dsl.Service("committee", func() {
 		dsl.Security(JWTAuth)
 
 		dsl.Payload(func() {
-			dsl.Token("bearer_token", dsl.String, func() {
-				dsl.Description("JWT token issued by Heimdall")
-				dsl.Example("eyJhbGci...")
-			})
+			BearerTokenAttribute()
 			VersionAttribute()
 			ETagAttribute()
-			CommitteeIDAttribute()
+			CommitteeUIDAttribute()
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
@@ -182,9 +152,9 @@ var _ = dsl.Service("committee", func() {
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
-			dsl.DELETE("/committees/{id}")
+			dsl.DELETE("/committees/{uid}")
 			dsl.Param("version:v")
-			dsl.Param("id")
+			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("etag:ETag")
 			dsl.Response(dsl.StatusNoContent)
@@ -195,6 +165,86 @@ var _ = dsl.Service("committee", func() {
 		})
 	})
 
+	// Committee Settings endpoints
+	// used by writers and auditors.
+	dsl.Method("get-committee-settings", func() {
+		dsl.Description("Get Committee Settings")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-settings", CommitteeSettingsWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-settings")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/settings")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-settings")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("update-committee-settings", func() {
+		dsl.Description("Update Committee Settings")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			ETagAttribute()
+
+			CommitteeUIDAttribute()
+			CommitteeSettingsAttributes()
+
+
+			WritersAttribute()
+			AuditorsAttribute()
+
+			dsl.Required("business_email_required")
+		})
+
+		dsl.Result(CommitteeSettingsWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/settings")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("etag:ETag")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Health check endpoints
 	dsl.Method("readyz", func() {
 		dsl.Description("Check if the service is able to take inbound requests.")
 		dsl.Result(dsl.Bytes, func() {

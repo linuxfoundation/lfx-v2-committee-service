@@ -7,39 +7,97 @@ import (
 	"goa.design/goa/v3/dsl"
 )
 
-// Committee defines the complete committee data structure
-var Committee = dsl.Type("committee", func() {
 
-	dsl.Description("A representation of LFX committee")
+// CommitteeBase is the DSL type for a committee base.
+var CommitteeBase = dsl.Type("committee-base", func() {
+	dsl.Description("A base representation of LFX committees without sub-objects.")
 
-	IDAttribute()
-	ProjectIDAttribute()
+	CommitteeBaseAttributes()
+
+})
+
+// CommitteeBaseAttributes is the DSL attributes for a committee base.
+func CommitteeBaseAttributes() {
+	ProjectUIDAttribute()
 	NameAttribute()
 	CategoryAttribute()
 	DescriptionAttribute()
 	WebsiteAttribute()
 	EnableVotingAttribute()
-	BusinessEmailRequiredAttribute()
 	SSOGroupEnabledAttribute()
-	IsAuditEnabledAttribute()
+	RequiresReviewAttribute()
 	PublicAttribute()
 	CalendarAttribute()
-	PublicNameAttribute()
-	ParentCommitteeIDAttribute()
-	WritersAttribute()
+	DisplayNameAttribute()
+	ParentCommitteeUIDAttribute()
+}
+
+// CommitteeSettings is the DSL type for a committee settings.
+var CommitteeSettings = dsl.Type("committee-settings", func() {
+	dsl.Description("A representation of LF Committee settings.")
+
+	CommitteeSettingsAttributes()
 })
 
-// IDAttribute is the DSL attribute for committee ID.
-func IDAttribute() {
-	dsl.Attribute("id", dsl.String, "The unique identifier of the committee", func() {
+// CommitteeSettingsAttributes is the DSL attributes for a committee settings.
+func CommitteeSettingsAttributes() {
+	BusinessEmailRequiredAttribute()
+	LastReviewedAtAttribute()
+	LastReviewedByAttribute()
+}
+
+
+// CommitteeFull is the DSL type for a committee full.
+var CommitteeFull = dsl.Type("committee-full", func() {
+	dsl.Description("A full representation of LFX committees with sub-objects.")
+
+	CommitteeBaseAttributes()
+
+	CommitteeSettingsAttributes()
+
+	WritersAttribute()
+	AuditorsAttribute()
+})
+
+var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
+	dsl.Description("A full representation of LFX committees with sub-objects and readonly attributes.")
+	
+	CommitteeUIDAttribute()
+
+	CommitteeBaseAttributes()
+
+	SSOGroupNameAttribute()
+
+	TotalMembersAttribute()
+	TotalVotingReposAttribute()
+	
+})
+
+var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-readonly-attributes", func() {
+	dsl.Description("A representation of LF Committee settings with readonly attributes.")
+	
+	CommitteeUIDAttribute()
+
+	CommitteeSettingsAttributes()
+
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+	
+})
+
+// CommitteeUIDAttribute is the DSL attribute for committee UID.
+func CommitteeUIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "Committee UID -- v2 uid, not related to v1 id directly", func() {
+		// Read-only attribute
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 		dsl.Format(dsl.FormatUUID)
-		dsl.Example("52ec9e74-e8d3-40d9-953c-bc2d2c6ae516")
 	})
 }
 
-// ProjectIDAttribute is the DSL attribute for project ID.
-func ProjectIDAttribute() {
-	dsl.Attribute("project_id", dsl.String, "The project identifier this committee belongs to -- v2 id, not related to v1 id directly", func() {
+// ProjectUIDAttribute is the DSL attribute for project UID.
+func ProjectUIDAttribute() {
+	dsl.Attribute("project_uid", dsl.String, "Project UID this committee belongs to -- v2 uid, not related to v1 id directly", func() {
+		// Read-only attribute
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 		dsl.Format(dsl.FormatUUID)
 	})
@@ -122,11 +180,18 @@ func SSOGroupEnabledAttribute() {
 	})
 }
 
-// IsAuditEnabledAttribute is the DSL attribute for audit enablement.
-func IsAuditEnabledAttribute() {
-	dsl.Attribute("is_audit_enabled", dsl.Boolean, "Whether audit logging is enabled for this committee", func() {
+// SSOGroupNameAttribute is the DSL attribute for SSO group name.
+func SSOGroupNameAttribute() {
+	dsl.Attribute("sso_group_name", dsl.String, "The name of the SSO group - read-only", func() {
+		dsl.Example("lfx-committee-group")
+	})
+}
+
+// RequiresReviewAttribute is the DSL attribute for committee review requirement.
+func RequiresReviewAttribute() {
+	dsl.Attribute("requires_review", dsl.Boolean, "Whether this committee is expected to be reviewed", func() {
 		dsl.Default(false)
-		dsl.Example(false)
+		dsl.Example(true)
 	})
 }
 
@@ -149,19 +214,50 @@ func CalendarAttribute() {
 	})
 }
 
-// PublicNameAttribute is the DSL attribute for public name.
-func PublicNameAttribute() {
-	dsl.Attribute("public_name", dsl.String, "The public display name of the committee", func() {
+// LastReviewedAtAttribute is the DSL attribute for last review timestamp.
+func LastReviewedAtAttribute() {
+	dsl.Attribute("last_reviewed_at", dsl.String, "The timestamp when the committee was last reviewed", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-05-10T09:15:00Z")
+	})
+}
+
+// LastReviewedByAttribute is the DSL attribute for last review user.
+func LastReviewedByAttribute() {
+	dsl.Attribute("last_reviewed_by", dsl.String, "The user ID who last reviewed this committee", func() {
+		dsl.Example("user_id_12345")
+	})
+}
+
+// DisplayNameAttribute is the DSL attribute for display name.
+func DisplayNameAttribute() {
+	dsl.Attribute("display_name", dsl.String, "The display name of the committee", func() {
 		dsl.MaxLength(100)
 		dsl.Example("TSC Committee Calendar")
 	})
 }
 
-// ParentCommitteeIDAttribute is the DSL attribute for parent committee ID.
-func ParentCommitteeIDAttribute() {
-	dsl.Attribute("parent_committee_id", dsl.String, "The ID of the parent committee, should be empty if there is none", func() {
+// ParentCommitteeUIDAttribute is the DSL attribute for parent committee UID.
+func ParentCommitteeUIDAttribute() {
+	dsl.Attribute("parent_uid", dsl.String, "The UID of the parent committee -- v2 uid, not related to v1 id directly, should be empty if there is none", func() {
 		dsl.Format(dsl.FormatUUID)
 		dsl.Example("90b147f2-7cdd-157a-a2f4-9d4a567123fc")
+	})
+}
+
+// TotalMembersAttribute is the DSL attribute for total members count.
+func TotalMembersAttribute() {
+	dsl.Attribute("total_members", dsl.Int, "The total number of members in this committee", func() {
+		dsl.Minimum(0)
+		dsl.Example(15)
+	})
+}
+
+// TotalVotingReposAttribute is the DSL attribute for total voting repositories count.
+func TotalVotingReposAttribute() {
+	dsl.Attribute("total_voting_repos", dsl.Int, "The total number of repositories with voting permissions for this committee", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
 	})
 }
 
@@ -169,14 +265,6 @@ func ParentCommitteeIDAttribute() {
 func WritersAttribute() {
 	dsl.Attribute("writers", dsl.ArrayOf(dsl.String), "Manager user IDs who can edit/modify this committee", func() {
 		dsl.Example([]string{"manager_user_id1", "manager_user_id2"})
-	})
-}
-
-// CommitteeIDAttribute is the DSL attribute for committee ID parameter.
-func CommitteeIDAttribute() {
-	dsl.Attribute("id", dsl.String, "The unique identifier of the committee", func() {
-		dsl.Format(dsl.FormatUUID)
-		dsl.Description("Committee ID")
 	})
 }
 
@@ -192,6 +280,52 @@ func VersionAttribute() {
 func ETagAttribute() {
 	dsl.Attribute("etag", dsl.String, "ETag header value", func() {
 		dsl.Example("123")
+	})
+}
+
+// BearerTokenAttribute is the DSL attribute for bearer token.
+func BearerTokenAttribute() {
+	dsl.Token("bearer_token", dsl.String, func() {
+		dsl.Description("JWT token issued by Heimdall")
+		dsl.Example("eyJhbGci...")
+	})
+}
+
+// CreatedAtAttribute is the DSL attribute for creation timestamp.
+func CreatedAtAttribute() {
+	dsl.Attribute("created_at", dsl.String, "The timestamp when the committee was created (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-01-15T10:30:00Z")
+	})
+}
+
+// UpdatedAtAttribute is the DSL attribute for update timestamp.
+func UpdatedAtAttribute() {
+	dsl.Attribute("updated_at", dsl.String, "The timestamp when the committee was last updated (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-06-20T14:45:30Z")
+	})
+}
+
+// LastAuditedByAttribute is the DSL attribute for last audited by user.
+func LastAuditedByAttribute() {
+	dsl.Attribute("last_audited_by", dsl.String, "The user ID who last audited the committee", func() {
+		dsl.Example("user_id_12345")
+	})
+}
+
+// LastAuditedTimeAttribute is the DSL attribute for last audit timestamp.
+func LastAuditedTimeAttribute() {
+	dsl.Attribute("last_audited_time", dsl.String, "The timestamp when the committee was last audited", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-05-10T09:15:00Z")
+	})
+}
+
+// AuditorsAttribute is the DSL attribute for committee auditors.
+func AuditorsAttribute() {
+	dsl.Attribute("auditors", dsl.ArrayOf(dsl.String), "Auditor user IDs who can audit this committee", func() {
+		dsl.Example([]string{"auditor_user_id1", "auditor_user_id2"})
 	})
 }
 
