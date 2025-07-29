@@ -241,6 +241,14 @@ type CreateCommitteeInternalServerErrorResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// CreateCommitteeNotFoundResponseBody is the type of the "committee-service"
+// service "create-committee" endpoint HTTP response body for the "NotFound"
+// error.
+type CreateCommitteeNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // CreateCommitteeServiceUnavailableResponseBody is the type of the
 // "committee-service" service "create-committee" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
@@ -712,6 +720,16 @@ func NewCreateCommitteeConflictResponseBody(res *committeeservice.ConflictError)
 // "committee-service" service.
 func NewCreateCommitteeInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *CreateCommitteeInternalServerErrorResponseBody {
 	body := &CreateCommitteeInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateCommitteeNotFoundResponseBody builds the HTTP response body from
+// the result of the "create-committee" endpoint of the "committee-service"
+// service.
+func NewCreateCommitteeNotFoundResponseBody(res *committeeservice.NotFoundError) *CreateCommitteeNotFoundResponseBody {
+	body := &CreateCommitteeNotFoundResponseBody{
 		Message: res.Message,
 	}
 	return body

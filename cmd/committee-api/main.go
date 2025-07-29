@@ -58,8 +58,17 @@ func main() {
 		"graceful-shutdown-seconds", gracefulShutdownSeconds,
 	)
 
+	// Initialize the repositories based on configuration
+	committeeRetriever := service.CommitteeRetrieverImpl(ctx)
+	committeeWriter := service.CommitteeWriterImpl(ctx)
+	projectRetriever := service.ProjectRetrieverImpl(ctx)
+
 	// Initialize the service with use case
-	createCommitteeUseCase := usecase.NewcommitteeWriterOrchestrator()
+	createCommitteeUseCase := usecase.NewcommitteeWriterOrchestrator(
+		usecase.WithCommitteeRetriever(committeeRetriever),
+		usecase.WithCommitteeWriter(committeeWriter),
+		usecase.WithProjectRetriever(projectRetriever),
+	)
 
 	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase)
 

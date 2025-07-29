@@ -46,31 +46,20 @@ type Calendar struct {
 
 func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) error {
 
-	var currentGroupName []string
-	if c.SSOGroupName != "" {
-		currentGroupName = strings.Split(c.SSOGroupName, "-")
-	}
-
-	if len(currentGroupName) < 3 {
-		slog.ErrorContext(ctx, "invalid SSO group name format",
-			"current_group_name", currentGroupName,
-			"length", len(currentGroupName),
-		)
-		return errors.NewValidation("invalid SSO group name format")
-	}
-
-	ind, errInd := strconv.Atoi(currentGroupName[2])
-	if errInd != nil {
-		slog.ErrorContext(ctx, "invalid SSO group name index",
-			"current_group_name", currentGroupName,
-			"index", currentGroupName[2],
-		)
-		return errors.NewValidation("invalid SSO group name index")
-	}
-
+	ind := 1
 	// not the first attempt to create the SSO group
-	if ind != 1 {
-		ind++
+	if c.SSOGroupName != "" {
+		currentGroupName := strings.Split(c.SSOGroupName, "-")
+
+		i, errInd := strconv.Atoi(currentGroupName[len(currentGroupName)-1])
+		if errInd != nil {
+			slog.ErrorContext(ctx, "invalid SSO group name index",
+				"current_group_name", currentGroupName,
+				"index", ind,
+			)
+			return errors.NewValidation("invalid SSO group name index")
+		}
+		ind = i + 1
 	}
 
 	c.SSOGroupName = slug.Make(fmt.Sprintf("%s-%s-%d", projectSlug, c.Name, ind))

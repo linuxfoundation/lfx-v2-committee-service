@@ -51,6 +51,12 @@ paths:
                         $ref: '#/definitions/BadRequestError'
                         required:
                             - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
                 "409":
                     description: Conflict response.
                     schema:

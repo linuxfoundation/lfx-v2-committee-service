@@ -5,13 +5,12 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/usecase"
 
-	"goa.design/clue/log"
 	"goa.design/goa/v3/security"
 )
 
@@ -44,12 +43,19 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 	//
 	//    return ctx, goa.PermanentError("unauthorized", "invalid token")
 	//
-	return ctx, fmt.Errorf("not implemented")
+
+	//return ctx, fmt.Errorf("not implemented")
+
+	return ctx, nil
 }
 
 // Create Committee
 func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committeeservice.CreateCommitteePayload) (res *committeeservice.CommitteeFullWithReadonlyAttributes, err error) {
-	log.Printf(ctx, "committeeService.create-committee")
+
+	slog.DebugContext(ctx, "committeeService.create-committee",
+		"project_uid", p.ProjectUID,
+		"name", p.Name,
+	)
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
@@ -97,6 +103,7 @@ func (s *committeeServicesrvc) convertDomainToReponse(response *model.Committee)
 		Website:         response.Website,
 		EnableVoting:    response.EnableVoting,
 		SsoGroupEnabled: response.SSOGroupEnabled,
+		SsoGroupName:    &response.SSOGroupName,
 		Public:          response.Public,
 		DisplayName:     &response.DisplayName,
 		ParentUID:       response.ParentUID,
@@ -109,45 +116,53 @@ func (s *committeeServicesrvc) convertDomainToReponse(response *model.Committee)
 // Get Committee
 func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committeeservice.GetCommitteeBasePayload) (res *committeeservice.GetCommitteeBaseResult, err error) {
 	res = &committeeservice.GetCommitteeBaseResult{}
-	log.Printf(ctx, "committeeService.get-committee-base")
+	slog.DebugContext(ctx, "committeeService.get-committee-base",
+		"committee_uid", p.UID,
+	)
 	return
 }
 
 // Update Committee
 func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *committeeservice.UpdateCommitteeBasePayload) (res *committeeservice.CommitteeFullWithReadonlyAttributes, err error) {
 	res = &committeeservice.CommitteeFullWithReadonlyAttributes{}
-	log.Printf(ctx, "committeeService.update-committee-base")
+	slog.DebugContext(ctx, "committeeService.update-committee-base",
+		"committee_uid", p.UID,
+	)
 	return
 }
 
 // Delete Committee
 func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committeeservice.DeleteCommitteePayload) (err error) {
-	log.Printf(ctx, "committeeService.delete-committee")
+	slog.DebugContext(ctx, "committeeService.delete-committee",
+		"committee_uid", p.UID,
+	)
 	return
 }
 
 // Get Committee Settings
 func (s *committeeServicesrvc) GetCommitteeSettings(ctx context.Context, p *committeeservice.GetCommitteeSettingsPayload) (res *committeeservice.GetCommitteeSettingsResult, err error) {
 	res = &committeeservice.GetCommitteeSettingsResult{}
-	log.Printf(ctx, "committeeService.get-committee-settings")
+	slog.DebugContext(ctx, "committeeService.get-committee-settings",
+		"committee_uid", p.UID,
+	)
 	return
 }
 
 // Update Committee Settings
 func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *committeeservice.UpdateCommitteeSettingsPayload) (res *committeeservice.CommitteeSettingsWithReadonlyAttributes, err error) {
 	res = &committeeservice.CommitteeSettingsWithReadonlyAttributes{}
-	log.Printf(ctx, "committeeService.update-committee-settings")
+	slog.DebugContext(ctx, "committeeService.update-committee-settings",
+		"committee_uid", p.UID,
+	)
 	return
 }
 
 // Check if the service is able to take inbound requests.
 func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err error) {
-	log.Printf(ctx, "committeeService.readyz")
 	return
 }
 
 // Check if the service is alive.
 func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error) {
-	log.Printf(ctx, "committeeService.livez")
 	return
 }

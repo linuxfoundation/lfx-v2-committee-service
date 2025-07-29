@@ -241,6 +241,14 @@ type CreateCommitteeInternalServerErrorResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// CreateCommitteeNotFoundResponseBody is the type of the "committee-service"
+// service "create-committee" endpoint HTTP response body for the "NotFound"
+// error.
+type CreateCommitteeNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // CreateCommitteeServiceUnavailableResponseBody is the type of the
 // "committee-service" service "create-committee" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
@@ -701,6 +709,16 @@ func NewCreateCommitteeConflict(body *CreateCommitteeConflictResponseBody) *comm
 // create-committee endpoint InternalServerError error.
 func NewCreateCommitteeInternalServerError(body *CreateCommitteeInternalServerErrorResponseBody) *committeeservice.InternalServerError {
 	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewCreateCommitteeNotFound builds a committee-service service
+// create-committee endpoint NotFound error.
+func NewCreateCommitteeNotFound(body *CreateCommitteeNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
 		Message: *body.Message,
 	}
 
@@ -1279,6 +1297,15 @@ func ValidateCreateCommitteeConflictResponseBody(body *CreateCommitteeConflictRe
 // ValidateCreateCommitteeInternalServerErrorResponseBody runs the validations
 // defined on create-committee_InternalServerError_response_body
 func ValidateCreateCommitteeInternalServerErrorResponseBody(body *CreateCommitteeInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateCreateCommitteeNotFoundResponseBody runs the validations defined on
+// create-committee_NotFound_response_body
+func ValidateCreateCommitteeNotFoundResponseBody(body *CreateCommitteeNotFoundResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

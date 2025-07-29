@@ -138,6 +138,19 @@ func EncodeCreateCommitteeError(encoder func(context.Context, http.ResponseWrite
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusInternalServerError)
 			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewCreateCommitteeNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
 		case "ServiceUnavailable":
 			var res *committeeservice.ServiceUnavailableError
 			errors.As(v, &res)

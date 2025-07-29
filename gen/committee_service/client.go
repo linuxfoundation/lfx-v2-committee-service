@@ -45,6 +45,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 // "committee-service" service.
 // CreateCommittee may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
 //   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable

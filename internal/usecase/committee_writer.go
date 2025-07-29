@@ -6,6 +6,7 @@ package usecase
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -64,7 +65,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 			"error", err,
 			"project_uid", committee.ProjectUID,
 		)
-		return nil, errors.NewNotFound("project not found", err)
+		return nil, err
 	}
 	slog.DebugContext(ctx, "project found",
 		"project_uid", committee.ProjectUID,
@@ -73,19 +74,38 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 	// Check parent committee exists (if specified)
 	if committee.ParentUID != nil && *committee.ParentUID != "" {
-		parent, err := uc.committeeRetriever.Base().Get(ctx, *committee.ParentUID)
+		parent, errParent := uc.committeeRetriever.Base().Get(ctx, *committee.ParentUID)
 		if err != nil {
 			slog.ErrorContext(ctx, "parent committee not found",
-				"error", err,
+				"error", errParent,
 				"parent_uid", *committee.ParentUID,
 			)
-			return nil, errors.NewNotFound("parent committee not found", err)
+			return nil, errParent
 		}
 		slog.DebugContext(ctx, "parent committee found",
 			"parent_uid", parent.UID,
 			"parent_name", parent.Name,
 			"parent_project_uid", parent.ProjectUID,
 		)
+	}
+
+	// Check if the project and committee name already exist
+	existing, errByName := uc.committeeRetriever.Base().ByNameProject(ctx, committee.Name, committee.ProjectUID)
+	if errByName != nil && !strings.Contains(errByName.Error(), "not found") {
+		slog.ErrorContext(ctx, "failed to check committee existence by name",
+			"error", errByName,
+			"project_uid", committee.ProjectUID,
+			"name", existing.Name,
+		)
+		return nil, errByName
+	}
+	if existing != nil {
+		slog.ErrorContext(ctx, "committee already exists",
+			"committee_uid", existing.UID,
+			"project_uid", existing.ProjectUID,
+			"name", existing.Name,
+		)
+		return nil, errors.NewConflict("committee already exists with the same name in the project")
 	}
 
 	// Check SSO group exists (if specified)
@@ -108,7 +128,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 			)
 
 			existing, errBySSOGroupName := uc.committeeRetriever.Base().BySSOGroupName(ctx, committee.SSOGroupName)
-			if errBySSOGroupName != nil {
+			if errBySSOGroupName != nil && !strings.Contains(errBySSOGroupName.Error(), "not found") {
 				slog.ErrorContext(ctx, "failed to check SSO group existence",
 					"error", errBySSOGroupName,
 					"sso_group_name", committee.SSOGroupName,
@@ -123,6 +143,16 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 				break
 			}
 		}
+	}
+
+	// Create the committee
+	err = uc.committeeWriter.Base().Create(ctx, committee)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to create committee",
+			"error", err,
+			"committee_uid", committee.UID,
+		)
+		return nil, errors.NewUnexpected("failed to create committee", err)
 	}
 
 	slog.InfoContext(ctx, "committee created successfully",
