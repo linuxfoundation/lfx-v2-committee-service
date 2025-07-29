@@ -14,8 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	committee "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/service"
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/usecase"
+
 	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"goa.design/clue/debug"
@@ -55,13 +58,10 @@ func main() {
 		"graceful-shutdown-seconds", gracefulShutdownSeconds,
 	)
 
-	// Initialize the services.
-	var (
-		committeeServiceSvc committeeservice.Service
-	)
-	{
-		committeeServiceSvc = committee.NewCommitteeService()
-	}
+	// Initialize the service with use case
+	createCommitteeUseCase := usecase.NewcommitteeWriterOrchestrator()
+
+	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.

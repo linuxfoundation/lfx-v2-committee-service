@@ -102,7 +102,7 @@ func DecodeCreateCommitteeResponse(decoder func(*http.Response) goahttp.Decoder,
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "create-committee", err)
 			}
-			res := NewCreateCommitteeCommitteeFullCreated(&body)
+			res := NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (

@@ -60,30 +60,25 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CommitteeFull'
+                                $ref: '#/components/schemas/CommitteeFullWithReadonlyAttributes'
                             example:
-                                auditors:
-                                    - auditor_user_id1
-                                    - auditor_user_id2
-                                business_email_required: false
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
-                                last_reviewed_at: "2023-05-10T09:15:00Z"
-                                last_reviewed_by: user_id_12345
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
                                 requires_review: true
                                 sso_group_enabled: true
+                                sso_group_name: lfx-committee-group
+                                total_members: 15
+                                total_voting_repos: 3
+                                uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 website: https://committee.example.org
-                                writers:
-                                    - manager_user_id1
-                                    - manager_user_id2
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -749,7 +744,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Voluptatibus ad ut est aliquam animi.
+                        example: Debitis labore alias nesciunt quis.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -858,7 +853,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Expedita illo rerum ut sed non deserunt.
+                        example: Qui maxime recusandae et modi.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -1096,7 +1091,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Aliquid laboriosam consequatur fugiat fuga placeat eos.
+                        example: Voluptatibus ad ut est aliquam animi.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -1205,7 +1200,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Sequi velit repellat aut quasi.
+                        example: Expedita illo rerum ut sed non deserunt.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -1382,7 +1377,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Ea quae ipsam consequuntur corrupti eum.
+                        example: Aliquid laboriosam consequatur fugiat fuga placeat eos.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -1405,7 +1400,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Aliquid mollitia numquam officia voluptas earum.
+                        example: Sequi velit repellat aut quasi.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1

@@ -41,7 +41,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Required("name", "category")
 		})
 
-		dsl.Result(CommitteeFull)
+		dsl.Result(CommitteeBaseWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("Conflict", ConflictError, "Conflict")

@@ -111,6 +111,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
 	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
@@ -140,16 +142,12 @@ type CreateCommitteeResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
-	// Whether business email is required for committee members
-	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// The timestamp when the committee was last reviewed
-	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
-	// The user ID who last reviewed this committee
-	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Manager user IDs who can edit/modify this committee
-	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
-	// Auditor user IDs who can audit this committee
-	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// The name of the SSO group - read-only
+	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
+	// The total number of members in this committee
+	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
+	// The total number of repositories with voting permissions for this committee
+	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -464,22 +462,23 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 
 // NewCreateCommitteeResponseBody builds the HTTP response body from the result
 // of the "create-committee" endpoint of the "committee-service" service.
-func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFull) *CreateCommitteeResponseBody {
+func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReadonlyAttributes) *CreateCommitteeResponseBody {
 	body := &CreateCommitteeResponseBody{
-		ProjectUID:            res.ProjectUID,
-		Name:                  res.Name,
-		Category:              res.Category,
-		Description:           res.Description,
-		Website:               res.Website,
-		EnableVoting:          res.EnableVoting,
-		SsoGroupEnabled:       res.SsoGroupEnabled,
-		RequiresReview:        res.RequiresReview,
-		Public:                res.Public,
-		DisplayName:           res.DisplayName,
-		ParentUID:             res.ParentUID,
-		BusinessEmailRequired: res.BusinessEmailRequired,
-		LastReviewedAt:        res.LastReviewedAt,
-		LastReviewedBy:        res.LastReviewedBy,
+		UID:              res.UID,
+		ProjectUID:       res.ProjectUID,
+		Name:             res.Name,
+		Category:         res.Category,
+		Description:      res.Description,
+		Website:          res.Website,
+		EnableVoting:     res.EnableVoting,
+		SsoGroupEnabled:  res.SsoGroupEnabled,
+		RequiresReview:   res.RequiresReview,
+		Public:           res.Public,
+		DisplayName:      res.DisplayName,
+		ParentUID:        res.ParentUID,
+		SsoGroupName:     res.SsoGroupName,
+		TotalMembers:     res.TotalMembers,
+		TotalVotingRepos: res.TotalVotingRepos,
 	}
 	{
 		var zero bool
@@ -517,24 +516,6 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFull) *Create
 			if body.Calendar.Public == zero {
 				body.Calendar.Public = false
 			}
-		}
-	}
-	{
-		var zero bool
-		if body.BusinessEmailRequired == zero {
-			body.BusinessEmailRequired = false
-		}
-	}
-	if res.Writers != nil {
-		body.Writers = make([]string, len(res.Writers))
-		for i, val := range res.Writers {
-			body.Writers[i] = val
-		}
-	}
-	if res.Auditors != nil {
-		body.Auditors = make([]string, len(res.Auditors))
-		for i, val := range res.Auditors {
-			body.Auditors[i] = val
 		}
 	}
 	return body

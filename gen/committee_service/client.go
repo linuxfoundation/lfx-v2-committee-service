@@ -49,13 +49,13 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) CreateCommittee(ctx context.Context, p *CreateCommitteePayload) (res *CommitteeFull, err error) {
+func (c *Client) CreateCommittee(ctx context.Context, p *CreateCommitteePayload) (res *CommitteeFullWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.CreateCommitteeEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeFull), nil
+	return ires.(*CommitteeFullWithReadonlyAttributes), nil
 }
 
 // GetCommitteeBase calls the "get-committee-base" endpoint of the

@@ -24,7 +24,7 @@ import (
 // the committee-service create-committee endpoint.
 func EncodeCreateCommitteeResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeFull)
+		res, _ := v.(*committeeservice.CommitteeFullWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewCreateCommitteeResponseBody(res)
 		w.WriteHeader(http.StatusCreated)

@@ -8,17 +8,23 @@ import (
 	"fmt"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/usecase"
+
 	"goa.design/clue/log"
 	"goa.design/goa/v3/security"
 )
 
-// committee-service service example implementation.
-// The example methods log the requests and return zero values.
-type committeeServicesrvc struct{}
+// committeeServicesrvc service implementation with clean architecture
+type committeeServicesrvc struct {
+	committeeWriterOrchestrator usecase.CommitteeWriter
+}
 
-// NewCommitteeService returns the committee-service service implementation.
-func NewCommitteeService() committeeservice.Service {
-	return &committeeServicesrvc{}
+// NewCommitteeService returns the committee-service service implementation with dependencies.
+func NewCommitteeService(createCommitteeUseCase usecase.CommitteeWriter) committeeservice.Service {
+	return &committeeServicesrvc{
+		committeeWriterOrchestrator: createCommitteeUseCase,
+	}
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -42,10 +48,62 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 }
 
 // Create Committee
-func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committeeservice.CreateCommitteePayload) (res *committeeservice.CommitteeFull, err error) {
-	res = &committeeservice.CommitteeFull{}
+func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committeeservice.CreateCommitteePayload) (res *committeeservice.CommitteeFullWithReadonlyAttributes, err error) {
 	log.Printf(ctx, "committeeService.create-committee")
-	return
+
+	// Convert payload to DTO
+	request := s.convertPayloadToDomain(p)
+
+	// Execute use case
+	response, err := s.committeeWriterOrchestrator.Create(ctx, request)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert response to GOA result
+	result := s.convertDomainToReponse(response)
+
+	return result, nil
+}
+
+// convertPayloadToDomain converts GOA payload to domain model
+func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.CreateCommitteePayload) *model.Committee {
+	// TODO
+	request := &model.Committee{
+		ProjectUID:      *p.ProjectUID,
+		Name:            p.Name,
+		Category:        p.Category,
+		Description:     *p.Description,
+		Website:         p.Website,
+		EnableVoting:    p.EnableVoting,
+		SSOGroupEnabled: p.SsoGroupEnabled,
+		RequiresReview:  p.RequiresReview,
+		Public:          p.Public,
+		DisplayName:     *p.DisplayName,
+		ParentUID:       p.ParentUID,
+		//Calendar:        p.Calendar,
+	}
+
+	return request
+}
+
+func (s *committeeServicesrvc) convertDomainToReponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
+	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
+		UID:             &response.UID,
+		ProjectUID:      &response.ProjectUID,
+		Name:            &response.Name,
+		Category:        &response.Category,
+		Description:     &response.Description,
+		Website:         response.Website,
+		EnableVoting:    response.EnableVoting,
+		SsoGroupEnabled: response.SSOGroupEnabled,
+		Public:          response.Public,
+		DisplayName:     &response.DisplayName,
+		ParentUID:       response.ParentUID,
+	}
+
+	return result
+
 }
 
 // Get Committee

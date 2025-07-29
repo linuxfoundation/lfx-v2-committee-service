@@ -111,6 +111,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
 	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
@@ -140,16 +142,12 @@ type CreateCommitteeResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
-	// Whether business email is required for committee members
-	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
-	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
-	// The user ID who last reviewed this committee
-	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Manager user IDs who can edit/modify this committee
-	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
-	// Auditor user IDs who can audit this committee
-	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// The name of the SSO group - read-only
+	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
+	// The total number of members in this committee
+	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
+	// The total number of repositories with voting permissions for this committee
+	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -622,19 +620,22 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 	return body
 }
 
-// NewCreateCommitteeCommitteeFullCreated builds a "committee-service" service
-// "create-committee" endpoint result from a HTTP "Created" response.
-func NewCreateCommitteeCommitteeFullCreated(body *CreateCommitteeResponseBody) *committeeservice.CommitteeFull {
-	v := &committeeservice.CommitteeFull{
-		ProjectUID:     body.ProjectUID,
-		Name:           body.Name,
-		Category:       body.Category,
-		Description:    body.Description,
-		Website:        body.Website,
-		DisplayName:    body.DisplayName,
-		ParentUID:      body.ParentUID,
-		LastReviewedAt: body.LastReviewedAt,
-		LastReviewedBy: body.LastReviewedBy,
+// NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated builds a
+// "committee-service" service "create-committee" endpoint result from a HTTP
+// "Created" response.
+func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCommitteeResponseBody) *committeeservice.CommitteeFullWithReadonlyAttributes {
+	v := &committeeservice.CommitteeFullWithReadonlyAttributes{
+		UID:              body.UID,
+		ProjectUID:       body.ProjectUID,
+		Name:             body.Name,
+		Category:         body.Category,
+		Description:      body.Description,
+		Website:          body.Website,
+		DisplayName:      body.DisplayName,
+		ParentUID:        body.ParentUID,
+		SsoGroupName:     body.SsoGroupName,
+		TotalMembers:     body.TotalMembers,
+		TotalVotingRepos: body.TotalVotingRepos,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -647,9 +648,6 @@ func NewCreateCommitteeCommitteeFullCreated(body *CreateCommitteeResponseBody) *
 	}
 	if body.Public != nil {
 		v.Public = *body.Public
-	}
-	if body.BusinessEmailRequired != nil {
-		v.BusinessEmailRequired = *body.BusinessEmailRequired
 	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
@@ -673,21 +671,6 @@ func NewCreateCommitteeCommitteeFullCreated(body *CreateCommitteeResponseBody) *
 		}
 		if body.Calendar.Public == nil {
 			v.Calendar.Public = false
-		}
-	}
-	if body.BusinessEmailRequired == nil {
-		v.BusinessEmailRequired = false
-	}
-	if body.Writers != nil {
-		v.Writers = make([]string, len(body.Writers))
-		for i, val := range body.Writers {
-			v.Writers[i] = val
-		}
-	}
-	if body.Auditors != nil {
-		v.Auditors = make([]string, len(body.Auditors))
-		for i, val := range body.Auditors {
-			v.Auditors[i] = val
 		}
 	}
 
@@ -1089,6 +1072,9 @@ func NewReadyzServiceUnavailable(body *ReadyzServiceUnavailableResponseBody) *co
 // ValidateCreateCommitteeResponseBody runs the validations defined on
 // Create-CommitteeResponseBody
 func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
 	if body.ProjectUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
@@ -1121,8 +1107,15 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
-	if body.LastReviewedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
+	if body.TotalMembers != nil {
+		if *body.TotalMembers < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
+		}
+	}
+	if body.TotalVotingRepos != nil {
+		if *body.TotalVotingRepos < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
+		}
 	}
 	return
 }
