@@ -22,8 +22,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "first time creation with empty SSO group name",
 			committee: Committee{
-				Name:         "Technical Steering Committee",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "Technical Steering Committee",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "kubernetes",
 			expectedGroupName: "kubernetes-technical-steering-committee-1",
@@ -32,8 +34,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "first time creation with simple name",
 			committee: Committee{
-				Name:         "Security",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "Security",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "linux",
 			expectedGroupName: "linux-security-1",
@@ -42,8 +46,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "increment existing SSO group name",
 			committee: Committee{
-				Name:         "Technical Committee",
-				SSOGroupName: "kubernetes-technical-committee-1",
+				CommitteeBase: CommitteeBase{
+					Name:         "Technical Committee",
+					SSOGroupName: "kubernetes-technical-committee-1",
+				},
 			},
 			projectSlug:       "kubernetes",
 			expectedGroupName: "kubernetes-technical-committee-2",
@@ -52,8 +58,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "increment existing SSO group name with higher index",
 			committee: Committee{
-				Name:         "Governance",
-				SSOGroupName: "project-governance-5",
+				CommitteeBase: CommitteeBase{
+					Name:         "Governance",
+					SSOGroupName: "project-governance-5",
+				},
 			},
 			projectSlug:       "project",
 			expectedGroupName: "project-governance-6",
@@ -62,8 +70,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "handle special characters in committee name",
 			committee: Committee{
-				Name:         "API & Documentation Committee",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "API & Documentation Committee",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "openapi",
 			expectedGroupName: "openapi-api-and-documentation-committee-1",
@@ -72,8 +82,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "handle special characters in project slug",
 			committee: Committee{
-				Name:         "Core Team",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "Core Team",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "my-awesome-project",
 			expectedGroupName: "my-awesome-project-core-team-1",
@@ -82,8 +94,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "handle unicode characters",
 			committee: Committee{
-				Name:         "Développement Committee",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "Développement Committee",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "français",
 			expectedGroupName: "francais-developpement-committee-1",
@@ -92,8 +106,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "invalid index in existing SSO group name",
 			committee: Committee{
-				Name:         "Testing Committee",
-				SSOGroupName: "project-testing-committee-invalid",
+				CommitteeBase: CommitteeBase{
+					Name:         "Testing Committee",
+					SSOGroupName: "project-testing-committee-invalid",
+				},
 			},
 			projectSlug:  "project",
 			expectError:  true,
@@ -102,8 +118,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "invalid index with non-numeric suffix",
 			committee: Committee{
-				Name:         "Review Committee",
-				SSOGroupName: "project-review-committee-abc",
+				CommitteeBase: CommitteeBase{
+					Name:         "Review Committee",
+					SSOGroupName: "project-review-committee-abc",
+				},
 			},
 			projectSlug:  "project",
 			expectError:  true,
@@ -112,8 +130,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "existing SSO group name with multiple dashes",
 			committee: Committee{
-				Name:         "Multi-Word-Committee",
-				SSOGroupName: "multi-word-project-multi-word-committee-3",
+				CommitteeBase: CommitteeBase{
+					Name:         "Multi-Word-Committee",
+					SSOGroupName: "multi-word-project-multi-word-committee-3",
+				},
 			},
 			projectSlug:       "multi-word-project",
 			expectedGroupName: "multi-word-project-multi-word-committee-4",
@@ -122,8 +142,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "empty project slug",
 			committee: Committee{
-				Name:         "Committee",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "Committee",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "",
 			expectedGroupName: "committee-1",
@@ -132,8 +154,10 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		{
 			name: "empty committee name",
 			committee: Committee{
-				Name:         "",
-				SSOGroupName: "",
+				CommitteeBase: CommitteeBase{
+					Name:         "",
+					SSOGroupName: "",
+				},
 			},
 			projectSlug:       "project",
 			expectedGroupName: "project-1",
@@ -153,16 +177,18 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				assert.Contains(t, err.Error(), tc.errorMessage)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedGroupName, committee.SSOGroupName)
+				assert.Equal(t, tc.expectedGroupName, committee.CommitteeBase.SSOGroupName)
 			}
 		})
 	}
 }
 
-func TestCommitteeSSOGroupNameBuild_Idempotent(t *testing.T) {
+func TestCommitteeSSOGroupNameBuildIdempotent(t *testing.T) {
 	committee := Committee{
-		Name:         "Idempotent Committee",
-		SSOGroupName: "",
+		CommitteeBase: CommitteeBase{
+			Name:         "Idempotent Committee",
+			SSOGroupName: "",
+		},
 	}
 	ctx := context.Background()
 	projectSlug := "test-project"
@@ -170,14 +196,255 @@ func TestCommitteeSSOGroupNameBuild_Idempotent(t *testing.T) {
 	// First call
 	err1 := committee.SSOGroupNameBuild(ctx, projectSlug)
 	assert.NoError(t, err1)
-	firstResult := committee.SSOGroupName
+	firstResult := committee.CommitteeBase.SSOGroupName
 
 	// Second call should increment the index
 	err2 := committee.SSOGroupNameBuild(ctx, projectSlug)
 	assert.NoError(t, err2)
-	secondResult := committee.SSOGroupName
+	secondResult := committee.CommitteeBase.SSOGroupName
 
 	assert.Equal(t, "test-project-idempotent-committee-1", firstResult)
 	assert.Equal(t, "test-project-idempotent-committee-2", secondResult)
 	assert.NotEqual(t, firstResult, secondResult)
+}
+
+func TestCommitteeBuildIndexKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		committee   Committee
+		expectedKey string
+	}{
+		{
+			name: "basic functionality",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-123",
+					Name:       "Technical Committee",
+				},
+			},
+			expectedKey: "c5f3a7e8d9b2f1a4c6e8d9b2f1a4c6e8d9b2f1a4c6e8d9b2f1a4c6e8d9b2f1a4", // This will be calculated
+		},
+		{
+			name: "different project same committee",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-456",
+					Name:       "Technical Committee",
+				},
+			},
+			expectedKey: "", // Will be different from above
+		},
+		{
+			name: "same project different committee",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-123",
+					Name:       "Security Committee",
+				},
+			},
+			expectedKey: "", // Will be different from first test
+		},
+		{
+			name: "empty committee name",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-123",
+					Name:       "",
+				},
+			},
+			expectedKey: "", // Should still generate a valid hash
+		},
+		{
+			name: "empty project uid",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "",
+					Name:       "Technical Committee",
+				},
+			},
+			expectedKey: "", // Should still generate a valid hash
+		},
+		{
+			name: "special characters in name",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-123",
+					Name:       "API & Documentation Committee!",
+				},
+			},
+			expectedKey: "", // Should handle special characters
+		},
+		{
+			name: "unicode characters",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-français",
+					Name:       "Développement Committee",
+				},
+			},
+			expectedKey: "", // Should handle unicode
+		},
+		{
+			name: "very long names",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "very-long-project-uid-with-many-characters-and-details",
+					Name:       "Very Long Committee Name With Many Words And Detailed Description",
+				},
+			},
+			expectedKey: "", // Should handle long strings
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			key := tc.committee.BuildIndexKey(ctx)
+
+			// Verify the key is not empty
+			assert.NotEmpty(t, key)
+
+			// Verify the key is a valid hex string (64 characters for SHA256)
+			assert.Len(t, key, 64)
+			assert.Regexp(t, "^[a-f0-9]+$", key)
+		})
+	}
+}
+
+func TestCommitteeBuildIndexKey_Deterministic(t *testing.T) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-123",
+			Name:       "Technical Committee",
+		},
+	}
+	ctx := context.Background()
+
+	// Generate key multiple times
+	key1 := committee.BuildIndexKey(ctx)
+	key2 := committee.BuildIndexKey(ctx)
+	key3 := committee.BuildIndexKey(ctx)
+
+	// All keys should be identical (deterministic)
+	assert.Equal(t, key1, key2)
+	assert.Equal(t, key2, key3)
+	assert.Equal(t, key1, key3)
+}
+
+func TestCommitteeBuildIndexKey_UniqueForDifferentInputs(t *testing.T) {
+	ctx := context.Background()
+
+	committee1 := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-123",
+			Name:       "Technical Committee",
+		},
+	}
+
+	committee2 := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-456",
+			Name:       "Technical Committee",
+		},
+	}
+
+	committee3 := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-123",
+			Name:       "Security Committee",
+		},
+	}
+
+	key1 := committee1.BuildIndexKey(ctx)
+	key2 := committee2.BuildIndexKey(ctx)
+	key3 := committee3.BuildIndexKey(ctx)
+
+	// All keys should be different
+	assert.NotEqual(t, key1, key2)
+	assert.NotEqual(t, key1, key3)
+	assert.NotEqual(t, key2, key3)
+
+	// Verify they are all valid hex strings
+	for _, key := range []string{key1, key2, key3} {
+		assert.Len(t, key, 64)
+		assert.Regexp(t, "^[a-f0-9]+$", key)
+	}
+}
+
+func BenchmarkCommitteeBuildIndexKey(b *testing.B) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-123",
+			Name:       "Technical Committee",
+		},
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = committee.BuildIndexKey(ctx)
+	}
+}
+
+func BenchmarkCommitteeBuildIndexKey_ShortNames(b *testing.B) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "p1",
+			Name:       "TC",
+		},
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = committee.BuildIndexKey(ctx)
+	}
+}
+
+func BenchmarkCommitteeBuildIndexKey_LongNames(b *testing.B) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "very-long-project-uid-with-many-characters-and-details-that-makes-it-quite-lengthy",
+			Name:       "Very Long Committee Name With Many Words And Detailed Description That Goes On And On",
+		},
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = committee.BuildIndexKey(ctx)
+	}
+}
+
+func BenchmarkCommitteeBuildIndexKey_UnicodeNames(b *testing.B) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-français-中文-русский",
+			Name:       "Développement Committee 开发委员会 Комитет разработки",
+		},
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = committee.BuildIndexKey(ctx)
+	}
+}
+
+func BenchmarkCommitteeBuildIndexKey_Parallel(b *testing.B) {
+	committee := Committee{
+		CommitteeBase: CommitteeBase{
+			ProjectUID: "proj-123",
+			Name:       "Technical Committee",
+		},
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = committee.BuildIndexKey(ctx)
+		}
+	})
 }

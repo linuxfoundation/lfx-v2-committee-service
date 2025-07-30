@@ -5,6 +5,8 @@ package model
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -18,6 +20,12 @@ import (
 
 // Committee represents the core committee business entity
 type Committee struct {
+	CommitteeBase
+	*CommitteeSettings
+}
+
+// Committee represents the core committee business entity
+type CommitteeBase struct {
 	UID              string    `json:"uid"`
 	ProjectUID       string    `json:"project_uid"`
 	Name             string    `json:"name"`
@@ -36,7 +44,6 @@ type Committee struct {
 	TotalVotingRepos int       `json:"total_voting_repos"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
-	CommitteeSettings
 }
 
 // Calendar represents committee calendar settings
@@ -44,6 +51,7 @@ type Calendar struct {
 	Public bool `json:"public"`
 }
 
+// SSOGroupNameBuild builds the SSO group name for the committee based on the project slug and committee name.
 func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) error {
 
 	ind := 1
@@ -66,4 +74,23 @@ func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) e
 
 	return nil
 
+}
+
+// BuildIndexKey generates a unique hash key from ProjectUID and committee Name
+// for use as a secondary index in NoSQL databases
+func (c *Committee) BuildIndexKey(ctx context.Context) string {
+	// Combine project_uid and committee name with a delimiter
+	data := fmt.Sprintf("%s|%s", c.ProjectUID, c.Name)
+
+	hash := sha256.Sum256([]byte(data))
+
+	key := hex.EncodeToString(hash[:])
+
+	slog.DebugContext(ctx, "index key built",
+		"project_uid", c.ProjectUID,
+		"committee_name", c.Name,
+		"key", key,
+	)
+
+	return key
 }

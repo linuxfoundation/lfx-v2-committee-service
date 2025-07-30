@@ -30,7 +30,7 @@ func WithCommitteeWriter(writer port.CommitteeWriter) committeeWriterOrchestrato
 }
 
 // WithCommitteeRetriever sets the committee retriever
-func WithCommitteeRetriever(retriever port.CommitteeRetriever) committeeWriterOrchestratorOption {
+func WithCommitteeRetriever(retriever port.CommitteeReader) committeeWriterOrchestratorOption {
 	return func(u *committeeWriterOrchestrator) {
 		u.committeeRetriever = retriever
 	}
@@ -46,7 +46,7 @@ func WithProjectRetriever(retriever port.ProjectRetriever) committeeWriterOrches
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	committeeWriter    port.CommitteeWriter
-	committeeRetriever port.CommitteeRetriever
+	committeeRetriever port.CommitteeReader
 	projectRetriever   port.ProjectRetriever
 }
 
@@ -74,7 +74,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 	// Check parent committee exists (if specified)
 	if committee.ParentUID != nil && *committee.ParentUID != "" {
-		parent, errParent := uc.committeeRetriever.Base().Get(ctx, *committee.ParentUID)
+		parent, errParent := uc.committeeRetriever.GetBase(ctx, *committee.ParentUID)
 		if err != nil {
 			slog.ErrorContext(ctx, "parent committee not found",
 				"error", errParent,
@@ -90,7 +90,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 
 	// Check if the project and committee name already exist
-	existing, errByName := uc.committeeRetriever.Base().ByNameProject(ctx, committee.Name, committee.ProjectUID)
+	existing, errByName := uc.committeeRetriever.ByNameProject(ctx, committee.BuildIndexKey(ctx))
 	if errByName != nil && !strings.Contains(errByName.Error(), "not found") {
 		slog.ErrorContext(ctx, "failed to check committee existence by name",
 			"error", errByName,
@@ -127,7 +127,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 				"sso_group_name", committee.SSOGroupName,
 			)
 
-			existing, errBySSOGroupName := uc.committeeRetriever.Base().BySSOGroupName(ctx, committee.SSOGroupName)
+			existing, errBySSOGroupName := uc.committeeRetriever.BySSOGroupName(ctx, committee.SSOGroupName)
 			if errBySSOGroupName != nil && !strings.Contains(errBySSOGroupName.Error(), "not found") {
 				slog.ErrorContext(ctx, "failed to check SSO group existence",
 					"error", errBySSOGroupName,
@@ -146,13 +146,13 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 
 	// Create the committee
-	err = uc.committeeWriter.Base().Create(ctx, committee)
-	if err != nil {
+	errCreate := uc.committeeWriter.Create(ctx, committee)
+	if errCreate != nil {
 		slog.ErrorContext(ctx, "failed to create committee",
-			"error", err,
+			"error", errCreate,
 			"committee_uid", committee.UID,
 		)
-		return nil, errors.NewUnexpected("failed to create committee", err)
+		return nil, errCreate
 	}
 
 	slog.InfoContext(ctx, "committee created successfully",

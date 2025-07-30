@@ -8,17 +8,80 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strconv"
+	"sync"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure"
+	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 )
 
-// CommitteeWriterImpl initializes the committee writer implementation based on the repository source
-func CommitteeRetrieverImpl(ctx context.Context) port.CommitteeRetriever {
-	var committeeRetriever port.CommitteeRetriever
+var (
+	natsStorage     port.CommitteeReaderWriter
+	natsStorageOnce sync.Once
+)
+
+func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
+
+	natsStorageOnce.Do(func() {
+		natsURL := os.Getenv("NATS_URL")
+		if natsURL == "" {
+			natsURL = "nats://localhost:4222"
+		}
+
+		natsTimeout := os.Getenv("NATS_TIMEOUT")
+		if natsTimeout == "" {
+			natsTimeout = "10s"
+		}
+		natsTimeoutDuration, err := time.ParseDuration(natsTimeout)
+		if err != nil {
+			log.Fatalf("invalid NATS timeout duration: %v", err)
+		}
+
+		natsMaxReconnect := os.Getenv("NATS_MAX_RECONNECT")
+		if natsMaxReconnect == "" {
+			natsMaxReconnect = "3"
+		}
+		natsMaxReconnectInt, err := strconv.Atoi(natsMaxReconnect)
+		if err != nil {
+			log.Fatalf("invalid NATS max reconnect value %s: %v", natsMaxReconnect, err)
+		}
+
+		natsReconnectWait := os.Getenv("NATS_RECONNECT_WAIT")
+		if natsReconnectWait == "" {
+			natsReconnectWait = "2s"
+		}
+		natsReconnectWaitDuration, err := time.ParseDuration(natsReconnectWait)
+		if err != nil {
+			log.Fatalf("invalid NATS reconnect wait duration %s : %v", natsReconnectWait, err)
+		}
+
+		config := nats.Config{
+			URL:           natsURL,
+			Timeout:       natsTimeoutDuration,
+			MaxReconnect:  natsMaxReconnectInt,
+			ReconnectWait: natsReconnectWaitDuration,
+		}
+
+		natsClient, errNewClient := nats.NewClient(ctx, config)
+		if errNewClient != nil {
+			log.Fatalf("failed to create NATS client: %v", errNewClient)
+		}
+		natsStorage = nats.NewStorage(natsClient)
+	})
+
+	return natsStorage
+
+}
+
+// CommitteeReaderImpl initializes the committee reader implementation based on the repository source
+func CommitteeReaderImpl(ctx context.Context) port.CommitteeReader {
+	var committeeRetriever port.CommitteeReader
 
 	// Repository implementation configuration
-	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	//repoSource := os.Getenv("REPOSITORY_SOURCE")
+	repoSource := "mock"
 	if repoSource == "" {
 		repoSource = "mock"
 	}
@@ -26,16 +89,18 @@ func CommitteeRetrieverImpl(ctx context.Context) port.CommitteeRetriever {
 	switch repoSource {
 	case "mock":
 		slog.InfoContext(ctx, "initializing mock committee retriever")
-		committeeRetriever = infrastructure.NewMockCommitteeRetriever(infrastructure.NewMockRepository())
+		committeeRetriever = infrastructure.NewMockCommitteeReader(infrastructure.NewMockRepository())
 
-	// Add other repository implementations here (e.g., database, etc.)
-	// case "database":
-	//     slog.InfoContext(ctx, "initializing database committee retriever")
-	//     // Initialize database connection and create database repository
-	//     committeeRetriever = database.NewCommitteeRetriever(dbConn)
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS committee retriever")
+		natsClient := natsStorageImpl(ctx)
+		if natsClient == nil {
+			log.Fatalf("failed to initialize NATS client")
+		}
+		committeeRetriever = natsClient
 
 	default:
-		log.Fatalf("unsupported repository implementation: %s", repoSource)
+		log.Fatalf("unsupported committee reader implementation: %s", repoSource)
 	}
 
 	return committeeRetriever
@@ -56,14 +121,16 @@ func CommitteeWriterImpl(ctx context.Context) port.CommitteeWriter {
 		slog.InfoContext(ctx, "initializing mock committee writer")
 		committeeWriter = infrastructure.NewMockCommitteeWriter(infrastructure.NewMockRepository())
 
-	// Add other repository implementations here (e.g., database, etc.)
-	// case "database":
-	//     slog.InfoContext(ctx, "initializing database committee writer")
-	//     // Initialize database connection and create database repository
-	//     committeeWriter = database.NewCommitteeWriter(dbConn)
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS committee retriever")
+		natsClient := natsStorageImpl(ctx)
+		if natsClient == nil {
+			log.Fatalf("failed to initialize NATS client")
+		}
+		committeeWriter = natsClient
 
 	default:
-		log.Fatalf("unsupported repository implementation: %s", repoSource)
+		log.Fatalf("unsupported committee writer implementation: %s", repoSource)
 	}
 
 	return committeeWriter
@@ -74,7 +141,8 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectRetriever {
 	var projectRetriever port.ProjectRetriever
 
 	// Repository implementation configuration
-	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	//repoSource := os.Getenv("REPOSITORY_SOURCE")
+	repoSource := "mock"
 	if repoSource == "" {
 		repoSource = "mock"
 	}
@@ -91,7 +159,7 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectRetriever {
 	//     projectRetriever = database.NewProjectRetriever(dbConn)
 
 	default:
-		log.Fatalf("unsupported repository implementation: %s", repoSource)
+		log.Fatalf("unsupported proejct reader implementation: %s", repoSource)
 	}
 
 	return projectRetriever

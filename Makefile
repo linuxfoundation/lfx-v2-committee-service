@@ -1,7 +1,7 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 
-APP_NAME := lfx-committee-service
+APP_NAME := lfx-v2-committee-service
 VERSION := $(shell git describe --tags --always)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GIT_COMMIT := $(shell git rev-parse HEAD)
@@ -12,8 +12,8 @@ DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
 DOCKER_TAG := $(VERSION)
 
 # Helm variables
-HELM_CHART_PATH=./charts/lfx-committee-service
-HELM_RELEASE_NAME=lfx-v2-lfx-committee-service
+HELM_CHART_PATH=./charts/lfx-v2-committee-service
+HELM_RELEASE_NAME=lfx-v2-committee-service
 HELM_NAMESPACE=lfx
 
 # Go
@@ -65,7 +65,7 @@ build: ## Build the application for local OS
 	@echo "Building application for local development..."
 	go build \
 		-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.gitCommit=$(GIT_COMMIT)" \
-		-o bin/$(APP_NAME) ./cmd
+		-o bin/$(APP_NAME) ./cmd/committee-api
 
 .PHONY: run
 run: build ## Run the application for local development

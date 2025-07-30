@@ -59,7 +59,7 @@ func main() {
 	)
 
 	// Initialize the repositories based on configuration
-	committeeRetriever := service.CommitteeRetrieverImpl(ctx)
+	committeeRetriever := service.CommitteeReaderImpl(ctx)
 	committeeWriter := service.CommitteeWriterImpl(ctx)
 	projectRetriever := service.ProjectRetrieverImpl(ctx)
 

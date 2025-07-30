@@ -11,19 +11,19 @@ import (
 
 // CommitteeWriter provides access to committee writing operations
 type CommitteeWriter interface {
-	Base() CommitteeBaseWriter
-	Settings() CommitteeSettingsWriter
+	CommitteeBaseWriter
+	CommitteeSettingsWriter
 }
 
 // CommitteeBaseWriter handles committee base data writing operations
 // For create and delete, settings will be created or deleted as well
 type CommitteeBaseWriter interface {
 	Create(ctx context.Context, committee *model.Committee) error
-	Update(ctx context.Context, committee *model.Committee) error
+	UpdateBase(ctx context.Context, committee *model.Committee) error
 	Delete(ctx context.Context, uid string) error
 }
 
 // CommitteeSettingsWriter handles committee settings writing operations
 type CommitteeSettingsWriter interface {
-	Update(ctx context.Context, settings *model.CommitteeSettings) error
-} 
+	UpdateSetting(ctx context.Context, settings *model.CommitteeSettings) error
+}

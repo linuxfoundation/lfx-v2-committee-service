@@ -28,7 +28,8 @@ spec:
           config:
             values:
               relation: writer
-              object: "project:{{ .Request.Body.project_uid }}"
+              object: "project:{{ "{{- .Request.Body.project_uid -}}" }}"
+
         {{- else -}}
         - authorizer: allow_all
         {{- end }}

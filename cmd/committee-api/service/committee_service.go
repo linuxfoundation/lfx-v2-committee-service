@@ -76,18 +76,20 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.CreateCommitteePayload) *model.Committee {
 	// TODO
 	request := &model.Committee{
-		ProjectUID:      *p.ProjectUID,
-		Name:            p.Name,
-		Category:        p.Category,
-		Description:     *p.Description,
-		Website:         p.Website,
-		EnableVoting:    p.EnableVoting,
-		SSOGroupEnabled: p.SsoGroupEnabled,
-		RequiresReview:  p.RequiresReview,
-		Public:          p.Public,
-		DisplayName:     *p.DisplayName,
-		ParentUID:       p.ParentUID,
-		//Calendar:        p.Calendar,
+		CommitteeBase: model.CommitteeBase{
+			ProjectUID:      *p.ProjectUID,
+			Name:            p.Name,
+			Category:        p.Category,
+			Description:     *p.Description,
+			Website:         p.Website,
+			EnableVoting:    p.EnableVoting,
+			SSOGroupEnabled: p.SsoGroupEnabled,
+			RequiresReview:  p.RequiresReview,
+			Public:          p.Public,
+			DisplayName:     *p.DisplayName,
+			ParentUID:       p.ParentUID,
+			//Calendar:        p.Calendar,
+		},
 	}
 
 	return request
