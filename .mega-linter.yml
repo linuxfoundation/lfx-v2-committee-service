@@ -17,9 +17,6 @@ DISABLE_LINTERS:
   - SPELL_CSPELL
   # yamllint is sufficient for us.
   - YAML_PRETTIER
-  # Go version compatibility issue with MegaLinter Docker container
-  ## stderr: go: go.mod requires go >= 1.24.2 (running go 1.23.8; GOTOOLCHAIN=local)
-  - GO_GOLANGCI_LINT
 DISABLE_ERRORS_LINTERS:
   # This may be informative but doesn't need to break the build.
   - COPYPASTE_JSCPD
