@@ -17,12 +17,11 @@ type CommitteeReader interface {
 
 // CommitteeBaseReader handles committee base data reading operations
 type CommitteeBaseReader interface {
-	GetBase(ctx context.Context, uid string) (*model.Committee, error)
-	ByNameProject(ctx context.Context, nameProjectKey string) (*model.Committee, error)
-	BySSOGroupName(ctx context.Context, name string) (*model.Committee, error)
+	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
+	GetRevision(ctx context.Context, uid string) (uint64, error)
 }
 
 // CommitteeSettingsReader handles committee settings reading operations
 type CommitteeSettingsReader interface {
-	GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, error)
+	GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error)
 }

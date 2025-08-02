@@ -19,11 +19,15 @@ type CommitteeWriter interface {
 // For create and delete, settings will be created or deleted as well
 type CommitteeBaseWriter interface {
 	Create(ctx context.Context, committee *model.Committee) error
-	UpdateBase(ctx context.Context, committee *model.Committee) error
-	Delete(ctx context.Context, uid string) error
+	UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error
+	Delete(ctx context.Context, uid string, revision uint64) error
+
+	// Checkers for uniqueness
+	UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error)
+	UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error)
 }
 
 // CommitteeSettingsWriter handles committee settings writing operations
 type CommitteeSettingsWriter interface {
-	UpdateSetting(ctx context.Context, settings *model.CommitteeSettings) error
+	UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error
 }

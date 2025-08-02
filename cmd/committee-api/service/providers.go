@@ -18,13 +18,15 @@ import (
 )
 
 var (
-	natsStorage     port.CommitteeReaderWriter
-	natsStorageOnce sync.Once
+	natsStorage   port.CommitteeReaderWriter
+	natsMessaging port.ProjectReader
+
+	natsDoOnce sync.Once
 )
 
-func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
+func natsInit(ctx context.Context) {
 
-	natsStorageOnce.Do(func() {
+	natsDoOnce.Do(func() {
 		natsURL := os.Getenv("NATS_URL")
 		if natsURL == "" {
 			natsURL = "nats://localhost:4222"
@@ -69,10 +71,18 @@ func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
 			log.Fatalf("failed to create NATS client: %v", errNewClient)
 		}
 		natsStorage = nats.NewStorage(natsClient)
+		natsMessaging = nats.NewMessage(natsClient)
 	})
+}
 
+func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
+	natsInit(ctx)
 	return natsStorage
+}
 
+func natsMessagingImpl(ctx context.Context) port.ProjectReader {
+	natsInit(ctx)
+	return natsMessaging
 }
 
 // CommitteeReaderImpl initializes the committee reader implementation based on the repository source
@@ -80,8 +90,7 @@ func CommitteeReaderImpl(ctx context.Context) port.CommitteeReader {
 	var committeeRetriever port.CommitteeReader
 
 	// Repository implementation configuration
-	//repoSource := os.Getenv("REPOSITORY_SOURCE")
-	repoSource := "mock"
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
 		repoSource = "mock"
 	}
@@ -137,12 +146,11 @@ func CommitteeWriterImpl(ctx context.Context) port.CommitteeWriter {
 }
 
 // ProjectRetrieverImpl initializes the project retriever implementation based on the repository source
-func ProjectRetrieverImpl(ctx context.Context) port.ProjectRetriever {
-	var projectRetriever port.ProjectRetriever
+func ProjectRetrieverImpl(ctx context.Context) port.ProjectReader {
+	var projectReader port.ProjectReader
 
 	// Repository implementation configuration
-	//repoSource := os.Getenv("REPOSITORY_SOURCE")
-	repoSource := "mock"
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
 		repoSource = "mock"
 	}
@@ -150,17 +158,19 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectRetriever {
 	switch repoSource {
 	case "mock":
 		slog.InfoContext(ctx, "initializing mock project retriever")
-		projectRetriever = infrastructure.NewMockProjectRetriever(infrastructure.NewMockRepository())
+		projectReader = infrastructure.NewMockProjectRetriever(infrastructure.NewMockRepository())
 
-	// Add other repository implementations here (e.g., database, etc.)
-	// case "database":
-	//     slog.InfoContext(ctx, "initializing database project retriever")
-	//     // Initialize database connection and create database repository
-	//     projectRetriever = database.NewProjectRetriever(dbConn)
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS project retriever")
+		natsClient := natsMessagingImpl(ctx)
+		if natsClient == nil {
+			log.Fatalf("failed to initialize NATS client")
+		}
+		projectReader = natsClient
 
 	default:
 		log.Fatalf("unsupported proejct reader implementation: %s", repoSource)
 	}
 
-	return projectRetriever
+	return projectReader
 }

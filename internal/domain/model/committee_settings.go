@@ -9,7 +9,7 @@ import (
 
 // CommitteeSettings represents sensitive committee settings
 type CommitteeSettings struct {
-	CommitteeUID          string     `json:"committee_uid"`
+	UID                   string     `json:"uid"`
 	BusinessEmailRequired bool       `json:"business_email_required"`
 	LastReviewedAt        *time.Time `json:"last_reviewed_at,omitempty"`
 	LastReviewedBy        *string    `json:"last_reviewed_by,omitempty"`

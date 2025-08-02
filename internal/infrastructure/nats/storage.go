@@ -23,77 +23,10 @@ type storage struct {
 	client *NATSClient
 }
 
-// checkUniqueness is responsible for ensuring that the committee and SSO group names are unique.
-// To ensure uniqueness for the committee and sso group name, we create secondary keys
-// in the KV store. This is done to prevent duplicate committees with the same index key
-// or SSO group name.
-func (s *storage) checkUniqueness(ctx context.Context, committee *model.Committee) (map[string][]string, error) {
-
-	// all the keys that will be created
-	// will be stored in this map, so we can rollback if needed
-	keyMapping := make(map[string][]string)
-
-	uniqueKey := fmt.Sprintf("%s/committees/%s", constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, uniqueKey, []byte(committee.CommitteeBase.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return keyMapping, errs.NewConflict("committee with the same index key already exists")
-		}
-		return keyMapping, errs.NewUnexpected("failed to create unique key for committee", errUnique)
-	}
-	keyMapping[constants.KVBucketNameCommittees] = append(keyMapping[constants.KVBucketNameCommittees], uniqueKey)
-
-	if committee.SSOGroupName != "" {
-		ssoGroupKey := fmt.Sprintf("%s/committee-sso-groups/%s", constants.KVLookupPrefix, committee.SSOGroupName)
-		_, errSSO := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, ssoGroupKey, []byte(committee.CommitteeBase.UID))
-		if errSSO != nil {
-			if errors.Is(errSSO, jetstream.ErrKeyExists) {
-				return keyMapping, errs.NewConflict("committee with the same SSO group name already exists")
-			}
-			return keyMapping, errs.NewUnexpected("failed to create unique key for SSO group name", errSSO)
-		}
-		keyMapping[constants.KVBucketNameCommittees] = append(keyMapping[constants.KVBucketNameCommittees], ssoGroupKey)
-	}
-
-	return keyMapping, nil
-}
-
 func (s *storage) Create(ctx context.Context, committee *model.Committee) error {
-
-	var (
-		keyMapping map[string][]string
-		rollback   bool
-	)
-
-	defer func() {
-		// validate atomicity
-		if rollback {
-			for bucket, keys := range keyMapping {
-				for _, key := range keys {
-					if err := s.client.kvStore[bucket].Delete(ctx, key); err != nil {
-						slog.ErrorContext(ctx, "error rolling back committee creation",
-							"key", key,
-							"error", err,
-						)
-					}
-				}
-				slog.ErrorContext(ctx, "rolled back committee creation due to error",
-					"committee_uid", committee.CommitteeBase.UID,
-					"bucket", bucket,
-				)
-			}
-
-		}
-	}()
 
 	if committee == nil {
 		return errs.NewValidation("committee cannot be nil")
-	}
-
-	keyMapping, errCheck := s.checkUniqueness(ctx, committee)
-	if errCheck != nil {
-		rollback = true
-		return errCheck
 	}
 
 	committee.CommitteeBase.UID = uid.New()
@@ -104,10 +37,8 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 
 	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, committee.CommitteeBase.UID, committeeBaseBytes)
 	if errCreate != nil {
-		rollback = true
 		return errs.NewUnexpected("failed to create committee", errCreate)
 	}
-	keyMapping[constants.KVBucketNameCommittees] = append(keyMapping[constants.KVBucketNameCommittees], committee.CommitteeBase.UID)
 
 	slog.DebugContext(ctx, "created committee in NATS storage",
 		"committee_uid", committee.CommitteeBase.UID,
@@ -116,18 +47,16 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 
 	// Create settings if they exist
 	if committee.CommitteeSettings != nil {
-		committee.CommitteeSettings.CommitteeUID = committee.CommitteeBase.UID
+		committee.CommitteeSettings.UID = committee.CommitteeBase.UID
 		settingsBytes, errMarshalSettings := json.Marshal(committee.CommitteeSettings)
 		if errMarshalSettings != nil {
-			rollback = true
 			return errs.NewUnexpected("failed to marshal committee settings", errMarshalSettings)
 		}
+
 		rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Create(ctx, committee.CommitteeBase.UID, settingsBytes)
 		if errCreate != nil {
-			rollback = true
 			return errs.NewUnexpected("failed to create committee settings", errCreate)
 		}
-		keyMapping[constants.KVBucketNameCommitteeSettings] = append(keyMapping[constants.KVBucketNameCommitteeSettings], committee.CommitteeBase.UID)
 
 		slog.DebugContext(ctx, "created committee settings in NATS storage",
 			"committee_uid", committee.CommitteeBase.UID,
@@ -138,31 +67,108 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 	return nil
 }
 
-func (s *storage) GetBase(ctx context.Context, uid string) (*model.Committee, error) {
-	return nil, nil
+func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
+
+	uniqueKey := fmt.Sprintf("%s/committees/%s", constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
+	_, errUnique := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, uniqueKey, []byte(committee.CommitteeBase.UID))
+	if errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return uniqueKey, errs.NewConflict("committee with the same name for the project already exists")
+		}
+		return uniqueKey, errs.NewUnexpected("failed to create unique key for committee", errUnique)
+	}
+	return uniqueKey, nil
 }
 
-func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, error) {
-	return nil, nil
+func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
+
+	ssoGroupKey := fmt.Sprintf("%s/committee-sso-groups/%s", constants.KVLookupPrefix, committee.SSOGroupName)
+	_, errSSO := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, ssoGroupKey, []byte(committee.CommitteeBase.UID))
+	if errSSO != nil {
+		if errors.Is(errSSO, jetstream.ErrKeyExists) {
+			return ssoGroupKey, errs.NewConflict("committee with the same SSO group name already exists")
+		}
+		return ssoGroupKey, errs.NewUnexpected("failed to create unique key for SSO group name", errSSO)
+	}
+	return ssoGroupKey, nil
 }
 
-func (s *storage) ByNameProject(ctx context.Context, nameProjectKey string) (*model.Committee, error) {
-	return nil, nil
+// get retrieves a model from the NATS KV store by bucket and UID.
+// It unmarshals the data into the provided model and returns the revision.
+// If the UID is empty, it returns a validation error.
+// It can be used for any that has the similar need for fetching data by UID.
+func (s *storage) get(ctx context.Context, bucket, uid string, model any) (uint64, error) {
+
+	if uid == "" {
+		return 0, errs.NewValidation("committee UID cannot be empty")
+	}
+
+	data, errGet := s.client.kvStore[bucket].Get(ctx, uid)
+	if errGet != nil {
+		return 0, errGet
+	}
+
+	errUnmarshal := json.Unmarshal(data.Value(), &model)
+	if errUnmarshal != nil {
+		return 0, errUnmarshal
+	}
+
+	return data.Revision(), nil
+
 }
 
-func (s *storage) BySSOGroupName(ctx context.Context, name string) (*model.Committee, error) {
-	return nil, nil
+func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+
+	committee := &model.CommitteeBase{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommittees, uid, committee)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee", errGet)
+	}
+
+	return committee, rev, nil
 }
 
-func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee) error {
+func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
+	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{})
+}
+
+func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	return nil, 0, nil
+}
+
+func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
 	return nil
 }
 
-func (s *storage) UpdateSetting(ctx context.Context, committee *model.CommitteeSettings) error {
+func (s *storage) UpdateSetting(ctx context.Context, committee *model.CommitteeSettings, revision uint64) error {
 	return nil
 }
 
-func (s *storage) Delete(ctx context.Context, uid string) error {
+func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error {
+
+	// Delete committee base
+	errDeleteBase := s.client.kvStore[constants.KVBucketNameCommittees].Delete(ctx, uid, jetstream.LastRevision(revision))
+	if errDeleteBase != nil {
+		if errors.Is(errDeleteBase, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return errs.NewUnexpected("failed to delete committee base", errDeleteBase)
+	}
+
+	// Delete committee settings if they exist
+	errDeleteSettings := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Delete(ctx, uid)
+	if errDeleteSettings != nil {
+		if errors.Is(errDeleteSettings, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "committee settings not found for deletion", "committee_uid", uid)
+			return nil // Settings not found is not an error
+		}
+		return errs.NewUnexpected("failed to delete committee settings", errDeleteSettings)
+	}
+
 	return nil
 }
 

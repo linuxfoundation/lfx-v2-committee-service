@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-
 	"github.com/gosimple/slug"
 )
 
@@ -54,26 +52,34 @@ type Calendar struct {
 // SSOGroupNameBuild builds the SSO group name for the committee based on the project slug and committee name.
 func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) error {
 
-	ind := 1
-	// not the first attempt to create the SSO group
-	if c.SSOGroupName != "" {
-		currentGroupName := strings.Split(c.SSOGroupName, "-")
+	baseName := slug.Make(fmt.Sprintf("%s-%s", projectSlug, c.Name))
 
-		i, errInd := strconv.Atoi(currentGroupName[len(currentGroupName)-1])
-		if errInd != nil {
-			slog.ErrorContext(ctx, "invalid SSO group name index",
-				"current_group_name", currentGroupName,
-				"index", ind,
-			)
-			return errors.NewValidation("invalid SSO group name index")
+	if c.SSOGroupName != "" {
+		suffix := strings.TrimPrefix(c.SSOGroupName, baseName)
+
+		if suffix == "" {
+			suffix = "1"
 		}
-		ind = i + 1
+		suffix = strings.Trim(suffix, "-")
+
+		// if the suffix is a number, we can increment it
+		num, err := strconv.Atoi(suffix)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to parse SSO group name suffix as number",
+				"error", err,
+				"ssogroup_name", c.SSOGroupName,
+			)
+			return fmt.Errorf("failed to parse SSO group name suffix: %w", err)
+
+		}
+
+		baseName = fmt.Sprintf("%s-%d", baseName, num+1)
+
 	}
 
-	c.SSOGroupName = slug.Make(fmt.Sprintf("%s-%s-%d", projectSlug, c.Name, ind))
+	c.SSOGroupName = baseName
 
 	return nil
-
 }
 
 // BuildIndexKey generates a unique hash key from ProjectUID and committee Name

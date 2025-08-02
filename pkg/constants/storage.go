@@ -13,4 +13,6 @@ const (
 
 	// KVLookupPrefix is the prefix for lookup keys in the KV store.
 	KVLookupPrefix = "lookup"
+
+	KVSlugPrefix = "slug/"
 )

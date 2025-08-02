@@ -7,7 +7,7 @@ import (
 	"context"
 )
 
-// ProjectRetriever handles project data reading operations
-type ProjectRetriever interface {
+// ProjectReader handles project data reading operations
+type ProjectReader interface {
 	Slug(ctx context.Context, uid string) (string, error)
 }

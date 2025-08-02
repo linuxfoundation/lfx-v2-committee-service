@@ -47,7 +47,7 @@ func NewMockRepository() *MockRepository {
 				Website:         stringPtr("https://example.com/tac"),
 				EnableVoting:    true,
 				SSOGroupEnabled: true,
-				SSOGroupName:    "7cad5a8d-19d0-41a4-81a6-043453daf9ee-technical-advisory-committee-1",
+				SSOGroupName:    "7cad5a8d-19d0-41a4-81a6-043453daf9ee-technical-advisory-committee",
 				RequiresReview:  false,
 				Public:          false,
 				Calendar: model.Calendar{
@@ -61,7 +61,7 @@ func NewMockRepository() *MockRepository {
 				UpdatedAt:        now,
 			},
 			CommitteeSettings: &model.CommitteeSettings{
-				CommitteeUID:          "committee-1",
+				UID:                   "committee-1",
 				BusinessEmailRequired: true,
 				LastReviewedAt:        &now,
 				LastReviewedBy:        stringPtr("admin@example.com"),
@@ -72,8 +72,8 @@ func NewMockRepository() *MockRepository {
 			},
 		}
 
-		mock.committees[sampleCommittee.UID] = sampleCommittee
-		mock.committeeSettings[sampleCommittee.UID] = sampleCommittee.CommitteeSettings
+		mock.committees[sampleCommittee.CommitteeBase.UID] = sampleCommittee
+		mock.committeeSettings[sampleCommittee.CommitteeBase.UID] = sampleCommittee.CommitteeSettings
 		mock.projectSlugs["7cad5a8d-19d0-41a4-81a6-043453daf9ee"] = "sample-project"
 		mock.committeeIndexKeys[sampleCommittee.BuildIndexKey(ctx)] = sampleCommittee
 
@@ -87,7 +87,7 @@ func NewMockRepository() *MockRepository {
 				Description:     "Handles security-related matters",
 				EnableVoting:    false,
 				SSOGroupEnabled: true,
-				SSOGroupName:    "7cad5a8d-19d0-41a4-81a6-043453daf9ee-security-committee-1",
+				SSOGroupName:    "7cad5a8d-19d0-41a4-81a6-043453daf9ee-security-committee",
 				RequiresReview:  true,
 				Public:          true,
 				Calendar: model.Calendar{
@@ -100,7 +100,7 @@ func NewMockRepository() *MockRepository {
 				UpdatedAt:        now,
 			},
 			CommitteeSettings: &model.CommitteeSettings{
-				CommitteeUID:          "committee-2",
+				UID:                   "committee-2",
 				BusinessEmailRequired: false,
 				Writers:               []string{"security@example.com"},
 				Auditors:              []string{"auditor1@example.com"},
@@ -109,8 +109,8 @@ func NewMockRepository() *MockRepository {
 			},
 		}
 
-		mock.committees[sampleCommittee2.UID] = sampleCommittee2
-		mock.committeeSettings[sampleCommittee2.UID] = sampleCommittee2.CommitteeSettings
+		mock.committees[sampleCommittee2.CommitteeBase.UID] = sampleCommittee2
+		mock.committeeSettings[sampleCommittee2.CommitteeBase.UID] = sampleCommittee2.CommitteeSettings
 		mock.committeeIndexKeys[sampleCommittee2.BuildIndexKey(ctx)] = sampleCommittee2
 		globalMockRepo = mock
 	})
@@ -129,61 +129,48 @@ type MockRepository struct {
 // ================== CommitteeBaseReader implementation ==================
 
 // GetBase retrieves a committee base by UID
-func (m *MockRepository) GetBase(ctx context.Context, uid string) (*model.Committee, error) {
+func (m *MockRepository) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee base", "uid", uid)
 
 	committee, exists := m.committees[uid]
 	if !exists {
-		return nil, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
 	}
 
-	// Return a copy to avoid data races
-	committeeCopy := *committee
-	return &committeeCopy, nil
+	// Return a copy of the CommitteeBase to avoid data races
+	baseCopy := committee.CommitteeBase
+	// Return version 1 for mock (in real implementation this would be the actual version)
+	return &baseCopy, 1, nil
 }
 
-// ByNameProject retrieves a committee by name and project UID using index key
-func (m *MockRepository) ByNameProject(ctx context.Context, nameProjectKey string) (*model.Committee, error) {
-	slog.DebugContext(ctx, "mock repository: getting committee by name project key", "name_project_key", nameProjectKey)
+// GetRevision retrieves the revision number for a committee by UID
+func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, error) {
+	slog.DebugContext(ctx, "mock repository: getting committee revision", "uid", uid)
 
-	committee, exists := m.committeeIndexKeys[nameProjectKey]
+	_, exists := m.committees[uid]
 	if !exists {
-		return nil, errors.NewNotFound(fmt.Sprintf("committee with name project key %s not found", nameProjectKey))
+		return 0, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
 	}
 
-	// Return a copy to avoid data races
-	committeeCopy := *committee
-	return &committeeCopy, nil
-}
-
-// BySSOGroupName retrieves a committee by SSO group name
-func (m *MockRepository) BySSOGroupName(ctx context.Context, name string) (*model.Committee, error) {
-	slog.DebugContext(ctx, "mock repository: getting committee by SSO group name", "name", name)
-
-	for _, committee := range m.committees {
-		if committee.SSOGroupName == name {
-			committeeCopy := *committee
-			return &committeeCopy, nil
-		}
-	}
-
-	return nil, errors.NewNotFound(fmt.Sprintf("committee with SSO group name %s not found", name))
+	// Return version 1 for mock (in real implementation this would be the actual revision)
+	return 1, nil
 }
 
 // ================== CommitteeSettingsReader implementation ==================
 
 // GetSettings retrieves committee settings by committee UID
-func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, error) {
+func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee settings", "committee_uid", committeeUID)
 
 	settings, exists := m.committeeSettings[committeeUID]
 	if !exists {
-		return nil, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
 	// Return a copy to avoid data races
 	settingsCopy := *settings
-	return &settingsCopy, nil
+	// Return version 1 for mock (in real implementation this would be the actual version)
+	return &settingsCopy, 1, nil
 }
 
 // MockCommitteeWriter implements CommitteeWriter interface
@@ -197,44 +184,44 @@ type MockCommitteeWriter struct {
 func (w *MockCommitteeWriter) Create(ctx context.Context, committee *model.Committee) error {
 	slog.DebugContext(ctx, "mock committee writer: creating committee")
 
-	committee.UID = uuid.New().String()
+	committee.CommitteeBase.UID = uuid.New().String()
 
 	now := time.Now()
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
 	// Create committee settings as well
-	committee.CommitteeSettings.CommitteeUID = committee.UID
+	committee.CommitteeSettings.UID = committee.CommitteeBase.UID
 	committee.CommitteeSettings.CreatedAt = now
 	committee.CommitteeSettings.UpdatedAt = now
 
 	// Store committee and settings
-	w.mock.committees[committee.UID] = committee
-	w.mock.committeeSettings[committee.UID] = committee.CommitteeSettings
+	w.mock.committees[committee.CommitteeBase.UID] = committee
+	w.mock.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
 	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
 
 	return nil
 }
 
 // UpdateBase updates an existing committee base
-func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.Committee) error {
-	slog.DebugContext(ctx, "mock committee writer: updating committee base", "uid", committee.UID)
+func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: updating committee base", "uid", committee.CommitteeBase.UID, "revision", revision)
 
 	// Check if committee exists
-	if _, exists := w.mock.committees[committee.UID]; !exists {
-		return errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", committee.UID))
+	if _, exists := w.mock.committees[committee.CommitteeBase.UID]; !exists {
+		return errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", committee.CommitteeBase.UID))
 	}
 
 	committee.CommitteeBase.UpdatedAt = time.Now()
-	w.mock.committees[committee.UID] = committee
+	w.mock.committees[committee.CommitteeBase.UID] = committee
 	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
 
 	return nil
 }
 
 // Delete deletes a committee and its settings
-func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string) error {
-	slog.DebugContext(ctx, "mock committee writer: deleting committee", "uid", uid)
+func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: deleting committee", "uid", uid, "revision", revision)
 
 	// Check if committee exists and get it to obtain the index key
 	committee, exists := w.mock.committees[uid]
@@ -253,22 +240,54 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string) error {
 	return nil
 }
 
+// UniqueNameProject verifies if a committee with the same name and project exists
+// Returns conflict error if found (for uniqueness checking)
+func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
+	nameProjectKey := committee.BuildIndexKey(ctx)
+	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by name project key", "name_project_key", nameProjectKey)
+
+	existing, exists := w.mock.committeeIndexKeys[nameProjectKey]
+	if exists {
+		// Return conflict error to indicate non-uniqueness
+		return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with name project key %s already exists", nameProjectKey))
+	}
+
+	// Return not found if unique (no conflict)
+	return "", errors.NewNotFound(fmt.Sprintf("committee with name project key %s not found", nameProjectKey))
+}
+
+// UniqueSSOGroupName verifies if a committee with the same SSO group name exists
+// Returns conflict error if found (for uniqueness checking)
+func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by SSO group name", "name", committee.SSOGroupName)
+
+	for _, existing := range w.mock.committees {
+		if existing.SSOGroupName == committee.SSOGroupName {
+			// Return conflict error to indicate non-uniqueness
+			return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with SSO group name %s already exists", committee.SSOGroupName))
+		}
+	}
+
+	// Return not found if unique (no conflict)
+	return "", errors.NewNotFound(fmt.Sprintf("committee with SSO group name %s not found", committee.SSOGroupName))
+}
+
 // ================== CommitteeSettingsWriter implementation ==================
 
 // UpdateSetting updates committee settings
-func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings) error {
-	slog.DebugContext(ctx, "mock committee writer: updating settings", "committee_uid", settings.CommitteeUID)
+func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: updating settings", "committee_uid", settings.UID, "revision", revision)
 
 	// Check if committee settings exist
-	if _, exists := w.mock.committeeSettings[settings.CommitteeUID]; !exists {
-		return errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", settings.CommitteeUID))
+	if _, exists := w.mock.committeeSettings[settings.UID]; !exists {
+		return errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", settings.UID))
 	}
 
 	settings.UpdatedAt = time.Now()
-	w.mock.committeeSettings[settings.CommitteeUID] = settings
+	w.mock.committeeSettings[settings.UID] = settings
 
 	// Also update the settings in the committee
-	if committee, exists := w.mock.committees[settings.CommitteeUID]; exists {
+	if committee, exists := w.mock.committees[settings.UID]; exists {
 		committee.CommitteeSettings = settings
 		committee.CommitteeBase.UpdatedAt = time.Now()
 		w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
@@ -321,7 +340,7 @@ type MockCommitteeReaderWriter struct {
 }
 
 // NewMockProjectRetriever creates a mock project retriever
-func NewMockProjectRetriever(mock *MockRepository) port.ProjectRetriever {
+func NewMockProjectRetriever(mock *MockRepository) port.ProjectReader {
 	return &MockProjectRetriever{mock: mock}
 }
 
@@ -329,8 +348,8 @@ func NewMockProjectRetriever(mock *MockRepository) port.ProjectRetriever {
 
 // AddCommittee adds a committee to the mock data (useful for testing)
 func (m *MockRepository) AddCommittee(committee *model.Committee) {
-	m.committees[committee.UID] = committee
-	m.committeeSettings[committee.UID] = committee.CommitteeSettings
+	m.committees[committee.CommitteeBase.UID] = committee
+	m.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
 	m.committeeIndexKeys[committee.BuildIndexKey(context.Background())] = committee
 }
 

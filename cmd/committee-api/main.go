@@ -17,7 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/service"
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/usecase"
+	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 
 	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
@@ -64,10 +64,10 @@ func main() {
 	projectRetriever := service.ProjectRetrieverImpl(ctx)
 
 	// Initialize the service with use case
-	createCommitteeUseCase := usecase.NewcommitteeWriterOrchestrator(
-		usecase.WithCommitteeRetriever(committeeRetriever),
-		usecase.WithCommitteeWriter(committeeWriter),
-		usecase.WithProjectRetriever(projectRetriever),
+	createCommitteeUseCase := usecaseSvc.NewcommitteeWriterOrchestrator(
+		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
+		usecaseSvc.WithCommitteeWriter(committeeWriter),
+		usecaseSvc.WithProjectRetriever(projectRetriever),
 	)
 
 	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase)

@@ -9,18 +9,18 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/usecase"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 
 	"goa.design/goa/v3/security"
 )
 
 // committeeServicesrvc service implementation with clean architecture
 type committeeServicesrvc struct {
-	committeeWriterOrchestrator usecase.CommitteeWriter
+	committeeWriterOrchestrator service.CommitteeWriter
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase usecase.CommitteeWriter) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 	}
@@ -97,7 +97,7 @@ func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.Create
 
 func (s *committeeServicesrvc) convertDomainToReponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:             &response.UID,
+		UID:             &response.CommitteeBase.UID,
 		ProjectUID:      &response.ProjectUID,
 		Name:            &response.Name,
 		Category:        &response.Category,

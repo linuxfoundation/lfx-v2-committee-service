@@ -16,8 +16,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 		committee         Committee
 		projectSlug       string
 		expectedGroupName string
-		expectError       bool
-		errorMessage      string
+		expectedError     bool
 	}{
 		{
 			name: "first time creation with empty SSO group name",
@@ -28,32 +27,18 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "kubernetes",
-			expectedGroupName: "kubernetes-technical-steering-committee-1",
-			expectError:       false,
+			expectedGroupName: "kubernetes-technical-steering-committee",
 		},
 		{
-			name: "first time creation with simple name",
+			name: "increment existing SSO group name with no index",
 			committee: Committee{
 				CommitteeBase: CommitteeBase{
-					Name:         "Security",
-					SSOGroupName: "",
+					Name:         "Governance",
+					SSOGroupName: "project-governance",
 				},
 			},
-			projectSlug:       "linux",
-			expectedGroupName: "linux-security-1",
-			expectError:       false,
-		},
-		{
-			name: "increment existing SSO group name",
-			committee: Committee{
-				CommitteeBase: CommitteeBase{
-					Name:         "Technical Committee",
-					SSOGroupName: "kubernetes-technical-committee-1",
-				},
-			},
-			projectSlug:       "kubernetes",
-			expectedGroupName: "kubernetes-technical-committee-2",
-			expectError:       false,
+			projectSlug:       "project",
+			expectedGroupName: "project-governance-2",
 		},
 		{
 			name: "increment existing SSO group name with higher index",
@@ -65,7 +50,6 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 			},
 			projectSlug:       "project",
 			expectedGroupName: "project-governance-6",
-			expectError:       false,
 		},
 		{
 			name: "handle special characters in committee name",
@@ -76,8 +60,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "openapi",
-			expectedGroupName: "openapi-api-and-documentation-committee-1",
-			expectError:       false,
+			expectedGroupName: "openapi-api-and-documentation-committee",
 		},
 		{
 			name: "handle special characters in project slug",
@@ -88,8 +71,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "my-awesome-project",
-			expectedGroupName: "my-awesome-project-core-team-1",
-			expectError:       false,
+			expectedGroupName: "my-awesome-project-core-team",
 		},
 		{
 			name: "handle unicode characters",
@@ -100,32 +82,19 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "français",
-			expectedGroupName: "francais-developpement-committee-1",
-			expectError:       false,
+			expectedGroupName: "francais-developpement-committee",
 		},
 		{
-			name: "invalid index in existing SSO group name",
+			name: "invalid index in existing SSO group name - treated as first time creation",
 			committee: Committee{
 				CommitteeBase: CommitteeBase{
 					Name:         "Testing Committee",
 					SSOGroupName: "project-testing-committee-invalid",
 				},
 			},
-			projectSlug:  "project",
-			expectError:  true,
-			errorMessage: "invalid SSO group name index",
-		},
-		{
-			name: "invalid index with non-numeric suffix",
-			committee: Committee{
-				CommitteeBase: CommitteeBase{
-					Name:         "Review Committee",
-					SSOGroupName: "project-review-committee-abc",
-				},
-			},
-			projectSlug:  "project",
-			expectError:  true,
-			errorMessage: "invalid SSO group name index",
+			projectSlug:       "project",
+			expectedGroupName: "project-testing-committee",
+			expectedError:     true, // Expecting an error due to invalid suffix
 		},
 		{
 			name: "existing SSO group name with multiple dashes",
@@ -137,7 +106,6 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 			},
 			projectSlug:       "multi-word-project",
 			expectedGroupName: "multi-word-project-multi-word-committee-4",
-			expectError:       false,
 		},
 		{
 			name: "empty project slug",
@@ -148,8 +116,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "",
-			expectedGroupName: "committee-1",
-			expectError:       false,
+			expectedGroupName: "committee",
 		},
 		{
 			name: "empty committee name",
@@ -160,8 +127,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				},
 			},
 			projectSlug:       "project",
-			expectedGroupName: "project-1",
-			expectError:       false,
+			expectedGroupName: "project",
 		},
 	}
 
@@ -171,14 +137,12 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 			committee := tc.committee
 
 			err := committee.SSOGroupNameBuild(ctx, tc.projectSlug)
-
-			if tc.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMessage)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedGroupName, committee.CommitteeBase.SSOGroupName)
+			if err != nil {
+				assert.True(t, tc.expectedError, "expected error but got none")
+				return
 			}
+			assert.False(t, tc.expectedError, "expected no error but got one")
+			assert.Equal(t, tc.expectedGroupName, committee.CommitteeBase.SSOGroupName)
 		})
 	}
 }
@@ -194,18 +158,18 @@ func TestCommitteeSSOGroupNameBuildIdempotent(t *testing.T) {
 	projectSlug := "test-project"
 
 	// First call
-	err1 := committee.SSOGroupNameBuild(ctx, projectSlug)
-	assert.NoError(t, err1)
-	firstResult := committee.CommitteeBase.SSOGroupName
+	err := committee.SSOGroupNameBuild(ctx, projectSlug)
+	assert.NoError(t, err)
+	firstSSOGroupName := committee.CommitteeBase.SSOGroupName
 
 	// Second call should increment the index
-	err2 := committee.SSOGroupNameBuild(ctx, projectSlug)
-	assert.NoError(t, err2)
-	secondResult := committee.CommitteeBase.SSOGroupName
+	err = committee.SSOGroupNameBuild(ctx, projectSlug)
+	assert.NoError(t, err)
+	secondSSOGroupName := committee.CommitteeBase.SSOGroupName
 
-	assert.Equal(t, "test-project-idempotent-committee-1", firstResult)
-	assert.Equal(t, "test-project-idempotent-committee-2", secondResult)
-	assert.NotEqual(t, firstResult, secondResult)
+	assert.Equal(t, "test-project-idempotent-committee", firstSSOGroupName)
+	assert.Equal(t, "test-project-idempotent-committee-2", secondSSOGroupName)
+	assert.NotEqual(t, firstSSOGroupName, secondSSOGroupName)
 }
 
 func TestCommitteeBuildIndexKey(t *testing.T) {
