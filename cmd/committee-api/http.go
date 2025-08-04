@@ -68,7 +68,6 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	// configure the server as required by your service.
 	srv := &http.Server{Addr: host, Handler: handler, ReadHeaderTimeout: time.Second * 60}
 	for _, m := range committeeServiceServer.Mounts {
-		//log.Printf(ctx, "HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		slog.InfoContext(ctx, "HTTP endpoint mounted",
 			"method", m.Method,
 			"verb", m.Verb,

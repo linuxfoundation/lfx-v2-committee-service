@@ -1,91 +1,73 @@
-# lfx-v2-committee-service
+# LFX V2 Committee Service
 
 This repository contains the source code for the LFX v2 platform committee service.
 
+## Overview
+
+The LFX v2 Committee Service is a RESTful API service that manages committees within the Linux Foundation's LFX platform. It provides endpoints for creating, reading, updating, and deleting committees with built-in authorization and audit capabilities. Committees are associated with projects and can have hierarchical structures with parent-child relationships.
+
+## File Structure
+
+```bash
+├── .github/                        # Github files
+│   └── workflows/                  # Github Action workflow files
+├── charts/                         # Helm charts for running the service in kubernetes
+├── cmd/                            # Services (main packages)
+│   └── committee-api/              # Committee service code
+│       ├── design/                 # API design specifications (Goa)
+│       ├── service/                # Service implementation
+│       ├── main.go                 # Application entry point
+│       └── http.go                 # HTTP server setup
+├── gen/                            # Generated code from Goa design
+├── internal/                       # Internal service packages
+│   ├── domain/                     # Domain logic layer (business logic)
+│   │   ├── model/                  # Domain models and entities
+│   │   └── port/                   # Repository and service interfaces
+│   ├── service/                    # Service logic layer (use cases)
+│   ├── infrastructure/             # Infrastructure layer
+│   │   ├── auth/                   # Authentication implementations
+│   │   ├── nats/                   # NATS storage implementation
+│   │   └── mock/                   # Mock implementations for testing
+│   └── middleware/                 # HTTP middleware components
+└── pkg/                            # Shared packages
+```
+
+## Key Features
+
+- **RESTful API**: Full CRUD operations for committee management
+- **Committee Hierarchies**: Support for parent-child committee relationships
+- **Project Integration**: Committees are associated with projects for organizational structure
+- **Clean Architecture**: Follows clean architecture principles with clear separation of domain, service, and infrastructure layers
+- **NATS Storage**: Uses NATS key-value buckets for persistent committee data storage
+- **Authorization**: JWT-based authentication with Heimdall middleware integration
+- **OpenFGA Support**: Fine-grained authorization control for committee access (configurable)
+- **Health Checks**: Built-in `/livez` and `/readyz` endpoints
+- **Request Tracking**: Automatic request ID generation and propagation
+- **Structured Logging**: JSON-formatted logs with contextual information
+- **Committee Settings**: Configurable voting, membership, and access control settings
+
 ## Development
-
-### Prerequisites
-
-This project uses the [GOA Framework](https://goa.design/) for API generation. You'll need to install GOA before building the project.
-
-#### Installing GOA Framework
-
-Follow the [GOA installation guide](https://goa.design/docs/2-getting-started/1-installation/) to install GOA:
-
-```bash
-go install goa.design/goa/v3/cmd/goa@latest
-```
-
-Verify the installation:
-
-```bash
-goa version
-```
-
-### Building and Development
-
-#### 1. Generate Code
-
-The project uses GOA to generate API code from the design specification. Run the following command to generate all necessary code:
-
-```bash
-goa gen github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
-```
-
-This command generates:
-
-- HTTP server and client code
-- OpenAPI specification
-- Service interfaces and types
-- Transport layer implementations
-
-#### 2. Initial Project Structure
-
-**Note**: The initial `cmd` structure was generated using GOA's example generator:
-
-```bash
-goa example github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
-```
-
-This command generated the basic server structure, which was then customized and adjusted to fit our project's clean architecture principles.
-
-#### 3. Development Workflow
-
-1. **Make design changes**: Edit files in the `cmd/committee-api/design/` directory
-2. **Regenerate code**: Run `goa gen github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design` after design changes
-3. **Build the project**:
-
-   ```bash
-   go build cmd
-   ```
-
-4. **Run the service**:
-
-   ```bash
-   go run ./cmd
-   ```
-
-5. **Run tests**:
-
-   ```bash
-   go test ./...
-   ```
-
-### Contributing
 
 To contribute to this repository:
 
 1. Fork the repository
-2. Make your changes
-3. Submit a pull request
+2. Commit your changes to a feature branch in your fork. Ensure your commits
+   are signed with the [Developer Certificate of Origin
+   (DCO)](https://developercertificate.org/).
+   You can use the `git commit -s` command to sign your commits.
+3. Ensure the chart version in `charts/lfx-v2-committee-service/Chart.yaml` has been
+   updated following semantic version conventions if you are making changes to the chart.
+4. Submit your pull request
+
+For detailed development instructions, including local setup, testing, and API development guidelines, see the [Committee API README](cmd/committee-api/README.md).
 
 ## License
 
 Copyright The Linux Foundation and each contributor to LFX.
 
-This project's source code is licensed under the MIT License. A copy of the
+This project’s source code is licensed under the MIT License. A copy of the
 license is available in `LICENSE`.
 
-This project's documentation is licensed under the Creative Commons Attribution
+This project’s documentation is licensed under the Creative Commons Attribution
 4.0 International License \(CC-BY-4.0\). A copy of the license is available in
 `LICENSE-docs`.

@@ -144,11 +144,11 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 
 	// Include settings data if available
 	if response.CommitteeSettings != nil {
-		result.BusinessEmailRequired = response.CommitteeSettings.BusinessEmailRequired
-		result.LastReviewedAt = response.CommitteeSettings.LastReviewedAt
-		result.LastReviewedBy = response.CommitteeSettings.LastReviewedBy
-		result.Writers = response.CommitteeSettings.Writers
-		result.Auditors = response.CommitteeSettings.Auditors
+		result.BusinessEmailRequired = response.BusinessEmailRequired
+		result.LastReviewedAt = response.LastReviewedAt
+		result.LastReviewedBy = response.LastReviewedBy
+		result.Writers = response.Writers
+		result.Auditors = response.Auditors
 	}
 
 	return result

@@ -142,7 +142,7 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 				return
 			}
 			assert.False(t, tc.expectedError, "expected no error but got one")
-			assert.Equal(t, tc.expectedGroupName, committee.CommitteeBase.SSOGroupName)
+			assert.Equal(t, tc.expectedGroupName, committee.SSOGroupName)
 		})
 	}
 }
@@ -160,12 +160,12 @@ func TestCommitteeSSOGroupNameBuildIdempotent(t *testing.T) {
 	// First call
 	err := committee.SSOGroupNameBuild(ctx, projectSlug)
 	assert.NoError(t, err)
-	firstSSOGroupName := committee.CommitteeBase.SSOGroupName
+	firstSSOGroupName := committee.SSOGroupName
 
 	// Second call should increment the index
 	err = committee.SSOGroupNameBuild(ctx, projectSlug)
 	assert.NoError(t, err)
-	secondSSOGroupName := committee.CommitteeBase.SSOGroupName
+	secondSSOGroupName := committee.SSOGroupName
 
 	assert.Equal(t, "test-project-idempotent-committee", firstSSOGroupName)
 	assert.Equal(t, "test-project-idempotent-committee-2", secondSSOGroupName)
