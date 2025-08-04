@@ -1,6 +1,24 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 ---
+# image is the configuration for the container images
+image:
+  # repository is the container image repository
+  repository: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-api
+  # tag is the container image tag (overrides appVersion from Chart.yaml)
+  tag: ""
+  # pullPolicy is the image pull policy
+  pullPolicy: IfNotPresent
+
+# ingress is the configuration for the ingress routing
+ingress:
+  # hostname is the hostname of the ingress
+  hostname: lfx-api.k8s.orb.local
+
+# heimdall is the configuration for the heimdall middleware
+heimdall:
+  enabled: true
+  url: http://heimdall.lfx.svc.cluster.local:4456
 
 # authelia is the configuration for the Authelia server
 authelia:
