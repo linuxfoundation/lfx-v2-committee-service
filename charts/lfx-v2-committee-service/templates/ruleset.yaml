@@ -1,0 +1,180 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+---
+apiVersion: heimdall.dadrus.github.com/v1alpha4
+kind: RuleSet
+metadata:
+  name: lfx-v2-committee-service
+  namespace: lfx
+spec:
+  rules:
+    - id: "rule:lfx:lfx-v2-committee-service:committees:create"
+      match:
+        methods:
+          - POST
+        routes:
+          - path: /committees
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          # TODO: Validate the sintax once we have the proper implementation
+          config:
+            values:
+              relation: writer
+              object: "project:{{ .Request.Body.project_uid }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
+
+    - id: "rule:lfx:lfx-v2-committee-service:committees:get"
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/:uid
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: viewer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_settings:get"
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/:uid/settings
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: auditor
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
+
+    - id: "rule:lfx:lfx-v2-committee-service:committees:update"
+      match:
+        methods:
+          - PUT
+        routes:
+          - path: /committees/:uid
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_settings:update"
+      match:
+        methods:
+          - PUT
+        routes:
+          - path: /committees/:uid/settings
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
+
+    - id: "rule:lfx:lfx-v2-committee-service:committees:delete"
+      match:
+        methods:
+          - DELETE
+        routes:
+          - path: /committees/:uid
+      execute:
+        {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
+        {{- end }}
+        - authenticator: anonymous_authenticator
+        {{- if .Values.authelia.enabled }}
+        - contextualizer: authelia_userinfo
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: owner
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        # When OpenFGA is disabled, allow all requests
+        # (Only meant for *local development* because OpenFGA should be enabled when deployed)
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: lfx-v2-committee-service
