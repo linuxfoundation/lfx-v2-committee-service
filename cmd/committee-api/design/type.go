@@ -242,7 +242,6 @@ func LastReviewedAtAttribute() {
 	dsl.Attribute("last_reviewed_at", dsl.String, "The timestamp when the committee was last reviewed in RFC3339 format", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2025-08-04T09:00:00Z")
-		dsl.Pattern(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`)
 	})
 }
 

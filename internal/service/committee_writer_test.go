@@ -376,7 +376,7 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 			projectReader := mock.NewMockProjectRetriever(mockRepo)
 			committeePublisher := mock.NewMockCommitteePublisher()
 
-			orchestrator := NewcommitteeWriterOrchestrator(
+			orchestrator := NewCommitteeWriterOrchestrator(
 				WithCommitteeRetriever(committeeReader),
 				WithCommitteeWriter(committeeWriter),
 				WithProjectRetriever(projectReader),
@@ -749,7 +749,7 @@ func TestNewcommitteeWriterOrchestrator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Execute
-			orchestrator := NewcommitteeWriterOrchestrator(tc.options...)
+			orchestrator := NewCommitteeWriterOrchestrator(tc.options...)
 
 			// Validate
 			tc.validate(t, orchestrator)
@@ -827,7 +827,7 @@ func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 				accessError:  tc.accessError,
 			}
 
-			orchestrator := NewcommitteeWriterOrchestrator(
+			orchestrator := NewCommitteeWriterOrchestrator(
 				WithCommitteeRetriever(committeeReader),
 				WithCommitteeWriter(committeeWriter),
 				WithProjectRetriever(projectReader),

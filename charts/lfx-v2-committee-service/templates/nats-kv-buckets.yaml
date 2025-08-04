@@ -6,7 +6,7 @@ apiVersion: jetstream.nats.io/v1beta2
 kind: KeyValue
 metadata:
   name: {{ .Values.nats.committees_kv_bucket.name }}
-  namespace: lfx
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.nats.committees_kv_bucket.keep }}
   annotations:
     "helm.sh/resource-policy": keep
@@ -25,7 +25,7 @@ apiVersion: jetstream.nats.io/v1beta2
 kind: KeyValue
 metadata:
   name: {{ .Values.nats.committees_settings_kv_bucket.name }}
-  namespace: lfx
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.nats.committees_settings_kv_bucket.keep }}
   annotations:
     "helm.sh/resource-policy": keep

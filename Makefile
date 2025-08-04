@@ -7,7 +7,7 @@ BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Docker
-DOCKER_REGISTRY := linuxfoundation## container registry ghcr.io/ ???
+DOCKER_REGISTRY := ghcr.io/linuxfoundation
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
 DOCKER_TAG := $(VERSION)
 
@@ -47,12 +47,12 @@ deps: ## Install dependencies
 
 .PHONY: apigen
 apigen: deps #@ Generate API code using Goa
-	goa gen github.com/linuxfoundation/lfx-committee-service/cmd/committee-api/design
+	goa gen github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
 
 .PHONY: lint
 lint: ## Run golangci-lint (local Go linting)
 	@echo "Running golangci-lint..."
-	@which golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+	@which golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION))
 	@golangci-lint run ./... && echo "==> Lint OK"
 
 .PHONY: test

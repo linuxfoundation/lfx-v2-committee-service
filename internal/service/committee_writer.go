@@ -107,7 +107,14 @@ func (uc *committeeWriterOrchestrator) checkReserveSSOName(ctx context.Context, 
 		"committee_name", committee.Name,
 	)
 
+	const maxRetries = 100
+	attempts := 0
+
 	for {
+		attempts++
+		if attempts > maxRetries {
+			return "", errs.NewUnexpected("exceeded maximum retries for SSO name generation")
+		}
 
 		errSSOGroupNameBuild := committee.SSOGroupNameBuild(ctx, slug)
 		if errSSOGroupNameBuild != nil {
@@ -319,12 +326,11 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 			"committee_uid", committee.CommitteeBase.UID,
 		)
 	}
-
 	return committee, nil
 }
 
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern
-func NewcommitteeWriterOrchestrator(opts ...committeeWriterOrchestratorOption) CommitteeWriter {
+func NewCommitteeWriterOrchestrator(opts ...committeeWriterOrchestratorOption) CommitteeWriter {
 	uc := &committeeWriterOrchestrator{}
 	for _, opt := range opts {
 		opt(uc)

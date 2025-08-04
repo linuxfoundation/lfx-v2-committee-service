@@ -105,11 +105,11 @@ func CommitteeReaderImpl(ctx context.Context) port.CommitteeReader {
 
 	switch repoSource {
 	case "mock":
-		slog.InfoContext(ctx, "initializing mock committee retriever")
+		slog.InfoContext(ctx, "initializing mock committee reader")
 		committeeRetriever = infrastructure.NewMockCommitteeReader(infrastructure.NewMockRepository())
 
 	case "nats":
-		slog.InfoContext(ctx, "initializing NATS committee retriever")
+		slog.InfoContext(ctx, "initializing NATS committee reader")
 		natsClient := natsStorageImpl(ctx)
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client")
@@ -139,7 +139,7 @@ func CommitteeWriterImpl(ctx context.Context) port.CommitteeWriter {
 		committeeWriter = infrastructure.NewMockCommitteeWriter(infrastructure.NewMockRepository())
 
 	case "nats":
-		slog.InfoContext(ctx, "initializing NATS committee retriever")
+		slog.InfoContext(ctx, "initializing NATS committee writer")
 		natsClient := natsStorageImpl(ctx)
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client")
@@ -177,7 +177,7 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectReader {
 		projectReader = natsClient
 
 	default:
-		log.Fatalf("unsupported proejct reader implementation: %s", repoSource)
+		log.Fatalf("unsupported project reader implementation: %s", repoSource)
 	}
 
 	return projectReader
@@ -202,6 +202,9 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 		jwtConfig := auth.JWTAuthConfig{
 			JWKSURL:  os.Getenv("JWKS_URL"),
 			Audience: os.Getenv("JWT_AUDIENCE"),
+		}
+		if jwtConfig.JWKSURL == "" || jwtConfig.Audience == "" {
+			log.Fatalf("JWT configuration incomplete: JWKS_URL and JWT_AUDIENCE are required")
 		}
 		jwtAuth, err := auth.NewJWTAuth(jwtConfig)
 		if err != nil {

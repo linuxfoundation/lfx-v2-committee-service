@@ -1168,9 +1168,6 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
-	if body.LastReviewedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
-	}
 	return
 }
 
@@ -1285,9 +1282,6 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
-	if body.LastReviewedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
-	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
@@ -1305,9 +1299,6 @@ func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsRe
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
-	}
-	if body.LastReviewedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
@@ -1599,9 +1590,6 @@ func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *Committee
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
-	}
-	if body.LastReviewedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))

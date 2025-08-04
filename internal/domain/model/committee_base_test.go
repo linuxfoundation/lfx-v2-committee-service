@@ -137,11 +137,14 @@ func TestCommitteeSSOGroupNameBuild(t *testing.T) {
 			committee := tc.committee
 
 			err := committee.SSOGroupNameBuild(ctx, tc.projectSlug)
+			if tc.expectedError {
+				assert.Error(t, err, "expected error but got none")
+			} else {
+				assert.NoError(t, err, "unexpected error: %v", err)
+			}
 			if err != nil {
-				assert.True(t, tc.expectedError, "expected error but got none")
 				return
 			}
-			assert.False(t, tc.expectedError, "expected no error but got one")
 			assert.Equal(t, tc.expectedGroupName, committee.SSOGroupName)
 		})
 	}

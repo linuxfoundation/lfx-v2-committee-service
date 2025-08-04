@@ -58,9 +58,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 		}
-		if body.LastReviewedAt != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
-		}
 		if err != nil {
 			return nil, err
 		}
@@ -427,9 +424,6 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
-		}
-		if body.LastReviewedAt != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
 		}
 		if err != nil {
 			return nil, err

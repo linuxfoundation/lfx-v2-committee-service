@@ -89,7 +89,7 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 		slog.InfoContext(ctx, "shutting down HTTP server", "host", host)
 
 		// Shutdown gracefully with a 30s timeout.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(gracefulShutdownSeconds-5)*time.Second)
 		defer cancel()
 
 		err := srv.Shutdown(ctx)

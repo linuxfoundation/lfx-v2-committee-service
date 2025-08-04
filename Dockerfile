@@ -6,9 +6,6 @@
 
 FROM cgr.dev/chainguard/go:latest AS builder
 
-# Expose port 8080 for the committee service API.
-EXPOSE 8080
-
 # Set necessary environment variables needed for our image. Allow building to
 # other architectures via cross-compilation build-arg.
 ARG TARGETARCH
@@ -25,7 +22,7 @@ RUN go mod download
 COPY . .
 
 # Build the packages
-RUN go build -o /go/bin/committee-svc -trimpath -ldflags="-w -s" github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api
+RUN go build -o /go/bin/committee-api -trimpath -ldflags="-w -s" github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api
 
 # Run our go binary standalone
 FROM cgr.dev/chainguard/static:latest
@@ -33,6 +30,9 @@ FROM cgr.dev/chainguard/static:latest
 # Implicit with base image; setting explicitly for linters.
 USER nonroot
 
-COPY --from=builder /go/bin/committee-svc /cmd/committee-api
+# Expose port 8080 for the committee service API.
+EXPOSE 8080
+
+COPY --from=builder /go/bin/committee-api /cmd/committee-api
 
 ENTRYPOINT ["/cmd/committee-api"]

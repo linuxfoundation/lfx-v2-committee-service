@@ -66,7 +66,7 @@ func main() {
 	authService := service.AuthServiceImpl(ctx)
 
 	// Initialize the service with use case
-	createCommitteeUseCase := usecaseSvc.NewcommitteeWriterOrchestrator(
+	createCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
 		usecaseSvc.WithCommitteeWriter(committeeWriter),
 		usecaseSvc.WithProjectRetriever(projectRetriever),

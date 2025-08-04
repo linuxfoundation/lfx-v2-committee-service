@@ -22,7 +22,7 @@ type Committee struct {
 	*CommitteeSettings
 }
 
-// Committee represents the core committee business entity
+// CommitteeBase represents the base committee attributes without settings
 type CommitteeBase struct {
 	UID              string    `json:"uid"`
 	ProjectUID       string    `json:"project_uid"`

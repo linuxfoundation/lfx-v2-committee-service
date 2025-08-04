@@ -48,6 +48,9 @@ func (wp *WorkerPool) Run(ctx context.Context, functions ...func() error) error 
 
 // NewWorkerPool creates a new worker pool with the specified number of workers
 func NewWorkerPool(workerCount int) *WorkerPool {
+	if workerCount <= 0 {
+		workerCount = 1
+	}
 	return &WorkerPool{
 		workerCount: workerCount,
 	}

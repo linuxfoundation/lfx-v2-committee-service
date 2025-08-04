@@ -29,6 +29,10 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 	// Parse the Heimdall-authorized principal from the token
 	principal, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
 	if err != nil {
+		slog.ErrorContext(ctx, "committeeService.jwt-auth",
+			"error", err,
+			"token_length", len(token),
+		)
 		return ctx, err
 	}
 
@@ -75,19 +79,40 @@ func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.Create
 
 // convertPayloadToBase converts GOA payload to CommitteeBase domain model
 func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCommitteePayload) model.CommitteeBase {
+	// Check for nil payload to avoid panic
+	if p == nil {
+		return model.CommitteeBase{}
+	}
+
 	base := model.CommitteeBase{
-		ProjectUID:      *p.ProjectUID,
 		Name:            p.Name,
 		Category:        p.Category,
-		Description:     *p.Description,
-		Website:         p.Website,
 		EnableVoting:    p.EnableVoting,
 		SSOGroupEnabled: p.SsoGroupEnabled,
 		RequiresReview:  p.RequiresReview,
 		Public:          p.Public,
-		DisplayName:     *p.DisplayName,
-		ParentUID:       p.ParentUID,
 	}
+
+	// Handle ProjectUID with nil check
+	if p.ProjectUID != nil {
+		base.ProjectUID = *p.ProjectUID
+	}
+
+	// Handle Description with nil check
+	if p.Description != nil {
+		base.Description = *p.Description
+	}
+
+	// Handle DisplayName with nil check
+	if p.DisplayName != nil {
+		base.DisplayName = *p.DisplayName
+	}
+
+	// Handle Website (already a pointer, safe to assign directly)
+	base.Website = p.Website
+
+	// Handle ParentUID (already a pointer, safe to assign directly)
+	base.ParentUID = p.ParentUID
 
 	// Handle calendar if present
 	if p.Calendar != nil {
