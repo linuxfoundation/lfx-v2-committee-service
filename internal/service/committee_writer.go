@@ -179,7 +179,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 
 	return &model.CommitteeAccessMessage{
 		UID:       committee.CommitteeBase.UID,
-		Public:    committee.CommitteeBase.Public,
+		Public:    committee.Public,
 		ParentUID: parentUID,
 		Writers:   committee.Writers,
 		Auditors:  committee.Auditors,
