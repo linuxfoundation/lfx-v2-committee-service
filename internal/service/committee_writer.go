@@ -165,13 +165,13 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
 
 	var parentUID string
-	if committee.CommitteeBase.ParentUID != nil {
-		parentUID = *committee.CommitteeBase.ParentUID
+	if committee.ParentUID != nil {
+		parentUID = *committee.ParentUID
 	}
 
 	slog.DebugContext(ctx, "building access control message",
 		"committee_uid", committee.CommitteeBase.UID,
-		"public", committee.CommitteeBase.Public,
+		"public", committee.Public,
 		"parent_uid", parentUID,
 		"writers", committee.Writers,
 		"auditors", committee.Auditors,
