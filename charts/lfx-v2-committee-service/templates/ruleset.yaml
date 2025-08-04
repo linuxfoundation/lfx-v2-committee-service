@@ -15,11 +15,9 @@ spec:
         routes:
           - path: /committees
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -45,11 +43,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -73,11 +69,9 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -101,11 +95,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -129,11 +121,9 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -157,11 +147,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
