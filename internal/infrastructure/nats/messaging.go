@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -15,24 +16,29 @@ type message struct {
 	client *NATSClient
 }
 
-func (m *message) Slug(ctx context.Context, uid string) (string, error) {
+func (m *message) get(ctx context.Context, subject, uid string) (string, error) {
 
-	// You can customize the request payload as needed. Here, we just send the uid.
 	data := []byte(uid)
-
-	// Use the NATS client to send a request and wait for a reply.
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.ProjectGetSlugSubject, data)
+	msg, err := m.client.conn.RequestWithContext(ctx, subject, data)
 	if err != nil {
 		return "", err
 	}
 
-	slug := string(msg.Data)
-	if slug == "" {
-		return "", errors.NewNotFound("project slug not found for uid: " + uid)
+	attribute := string(msg.Data)
+	if attribute == "" {
+		return "", errors.NewNotFound(fmt.Sprintf("project attribute %s not found for uid: %s", subject, uid))
 	}
 
-	return slug, nil
+	return attribute, nil
 
+}
+
+func (m *message) Slug(ctx context.Context, uid string) (string, error) {
+	return m.get(ctx, constants.ProjectGetSlugSubject, uid)
+}
+
+func (m *message) Name(ctx context.Context, uid string) (string, error) {
+	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
 func NewMessage(client *NATSClient) port.ProjectReader {

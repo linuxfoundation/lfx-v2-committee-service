@@ -9,5 +9,6 @@ import (
 
 // ProjectReader handles project data reading operations
 type ProjectReader interface {
+	Name(ctx context.Context, uid string) (string, error)
 	Slug(ctx context.Context, uid string) (string, error)
 }

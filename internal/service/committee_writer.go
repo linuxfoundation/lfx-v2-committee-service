@@ -153,17 +153,28 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}()
 
 	// Check project exists
-	slug, err := uc.projectRetriever.Slug(ctx, committee.ProjectUID)
-	if err != nil {
-		slog.ErrorContext(ctx, "project not found",
-			"error", err,
+	slug, errSlug := uc.projectRetriever.Slug(ctx, committee.ProjectUID)
+	if errSlug != nil {
+		slog.ErrorContext(ctx, "failed to retrieve project slug",
+			"error", errSlug,
 			"project_uid", committee.ProjectUID,
 		)
-		return nil, err
+		return nil, errSlug
 	}
+	projectName, errProjectName := uc.projectRetriever.Name(ctx, committee.ProjectUID)
+	if errProjectName != nil {
+		slog.ErrorContext(ctx, "failed to retrieve project name",
+			"error", errProjectName,
+			"project_uid", committee.ProjectUID,
+		)
+		return nil, errProjectName
+	}
+	committee.ProjectName = projectName
+
 	slog.DebugContext(ctx, "project found",
 		"project_uid", committee.ProjectUID,
-		"project_name", slug,
+		"project_slug", slug,
+		"project_name", projectName,
 	)
 
 	// Check parent committee exists (if specified)

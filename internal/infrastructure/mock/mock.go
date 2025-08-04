@@ -33,6 +33,7 @@ func NewMockRepository() *MockRepository {
 			committees:         make(map[string]*model.Committee),
 			committeeSettings:  make(map[string]*model.CommitteeSettings),
 			projectSlugs:       make(map[string]string),
+			projectNames:       make(map[string]string),
 			committeeIndexKeys: make(map[string]*model.Committee),
 		}
 
@@ -75,6 +76,7 @@ func NewMockRepository() *MockRepository {
 		mock.committees[sampleCommittee.CommitteeBase.UID] = sampleCommittee
 		mock.committeeSettings[sampleCommittee.CommitteeBase.UID] = sampleCommittee.CommitteeSettings
 		mock.projectSlugs["7cad5a8d-19d0-41a4-81a6-043453daf9ee"] = "sample-project"
+		mock.projectNames["7cad5a8d-19d0-41a4-81a6-043453daf9ee"] = "Sample Project"
 		mock.committeeIndexKeys[sampleCommittee.BuildIndexKey(ctx)] = sampleCommittee
 
 		// Add another sample committee
@@ -123,6 +125,7 @@ type MockRepository struct {
 	committees         map[string]*model.Committee
 	committeeSettings  map[string]*model.CommitteeSettings
 	projectSlugs       map[string]string           // projectUID -> slug
+	projectNames       map[string]string           // projectUID -> name
 	committeeIndexKeys map[string]*model.Committee // indexKey -> committee
 }
 
@@ -301,6 +304,18 @@ type MockProjectRetriever struct {
 	mock *MockRepository
 }
 
+// Name returns the project name for a given UID
+func (r *MockProjectRetriever) Name(ctx context.Context, uid string) (string, error) {
+	slog.DebugContext(ctx, "mock project retriever: getting name", "uid", uid)
+
+	name, exists := r.mock.projectNames[uid]
+	if !exists {
+		return "", errors.NewNotFound(fmt.Sprintf("project with UID %s not found", uid))
+	}
+
+	return name, nil
+}
+
 // Slug returns the project slug for a given UID
 func (r *MockProjectRetriever) Slug(ctx context.Context, uid string) (string, error) {
 	slog.DebugContext(ctx, "mock project retriever: getting slug", "uid", uid)
@@ -358,11 +373,23 @@ func (m *MockRepository) AddProjectSlug(uid, slug string) {
 	m.projectSlugs[uid] = slug
 }
 
+// AddProjectName adds a project name mapping (useful for testing)
+func (m *MockRepository) AddProjectName(uid, name string) {
+	m.projectNames[uid] = name
+}
+
+// AddProject adds both project slug and name mappings (useful for testing)
+func (m *MockRepository) AddProject(uid, slug, name string) {
+	m.projectSlugs[uid] = slug
+	m.projectNames[uid] = name
+}
+
 // ClearAll clears all mock data (useful for testing)
 func (m *MockRepository) ClearAll() {
 	m.committees = make(map[string]*model.Committee)
 	m.committeeSettings = make(map[string]*model.CommitteeSettings)
 	m.projectSlugs = make(map[string]string)
+	m.projectNames = make(map[string]string)
 	m.committeeIndexKeys = make(map[string]*model.Committee)
 }
 

@@ -26,6 +26,7 @@ type Committee struct {
 type CommitteeBase struct {
 	UID              string    `json:"uid"`
 	ProjectUID       string    `json:"project_uid"`
+	ProjectName      string    `json:"project_name,omitempty"`
 	Name             string    `json:"name"`
 	Category         string    `json:"category"`
 	Description      string    `json:"description,omitempty"`
