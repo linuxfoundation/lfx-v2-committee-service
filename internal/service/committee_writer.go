@@ -297,8 +297,12 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		if errBuildIndexerMessage != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 		}
+
+		localSubject := subject
+		localMessage := message
+
 		messages = append(messages, func() error {
-			return uc.committeePublisher.Indexer(ctx, subject, message)
+			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage)
 		})
 	}
 
