@@ -25,6 +25,14 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url }}
+            - name: LOG_LEVEL
+              value: {{ .Values.app.logLevel }}
+            - name: LOG_ADD_SOURCE
+              value: {{ .Values.app.logAddSource | quote }}
+            - name: JWKS_URL
+              value: {{ .Values.heimdall.jwksUrl }}
+            - name: JWT_AUDIENCE
+              value: {{ .Values.app.audience }}
           ports:
             - containerPort: 8080
               name: web

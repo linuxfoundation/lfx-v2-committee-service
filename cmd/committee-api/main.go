@@ -62,6 +62,7 @@ func main() {
 	committeeRetriever := service.CommitteeReaderImpl(ctx)
 	committeeWriter := service.CommitteeWriterImpl(ctx)
 	projectRetriever := service.ProjectRetrieverImpl(ctx)
+	authService := service.AuthServiceImpl(ctx)
 
 	// Initialize the service with use case
 	createCommitteeUseCase := usecaseSvc.NewcommitteeWriterOrchestrator(
@@ -70,7 +71,7 @@ func main() {
 		usecaseSvc.WithProjectRetriever(projectRetriever),
 	)
 
-	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase)
+	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase, authService)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.

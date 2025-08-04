@@ -15,24 +15,6 @@ ingress:
   # hostname is the hostname of the ingress
   hostname: lfx-api.k8s.orb.local
 
-# heimdall is the configuration for the heimdall middleware
-heimdall:
-  enabled: true
-  url: http://heimdall.lfx.svc.cluster.local:4456
-
-# authelia is the configuration for the Authelia server
-authelia:
-  # enabled is a boolean to determine if the Authelia authenticator is enabled
-  # Note: Disabling Authelia should only be used for local development
-  enabled: true
-
-# openfga is the configuration for the OpenFGA server
-openfga:
-  # enabled is a boolean to determine if the OpenFGA server should be enabled for authorization
-  # Note: If it is disabled, then the project service will allow all requests
-  # (Disabling OpenFGA should only be used for local development).
-  enabled: true
-
 # nats is the configuration for the NATS server
 nats:
   # url is the URL of the NATS server
@@ -79,3 +61,33 @@ nats:
     maxBytes: 1073741824 # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+
+# openfga is the configuration for the OpenFGA server
+openfga:
+  # enabled is a boolean to determine if the OpenFGA server should be enabled for authorization
+  # Note: If it is disabled, then the committee service will allow all requests
+  # (Disabling OpenFGA should only be used for local development).
+  enabled: true
+
+# heimdall is the configuration for the heimdall middleware
+heimdall:
+  enabled: true
+  url: http://heimdall.lfx.svc.cluster.local:4456
+  # jwksUrl is the URL to the JSON Web Key Set endpoint for JWT validation
+  jwksUrl: http://heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
+
+# authelia is the configuration for the Authelia server
+authelia:
+  # enabled is a boolean to determine if the Authelia authenticator is enabled
+  # Note: Disabling Authelia should only be used for local development
+  enabled: true
+
+# app is the configuration for the application
+app:
+  # logLevel is the log level (debug, info, warn, error)
+  logLevel: debug
+  # logAddSource is a boolean to determine if the log source should be added
+  logAddSource: true
+  # jwt is the configuration for JWT authentication
+  # audience is the intended audience for the JWT token
+  audience: lfx-v2-committee-service

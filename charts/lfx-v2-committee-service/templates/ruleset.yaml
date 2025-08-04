@@ -4,8 +4,8 @@
 apiVersion: heimdall.dadrus.github.com/v1alpha4
 kind: RuleSet
 metadata:
-  name: lfx-v2-committee-service
-  namespace: lfx
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
 spec:
   rules:
     - id: "rule:lfx:lfx-v2-committee-service:committees:create"

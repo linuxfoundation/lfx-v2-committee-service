@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 )
@@ -122,7 +123,7 @@ func CommitteeWriterImpl(ctx context.Context) port.CommitteeWriter {
 	// Repository implementation configuration
 	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
-		repoSource = "mock"
+		repoSource = "nats"
 	}
 
 	switch repoSource {
@@ -152,7 +153,7 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectReader {
 	// Repository implementation configuration
 	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
-		repoSource = "mock"
+		repoSource = "nats"
 	}
 
 	switch repoSource {
@@ -173,4 +174,36 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectReader {
 	}
 
 	return projectReader
+}
+
+// AuthServiceImpl initializes the authentication service implementation
+func AuthServiceImpl(ctx context.Context) port.Authenticator {
+	var authService port.Authenticator
+
+	// Repository implementation configuration
+	authSource := os.Getenv("AUTH_SOURCE")
+	if authSource == "" {
+		authSource = "jwt"
+	}
+
+	switch authSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock authentication service")
+		authService = infrastructure.NewMockAuthService()
+	case "jwt":
+		slog.InfoContext(ctx, "initializing JWT authentication service")
+		jwtConfig := auth.JWTAuthConfig{
+			JWKSURL:  os.Getenv("JWKS_URL"),
+			Audience: os.Getenv("JWT_AUDIENCE"),
+		}
+		jwtAuth, err := auth.NewJWTAuth(jwtConfig)
+		if err != nil {
+			log.Fatalf("failed to initialize JWT authentication service: %v", err)
+		}
+		authService = jwtAuth
+	default:
+		log.Fatalf("unsupported authentication service implementation: %s", authSource)
+	}
+
+	return authService
 }
