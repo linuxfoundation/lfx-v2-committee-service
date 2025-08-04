@@ -398,6 +398,32 @@ func (m *MockRepository) GetCommitteeCount() int {
 	return len(m.committees)
 }
 
+// MockCommitteePublisher implements CommitteePublisher interface for testing
+type MockCommitteePublisher struct{}
+
+// Indexer simulates publishing an indexer message
+func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any) error {
+	slog.InfoContext(ctx, "mock publisher: indexer message published",
+		"subject", subject,
+		"message_type", "indexer",
+	)
+	return nil
+}
+
+// Access simulates publishing an access message
+func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any) error {
+	slog.InfoContext(ctx, "mock publisher: access message published",
+		"subject", subject,
+		"message_type", "access",
+	)
+	return nil
+}
+
+// NewMockCommitteePublisher creates a mock committee publisher
+func NewMockCommitteePublisher() port.CommitteePublisher {
+	return &MockCommitteePublisher{}
+}
+
 // stringPtr is a helper function to create string pointers
 func stringPtr(s string) *string {
 	return &s

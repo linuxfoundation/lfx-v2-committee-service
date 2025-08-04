@@ -62,6 +62,7 @@ func main() {
 	committeeRetriever := service.CommitteeReaderImpl(ctx)
 	committeeWriter := service.CommitteeWriterImpl(ctx)
 	projectRetriever := service.ProjectRetrieverImpl(ctx)
+	committeePublisher := service.CommitteePublisherImpl(ctx)
 	authService := service.AuthServiceImpl(ctx)
 
 	// Initialize the service with use case
@@ -69,6 +70,7 @@ func main() {
 		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
 		usecaseSvc.WithCommitteeWriter(committeeWriter),
 		usecaseSvc.WithProjectRetriever(projectRetriever),
+		usecaseSvc.WithCommitteePublisher(committeePublisher),
 	)
 
 	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase, authService)

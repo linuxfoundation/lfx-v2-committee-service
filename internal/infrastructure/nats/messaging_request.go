@@ -12,11 +12,11 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-type message struct {
+type messageRequest struct {
 	client *NATSClient
 }
 
-func (m *message) get(ctx context.Context, subject, uid string) (string, error) {
+func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, error) {
 
 	data := []byte(uid)
 	msg, err := m.client.conn.RequestWithContext(ctx, subject, data)
@@ -33,16 +33,16 @@ func (m *message) get(ctx context.Context, subject, uid string) (string, error) 
 
 }
 
-func (m *message) Slug(ctx context.Context, uid string) (string, error) {
+func (m *messageRequest) Slug(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetSlugSubject, uid)
 }
 
-func (m *message) Name(ctx context.Context, uid string) (string, error) {
+func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
-func NewMessage(client *NATSClient) port.ProjectReader {
-	return &message{
+func NewMessageRequest(client *NATSClient) port.ProjectReader {
+	return &messageRequest{
 		client: client,
 	}
 }

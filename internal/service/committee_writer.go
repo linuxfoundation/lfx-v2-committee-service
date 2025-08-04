@@ -6,10 +6,13 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/concurrent"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -43,11 +46,19 @@ func WithProjectRetriever(retriever port.ProjectReader) committeeWriterOrchestra
 	}
 }
 
+// WithCommitteePublisher sets the committee publisher
+func WithCommitteePublisher(publisher port.CommitteePublisher) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.committeePublisher = publisher
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
-	projectRetriever port.ProjectReader
-	committeeReader  port.CommitteeReader
-	committeeWriter  port.CommitteeWriter
+	projectRetriever   port.ProjectReader
+	committeeReader    port.CommitteeReader
+	committeeWriter    port.CommitteeWriter
+	committeePublisher port.CommitteePublisher
 }
 
 // rollback undoes the changes made during committee creation
@@ -131,6 +142,48 @@ func (uc *committeeWriterOrchestrator) checkReserveSSOName(ctx context.Context, 
 		return key, nil
 	}
 
+}
+
+func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
+
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action: model.ActionCreated,
+		Tags:   tags,
+	}
+
+	messageIndexer, errIndexerMessageBuild := indexerMessage.Build(ctx, committee)
+	if errIndexerMessageBuild != nil {
+		slog.ErrorContext(ctx, "failed to build indexer message",
+			"error", errIndexerMessageBuild,
+		)
+		return nil, errs.NewUnexpected("failed to build indexer message", errIndexerMessageBuild)
+	}
+
+	return messageIndexer, nil
+}
+
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
+
+	var parentUID string
+	if committee.CommitteeBase.ParentUID != nil {
+		parentUID = *committee.CommitteeBase.ParentUID
+	}
+
+	slog.DebugContext(ctx, "building access control message",
+		"committee_uid", committee.CommitteeBase.UID,
+		"public", committee.CommitteeBase.Public,
+		"parent_uid", parentUID,
+		"writers", committee.Writers,
+		"auditors", committee.Auditors,
+	)
+
+	return &model.CommitteeAccessMessage{
+		UID:       committee.CommitteeBase.UID,
+		Public:    committee.CommitteeBase.Public,
+		ParentUID: parentUID,
+		Writers:   committee.Writers,
+		Auditors:  committee.Auditors,
+	}
 }
 
 // Execute orchestrates the committee creation process
@@ -221,12 +274,47 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		rollbackRequired = true
 		return nil, errCreate
 	}
+	keys = append(keys, committee.CommitteeBase.UID)
 
 	slog.DebugContext(ctx, "committee created successfully",
 		"committee_uid", committee.CommitteeBase.UID,
 		"project_uid", committee.ProjectUID,
 		"name", committee.Name,
 	)
+
+	defaultTags := []string{
+		fmt.Sprintf("project_uid:%s", committee.ProjectUID),
+		fmt.Sprintf("committee_name:%s", committee.Name),
+	}
+
+	// Publish indexer messages for the committee and settings
+	messages := []func() error{}
+	for subject, data := range map[string]any{
+		constants.IndexCommitteeSubject:         committee.CommitteeBase,
+		constants.IndexCommitteeSettingsSubject: committee.CommitteeSettings,
+	} {
+		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, data, defaultTags)
+		if errBuildIndexerMessage != nil {
+			return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
+		}
+		messages = append(messages, func() error {
+			return uc.committeePublisher.Indexer(ctx, subject, message)
+		})
+	}
+
+	// Publish access control message for the committee
+	messages = append(messages, func() error {
+		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, uc.buildAccessControlMessage(ctx, committee))
+	})
+
+	// all messages are executed concurrently
+	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
+	if errPublishingMessage != nil {
+		slog.ErrorContext(ctx, "failed to publish indexer message",
+			"error", errPublishingMessage,
+			"committee_uid", committee.CommitteeBase.UID,
+		)
+	}
 
 	return committee, nil
 }

@@ -21,6 +21,7 @@ import (
 var (
 	natsStorage   port.CommitteeReaderWriter
 	natsMessaging port.ProjectReader
+	natsPublisher port.CommitteePublisher
 
 	natsDoOnce sync.Once
 )
@@ -72,7 +73,8 @@ func natsInit(ctx context.Context) {
 			log.Fatalf("failed to create NATS client: %v", errNewClient)
 		}
 		natsStorage = nats.NewStorage(natsClient)
-		natsMessaging = nats.NewMessage(natsClient)
+		natsMessaging = nats.NewMessageRequest(natsClient)
+		natsPublisher = nats.NewMessagePublisher(natsClient)
 	})
 }
 
@@ -84,6 +86,11 @@ func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
 func natsMessagingImpl(ctx context.Context) port.ProjectReader {
 	natsInit(ctx)
 	return natsMessaging
+}
+
+func natsPublisherImpl(ctx context.Context) port.CommitteePublisher {
+	natsInit(ctx)
+	return natsPublisher
 }
 
 // CommitteeReaderImpl initializes the committee reader implementation based on the repository source
@@ -206,4 +213,30 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 	}
 
 	return authService
+}
+
+// CommitteePublisherImpl initializes the committee publisher implementation based on the messaging source
+func CommitteePublisherImpl(ctx context.Context) port.CommitteePublisher {
+	var committeePublisher port.CommitteePublisher
+
+	// Messaging implementation configuration
+	messagingSource := os.Getenv("MESSAGING_SOURCE")
+	if messagingSource == "" {
+		messagingSource = "nats"
+	}
+
+	switch messagingSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock committee publisher")
+		committeePublisher = infrastructure.NewMockCommitteePublisher()
+
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS committee publisher")
+		committeePublisher = natsPublisherImpl(ctx)
+
+	default:
+		log.Fatalf("unsupported committee publisher implementation: %s", messagingSource)
+	}
+
+	return committeePublisher
 }
