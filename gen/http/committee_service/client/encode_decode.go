@@ -427,7 +427,7 @@ func DecodeUpdateCommitteeBaseResponse(decoder func(*http.Response) goahttp.Deco
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "update-committee-base", err)
 			}
-			res := NewUpdateCommitteeBaseCommitteeFullWithReadonlyAttributesOK(&body)
+			res := NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (

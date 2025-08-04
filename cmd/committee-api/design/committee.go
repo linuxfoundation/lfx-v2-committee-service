@@ -41,7 +41,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Required("name", "category")
 		})
 
-		dsl.Result(CommitteeBaseWithReadonlyAttributes)
+		dsl.Result(CommitteeFullWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Resource not found")

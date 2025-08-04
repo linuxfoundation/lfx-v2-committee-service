@@ -19,13 +19,6 @@ type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
 }
 
-// NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter) committeeservice.Service {
-	return &committeeServicesrvc{
-		committeeWriterOrchestrator: createCommitteeUseCase,
-	}
-}
-
 // JWTAuth implements the authorization logic for service "committee-service"
 // for the "jwt" security scheme.
 func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme *security.JWTScheme) (context.Context, error) {
@@ -67,52 +60,104 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 	}
 
 	// Convert response to GOA result
-	result := s.convertDomainToReponse(response)
+	result := s.convertDomainToFullResponse(response)
 
 	return result, nil
 }
 
 // convertPayloadToDomain converts GOA payload to domain model
 func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.CreateCommitteePayload) *model.Committee {
-	// TODO
+	// Convert payload to domain - split into Base and Settings
+	base := s.convertPayloadToBase(p)
+	settings := s.convertPayloadToSettings(p)
+
 	request := &model.Committee{
-		CommitteeBase: model.CommitteeBase{
-			ProjectUID:      *p.ProjectUID,
-			Name:            p.Name,
-			Category:        p.Category,
-			Description:     *p.Description,
-			Website:         p.Website,
-			EnableVoting:    p.EnableVoting,
-			SSOGroupEnabled: p.SsoGroupEnabled,
-			RequiresReview:  p.RequiresReview,
-			Public:          p.Public,
-			DisplayName:     *p.DisplayName,
-			ParentUID:       p.ParentUID,
-			//Calendar:        p.Calendar,
-		},
+		CommitteeBase:     base,
+		CommitteeSettings: settings,
 	}
 
 	return request
 }
 
-func (s *committeeServicesrvc) convertDomainToReponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
+// convertPayloadToBase converts GOA payload to CommitteeBase domain model
+func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCommitteePayload) model.CommitteeBase {
+	base := model.CommitteeBase{
+		ProjectUID:      *p.ProjectUID,
+		Name:            p.Name,
+		Category:        p.Category,
+		Description:     *p.Description,
+		Website:         p.Website,
+		EnableVoting:    p.EnableVoting,
+		SSOGroupEnabled: p.SsoGroupEnabled,
+		RequiresReview:  p.RequiresReview,
+		Public:          p.Public,
+		DisplayName:     *p.DisplayName,
+		ParentUID:       p.ParentUID,
+	}
+
+	// Handle calendar if present
+	if p.Calendar != nil {
+		base.Calendar = model.Calendar{
+			Public: p.Calendar.Public,
+		}
+	}
+
+	return base
+}
+
+// convertPayloadToSettings converts GOA payload to CommitteeSettings domain model
+func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.CreateCommitteePayload) *model.CommitteeSettings {
+	settings := &model.CommitteeSettings{
+		BusinessEmailRequired: p.BusinessEmailRequired,
+		LastReviewedBy:        p.LastReviewedBy,
+		Writers:               p.Writers,
+		Auditors:              p.Auditors,
+	}
+
+	// Handle LastReviewedAt - GOA validates format via Pattern constraint
+	if p.LastReviewedAt != nil && *p.LastReviewedAt != "" {
+		settings.LastReviewedAt = p.LastReviewedAt
+	}
+
+	return settings
+}
+
+func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:             &response.CommitteeBase.UID,
-		ProjectUID:      &response.ProjectUID,
-		Name:            &response.Name,
-		Category:        &response.Category,
-		Description:     &response.Description,
-		Website:         response.Website,
-		EnableVoting:    response.EnableVoting,
-		SsoGroupEnabled: response.SSOGroupEnabled,
-		SsoGroupName:    &response.SSOGroupName,
-		Public:          response.Public,
-		DisplayName:     &response.DisplayName,
-		ParentUID:       response.ParentUID,
+		UID:              &response.CommitteeBase.UID,
+		ProjectUID:       &response.ProjectUID,
+		Name:             &response.Name,
+		Category:         &response.Category,
+		Description:      &response.Description,
+		Website:          response.Website,
+		EnableVoting:     response.EnableVoting,
+		SsoGroupEnabled:  response.SSOGroupEnabled,
+		RequiresReview:   response.RequiresReview,
+		Public:           response.Public,
+		DisplayName:      &response.DisplayName,
+		ParentUID:        response.ParentUID,
+		SsoGroupName:     &response.SSOGroupName,
+		TotalMembers:     &response.TotalMembers,
+		TotalVotingRepos: &response.TotalVotingRepos,
+	}
+
+	// Handle Calendar mapping
+	result.Calendar = &struct {
+		Public bool
+	}{
+		Public: response.Calendar.Public,
+	}
+
+	// Include settings data if available
+	if response.CommitteeSettings != nil {
+		result.BusinessEmailRequired = response.CommitteeSettings.BusinessEmailRequired
+		result.LastReviewedAt = response.CommitteeSettings.LastReviewedAt
+		result.LastReviewedBy = response.CommitteeSettings.LastReviewedBy
+		result.Writers = response.CommitteeSettings.Writers
+		result.Auditors = response.CommitteeSettings.Auditors
 	}
 
 	return result
-
 }
 
 // Get Committee
@@ -125,8 +170,8 @@ func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committe
 }
 
 // Update Committee
-func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *committeeservice.UpdateCommitteeBasePayload) (res *committeeservice.CommitteeFullWithReadonlyAttributes, err error) {
-	res = &committeeservice.CommitteeFullWithReadonlyAttributes{}
+func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *committeeservice.UpdateCommitteeBasePayload) (res *committeeservice.CommitteeBaseWithReadonlyAttributes, err error) {
+	res = &committeeservice.CommitteeBaseWithReadonlyAttributes{}
 	slog.DebugContext(ctx, "committeeService.update-committee-base",
 		"committee_uid", p.UID,
 	)
@@ -167,4 +212,11 @@ func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err erro
 // Check if the service is alive.
 func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error) {
 	return
+}
+
+// NewCommitteeService returns the committee-service service implementation with dependencies.
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter) committeeservice.Service {
+	return &committeeServicesrvc{
+		committeeWriterOrchestrator: createCommitteeUseCase,
+	}
 }

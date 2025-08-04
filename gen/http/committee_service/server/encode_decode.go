@@ -287,7 +287,7 @@ func EncodeGetCommitteeBaseError(encoder func(context.Context, http.ResponseWrit
 // by the committee-service update-committee-base endpoint.
 func EncodeUpdateCommitteeBaseResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeFullWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeBaseWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewUpdateCommitteeBaseResponseBody(res)
 		w.WriteHeader(http.StatusOK)

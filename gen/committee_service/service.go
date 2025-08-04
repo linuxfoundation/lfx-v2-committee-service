@@ -21,7 +21,7 @@ type Service interface {
 	// Get Committee
 	GetCommitteeBase(context.Context, *GetCommitteeBasePayload) (res *GetCommitteeBaseResult, err error)
 	// Update Committee
-	UpdateCommitteeBase(context.Context, *UpdateCommitteeBasePayload) (res *CommitteeFullWithReadonlyAttributes, err error)
+	UpdateCommitteeBase(context.Context, *UpdateCommitteeBasePayload) (res *CommitteeBaseWithReadonlyAttributes, err error)
 	// Delete Committee
 	DeleteCommittee(context.Context, *DeleteCommitteePayload) (err error)
 	// Get Committee Settings
@@ -55,6 +55,48 @@ const ServiceName = "committee-service"
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
 var MethodNames = [8]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez"}
+
+// CommitteeBaseWithReadonlyAttributes is the result type of the
+// committee-service service update-committee-base method.
+type CommitteeBaseWithReadonlyAttributes struct {
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Project UID this committee belongs to -- v2 uid, not related to v1 id
+	// directly
+	ProjectUID *string
+	// The name of the committee
+	Name *string
+	// The category of the committee
+	Category *string
+	// The description of the committee
+	Description *string
+	// The website URL of the committee
+	Website *string
+	// Whether voting is enabled for this committee
+	EnableVoting bool
+	// Whether SSO group integration is enabled
+	SsoGroupEnabled bool
+	// Whether this committee is expected to be reviewed
+	RequiresReview bool
+	// General committee visibility/access permissions
+	Public bool
+	// Settings related to the committee calendar
+	Calendar *struct {
+		// Whether the committee calendar is publicly visible
+		Public bool
+	}
+	// The display name of the committee
+	DisplayName *string
+	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
+	// should be empty if there is none
+	ParentUID *string
+	// The name of the SSO group - read-only
+	SsoGroupName *string
+	// The total number of members in this committee
+	TotalMembers *int
+	// The total number of repositories with voting permissions for this committee
+	TotalVotingRepos *int
+}
 
 // CommitteeFullWithReadonlyAttributes is the result type of the
 // committee-service service create-committee method.
@@ -96,6 +138,16 @@ type CommitteeFullWithReadonlyAttributes struct {
 	TotalMembers *int
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int
+	// Whether business email is required for committee members
+	BusinessEmailRequired bool
+	// The timestamp when the committee was last reviewed in RFC3339 format
+	LastReviewedAt *string
+	// The user ID who last reviewed this committee
+	LastReviewedBy *string
+	// Manager user IDs who can edit/modify this committee
+	Writers []string
+	// Auditor user IDs who can audit this committee
+	Auditors []string
 }
 
 // CommitteeSettingsWithReadonlyAttributes is the result type of the
@@ -105,7 +157,7 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
@@ -153,7 +205,7 @@ type CreateCommitteePayload struct {
 	ParentUID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
@@ -190,7 +242,7 @@ type GetCommitteeBasePayload struct {
 // GetCommitteeBaseResult is the result type of the committee-service service
 // get-committee-base method.
 type GetCommitteeBaseResult struct {
-	CommitteeBase *CommitteeFullWithReadonlyAttributes
+	CommitteeBase *CommitteeBaseWithReadonlyAttributes
 	// ETag header value
 	Etag *string
 }
@@ -269,7 +321,7 @@ type UpdateCommitteeSettingsPayload struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string

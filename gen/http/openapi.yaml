@@ -178,7 +178,7 @@ paths:
                 "200":
                     description: OK response.
                     schema:
-                        $ref: '#/definitions/CommitteeFullWithReadonlyAttributes'
+                        $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
                 "400":
                     description: Bad Request response.
                     schema:
@@ -462,8 +462,8 @@ definitions:
             message: The request was invalid.
         required:
             - message
-    CommitteeFullWithReadonlyAttributes:
-        title: CommitteeFullWithReadonlyAttributes
+    CommitteeBaseWithReadonlyAttributes:
+        title: CommitteeBaseWithReadonlyAttributes
         type: object
         properties:
             calendar:
@@ -573,6 +573,7 @@ definitions:
                 example: https://committee.example.org
                 format: uri
                 pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+        description: A base representation of LFX committees with readonly attributes.
         example:
             calendar:
                 public: true
@@ -591,8 +592,8 @@ definitions:
             total_voting_repos: 3
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
-    CommitteeServiceCreateCommitteeRequestBody:
-        title: CommitteeServiceCreateCommitteeRequestBody
+    CommitteeFullWithReadonlyAttributes:
+        title: CommitteeFullWithReadonlyAttributes
         type: object
         properties:
             auditors:
@@ -661,9 +662,181 @@ definitions:
                 example: true
             last_reviewed_at:
                 type: string
-                description: The timestamp when the committee was last reviewed
-                example: "2023-05-10T09:15:00Z"
+                description: The timestamp when the committee was last reviewed in RFC3339 format
+                example: "2025-08-04T09:00:00Z"
                 format: date-time
+                pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
+            last_reviewed_by:
+                type: string
+                description: The user ID who last reviewed this committee
+                example: user_id_12345
+            name:
+                type: string
+                description: The name of the committee
+                example: Technical Steering Committee
+                maxLength: 100
+            parent_uid:
+                type: string
+                description: The UID of the parent committee -- v2 uid, not related to v1 id directly, should be empty if there is none
+                example: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
+                format: uuid
+            project_uid:
+                type: string
+                description: Project UID this committee belongs to -- v2 uid, not related to v1 id directly
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            public:
+                type: boolean
+                description: General committee visibility/access permissions
+                default: false
+                example: true
+            requires_review:
+                type: boolean
+                description: Whether this committee is expected to be reviewed
+                default: false
+                example: true
+            sso_group_enabled:
+                type: boolean
+                description: Whether SSO group integration is enabled
+                default: false
+                example: true
+            sso_group_name:
+                type: string
+                description: The name of the SSO group - read-only
+                example: lfx-committee-group
+            total_members:
+                type: integer
+                description: The total number of members in this committee
+                example: 15
+                format: int64
+                minimum: 0
+            total_voting_repos:
+                type: integer
+                description: The total number of repositories with voting permissions for this committee
+                example: 3
+                format: int64
+                minimum: 0
+            uid:
+                type: string
+                description: Committee UID -- v2 uid, not related to v1 id directly
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            website:
+                type: string
+                description: The website URL of the committee
+                example: https://committee.example.org
+                format: uri
+                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+            writers:
+                type: array
+                items:
+                    type: string
+                    example: Non aliquam est voluptas.
+                description: Manager user IDs who can edit/modify this committee
+                example:
+                    - manager_user_id1
+                    - manager_user_id2
+        example:
+            auditors:
+                - auditor_user_id1
+                - auditor_user_id2
+            business_email_required: false
+            calendar:
+                public: true
+            category: Technical Steering Committee
+            description: Main technical oversight committee for the project
+            display_name: TSC Committee Calendar
+            enable_voting: true
+            last_reviewed_at: "2025-08-04T09:00:00Z"
+            last_reviewed_by: user_id_12345
+            name: Technical Steering Committee
+            parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
+            project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            public: true
+            requires_review: true
+            sso_group_enabled: true
+            sso_group_name: lfx-committee-group
+            total_members: 15
+            total_voting_repos: 3
+            uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            website: https://committee.example.org
+            writers:
+                - manager_user_id1
+                - manager_user_id2
+    CommitteeServiceCreateCommitteeRequestBody:
+        title: CommitteeServiceCreateCommitteeRequestBody
+        type: object
+        properties:
+            auditors:
+                type: array
+                items:
+                    type: string
+                    example: Dolorum aspernatur voluptatem harum veritatis quaerat dolorem.
+                description: Auditor user IDs who can audit this committee
+                example:
+                    - auditor_user_id1
+                    - auditor_user_id2
+            business_email_required:
+                type: boolean
+                description: Whether business email is required for committee members
+                default: false
+                example: false
+            calendar:
+                type: object
+                properties:
+                    public:
+                        type: boolean
+                        description: Whether the committee calendar is publicly visible
+                        default: false
+                        example: true
+                description: Settings related to the committee calendar
+                example:
+                    public: true
+            category:
+                type: string
+                description: The category of the committee
+                example: Technical Steering Committee
+                enum:
+                    - Ambassador
+                    - Board
+                    - Code of Conduct
+                    - Committers
+                    - Expert Group
+                    - Finance Committee
+                    - Government Advisory Council
+                    - Legal Committee
+                    - Maintainers
+                    - Marketing Committee/Sub Committee
+                    - Marketing Mailing List
+                    - Marketing Oversight Committee/Marketing Advisory Committee
+                    - Other
+                    - Product Security
+                    - Special Interest Group
+                    - Technical Mailing List
+                    - Technical Oversight Committee/Technical Advisory Committee
+                    - Technical Steering Committee
+                    - Working Group
+            description:
+                type: string
+                description: The description of the committee
+                example: Main technical oversight committee for the project
+                maxLength: 2000
+            display_name:
+                type: string
+                description: The display name of the committee
+                example: TSC Committee Calendar
+                maxLength: 100
+            enable_voting:
+                type: boolean
+                description: Whether voting is enabled for this committee
+                default: false
+                example: true
+            last_reviewed_at:
+                type: string
+                description: The timestamp when the committee was last reviewed in RFC3339 format
+                example: "2025-08-04T09:00:00Z"
+                format: date-time
+                pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
             last_reviewed_by:
                 type: string
                 description: The user ID who last reviewed this committee
@@ -708,7 +881,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Non aliquam est voluptas.
+                    example: Vitae sit voluptatem enim esse unde voluptatibus.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -724,7 +897,7 @@ definitions:
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
-            last_reviewed_at: "2023-05-10T09:15:00Z"
+            last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -741,7 +914,7 @@ definitions:
             - category
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
-        $ref: '#/definitions/CommitteeFullWithReadonlyAttributes'
+        $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
     CommitteeServiceGetCommitteeSettingsResponseBody:
         title: CommitteeServiceGetCommitteeSettingsResponseBody
         $ref: '#/definitions/CommitteeSettingsWithReadonlyAttributes'
@@ -860,7 +1033,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Dolorum aspernatur voluptatem harum veritatis quaerat dolorem.
+                    example: Debitis labore alias nesciunt quis.
                 description: Auditor user IDs who can audit this committee
                 example:
                     - auditor_user_id1
@@ -872,9 +1045,10 @@ definitions:
                 example: false
             last_reviewed_at:
                 type: string
-                description: The timestamp when the committee was last reviewed
-                example: "2023-05-10T09:15:00Z"
+                description: The timestamp when the committee was last reviewed in RFC3339 format
+                example: "2025-08-04T09:00:00Z"
                 format: date-time
+                pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
             last_reviewed_by:
                 type: string
                 description: The user ID who last reviewed this committee
@@ -883,7 +1057,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Vitae sit voluptatem enim esse unde voluptatibus.
+                    example: Qui maxime recusandae et modi.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -893,7 +1067,7 @@ definitions:
                 - auditor_user_id1
                 - auditor_user_id2
             business_email_required: false
-            last_reviewed_at: "2023-05-10T09:15:00Z"
+            last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             writers:
                 - manager_user_id1
@@ -916,9 +1090,10 @@ definitions:
                 format: date-time
             last_reviewed_at:
                 type: string
-                description: The timestamp when the committee was last reviewed
-                example: "2023-05-10T09:15:00Z"
+                description: The timestamp when the committee was last reviewed in RFC3339 format
+                example: "2025-08-04T09:00:00Z"
                 format: date-time
+                pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
             last_reviewed_by:
                 type: string
                 description: The user ID who last reviewed this committee
@@ -937,7 +1112,7 @@ definitions:
         example:
             business_email_required: false
             created_at: "2023-01-15T10:30:00Z"
-            last_reviewed_at: "2023-05-10T09:15:00Z"
+            last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"

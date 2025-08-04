@@ -64,7 +64,7 @@ func NewMockRepository() *MockRepository {
 			CommitteeSettings: &model.CommitteeSettings{
 				UID:                   "committee-1",
 				BusinessEmailRequired: true,
-				LastReviewedAt:        &now,
+				LastReviewedAt:        stringPtr("2025-08-04T09:00:00Z"),
 				LastReviewedBy:        stringPtr("admin@example.com"),
 				Writers:               []string{"writer1@example.com", "writer2@example.com"},
 				Auditors:              []string{"auditor1@example.com"},

@@ -7,7 +7,6 @@ import (
 	"goa.design/goa/v3/dsl"
 )
 
-
 // CommitteeBase is the DSL type for a committee base.
 var CommitteeBase = dsl.Type("committee-base", func() {
 	dsl.Description("A base representation of LFX committees without sub-objects.")
@@ -46,7 +45,6 @@ func CommitteeSettingsAttributes() {
 	LastReviewedByAttribute()
 }
 
-
 // CommitteeFull is the DSL type for a committee full.
 var CommitteeFull = dsl.Type("committee-full", func() {
 	dsl.Description("A full representation of LFX committees with sub-objects.")
@@ -59,9 +57,9 @@ var CommitteeFull = dsl.Type("committee-full", func() {
 	AuditorsAttribute()
 })
 
-var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
-	dsl.Description("A full representation of LFX committees with sub-objects and readonly attributes.")
-	
+var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly-attributes", func() {
+	dsl.Description("A base representation of LFX committees with readonly attributes.")
+
 	CommitteeUIDAttribute()
 
 	CommitteeBaseAttributes()
@@ -70,19 +68,39 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 
 	TotalMembersAttribute()
 	TotalVotingReposAttribute()
-	
+
+})
+
+var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
+	dsl.Description("A complete representation of LFX committees with base, settings and readonly attributes.")
+
+	CommitteeUIDAttribute()
+
+	CommitteeBaseAttributes()
+
+	SSOGroupNameAttribute()
+
+	TotalMembersAttribute()
+	TotalVotingReposAttribute()
+
+	// Include settings attributes for complete representation
+	CommitteeSettingsAttributes()
+
+	WritersAttribute()
+	AuditorsAttribute()
+
 })
 
 var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-readonly-attributes", func() {
 	dsl.Description("A representation of LF Committee settings with readonly attributes.")
-	
+
 	CommitteeUIDAttribute()
 
 	CommitteeSettingsAttributes()
 
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
-	
+
 })
 
 // CommitteeUIDAttribute is the DSL attribute for committee UID.
@@ -203,22 +221,28 @@ func PublicAttribute() {
 	})
 }
 
-// CalendarAttribute is the DSL attribute for calendar public visibility.
+// CalendarAttribute is the DSL attribute for calendar settings.
 func CalendarAttribute() {
 	dsl.Attribute("calendar", func() {
 		dsl.Description("Settings related to the committee calendar")
-		dsl.Attribute("public", dsl.Boolean, "Whether the committee calendar is publicly visible", func() {
-			dsl.Default(false)
-			dsl.Example(true)
-		})
+		CalendarPublicAttribute()
+	})
+}
+
+// CalendarPublicAttribute is the DSL attribute for calendar public visibility.
+func CalendarPublicAttribute() {
+	dsl.Attribute("public", dsl.Boolean, "Whether the committee calendar is publicly visible", func() {
+		dsl.Default(false)
+		dsl.Example(true)
 	})
 }
 
 // LastReviewedAtAttribute is the DSL attribute for last review timestamp.
 func LastReviewedAtAttribute() {
-	dsl.Attribute("last_reviewed_at", dsl.String, "The timestamp when the committee was last reviewed", func() {
+	dsl.Attribute("last_reviewed_at", dsl.String, "The timestamp when the committee was last reviewed in RFC3339 format", func() {
 		dsl.Format(dsl.FormatDateTime)
-		dsl.Example("2023-05-10T09:15:00Z")
+		dsl.Example("2025-08-04T09:00:00Z")
+		dsl.Pattern(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`)
 	})
 }
 

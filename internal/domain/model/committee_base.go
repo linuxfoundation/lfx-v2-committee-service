@@ -83,8 +83,10 @@ func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) e
 	return nil
 }
 
-// BuildIndexKey generates a unique hash key from ProjectUID and committee Name
-// for use as a secondary index in NoSQL databases
+// BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
+// This is necessary because the original input may contain special characters,
+// exceed length limits, or have inconsistent formatting, and we do not control its content.
+// Using a hash ensures a safe, fixed-length, and deterministic key.
 func (c *Committee) BuildIndexKey(ctx context.Context) string {
 	// Combine project_uid and committee name with a delimiter
 	data := fmt.Sprintf("%s|%s", c.ProjectUID, c.Name)

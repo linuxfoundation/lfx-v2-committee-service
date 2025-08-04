@@ -49,7 +49,7 @@ type CreateCommitteeRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -98,7 +98,7 @@ type UpdateCommitteeBaseRequestBody struct {
 type UpdateCommitteeSettingsRequestBody struct {
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -148,11 +148,21 @@ type CreateCommitteeResponseBody struct {
 	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
+	// Whether business email is required for committee members
+	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// The timestamp when the committee was last reviewed in RFC3339 format
+	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
+	// The user ID who last reviewed this committee
+	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Manager user IDs who can edit/modify this committee
+	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Auditor user IDs who can audit this committee
+	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
 // "get-committee-base" endpoint HTTP response body.
-type GetCommitteeBaseResponseBody CommitteeFullWithReadonlyAttributesResponseBody
+type GetCommitteeBaseResponseBody CommitteeBaseWithReadonlyAttributesResponseBody
 
 // UpdateCommitteeBaseResponseBody is the type of the "committee-service"
 // service "update-committee-base" endpoint HTTP response body.
@@ -207,7 +217,7 @@ type UpdateCommitteeSettingsResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -409,9 +419,9 @@ type ReadyzServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// CommitteeFullWithReadonlyAttributesResponseBody is used to define fields on
+// CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
-type CommitteeFullWithReadonlyAttributesResponseBody struct {
+type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
@@ -458,7 +468,7 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -472,21 +482,24 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 // of the "create-committee" endpoint of the "committee-service" service.
 func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReadonlyAttributes) *CreateCommitteeResponseBody {
 	body := &CreateCommitteeResponseBody{
-		UID:              res.UID,
-		ProjectUID:       res.ProjectUID,
-		Name:             res.Name,
-		Category:         res.Category,
-		Description:      res.Description,
-		Website:          res.Website,
-		EnableVoting:     res.EnableVoting,
-		SsoGroupEnabled:  res.SsoGroupEnabled,
-		RequiresReview:   res.RequiresReview,
-		Public:           res.Public,
-		DisplayName:      res.DisplayName,
-		ParentUID:        res.ParentUID,
-		SsoGroupName:     res.SsoGroupName,
-		TotalMembers:     res.TotalMembers,
-		TotalVotingRepos: res.TotalVotingRepos,
+		UID:                   res.UID,
+		ProjectUID:            res.ProjectUID,
+		Name:                  res.Name,
+		Category:              res.Category,
+		Description:           res.Description,
+		Website:               res.Website,
+		EnableVoting:          res.EnableVoting,
+		SsoGroupEnabled:       res.SsoGroupEnabled,
+		RequiresReview:        res.RequiresReview,
+		Public:                res.Public,
+		DisplayName:           res.DisplayName,
+		ParentUID:             res.ParentUID,
+		SsoGroupName:          res.SsoGroupName,
+		TotalMembers:          res.TotalMembers,
+		TotalVotingRepos:      res.TotalVotingRepos,
+		BusinessEmailRequired: res.BusinessEmailRequired,
+		LastReviewedAt:        res.LastReviewedAt,
+		LastReviewedBy:        res.LastReviewedBy,
 	}
 	{
 		var zero bool
@@ -524,6 +537,24 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 			if body.Calendar.Public == zero {
 				body.Calendar.Public = false
 			}
+		}
+	}
+	{
+		var zero bool
+		if body.BusinessEmailRequired == zero {
+			body.BusinessEmailRequired = false
+		}
+	}
+	if res.Writers != nil {
+		body.Writers = make([]string, len(res.Writers))
+		for i, val := range res.Writers {
+			body.Writers[i] = val
+		}
+	}
+	if res.Auditors != nil {
+		body.Auditors = make([]string, len(res.Auditors))
+		for i, val := range res.Auditors {
+			body.Auditors[i] = val
 		}
 	}
 	return body
@@ -594,7 +625,7 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 // NewUpdateCommitteeBaseResponseBody builds the HTTP response body from the
 // result of the "update-committee-base" endpoint of the "committee-service"
 // service.
-func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeFullWithReadonlyAttributes) *UpdateCommitteeBaseResponseBody {
+func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithReadonlyAttributes) *UpdateCommitteeBaseResponseBody {
 	body := &UpdateCommitteeBaseResponseBody{
 		UID:              res.UID,
 		ProjectUID:       res.ProjectUID,
@@ -1170,6 +1201,9 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
+	if body.LastReviewedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
+	}
 	return
 }
 
@@ -1225,6 +1259,9 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
+	}
+	if body.LastReviewedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.last_reviewed_at", *body.LastReviewedAt, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"))
 	}
 	return
 }
