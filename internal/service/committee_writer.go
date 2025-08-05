@@ -291,7 +291,6 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 	defaultTags := []string{
 		fmt.Sprintf("project_uid:%s", committee.ProjectUID),
-		fmt.Sprintf("committee_name:%s", committee.Name),
 	}
 
 	// Publish indexer messages for the committee and settings

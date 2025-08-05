@@ -415,7 +415,7 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 				ProjectUID: "test-project",
 				Name:       "Test Committee",
 			},
-			tags:          []string{"project_uid:test-project", "committee_name:Test Committee"},
+			tags:          []string{"project_uid:test-project"},
 			expectedError: false,
 		},
 		{

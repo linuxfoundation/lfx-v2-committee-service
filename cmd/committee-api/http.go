@@ -12,6 +12,7 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	committeeservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/middleware"
 
 	"goa.design/clue/debug"
 	goahttp "goa.design/goa/v3/http"
@@ -59,6 +60,11 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	committeeservicesvr.Mount(mux, committeeServiceServer)
 
 	var handler http.Handler = mux
+
+	// Add RequestID middleware first
+	handler = middleware.RequestIDMiddleware()(handler)
+	// Add Authorization middleware
+	handler = middleware.AuthorizationMiddleware()(handler)
 	if dbg {
 		// Log query and response bodies if debug logs are enabled.
 		handler = debug.HTTP()(handler)
