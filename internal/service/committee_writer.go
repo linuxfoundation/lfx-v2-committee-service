@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/concurrent"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/uid"
 )
 
 // CommitteeWriter defines the interface for committee write operations
@@ -201,6 +202,8 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
+	committee.CommitteeBase.UID = uid.New()
+
 	// for rollback purposes
 	var (
 		keys             []string
@@ -325,6 +328,11 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 			"committee_uid", committee.CommitteeBase.UID,
 		)
 	}
+
+	slog.DebugContext(ctx, "indexer and access control messages published successfully",
+		"committee_uid", committee.CommitteeBase.UID,
+	)
+
 	return committee, nil
 }
 

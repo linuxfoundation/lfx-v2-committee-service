@@ -14,7 +14,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/uid"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -29,7 +28,6 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 		return errs.NewValidation("committee cannot be nil")
 	}
 
-	committee.CommitteeBase.UID = uid.New()
 	committeeBaseBytes, errMarshal := json.Marshal(committee.CommitteeBase)
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal committee base", errMarshal)
