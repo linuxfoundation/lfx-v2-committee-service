@@ -64,6 +64,7 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly
 
 	CommitteeBaseAttributes()
 
+	ProjectNameAttribute()
 	SSOGroupNameAttribute()
 
 	TotalMembersAttribute()
@@ -118,6 +119,14 @@ func ProjectUIDAttribute() {
 		// Read-only attribute
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// ProjectNameAttribute is the DSL attribute for project name.
+func ProjectNameAttribute() {
+	dsl.Attribute("project_name", dsl.String, "The name of the project this committee belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Linux Foundation Project")
 	})
 }
 

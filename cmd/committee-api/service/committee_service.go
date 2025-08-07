@@ -187,6 +187,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 		UID:              &base.UID,
 		ProjectUID:       &base.ProjectUID,
 		Name:             &base.Name,
+		ProjectName:      &base.ProjectName,
 		Category:         &base.Category,
 		Description:      &base.Description,
 		Website:          base.Website,

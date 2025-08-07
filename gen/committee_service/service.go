@@ -90,6 +90,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
+	// The name of the project this committee belongs to
+	ProjectName *string
 	// The name of the SSO group - read-only
 	SsoGroupName *string
 	// The total number of members in this committee

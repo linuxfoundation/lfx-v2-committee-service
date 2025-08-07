@@ -198,6 +198,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// The name of the project this committee belongs to
+	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -453,6 +455,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// The name of the project this committee belongs to
+	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -577,6 +581,7 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 		Public:           res.CommitteeBase.Public,
 		DisplayName:      res.CommitteeBase.DisplayName,
 		ParentUID:        res.CommitteeBase.ParentUID,
+		ProjectName:      res.CommitteeBase.ProjectName,
 		SsoGroupName:     res.CommitteeBase.SsoGroupName,
 		TotalMembers:     res.CommitteeBase.TotalMembers,
 		TotalVotingRepos: res.CommitteeBase.TotalVotingRepos,
@@ -639,6 +644,7 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		Public:           res.Public,
 		DisplayName:      res.DisplayName,
 		ParentUID:        res.ParentUID,
+		ProjectName:      res.ProjectName,
 		SsoGroupName:     res.SsoGroupName,
 		TotalMembers:     res.TotalMembers,
 		TotalVotingRepos: res.TotalVotingRepos,

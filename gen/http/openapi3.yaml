@@ -257,6 +257,7 @@ paths:
                                 enable_voting: true
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
+                                project_name: Linux Foundation Project
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
                                 requires_review: true
@@ -365,6 +366,7 @@ paths:
                                 enable_voting: true
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
+                                project_name: Linux Foundation Project
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
                                 requires_review: true
@@ -817,6 +819,11 @@ components:
                     description: The UID of the parent committee -- v2 uid, not related to v1 id directly, should be empty if there is none
                     example: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                     format: uuid
+                project_name:
+                    type: string
+                    description: The name of the project this committee belongs to
+                    example: Linux Foundation Project
+                    maxLength: 100
                 project_uid:
                     type: string
                     description: Project UID this committee belongs to -- v2 uid, not related to v1 id directly
@@ -874,6 +881,7 @@ components:
                 enable_voting: true
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
+                project_name: Linux Foundation Project
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
                 requires_review: true
