@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -19,6 +20,7 @@ import (
 // committeeServicesrvc service implementation with clean architecture
 type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
+	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
 }
 
@@ -179,13 +181,83 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	return result
 }
 
+// convertBaseToResponse converts domain CommitteeBase to GOA response type
+func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) *committeeservice.CommitteeBaseWithReadonlyAttributes {
+	result := &committeeservice.CommitteeBaseWithReadonlyAttributes{
+		UID:              &base.UID,
+		ProjectUID:       &base.ProjectUID,
+		Name:             &base.Name,
+		Category:         &base.Category,
+		Description:      &base.Description,
+		Website:          base.Website,
+		EnableVoting:     base.EnableVoting,
+		SsoGroupEnabled:  base.SSOGroupEnabled,
+		RequiresReview:   base.RequiresReview,
+		Public:           base.Public,
+		DisplayName:      &base.DisplayName,
+		ParentUID:        base.ParentUID,
+		SsoGroupName:     &base.SSOGroupName,
+		TotalMembers:     &base.TotalMembers,
+		TotalVotingRepos: &base.TotalVotingRepos,
+	}
+
+	// Handle Calendar mapping
+	result.Calendar = &struct {
+		Public bool
+	}{
+		Public: base.Calendar.Public,
+	}
+
+	return result
+}
+
+// convertSettingsToResponse converts domain CommitteeSettings to GOA response type
+func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.CommitteeSettings) *committeeservice.CommitteeSettingsWithReadonlyAttributes {
+	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+		UID:                   &settings.UID,
+		BusinessEmailRequired: settings.BusinessEmailRequired,
+		LastReviewedAt:        settings.LastReviewedAt,
+		LastReviewedBy:        settings.LastReviewedBy,
+	}
+
+	// Convert timestamps to strings if they exist
+	if !settings.CreatedAt.IsZero() {
+		createdAt := settings.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+
+	if !settings.UpdatedAt.IsZero() {
+		updatedAt := settings.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.UpdatedAt = &updatedAt
+	}
+
+	return result
+}
+
 // Get Committee
 func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committeeservice.GetCommitteeBasePayload) (res *committeeservice.GetCommitteeBaseResult, err error) {
-	res = &committeeservice.GetCommitteeBaseResult{}
+
 	slog.DebugContext(ctx, "committeeService.get-committee-base",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Execute use case
+	committeeBase, revision, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert domain model to GOA response
+	result := s.convertBaseToResponse(committeeBase)
+
+	// Create result with ETag (using revision from NATS)
+	revisionStr := fmt.Sprintf("%d", revision)
+	res = &committeeservice.GetCommitteeBaseResult{
+		CommitteeBase: result,
+		Etag:          &revisionStr,
+	}
+
+	return res, nil
 }
 
 // Update Committee
@@ -207,11 +279,28 @@ func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committee
 
 // Get Committee Settings
 func (s *committeeServicesrvc) GetCommitteeSettings(ctx context.Context, p *committeeservice.GetCommitteeSettingsPayload) (res *committeeservice.GetCommitteeSettingsResult, err error) {
-	res = &committeeservice.GetCommitteeSettingsResult{}
+
 	slog.DebugContext(ctx, "committeeService.get-committee-settings",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Execute use case
+	committeeSettings, revision, err := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert domain model to GOA response
+	result := s.convertSettingsToResponse(committeeSettings)
+
+	// Create result with ETag (using revision from NATS)
+	revisionStr := fmt.Sprintf("%d", revision)
+	res = &committeeservice.GetCommitteeSettingsResult{
+		CommitteeSettings: result,
+		Etag:              &revisionStr,
+	}
+
+	return res, nil
 }
 
 // Update Committee Settings
@@ -234,9 +323,10 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, authService port.Authenticator) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
+		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
 	}
 }

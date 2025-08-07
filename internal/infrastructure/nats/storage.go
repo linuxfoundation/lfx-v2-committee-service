@@ -135,7 +135,18 @@ func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
 }
 
 func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
-	return nil, 0, nil
+
+	settings := &model.CommitteeSettings{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeSettings, uid, settings)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee settings", errGet)
+	}
+
+	return settings, rev, nil
 }
 
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {

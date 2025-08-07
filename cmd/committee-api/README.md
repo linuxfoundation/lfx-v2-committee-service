@@ -13,6 +13,13 @@ This service contains the following API endpoints:
 
 - `/committees`
   - `POST`: create a new committee with base information and settings
+  - `GET /{uid}`: retrieve committee base information by UID (includes public data like name, category, description, voting settings, etc.)
+  - `PUT /{uid}`: update committee base information
+  - `DELETE /{uid}`: delete a committee by UID
+
+- `/committees/{uid}/settings`
+  - `GET`: retrieve committee settings by committee UID (includes sensitive data like writers, auditors, business email requirements)
+  - `PUT`: update committee settings
 
 ## File Structure
 
@@ -48,7 +55,8 @@ This service follows clean architecture principles with clear separation of conc
    - Dependency injection and startup (`main.go`)
 
 2. **Service/Use Case Layer** (`internal/service/`)
-   - `CommitteeWriter` orchestrates committee creation and management
+   - `CommitteeWriter` orchestrates committee creation, updates, and deletion
+   - `CommitteeReader` orchestrates committee data retrieval operations
    - Contains business logic for committee operations
    - Validates business rules and coordinates between domain and infrastructure
 

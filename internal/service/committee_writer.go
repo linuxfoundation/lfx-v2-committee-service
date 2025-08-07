@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -202,7 +203,17 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
+	// Set committee identifiers and timestamps
+	now := time.Now()
 	committee.CommitteeBase.UID = uuid.New().String()
+	committee.CommitteeBase.CreatedAt = now
+	committee.CommitteeBase.UpdatedAt = now
+
+	// Set timestamps for committee settings if they exist
+	if committee.CommitteeSettings != nil {
+		committee.CommitteeSettings.CreatedAt = now
+		committee.CommitteeSettings.UpdatedAt = now
+	}
 
 	// for rollback purposes
 	var (
