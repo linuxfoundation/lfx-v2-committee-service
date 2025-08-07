@@ -10,10 +10,26 @@ image:
   # pullPolicy is the image pull policy
   pullPolicy: IfNotPresent
 
-# ingress is the configuration for the ingress routing
-ingress:
-  # hostname is the hostname of the ingress
-  hostname: lfx-api.k8s.orb.local
+# traefik is the configuration for Traefik Gateway API routing
+traefik:
+  # gateway specifies the platform Gateway to attach to
+  gateway:
+    # name is the name of the Gateway resource
+    name: lfx-platform-gateway
+    # namespace is the namespace of the Gateway resource
+    namespace: lfx
+
+# lfx is the configuration for LFX platform
+lfx:
+  # domain is the base domain for routing
+  domain: k8s.orb.local
+  # namespace is the target namespace for deployment
+  namespace: lfx
+
+# service is the configuration for the Kubernetes service
+service:
+  # port is the service port
+  port: 8080
 
 # nats is the configuration for the NATS server
 nats:
@@ -72,9 +88,9 @@ openfga:
 # heimdall is the configuration for the heimdall middleware
 heimdall:
   enabled: true
-  url: http://heimdall.lfx.svc.cluster.local:4456
+  url: http://lfx-platform-heimdall.lfx.svc.cluster.local:4456
   # jwksUrl is the URL to the JSON Web Key Set endpoint for JWT validation
-  jwksUrl: http://heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
+  jwksUrl: http://lfx-platform-heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
 
 # authelia is the configuration for the Authelia server
 authelia:

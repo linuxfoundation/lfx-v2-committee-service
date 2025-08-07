@@ -87,7 +87,6 @@ docker-run: ## Run Docker container locally
 	docker run \
 		--name $(APP_NAME) \
 		-p 8080:8080 \
-		-e OPENSEARCH_URL=http://opensearch-cluster-master.lfx.svc.cluster.local:9200 \
 		-e NATS_URL=nats://lfx-platform-nats.lfx.svc.cluster.local:4222 \
 		$(DOCKER_IMAGE):$(DOCKER_TAG)
 

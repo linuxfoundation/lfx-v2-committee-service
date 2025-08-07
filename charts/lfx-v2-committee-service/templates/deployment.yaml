@@ -34,7 +34,7 @@ spec:
             - name: JWT_AUDIENCE
               value: {{ .Values.app.audience }}
           ports:
-            - containerPort: 8080
+            - containerPort: {{ .Values.service.port }}
               name: web
           livenessProbe:
             httpGet:

@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/concurrent"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/uid"
 )
 
 // CommitteeWriter defines the interface for committee write operations
@@ -202,7 +202,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
-	committee.CommitteeBase.UID = uid.New()
+	committee.CommitteeBase.UID = uuid.New().String()
 
 	// for rollback purposes
 	var (

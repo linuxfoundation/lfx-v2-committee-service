@@ -26,8 +26,7 @@ spec:
           config:
             values:
               relation: writer
-              object: "project:{{ "{{- .Request.Body.project_uid -}}" }}"
-
+              object: committee
         {{- else -}}
         - authorizer: allow_all
         {{- end }}
