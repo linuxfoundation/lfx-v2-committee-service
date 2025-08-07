@@ -49,7 +49,7 @@ type CreateCommitteeRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -98,7 +98,7 @@ type UpdateCommitteeBaseRequestBody struct {
 type UpdateCommitteeSettingsRequestBody struct {
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -111,6 +111,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
 	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
@@ -140,9 +142,15 @@ type CreateCommitteeResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// The name of the SSO group - read-only
+	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
+	// The total number of members in this committee
+	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
+	// The total number of repositories with voting permissions for this committee
+	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -154,7 +162,7 @@ type CreateCommitteeResponseBody struct {
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
 // "get-committee-base" endpoint HTTP response body.
-type GetCommitteeBaseResponseBody CommitteeFullWithReadonlyAttributesResponseBody
+type GetCommitteeBaseResponseBody CommitteeBaseWithReadonlyAttributesResponseBody
 
 // UpdateCommitteeBaseResponseBody is the type of the "committee-service"
 // service "update-committee-base" endpoint HTTP response body.
@@ -209,7 +217,7 @@ type UpdateCommitteeSettingsResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -239,6 +247,14 @@ type CreateCommitteeConflictResponseBody struct {
 // "committee-service" service "create-committee" endpoint HTTP response body
 // for the "InternalServerError" error.
 type CreateCommitteeInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// CreateCommitteeNotFoundResponseBody is the type of the "committee-service"
+// service "create-committee" endpoint HTTP response body for the "NotFound"
+// error.
+type CreateCommitteeNotFoundResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -403,9 +419,9 @@ type ReadyzServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// CommitteeFullWithReadonlyAttributesResponseBody is used to define fields on
+// CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
-type CommitteeFullWithReadonlyAttributesResponseBody struct {
+type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
@@ -452,7 +468,7 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// The timestamp when the committee was last reviewed
+	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
@@ -622,19 +638,24 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 	return body
 }
 
-// NewCreateCommitteeCommitteeFullCreated builds a "committee-service" service
-// "create-committee" endpoint result from a HTTP "Created" response.
-func NewCreateCommitteeCommitteeFullCreated(body *CreateCommitteeResponseBody) *committeeservice.CommitteeFull {
-	v := &committeeservice.CommitteeFull{
-		ProjectUID:     body.ProjectUID,
-		Name:           body.Name,
-		Category:       body.Category,
-		Description:    body.Description,
-		Website:        body.Website,
-		DisplayName:    body.DisplayName,
-		ParentUID:      body.ParentUID,
-		LastReviewedAt: body.LastReviewedAt,
-		LastReviewedBy: body.LastReviewedBy,
+// NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated builds a
+// "committee-service" service "create-committee" endpoint result from a HTTP
+// "Created" response.
+func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCommitteeResponseBody) *committeeservice.CommitteeFullWithReadonlyAttributes {
+	v := &committeeservice.CommitteeFullWithReadonlyAttributes{
+		UID:              body.UID,
+		ProjectUID:       body.ProjectUID,
+		Name:             body.Name,
+		Category:         body.Category,
+		Description:      body.Description,
+		Website:          body.Website,
+		DisplayName:      body.DisplayName,
+		ParentUID:        body.ParentUID,
+		SsoGroupName:     body.SsoGroupName,
+		TotalMembers:     body.TotalMembers,
+		TotalVotingRepos: body.TotalVotingRepos,
+		LastReviewedAt:   body.LastReviewedAt,
+		LastReviewedBy:   body.LastReviewedBy,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -724,6 +745,16 @@ func NewCreateCommitteeInternalServerError(body *CreateCommitteeInternalServerEr
 	return v
 }
 
+// NewCreateCommitteeNotFound builds a committee-service service
+// create-committee endpoint NotFound error.
+func NewCreateCommitteeNotFound(body *CreateCommitteeNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewCreateCommitteeServiceUnavailable builds a committee-service service
 // create-committee endpoint ServiceUnavailable error.
 func NewCreateCommitteeServiceUnavailable(body *CreateCommitteeServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
@@ -737,7 +768,7 @@ func NewCreateCommitteeServiceUnavailable(body *CreateCommitteeServiceUnavailabl
 // NewGetCommitteeBaseResultOK builds a "committee-service" service
 // "get-committee-base" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *string) *committeeservice.GetCommitteeBaseResult {
-	v := &committeeservice.CommitteeFullWithReadonlyAttributes{
+	v := &committeeservice.CommitteeBaseWithReadonlyAttributes{
 		UID:              body.UID,
 		ProjectUID:       body.ProjectUID,
 		Name:             body.Name,
@@ -824,11 +855,11 @@ func NewGetCommitteeBaseServiceUnavailable(body *GetCommitteeBaseServiceUnavaila
 	return v
 }
 
-// NewUpdateCommitteeBaseCommitteeFullWithReadonlyAttributesOK builds a
+// NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK builds a
 // "committee-service" service "update-committee-base" endpoint result from a
 // HTTP "OK" response.
-func NewUpdateCommitteeBaseCommitteeFullWithReadonlyAttributesOK(body *UpdateCommitteeBaseResponseBody) *committeeservice.CommitteeFullWithReadonlyAttributes {
-	v := &committeeservice.CommitteeFullWithReadonlyAttributes{
+func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCommitteeBaseResponseBody) *committeeservice.CommitteeBaseWithReadonlyAttributes {
+	v := &committeeservice.CommitteeBaseWithReadonlyAttributes{
 		UID:              body.UID,
 		ProjectUID:       body.ProjectUID,
 		Name:             body.Name,
@@ -1089,6 +1120,9 @@ func NewReadyzServiceUnavailable(body *ReadyzServiceUnavailableResponseBody) *co
 // ValidateCreateCommitteeResponseBody runs the validations defined on
 // Create-CommitteeResponseBody
 func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
 	if body.ProjectUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
@@ -1120,6 +1154,16 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	}
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
+	}
+	if body.TotalMembers != nil {
+		if *body.TotalMembers < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
+		}
+	}
+	if body.TotalVotingRepos != nil {
+		if *body.TotalVotingRepos < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
+		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -1286,6 +1330,15 @@ func ValidateCreateCommitteeConflictResponseBody(body *CreateCommitteeConflictRe
 // ValidateCreateCommitteeInternalServerErrorResponseBody runs the validations
 // defined on create-committee_InternalServerError_response_body
 func ValidateCreateCommitteeInternalServerErrorResponseBody(body *CreateCommitteeInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateCreateCommitteeNotFoundResponseBody runs the validations defined on
+// create-committee_NotFound_response_body
+func ValidateCreateCommitteeNotFoundResponseBody(body *CreateCommitteeNotFoundResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -1477,9 +1530,9 @@ func ValidateReadyzServiceUnavailableResponseBody(body *ReadyzServiceUnavailable
 	return
 }
 
-// ValidateCommitteeFullWithReadonlyAttributesResponseBody runs the validations
-// defined on committee-full-with-readonly-attributesResponseBody
-func ValidateCommitteeFullWithReadonlyAttributesResponseBody(body *CommitteeFullWithReadonlyAttributesResponseBody) (err error) {
+// ValidateCommitteeBaseWithReadonlyAttributesResponseBody runs the validations
+// defined on committee-base-with-readonly-attributesResponseBody
+func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBaseWithReadonlyAttributesResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}

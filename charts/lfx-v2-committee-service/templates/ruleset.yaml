@@ -4,8 +4,8 @@
 apiVersion: heimdall.dadrus.github.com/v1alpha4
 kind: RuleSet
 metadata:
-  name: lfx-v2-committee-service
-  namespace: lfx
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
 spec:
   rules:
     - id: "rule:lfx:lfx-v2-committee-service:committees:create"
@@ -15,11 +15,9 @@ spec:
         routes:
           - path: /committees
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -28,7 +26,7 @@ spec:
           config:
             values:
               relation: writer
-              object: "project:{{ .Request.Body.project_uid }}"
+              object: committee
         {{- else -}}
         - authorizer: allow_all
         {{- end }}
@@ -44,11 +42,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -72,11 +68,9 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -100,11 +94,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -128,11 +120,9 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}
@@ -156,11 +146,9 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        {{- end }}
         - authenticator: anonymous_authenticator
         {{- if .Values.authelia.enabled }}
+        - authenticator: authelia
         - contextualizer: authelia_userinfo
         {{- end }}
         {{- if .Values.openfga.enabled }}

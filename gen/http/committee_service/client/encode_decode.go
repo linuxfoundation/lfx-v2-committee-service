@@ -72,6 +72,7 @@ func EncodeCreateCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) f
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
 //   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
 //   - error: internal error
 func DecodeCreateCommitteeResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
@@ -102,7 +103,7 @@ func DecodeCreateCommitteeResponse(decoder func(*http.Response) goahttp.Decoder,
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "create-committee", err)
 			}
-			res := NewCreateCommitteeCommitteeFullCreated(&body)
+			res := NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (
@@ -146,6 +147,20 @@ func DecodeCreateCommitteeResponse(decoder func(*http.Response) goahttp.Decoder,
 				return nil, goahttp.ErrValidationError("committee-service", "create-committee", err)
 			}
 			return nil, NewCreateCommitteeInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body CreateCommitteeNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee", err)
+			}
+			err = ValidateCreateCommitteeNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee", err)
+			}
+			return nil, NewCreateCommitteeNotFound(&body)
 		case http.StatusServiceUnavailable:
 			var (
 				body CreateCommitteeServiceUnavailableResponseBody
@@ -412,7 +427,7 @@ func DecodeUpdateCommitteeBaseResponse(decoder func(*http.Response) goahttp.Deco
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "update-committee-base", err)
 			}
-			res := NewUpdateCommitteeBaseCommitteeFullWithReadonlyAttributesOK(&body)
+			res := NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (

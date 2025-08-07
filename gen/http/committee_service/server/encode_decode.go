@@ -24,7 +24,7 @@ import (
 // the committee-service create-committee endpoint.
 func EncodeCreateCommitteeResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeFull)
+		res, _ := v.(*committeeservice.CommitteeFullWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewCreateCommitteeResponseBody(res)
 		w.WriteHeader(http.StatusCreated)
@@ -137,6 +137,19 @@ func EncodeCreateCommitteeError(encoder func(context.Context, http.ResponseWrite
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewCreateCommitteeNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
 			return enc.Encode(body)
 		case "ServiceUnavailable":
 			var res *committeeservice.ServiceUnavailableError
@@ -274,7 +287,7 @@ func EncodeGetCommitteeBaseError(encoder func(context.Context, http.ResponseWrit
 // by the committee-service update-committee-base endpoint.
 func EncodeUpdateCommitteeBaseResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeFullWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeBaseWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewUpdateCommitteeBaseResponseBody(res)
 		w.WriteHeader(http.StatusOK)

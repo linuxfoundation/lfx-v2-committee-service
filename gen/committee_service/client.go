@@ -45,17 +45,18 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 // "committee-service" service.
 // CreateCommittee may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
 //   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) CreateCommittee(ctx context.Context, p *CreateCommitteePayload) (res *CommitteeFull, err error) {
+func (c *Client) CreateCommittee(ctx context.Context, p *CreateCommitteePayload) (res *CommitteeFullWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.CreateCommitteeEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeFull), nil
+	return ires.(*CommitteeFullWithReadonlyAttributes), nil
 }
 
 // GetCommitteeBase calls the "get-committee-base" endpoint of the
@@ -82,13 +83,13 @@ func (c *Client) GetCommitteeBase(ctx context.Context, p *GetCommitteeBasePayloa
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) UpdateCommitteeBase(ctx context.Context, p *UpdateCommitteeBasePayload) (res *CommitteeFullWithReadonlyAttributes, err error) {
+func (c *Client) UpdateCommitteeBase(ctx context.Context, p *UpdateCommitteeBasePayload) (res *CommitteeBaseWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.UpdateCommitteeBaseEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeFullWithReadonlyAttributes), nil
+	return ires.(*CommitteeBaseWithReadonlyAttributes), nil
 }
 
 // DeleteCommittee calls the "delete-committee" endpoint of the

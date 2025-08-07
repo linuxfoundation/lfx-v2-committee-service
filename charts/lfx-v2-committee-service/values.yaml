@@ -1,6 +1,96 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 ---
+# image is the configuration for the container images
+image:
+  # repository is the container image repository
+  repository: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-api
+  # tag is the container image tag (overrides appVersion from Chart.yaml)
+  tag: ""
+  # pullPolicy is the image pull policy
+  pullPolicy: IfNotPresent
+
+# traefik is the configuration for Traefik Gateway API routing
+traefik:
+  # gateway specifies the platform Gateway to attach to
+  gateway:
+    # name is the name of the Gateway resource
+    name: lfx-platform-gateway
+    # namespace is the namespace of the Gateway resource
+    namespace: lfx
+
+# lfx is the configuration for LFX platform
+lfx:
+  # domain is the base domain for routing
+  domain: k8s.orb.local
+  # namespace is the target namespace for deployment
+  namespace: lfx
+
+# service is the configuration for the Kubernetes service
+service:
+  # port is the service port
+  port: 8080
+
+# nats is the configuration for the NATS server
+nats:
+  # url is the URL of the NATS server
+  url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+
+  # committees_kv_bucket is the configuration for the KV bucket for storing committees
+  committees_kv_bucket:
+    # creation is a boolean to determine if the KV bucket should be created via the helm chart.
+    # set it to false if you want to use an existing KV bucket.
+    creation: true
+    # keep is a boolean to determine if the KV bucket should be preserved during helm uninstall
+    # set it to false if you want the bucket to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the KV bucket for storing projects
+    name: committees
+    # history is the number of history entries to keep for the KV bucket
+    history: 20
+    # storage is the storage type for the KV bucket
+    storage: file
+    # maxValueSize is the maximum size of a value in the KV bucket
+    maxValueSize: 10485760 # 10MB
+    # maxBytes is the maximum number of bytes in the KV bucket
+    maxBytes: 1073741824 # 1GB
+    # compression is a boolean to determine if the KV bucket should be compressed
+    compression: true
+
+  # committees_settings_kv_bucket is the configuration for the KV bucket for storing committees_settings
+  committees_settings_kv_bucket:
+    # creation is a boolean to determine if the KV bucket should be created via the helm chart.
+    # set it to false if you want to use an existing KV bucket.
+    creation: true
+    # keep is a boolean to determine if the KV bucket should be preserved during helm uninstall
+    # set it to false if you want the bucket to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the KV bucket for storing projects
+    name: committee-settings
+    # history is the number of history entries to keep for the KV bucket
+    history: 20
+    # storage is the storage type for the KV bucket
+    storage: file
+    # maxValueSize is the maximum size of a value in the KV bucket
+    maxValueSize: 10485760 # 10MB
+    # maxBytes is the maximum number of bytes in the KV bucket
+    maxBytes: 1073741824 # 1GB
+    # compression is a boolean to determine if the KV bucket should be compressed
+    compression: true
+
+# openfga is the configuration for the OpenFGA server
+openfga:
+  # enabled is a boolean to determine if the OpenFGA server should be enabled for authorization
+  # Note: If it is disabled, then the committee service will allow all requests
+  # (Disabling OpenFGA should only be used for local development).
+  enabled: true
+
+# heimdall is the configuration for the heimdall middleware
+heimdall:
+  enabled: true
+  url: http://lfx-platform-heimdall.lfx.svc.cluster.local:4456
+  # jwksUrl is the URL to the JSON Web Key Set endpoint for JWT validation
+  jwksUrl: http://lfx-platform-heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
 
 # authelia is the configuration for the Authelia server
 authelia:
@@ -8,9 +98,12 @@ authelia:
   # Note: Disabling Authelia should only be used for local development
   enabled: true
 
-# openfga is the configuration for the OpenFGA server
-openfga:
-  # enabled is a boolean to determine if the OpenFGA server should be enabled for authorization
-  # Note: If it is disabled, then the project service will allow all requests
-  # (Disabling OpenFGA should only be used for local development).
-  enabled: true
+# app is the configuration for the application
+app:
+  # logLevel is the log level (debug, info, warn, error)
+  logLevel: debug
+  # logAddSource is a boolean to determine if the log source should be added
+  logAddSource: true
+  # jwt is the configuration for JWT authentication
+  # audience is the intended audience for the JWT token
+  audience: lfx-v2-committee-service

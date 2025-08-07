@@ -1,0 +1,56 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: NATS_URL
+              value: {{ .Values.nats.url }}
+            - name: LOG_LEVEL
+              value: {{ .Values.app.logLevel }}
+            - name: LOG_ADD_SOURCE
+              value: {{ .Values.app.logAddSource | quote }}
+            - name: JWKS_URL
+              value: {{ .Values.heimdall.jwksUrl }}
+            - name: JWT_AUDIENCE
+              value: {{ .Values.app.audience }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              name: web
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: web
+            failureThreshold: 3
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: web
+            failureThreshold: 1
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: web
+            failureThreshold: 30
+            periodSeconds: 1

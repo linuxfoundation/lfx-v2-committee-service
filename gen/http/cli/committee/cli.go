@@ -42,7 +42,7 @@ func UsageExamples() string {
       "description": "Main technical oversight committee for the project",
       "display_name": "TSC Committee Calendar",
       "enable_voting": true,
-      "last_reviewed_at": "2023-05-10T09:15:00Z",
+      "last_reviewed_at": "2025-08-04T09:00:00Z",
       "last_reviewed_by": "user_id_12345",
       "name": "Technical Steering Committee",
       "parent_uid": "90b147f2-7cdd-157a-a2f4-9d4a567123fc",
@@ -278,7 +278,7 @@ Example:
       "description": "Main technical oversight committee for the project",
       "display_name": "TSC Committee Calendar",
       "enable_voting": true,
-      "last_reviewed_at": "2023-05-10T09:15:00Z",
+      "last_reviewed_at": "2025-08-04T09:00:00Z",
       "last_reviewed_by": "user_id_12345",
       "name": "Technical Steering Committee",
       "parent_uid": "90b147f2-7cdd-157a-a2f4-9d4a567123fc",
@@ -382,7 +382,7 @@ Example:
          "auditor_user_id2"
       ],
       "business_email_required": false,
-      "last_reviewed_at": "2023-05-10T09:15:00Z",
+      "last_reviewed_at": "2025-08-04T09:00:00Z",
       "last_reviewed_by": "user_id_12345",
       "writers": [
          "manager_user_id1",
