@@ -7,6 +7,10 @@ import (
 	"goa.design/goa/v3/dsl"
 )
 
+var _ = dsl.API("committee", func() {
+	dsl.Title("Committee Management Service")
+})
+
 // JWTAuth is the DSL JWT security type for authentication.
 var JWTAuth = dsl.JWTSecurity("jwt", func() {
 	dsl.Description("Heimdall authorization")
@@ -116,6 +120,7 @@ var _ = dsl.Service("committee", func() {
 				dsl.Example("eyJhbGci...")
 			})
 			VersionAttribute()
+			ETagAttribute()
 
 			CommitteeIDAttribute()
 			ProjectIDAttribute()
