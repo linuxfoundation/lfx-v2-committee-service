@@ -230,19 +230,17 @@ func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Contex
 }
 
 // mergeCommitteeData merges existing committee data with updated fields
-func (uc *committeeWriterOrchestrator) mergeCommitteeData(existing *model.CommitteeBase, updated *model.Committee) {
+func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, existing *model.CommitteeBase, updated *model.Committee) {
 	// Preserve immutable fields
 	updated.CommitteeBase.UID = existing.UID
 	updated.CommitteeBase.CreatedAt = existing.CreatedAt
-	updated.CommitteeBase.SSOGroupName = existing.SSOGroupName // Will be updated if name changed
 
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
 
-	// If SSO group name needs to be updated (when name changed and SSO enabled)
+	// Log SSO group name update if applicable
 	if existing.Name != updated.Name && updated.SSOGroupEnabled {
-		// SSOGroupName will be set by checkReserveSSOName
-		slog.DebugContext(context.Background(), "SSO group name will be updated",
+		slog.DebugContext(ctx, "SSO group name updated",
 			"old_sso_name", existing.SSOGroupName,
 			"new_sso_name", updated.SSOGroupName,
 		)
@@ -491,6 +489,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 
 	// Step 3: Validate name change
+	committee.SSOGroupName = existing.SSOGroupName // Preserve existing SSO group name
 	if existing.Name != committee.CommitteeBase.Name {
 		newNameKey, errNameChange := uc.committeeWriter.UniqueNameProject(ctx, committee)
 		if errNameChange != nil {
@@ -548,7 +547,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 
 	// Step 5: Merge existing data with updated fields
-	uc.mergeCommitteeData(existing, committee)
+	uc.mergeCommitteeData(ctx, existing, committee)
 
 	// Step 6: Update the committee in storage
 	errUpdate := uc.committeeWriter.UpdateBase(ctx, committee, existingRevision)

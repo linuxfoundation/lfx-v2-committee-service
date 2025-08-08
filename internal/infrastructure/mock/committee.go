@@ -35,6 +35,8 @@ func NewMockRepository() *MockRepository {
 			projectSlugs:       make(map[string]string),
 			projectNames:       make(map[string]string),
 			committeeIndexKeys: make(map[string]*model.Committee),
+			committeeRevisions: make(map[string]uint64),
+			settingsRevisions:  make(map[string]uint64),
 		}
 
 		// Add some sample data
@@ -78,6 +80,8 @@ func NewMockRepository() *MockRepository {
 		mock.projectSlugs["7cad5a8d-19d0-41a4-81a6-043453daf9ee"] = "sample-project"
 		mock.projectNames["7cad5a8d-19d0-41a4-81a6-043453daf9ee"] = "Sample Project"
 		mock.committeeIndexKeys[sampleCommittee.BuildIndexKey(ctx)] = sampleCommittee
+		mock.committeeRevisions[sampleCommittee.CommitteeBase.UID] = 1
+		mock.settingsRevisions[sampleCommittee.CommitteeBase.UID] = 1
 
 		// Add another sample committee
 		sampleCommittee2 := &model.Committee{
@@ -114,6 +118,8 @@ func NewMockRepository() *MockRepository {
 		mock.committees[sampleCommittee2.CommitteeBase.UID] = sampleCommittee2
 		mock.committeeSettings[sampleCommittee2.CommitteeBase.UID] = sampleCommittee2.CommitteeSettings
 		mock.committeeIndexKeys[sampleCommittee2.BuildIndexKey(ctx)] = sampleCommittee2
+		mock.committeeRevisions[sampleCommittee2.CommitteeBase.UID] = 1
+		mock.settingsRevisions[sampleCommittee2.CommitteeBase.UID] = 1
 		globalMockRepo = mock
 	})
 
@@ -127,6 +133,10 @@ type MockRepository struct {
 	projectSlugs       map[string]string           // projectUID -> slug
 	projectNames       map[string]string           // projectUID -> name
 	committeeIndexKeys map[string]*model.Committee // indexKey -> committee
+	// Revision tracking for optimistic locking
+	committeeRevisions map[string]uint64 // committeeUID -> revision
+	settingsRevisions  map[string]uint64 // committeeUID -> settings revision
+	mu                 sync.RWMutex      // Protect concurrent access to maps
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -134,6 +144,9 @@ type MockRepository struct {
 // GetBase retrieves a committee base by UID
 func (m *MockRepository) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee base", "uid", uid)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	committee, exists := m.committees[uid]
 	if !exists {
@@ -150,6 +163,9 @@ func (m *MockRepository) GetBase(ctx context.Context, uid string) (*model.Commit
 func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee revision", "uid", uid)
 
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	_, exists := m.committees[uid]
 	if !exists {
 		return 0, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
@@ -164,6 +180,9 @@ func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, e
 // GetSettings retrieves committee settings by committee UID
 func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee settings", "committee_uid", committeeUID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	settings, exists := m.committeeSettings[committeeUID]
 	if !exists {
@@ -199,9 +218,14 @@ func (w *MockCommitteeWriter) Create(ctx context.Context, committee *model.Commi
 	committee.CommitteeSettings.UpdatedAt = now
 
 	// Store committee and settings
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
 	w.mock.committees[committee.CommitteeBase.UID] = committee
 	w.mock.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
 	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
+	w.mock.committeeRevisions[committee.CommitteeBase.UID] = 1
+	w.mock.settingsRevisions[committee.CommitteeBase.UID] = 1
 
 	return nil
 }
@@ -209,6 +233,9 @@ func (w *MockCommitteeWriter) Create(ctx context.Context, committee *model.Commi
 // UpdateBase updates an existing committee base
 func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
 	slog.DebugContext(ctx, "mock committee writer: updating committee base", "uid", committee.CommitteeBase.UID, "revision", revision)
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
 
 	// Check if committee exists
 	if _, exists := w.mock.committees[committee.CommitteeBase.UID]; !exists {
@@ -226,6 +253,9 @@ func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.C
 func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision uint64) error {
 	slog.DebugContext(ctx, "mock committee writer: deleting committee", "uid", uid, "revision", revision)
 
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
 	// Check if committee exists and get it to obtain the index key
 	committee, exists := w.mock.committees[uid]
 	if !exists {
@@ -239,6 +269,8 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision u
 	delete(w.mock.committees, uid)
 	delete(w.mock.committeeSettings, uid)
 	delete(w.mock.committeeIndexKeys, indexKey)
+	delete(w.mock.committeeRevisions, uid)
+	delete(w.mock.settingsRevisions, uid)
 
 	return nil
 }
@@ -248,6 +280,9 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision u
 func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 	nameProjectKey := committee.BuildIndexKey(ctx)
 	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by name project key", "name_project_key", nameProjectKey)
+
+	w.mock.mu.RLock()
+	defer w.mock.mu.RUnlock()
 
 	existing, exists := w.mock.committeeIndexKeys[nameProjectKey]
 	if exists {
@@ -263,6 +298,9 @@ func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *
 // Returns conflict error if found (for uniqueness checking)
 func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
 	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by SSO group name", "name", committee.SSOGroupName)
+
+	w.mock.mu.RLock()
+	defer w.mock.mu.RUnlock()
 
 	for _, existing := range w.mock.committees {
 		if existing.SSOGroupName == committee.SSOGroupName {
@@ -280,6 +318,9 @@ func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee 
 // UpdateSetting updates committee settings
 func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 	slog.DebugContext(ctx, "mock committee writer: updating settings", "committee_uid", settings.UID, "revision", revision)
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
 
 	// Check if committee settings exist
 	if _, exists := w.mock.committeeSettings[settings.UID]; !exists {
@@ -308,6 +349,9 @@ type MockProjectRetriever struct {
 func (r *MockProjectRetriever) Name(ctx context.Context, uid string) (string, error) {
 	slog.DebugContext(ctx, "mock project retriever: getting name", "uid", uid)
 
+	r.mock.mu.RLock()
+	defer r.mock.mu.RUnlock()
+
 	name, exists := r.mock.projectNames[uid]
 	if !exists {
 		return "", errors.NewNotFound(fmt.Sprintf("project with UID %s not found", uid))
@@ -319,6 +363,9 @@ func (r *MockProjectRetriever) Name(ctx context.Context, uid string) (string, er
 // Slug returns the project slug for a given UID
 func (r *MockProjectRetriever) Slug(ctx context.Context, uid string) (string, error) {
 	slog.DebugContext(ctx, "mock project retriever: getting slug", "uid", uid)
+
+	r.mock.mu.RLock()
+	defer r.mock.mu.RUnlock()
 
 	slug, exists := r.mock.projectSlugs[uid]
 	if !exists {
@@ -363,38 +410,60 @@ func NewMockProjectRetriever(mock *MockRepository) port.ProjectReader {
 
 // AddCommittee adds a committee to the mock data (useful for testing)
 func (m *MockRepository) AddCommittee(committee *model.Committee) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.committees[committee.CommitteeBase.UID] = committee
 	m.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
 	m.committeeIndexKeys[committee.BuildIndexKey(context.Background())] = committee
+	m.committeeRevisions[committee.CommitteeBase.UID] = 1
+	m.settingsRevisions[committee.CommitteeBase.UID] = 1
 }
 
 // AddProjectSlug adds a project slug mapping (useful for testing)
 func (m *MockRepository) AddProjectSlug(uid, slug string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.projectSlugs[uid] = slug
 }
 
 // AddProjectName adds a project name mapping (useful for testing)
 func (m *MockRepository) AddProjectName(uid, name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.projectNames[uid] = name
 }
 
 // AddProject adds both project slug and name mappings (useful for testing)
 func (m *MockRepository) AddProject(uid, slug, name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.projectSlugs[uid] = slug
 	m.projectNames[uid] = name
 }
 
 // ClearAll clears all mock data (useful for testing)
 func (m *MockRepository) ClearAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.committees = make(map[string]*model.Committee)
 	m.committeeSettings = make(map[string]*model.CommitteeSettings)
 	m.projectSlugs = make(map[string]string)
 	m.projectNames = make(map[string]string)
 	m.committeeIndexKeys = make(map[string]*model.Committee)
+	m.committeeRevisions = make(map[string]uint64)
+	m.settingsRevisions = make(map[string]uint64)
 }
 
 // GetCommitteeCount returns the total number of committees
 func (m *MockRepository) GetCommitteeCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return len(m.committees)
 }
 
