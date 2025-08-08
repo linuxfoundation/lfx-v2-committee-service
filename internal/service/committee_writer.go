@@ -17,6 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/concurrent"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 )
 
 // CommitteeWriter defines the interface for committee write operations
@@ -83,7 +84,7 @@ func (uc *committeeWriterOrchestrator) deleteKeys(ctx context.Context, keys []st
 	for _, key := range keys {
 		rev, errGet := uc.committeeReader.GetRevision(ctx, key)
 		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get revision for key deletion",
+			slog.ErrorContext(ctx, "failed to get revision for key deletion",
 				"key", key,
 				"error", errGet,
 				"is_rollback", isRollback,
@@ -97,6 +98,9 @@ func (uc *committeeWriterOrchestrator) deleteKeys(ctx context.Context, keys []st
 				"key", key,
 				"error", err,
 				"is_rollback", isRollback,
+				// This is critical because if we don't delete them,
+				// names and SSO groups would be locked for reuse for a long time.
+				log.PriorityCritical(),
 			)
 		}
 		slog.DebugContext(ctx, "successfully deleted key",
@@ -223,7 +227,13 @@ func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Con
 
 	oldKeyName := &model.Committee{CommitteeBase: *existing}
 
-	return prefix + oldKeyName.BuildIndexKey(ctx)
+	oldKeyNameIndex := prefix + oldKeyName.BuildIndexKey(ctx)
+
+	slog.DebugContext(ctx, "rebuilding old name index",
+		"existing_name_index", oldKeyNameIndex,
+	)
+
+	return oldKeyNameIndex
 }
 
 func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Context, newSSOKey string, existing *model.CommitteeBase, slug string) string {
@@ -232,6 +242,11 @@ func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Contex
 		return ""
 	}
 	prefix := newSSOKey[:lastSlash+1]
+
+	slog.DebugContext(ctx, "rebuilding old SSO index name",
+		"existing_sso_group_name_index", prefix+existing.SSOGroupName,
+	)
+
 	return prefix + existing.SSOGroupName
 }
 

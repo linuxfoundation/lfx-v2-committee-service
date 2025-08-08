@@ -19,6 +19,8 @@ const (
 	debug = "debug"
 	warn  = "warn"
 	info  = "info"
+
+	priorityCritical = "critical"
 )
 
 type contextHandler struct {
@@ -101,4 +103,16 @@ func InitStructureLogConfig() {
 	log.SetFlags(log.Llongfile)
 	logger := contextHandler{h}
 	slog.SetDefault(slog.New(logger))
+}
+
+// Priority creates a slog.Attr for error priority classification
+func Priority(level string) slog.Attr {
+	return slog.String("priority", level)
+}
+
+// PriorityCritical creates a slog.Attr for critical errors
+// this is used to identify critical errors in the logs
+// the ones that should be escalated to the team
+func PriorityCritical() slog.Attr {
+	return Priority(priorityCritical)
 }
