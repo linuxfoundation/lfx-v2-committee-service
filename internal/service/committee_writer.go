@@ -251,9 +251,9 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 			"old_sso_name", existing.SSOGroupName,
 			"new_sso_name", updated.SSOGroupName,
 		)
-		ssoGroupName = updated.CommitteeBase.SSOGroupName
+		ssoGroupName = updated.SSOGroupName
 	}
-	updated.CommitteeBase.SSOGroupName = ssoGroupName
+	updated.SSOGroupName = ssoGroupName
 }
 
 // Execute orchestrates the committee creation process
@@ -496,7 +496,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	committee.ProjectName = projectName
 
 	// Step 3: Validate name change
-	if existing.Name != committee.CommitteeBase.Name {
+	if existing.Name != committee.Name {
 		newNameKey, errNameChange := uc.committeeWriter.UniqueNameProject(ctx, committee)
 		if errNameChange != nil {
 			return nil, errNameChange
