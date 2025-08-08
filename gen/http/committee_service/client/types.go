@@ -198,6 +198,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// The name of the project this committee belongs to
+	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -453,6 +455,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// The name of the project this committee belongs to
+	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -777,6 +781,7 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 		Website:          body.Website,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
+		ProjectName:      body.ProjectName,
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
@@ -868,6 +873,7 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 		Website:          body.Website,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
+		ProjectName:      body.ProjectName,
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
@@ -1209,6 +1215,11 @@ func ValidateGetCommitteeBaseResponseBody(body *GetCommitteeBaseResponseBody) (e
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
+	if body.ProjectName != nil {
+		if utf8.RuneCountInString(*body.ProjectName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
+		}
+	}
 	if body.TotalMembers != nil {
 		if *body.TotalMembers < 0 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
@@ -1259,6 +1270,11 @@ func ValidateUpdateCommitteeBaseResponseBody(body *UpdateCommitteeBaseResponseBo
 	}
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
+	}
+	if body.ProjectName != nil {
+		if utf8.RuneCountInString(*body.ProjectName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
+		}
 	}
 	if body.TotalMembers != nil {
 		if *body.TotalMembers < 0 {
@@ -1567,6 +1583,11 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 	}
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
+	}
+	if body.ProjectName != nil {
+		if utf8.RuneCountInString(*body.ProjectName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
+		}
 	}
 	if body.TotalMembers != nil {
 		if *body.TotalMembers < 0 {

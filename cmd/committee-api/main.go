@@ -65,7 +65,7 @@ func main() {
 	committeePublisher := service.CommitteePublisherImpl(ctx)
 	authService := service.AuthServiceImpl(ctx)
 
-	// Initialize the service with use case
+	// Initialize the service with use cases
 	createCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
 		usecaseSvc.WithCommitteeWriter(committeeWriter),
@@ -73,7 +73,11 @@ func main() {
 		usecaseSvc.WithCommitteePublisher(committeePublisher),
 	)
 
-	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase, authService)
+	readCommitteeUseCase := usecaseSvc.NewCommitteeReaderOrchestrator(
+		usecaseSvc.WithCommitteeReader(committeeRetriever),
+	)
+
+	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase, readCommitteeUseCase, authService)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.
