@@ -727,7 +727,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	messages := []func() error{
 		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer)
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer)
 		},
 		func() error {
 			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)

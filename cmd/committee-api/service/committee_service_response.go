@@ -86,7 +86,7 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 // convertPayloadToUpdateBase converts GOA UpdateCommitteeBasePayload to CommitteeBase domain model
 func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.UpdateCommitteeBasePayload) *model.Committee {
 	// Check for nil payload to avoid panic
-	if p == nil {
+	if p == nil || p.UID == nil {
 		return &model.Committee{}
 	}
 
