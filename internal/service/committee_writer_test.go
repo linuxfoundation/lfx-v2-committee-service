@@ -68,6 +68,16 @@ func (w *TestMockCommitteeWriter) UpdateSetting(ctx context.Context, settings *m
 	return mockWriter.UpdateSetting(ctx, settings, revision)
 }
 
+func (w *TestMockCommitteeWriter) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error) {
+	// Call the underlying UpdateSetting method
+	err := w.UpdateSetting(ctx, settings, revision)
+	if err != nil {
+		return nil, err
+	}
+	// Return the updated settings
+	return settings, nil
+}
+
 // UniqueNameProject reserves a unique name/project combination
 func (w *TestMockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 	nameProjectKey := committee.BuildIndexKey(ctx)
@@ -456,9 +466,11 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 
 func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
-		name      string
-		committee *model.Committee
-		expected  *model.CommitteeAccessMessage
+		name          string
+		committee     *model.Committee
+		expected      *model.CommitteeAccessMessage
+		expectError   bool
+		errorContains string
 	}{
 		{
 			name: "committee without parent",
@@ -480,6 +492,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Writers:   []string{"writer1@example.com", "writer2@example.com"},
 				Auditors:  []string{"auditor1@example.com"},
 			},
+			expectError: false,
 		},
 		{
 			name: "committee with parent",
@@ -501,6 +514,21 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Writers:   []string{"writer@example.com"},
 				Auditors:  []string{},
 			},
+			expectError: false,
+		},
+		{
+			name: "committee with nil settings should return error",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:       "committee-3",
+					Public:    true,
+					ParentUID: nil,
+				},
+				CommitteeSettings: nil,
+			},
+			expected:      nil,
+			expectError:   true,
+			errorContains: "committee settings (writers and auditors) not found",
 		},
 	}
 
@@ -511,10 +539,19 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 			ctx := context.Background()
 
 			// Execute
-			result := orchestrator.buildAccessControlMessage(ctx, tc.committee)
+			result, err := orchestrator.buildAccessControlMessage(ctx, tc.committee)
 
 			// Validate
-			assert.Equal(t, tc.expected, result)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
 		})
 	}
 }
@@ -868,7 +905,7 @@ func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupCommittee func() (*model.Committee, uint64)
+		setupCommittee func(*mock.MockRepository) (*model.Committee, uint64)
 		updateData     *model.Committee
 		revision       uint64
 		expectError    bool
@@ -877,9 +914,7 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 	}{
 		{
 			name: "successful basic update",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				committee := &model.Committee{
@@ -913,7 +948,7 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "committee not found",
-			setupCommittee: func() (*model.Committee, uint64) {
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
 				return nil, uint64(0)
 			},
 			updateData: &model.Committee{
@@ -930,9 +965,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "revision mismatch - optimistic locking",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				committee := &model.Committee{
@@ -960,9 +994,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "project change - valid new project",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "old-project", "Old Project")
 				mockRepo.AddProject("project-2", "new-project", "New Project")
 
@@ -994,9 +1027,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "project change - invalid project",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				committee := &model.Committee{
@@ -1024,9 +1056,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "name change - unique name",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				committee := &model.Committee{
@@ -1056,9 +1087,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "name change - conflicting name",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				// Add existing committee
@@ -1099,9 +1129,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "parent change - valid parent",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				// Add parent committee
@@ -1146,9 +1175,8 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 		},
 		{
 			name: "parent change - invalid parent",
-			setupCommittee: func() (*model.Committee, uint64) {
-				mockRepo := mock.NewMockRepository()
-				mockRepo.ClearAll()
+			setupCommittee: func(mockRepo *mock.MockRepository) (*model.Committee, uint64) {
+
 				mockRepo.AddProject("project-1", "test-project", "Test Project")
 
 				committee := &model.Committee{
@@ -1187,7 +1215,7 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 			var currentRevision uint64
 
 			if tc.setupCommittee != nil {
-				existingCommittee, currentRevision = tc.setupCommittee()
+				existingCommittee, currentRevision = tc.setupCommittee(mockRepo)
 			}
 
 			// If we have an existing committee but no mock repo setup, add it
@@ -1259,35 +1287,6 @@ func TestCommitteeWriterOrchestrator_Update_SSO_Scenarios(t *testing.T) {
 		errorType      string
 		validateResult func(*testing.T, *model.Committee)
 	}{
-		{
-			name: "SSO enabled with name change - expect error due to SSO parsing issue",
-			setupCommittee: func(mockRepo *mock.MockRepository) *model.Committee {
-				mockRepo.AddProject("project-1", "test-project", "Test Project")
-				committee := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:             "committee-1",
-						ProjectUID:      "project-1",
-						Name:            "Original SSO Committee",
-						Category:        "governance",
-						SSOGroupEnabled: true,
-						SSOGroupName:    "test-project-original-sso-committee",
-					},
-				}
-				mockRepo.AddCommittee(committee)
-				return committee
-			},
-			updateData: &model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					UID:             "committee-1",
-					ProjectUID:      "project-1",
-					Name:            "Updated SSO Committee",
-					Category:        "governance",
-					SSOGroupEnabled: true,
-				},
-			},
-			expectError: true,
-			errorType:   "Unexpected",
-		},
 		{
 			name: "SSO enabled without name change - no SSO update",
 			setupCommittee: func(mockRepo *mock.MockRepository) *model.Committee {

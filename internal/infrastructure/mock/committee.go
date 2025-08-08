@@ -189,10 +189,8 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
-	// Return a copy to avoid data races
-	settingsCopy := *settings
 	// Return version 1 for mock (in real implementation this would be the actual version)
-	return &settingsCopy, 1, nil
+	return settings, 1, nil
 }
 
 // MockCommitteeWriter implements CommitteeWriter interface

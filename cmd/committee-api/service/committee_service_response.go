@@ -133,6 +133,25 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	return committee
 }
 
+// convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model
+func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservice.UpdateCommitteeSettingsPayload) *model.CommitteeSettings {
+	// Check for nil payload to avoid panic
+	if p == nil {
+		return &model.CommitteeSettings{}
+	}
+
+	settings := &model.CommitteeSettings{
+		UID:                   *p.UID, // UID is required for updates
+		BusinessEmailRequired: p.BusinessEmailRequired,
+		LastReviewedAt:        p.LastReviewedAt,
+		LastReviewedBy:        p.LastReviewedBy,
+		Writers:               p.Writers,
+		Auditors:              p.Auditors,
+	}
+
+	return settings
+}
+
 func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
 		UID:              &response.CommitteeBase.UID,

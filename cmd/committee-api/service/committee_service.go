@@ -166,11 +166,40 @@ func (s *committeeServicesrvc) GetCommitteeSettings(ctx context.Context, p *comm
 
 // Update Committee Settings
 func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *committeeservice.UpdateCommitteeSettingsPayload) (res *committeeservice.CommitteeSettingsWithReadonlyAttributes, err error) {
-	res = &committeeservice.CommitteeSettingsWithReadonlyAttributes{}
 	slog.DebugContext(ctx, "committeeService.update-committee-settings",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Parse ETag to get revision for optimistic locking
+	if p.Etag == nil || *p.Etag == "" {
+		slog.WarnContext(ctx, "no ETag provided for update operation",
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("ETag is required for update operations"))
+	}
+	parsedRevision, errParse := strconv.ParseUint(*p.Etag, 10, 64)
+	if errParse != nil {
+		slog.ErrorContext(ctx, "invalid ETag format",
+			"error", errParse,
+			"etag", *p.Etag,
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("invalid ETag format", errParse))
+	}
+
+	// Convert payload to domain model
+	settings := s.convertPayloadToUpdateSettings(p)
+
+	// Execute use case
+	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert response to GOA result
+	result := s.convertSettingsToResponse(updatedSettings)
+
+	return result, nil
 }
 
 // Check if the service is able to take inbound requests.
