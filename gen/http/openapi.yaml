@@ -40,6 +40,7 @@ paths:
                     required:
                         - name
                         - category
+                        - project_uid
             responses:
                 "201":
                     description: Created response.
@@ -174,6 +175,7 @@ paths:
                     required:
                         - name
                         - category
+                        - project_uid
             responses:
                 "200":
                     description: OK response.
@@ -189,6 +191,12 @@ paths:
                     description: Not Found response.
                     schema:
                         $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
                         required:
                             - message
                 "500":
@@ -377,6 +385,12 @@ paths:
                     description: Not Found response.
                     schema:
                         $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
                         required:
                             - message
                 "500":
@@ -916,6 +930,7 @@ definitions:
         required:
             - name
             - category
+            - project_uid
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
@@ -1029,6 +1044,7 @@ definitions:
         required:
             - name
             - category
+            - project_uid
     CommitteeServiceUpdateCommitteeSettingsRequestBody:
         title: CommitteeServiceUpdateCommitteeSettingsRequestBody
         type: object

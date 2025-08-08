@@ -7,12 +7,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 
 	"goa.design/goa/v3/security"
 )
@@ -65,177 +66,7 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 	return result, nil
 }
 
-// convertPayloadToDomain converts GOA payload to domain model
-func (s *committeeServicesrvc) convertPayloadToDomain(p *committeeservice.CreateCommitteePayload) *model.Committee {
-	// Convert payload to domain - split into Base and Settings
-	base := s.convertPayloadToBase(p)
-	settings := s.convertPayloadToSettings(p)
-
-	request := &model.Committee{
-		CommitteeBase:     base,
-		CommitteeSettings: settings,
-	}
-
-	return request
-}
-
-// convertPayloadToBase converts GOA payload to CommitteeBase domain model
-func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCommitteePayload) model.CommitteeBase {
-	// Check for nil payload to avoid panic
-	if p == nil {
-		return model.CommitteeBase{}
-	}
-
-	base := model.CommitteeBase{
-		Name:            p.Name,
-		Category:        p.Category,
-		EnableVoting:    p.EnableVoting,
-		SSOGroupEnabled: p.SsoGroupEnabled,
-		RequiresReview:  p.RequiresReview,
-		Public:          p.Public,
-	}
-
-	// Handle ProjectUID with nil check
-	if p.ProjectUID != nil {
-		base.ProjectUID = *p.ProjectUID
-	}
-
-	// Handle Description with nil check
-	if p.Description != nil {
-		base.Description = *p.Description
-	}
-
-	// Handle DisplayName with nil check
-	if p.DisplayName != nil {
-		base.DisplayName = *p.DisplayName
-	}
-
-	// Handle Website (already a pointer, safe to assign directly)
-	base.Website = p.Website
-
-	// Handle ParentUID (already a pointer, safe to assign directly)
-	base.ParentUID = p.ParentUID
-
-	// Handle calendar if present
-	if p.Calendar != nil {
-		base.Calendar = model.Calendar{
-			Public: p.Calendar.Public,
-		}
-	}
-
-	return base
-}
-
-// convertPayloadToSettings converts GOA payload to CommitteeSettings domain model
-func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.CreateCommitteePayload) *model.CommitteeSettings {
-	settings := &model.CommitteeSettings{
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               p.Writers,
-		Auditors:              p.Auditors,
-	}
-
-	// Handle LastReviewedAt - GOA validates format via Pattern constraint
-	if p.LastReviewedAt != nil && *p.LastReviewedAt != "" {
-		settings.LastReviewedAt = p.LastReviewedAt
-	}
-
-	return settings
-}
-
-func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
-	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:              &response.CommitteeBase.UID,
-		ProjectUID:       &response.ProjectUID,
-		Name:             &response.Name,
-		Category:         &response.Category,
-		Description:      &response.Description,
-		Website:          response.Website,
-		EnableVoting:     response.EnableVoting,
-		SsoGroupEnabled:  response.SSOGroupEnabled,
-		RequiresReview:   response.RequiresReview,
-		Public:           response.Public,
-		DisplayName:      &response.DisplayName,
-		ParentUID:        response.ParentUID,
-		SsoGroupName:     &response.SSOGroupName,
-		TotalMembers:     &response.TotalMembers,
-		TotalVotingRepos: &response.TotalVotingRepos,
-	}
-
-	// Handle Calendar mapping
-	result.Calendar = &struct {
-		Public bool
-	}{
-		Public: response.Calendar.Public,
-	}
-
-	// Include settings data if available
-	if response.CommitteeSettings != nil {
-		result.BusinessEmailRequired = response.BusinessEmailRequired
-		result.LastReviewedAt = response.LastReviewedAt
-		result.LastReviewedBy = response.LastReviewedBy
-		result.Writers = response.Writers
-		result.Auditors = response.Auditors
-	}
-
-	return result
-}
-
-// convertBaseToResponse converts domain CommitteeBase to GOA response type
-func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) *committeeservice.CommitteeBaseWithReadonlyAttributes {
-	result := &committeeservice.CommitteeBaseWithReadonlyAttributes{
-		UID:              &base.UID,
-		ProjectUID:       &base.ProjectUID,
-		Name:             &base.Name,
-		ProjectName:      &base.ProjectName,
-		Category:         &base.Category,
-		Description:      &base.Description,
-		Website:          base.Website,
-		EnableVoting:     base.EnableVoting,
-		SsoGroupEnabled:  base.SSOGroupEnabled,
-		RequiresReview:   base.RequiresReview,
-		Public:           base.Public,
-		DisplayName:      &base.DisplayName,
-		ParentUID:        base.ParentUID,
-		SsoGroupName:     &base.SSOGroupName,
-		TotalMembers:     &base.TotalMembers,
-		TotalVotingRepos: &base.TotalVotingRepos,
-	}
-
-	// Handle Calendar mapping
-	result.Calendar = &struct {
-		Public bool
-	}{
-		Public: base.Calendar.Public,
-	}
-
-	return result
-}
-
-// convertSettingsToResponse converts domain CommitteeSettings to GOA response type
-func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.CommitteeSettings) *committeeservice.CommitteeSettingsWithReadonlyAttributes {
-	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
-		UID:                   &settings.UID,
-		BusinessEmailRequired: settings.BusinessEmailRequired,
-		LastReviewedAt:        settings.LastReviewedAt,
-		LastReviewedBy:        settings.LastReviewedBy,
-	}
-
-	// Convert timestamps to strings if they exist
-	if !settings.CreatedAt.IsZero() {
-		createdAt := settings.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
-		result.CreatedAt = &createdAt
-	}
-
-	if !settings.UpdatedAt.IsZero() {
-		updatedAt := settings.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
-		result.UpdatedAt = &updatedAt
-	}
-
-	return result
-}
-
-// Get Committee
+// GetCommitteeBase retrieves the committee base information by UID.
 func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committeeservice.GetCommitteeBasePayload) (res *committeeservice.GetCommitteeBaseResult, err error) {
 
 	slog.DebugContext(ctx, "committeeService.get-committee-base",
@@ -263,11 +94,40 @@ func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committe
 
 // Update Committee
 func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *committeeservice.UpdateCommitteeBasePayload) (res *committeeservice.CommitteeBaseWithReadonlyAttributes, err error) {
-	res = &committeeservice.CommitteeBaseWithReadonlyAttributes{}
 	slog.DebugContext(ctx, "committeeService.update-committee-base",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Parse ETag to get revision for optimistic locking
+	if p.Etag == nil || *p.Etag == "" {
+		slog.WarnContext(ctx, "no ETag provided for update operation",
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("ETag is required for update operations"))
+	}
+	parsedRevision, errParse := strconv.ParseUint(*p.Etag, 10, 64)
+	if errParse != nil {
+		slog.ErrorContext(ctx, "invalid ETag format",
+			"error", errParse,
+			"etag", *p.Etag,
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("invalid ETag format", errParse))
+	}
+
+	// Convert payload to domain model
+	committee := s.convertPayloadToUpdateBase(p)
+
+	// Execute use case
+	updatedCommittee, err := s.committeeWriterOrchestrator.Update(ctx, committee, parsedRevision)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert response to GOA result
+	result := s.convertBaseToResponse(&updatedCommittee.CommitteeBase)
+
+	return result, nil
 }
 
 // Delete Committee
@@ -306,11 +166,40 @@ func (s *committeeServicesrvc) GetCommitteeSettings(ctx context.Context, p *comm
 
 // Update Committee Settings
 func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *committeeservice.UpdateCommitteeSettingsPayload) (res *committeeservice.CommitteeSettingsWithReadonlyAttributes, err error) {
-	res = &committeeservice.CommitteeSettingsWithReadonlyAttributes{}
 	slog.DebugContext(ctx, "committeeService.update-committee-settings",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Parse ETag to get revision for optimistic locking
+	if p.Etag == nil || *p.Etag == "" {
+		slog.WarnContext(ctx, "no ETag provided for update operation",
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("ETag is required for update operations"))
+	}
+	parsedRevision, errParse := strconv.ParseUint(*p.Etag, 10, 64)
+	if errParse != nil {
+		slog.ErrorContext(ctx, "invalid ETag format",
+			"error", errParse,
+			"etag", *p.Etag,
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("invalid ETag format", errParse))
+	}
+
+	// Convert payload to domain model
+	settings := s.convertPayloadToUpdateSettings(p)
+
+	// Execute use case
+	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert response to GOA result
+	result := s.convertSettingsToResponse(updatedSettings)
+
+	return result, nil
 }
 
 // Check if the service is able to take inbound requests.

@@ -80,6 +80,7 @@ func (c *Client) GetCommitteeBase(ctx context.Context, p *GetCommitteeBasePayloa
 // UpdateCommitteeBase may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
@@ -126,6 +127,7 @@ func (c *Client) GetCommitteeSettings(ctx context.Context, p *GetCommitteeSettin
 // UpdateCommitteeSettings may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error

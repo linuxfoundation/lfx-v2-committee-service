@@ -12,7 +12,10 @@ const (
 	KVBucketNameCommitteeSettings = "committee-settings"
 
 	// KVLookupPrefix is the prefix for lookup keys in the KV store.
-	KVLookupPrefix = "lookup"
+	KVLookupPrefix = "lookup/committees/%s"
+
+	// KVLookupSSOGroupNamePrefix is the prefix for SSO group name lookup keys in the KV store.
+	KVLookupSSOGroupNamePrefix = "lookup/committee-sso-groups/%s"
 
 	KVSlugPrefix = "slug/"
 )

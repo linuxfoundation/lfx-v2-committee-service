@@ -53,7 +53,6 @@ func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) 
 
 	slog.DebugContext(ctx, "committee base retrieved successfully",
 		"committee_uid", uid,
-		"committee_name", committeeBase.Name,
 		"revision", revision,
 	)
 
