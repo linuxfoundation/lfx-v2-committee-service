@@ -20,7 +20,7 @@ import (
 type CreateCommitteeRequestBody struct {
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
-	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	ProjectUID string `form:"project_uid" json:"project_uid" xml:"project_uid"`
 	// The name of the committee
 	Name string `form:"name" json:"name" xml:"name"`
 	// The category of the committee
@@ -64,7 +64,7 @@ type CreateCommitteeRequestBody struct {
 type UpdateCommitteeBaseRequestBody struct {
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
-	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	ProjectUID string `form:"project_uid" json:"project_uid" xml:"project_uid"`
 	// The name of the committee
 	Name string `form:"name" json:"name" xml:"name"`
 	// The category of the committee
@@ -301,6 +301,14 @@ type UpdateCommitteeBaseBadRequestResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// UpdateCommitteeBaseConflictResponseBody is the type of the
+// "committee-service" service "update-committee-base" endpoint HTTP response
+// body for the "Conflict" error.
+type UpdateCommitteeBaseConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // UpdateCommitteeBaseInternalServerErrorResponseBody is the type of the
 // "committee-service" service "update-committee-base" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -385,6 +393,14 @@ type GetCommitteeSettingsServiceUnavailableResponseBody struct {
 // "committee-service" service "update-committee-settings" endpoint HTTP
 // response body for the "BadRequest" error.
 type UpdateCommitteeSettingsBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeSettingsConflictResponseBody is the type of the
+// "committee-service" service "update-committee-settings" endpoint HTTP
+// response body for the "Conflict" error.
+type UpdateCommitteeSettingsConflictResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -928,6 +944,16 @@ func NewUpdateCommitteeBaseBadRequest(body *UpdateCommitteeBaseBadRequestRespons
 	return v
 }
 
+// NewUpdateCommitteeBaseConflict builds a committee-service service
+// update-committee-base endpoint Conflict error.
+func NewUpdateCommitteeBaseConflict(body *UpdateCommitteeBaseConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewUpdateCommitteeBaseInternalServerError builds a committee-service service
 // update-committee-base endpoint InternalServerError error.
 func NewUpdateCommitteeBaseInternalServerError(body *UpdateCommitteeBaseInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -1077,6 +1103,16 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 // update-committee-settings endpoint BadRequest error.
 func NewUpdateCommitteeSettingsBadRequest(body *UpdateCommitteeSettingsBadRequestResponseBody) *committeeservice.BadRequestError {
 	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeSettingsConflict builds a committee-service service
+// update-committee-settings endpoint Conflict error.
+func NewUpdateCommitteeSettingsConflict(body *UpdateCommitteeSettingsConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
 		Message: *body.Message,
 	}
 
@@ -1406,6 +1442,15 @@ func ValidateUpdateCommitteeBaseBadRequestResponseBody(body *UpdateCommitteeBase
 	return
 }
 
+// ValidateUpdateCommitteeBaseConflictResponseBody runs the validations defined
+// on update-committee-base_Conflict_response_body
+func ValidateUpdateCommitteeBaseConflictResponseBody(body *UpdateCommitteeBaseConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateUpdateCommitteeBaseInternalServerErrorResponseBody runs the
 // validations defined on
 // update-committee-base_InternalServerError_response_body
@@ -1502,6 +1547,15 @@ func ValidateGetCommitteeSettingsServiceUnavailableResponseBody(body *GetCommitt
 // ValidateUpdateCommitteeSettingsBadRequestResponseBody runs the validations
 // defined on update-committee-settings_BadRequest_response_body
 func ValidateUpdateCommitteeSettingsBadRequestResponseBody(body *UpdateCommitteeSettingsBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeSettingsConflictResponseBody runs the validations
+// defined on update-committee-settings_Conflict_response_body
+func ValidateUpdateCommitteeSettingsConflictResponseBody(body *UpdateCommitteeSettingsConflictResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

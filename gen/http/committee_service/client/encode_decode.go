@@ -395,6 +395,7 @@ func EncodeUpdateCommitteeBaseRequest(encoder func(*http.Request) goahttp.Encode
 // controls whether the response body should be restored after having been read.
 // DecodeUpdateCommitteeBaseResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -443,6 +444,20 @@ func DecodeUpdateCommitteeBaseResponse(decoder func(*http.Response) goahttp.Deco
 				return nil, goahttp.ErrValidationError("committee-service", "update-committee-base", err)
 			}
 			return nil, NewUpdateCommitteeBaseBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body UpdateCommitteeBaseConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-base", err)
+			}
+			err = ValidateUpdateCommitteeBaseConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-base", err)
+			}
+			return nil, NewUpdateCommitteeBaseConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body UpdateCommitteeBaseInternalServerErrorResponseBody
@@ -852,6 +867,7 @@ func EncodeUpdateCommitteeSettingsRequest(encoder func(*http.Request) goahttp.En
 // having been read.
 // DecodeUpdateCommitteeSettingsResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -900,6 +916,20 @@ func DecodeUpdateCommitteeSettingsResponse(decoder func(*http.Response) goahttp.
 				return nil, goahttp.ErrValidationError("committee-service", "update-committee-settings", err)
 			}
 			return nil, NewUpdateCommitteeSettingsBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body UpdateCommitteeSettingsConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-settings", err)
+			}
+			err = ValidateUpdateCommitteeSettingsConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-settings", err)
+			}
+			return nil, NewUpdateCommitteeSettingsConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body UpdateCommitteeSettingsInternalServerErrorResponseBody

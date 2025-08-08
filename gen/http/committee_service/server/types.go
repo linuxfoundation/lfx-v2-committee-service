@@ -301,6 +301,14 @@ type UpdateCommitteeBaseBadRequestResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// UpdateCommitteeBaseConflictResponseBody is the type of the
+// "committee-service" service "update-committee-base" endpoint HTTP response
+// body for the "Conflict" error.
+type UpdateCommitteeBaseConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // UpdateCommitteeBaseInternalServerErrorResponseBody is the type of the
 // "committee-service" service "update-committee-base" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -385,6 +393,14 @@ type GetCommitteeSettingsServiceUnavailableResponseBody struct {
 // "committee-service" service "update-committee-settings" endpoint HTTP
 // response body for the "BadRequest" error.
 type UpdateCommitteeSettingsBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeSettingsConflictResponseBody is the type of the
+// "committee-service" service "update-committee-settings" endpoint HTTP
+// response body for the "Conflict" error.
+type UpdateCommitteeSettingsConflictResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -822,6 +838,16 @@ func NewUpdateCommitteeBaseBadRequestResponseBody(res *committeeservice.BadReque
 	return body
 }
 
+// NewUpdateCommitteeBaseConflictResponseBody builds the HTTP response body
+// from the result of the "update-committee-base" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeBaseConflictResponseBody(res *committeeservice.ConflictError) *UpdateCommitteeBaseConflictResponseBody {
+	body := &UpdateCommitteeBaseConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewUpdateCommitteeBaseInternalServerErrorResponseBody builds the HTTP
 // response body from the result of the "update-committee-base" endpoint of the
 // "committee-service" service.
@@ -932,6 +958,16 @@ func NewUpdateCommitteeSettingsBadRequestResponseBody(res *committeeservice.BadR
 	return body
 }
 
+// NewUpdateCommitteeSettingsConflictResponseBody builds the HTTP response body
+// from the result of the "update-committee-settings" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeSettingsConflictResponseBody(res *committeeservice.ConflictError) *UpdateCommitteeSettingsConflictResponseBody {
+	body := &UpdateCommitteeSettingsConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewUpdateCommitteeSettingsInternalServerErrorResponseBody builds the HTTP
 // response body from the result of the "update-committee-settings" endpoint of
 // the "committee-service" service.
@@ -975,7 +1011,7 @@ func NewReadyzServiceUnavailableResponseBody(res *committeeservice.ServiceUnavai
 // create-committee endpoint payload.
 func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string) *committeeservice.CreateCommitteePayload {
 	v := &committeeservice.CreateCommitteePayload{
-		ProjectUID:     body.ProjectUID,
+		ProjectUID:     *body.ProjectUID,
 		Name:           *body.Name,
 		Category:       *body.Category,
 		Description:    body.Description,
@@ -1060,7 +1096,7 @@ func NewGetCommitteeBasePayload(uid string, version *string, bearerToken *string
 // update-committee-base endpoint payload.
 func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid string, version *string, bearerToken *string, etag *string) *committeeservice.UpdateCommitteeBasePayload {
 	v := &committeeservice.UpdateCommitteeBasePayload{
-		ProjectUID:  body.ProjectUID,
+		ProjectUID:  *body.ProjectUID,
 		Name:        *body.Name,
 		Category:    *body.Category,
 		Description: body.Description,
@@ -1172,6 +1208,9 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	if body.Category == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("category", "body"))
 	}
+	if body.ProjectUID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("project_uid", "body"))
+	}
 	if body.ProjectUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
@@ -1218,6 +1257,9 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 	}
 	if body.Category == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("category", "body"))
+	}
+	if body.ProjectUID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("project_uid", "body"))
 	}
 	if body.ProjectUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))

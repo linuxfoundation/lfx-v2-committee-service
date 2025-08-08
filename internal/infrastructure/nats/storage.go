@@ -150,10 +150,54 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 }
 
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+
+	// Marshal the committee base data
+	committeeBaseBytes, errMarshal := json.Marshal(committee.CommitteeBase)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee base", errMarshal)
+	}
+
+	// Update the committee base using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommittees].Update(ctx, committee.CommitteeBase.UID, committeeBaseBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", committee.CommitteeBase.UID))
+		}
+		return errs.NewUnexpected("failed to update committee base", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee base in NATS storage",
+		"committee_uid", committee.CommitteeBase.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
 	return nil
 }
 
-func (s *storage) UpdateSetting(ctx context.Context, committee *model.CommitteeSettings, revision uint64) error {
+func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
+
+	// Marshal the committee settings data
+	settingsBytes, errMarshal := json.Marshal(settings)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee settings", errMarshal)
+	}
+
+	// Update the committee settings using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Update(ctx, settings.UID, settingsBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
+		}
+		return errs.NewUnexpected("failed to update committee settings", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee settings in NATS storage",
+		"committee_uid", settings.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
 	return nil
 }
 
