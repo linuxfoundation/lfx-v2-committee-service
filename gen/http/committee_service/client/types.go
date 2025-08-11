@@ -341,6 +341,14 @@ type DeleteCommitteeBadRequestResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// DeleteCommitteeConflictResponseBody is the type of the "committee-service"
+// service "delete-committee" endpoint HTTP response body for the "Conflict"
+// error.
+type DeleteCommitteeConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // DeleteCommitteeInternalServerErrorResponseBody is the type of the
 // "committee-service" service "delete-committee" endpoint HTTP response body
 // for the "InternalServerError" error.
@@ -994,6 +1002,16 @@ func NewDeleteCommitteeBadRequest(body *DeleteCommitteeBadRequestResponseBody) *
 	return v
 }
 
+// NewDeleteCommitteeConflict builds a committee-service service
+// delete-committee endpoint Conflict error.
+func NewDeleteCommitteeConflict(body *DeleteCommitteeConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewDeleteCommitteeInternalServerError builds a committee-service service
 // delete-committee endpoint InternalServerError error.
 func NewDeleteCommitteeInternalServerError(body *DeleteCommitteeInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -1482,6 +1500,15 @@ func ValidateUpdateCommitteeBaseServiceUnavailableResponseBody(body *UpdateCommi
 // ValidateDeleteCommitteeBadRequestResponseBody runs the validations defined
 // on delete-committee_BadRequest_response_body
 func ValidateDeleteCommitteeBadRequestResponseBody(body *DeleteCommitteeBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeConflictResponseBody runs the validations defined on
+// delete-committee_Conflict_response_body
+func ValidateDeleteCommitteeConflictResponseBody(body *DeleteCommitteeConflictResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

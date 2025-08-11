@@ -98,6 +98,7 @@ func (c *Client) UpdateCommitteeBase(ctx context.Context, p *UpdateCommitteeBase
 // DeleteCommittee may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error

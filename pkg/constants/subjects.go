@@ -22,4 +22,8 @@ const (
 	// UpdateAccessCommitteeSubject is the subject for the committee access control updates.
 	// The subject is of the form: lfx.update_access.committee
 	UpdateAccessCommitteeSubject = "lfx.update_access.committee"
+
+	// DeleteAllAccessCommitteeSubject is the  subject for the committee access control deletion.
+	// The subject is of the form: lfx.delete_all_access.committee
+	DeleteAllAccessCommitteeSubject = "lfx.delete_all_access.committee"
 )

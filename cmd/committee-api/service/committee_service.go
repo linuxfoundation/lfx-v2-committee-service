@@ -7,13 +7,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 
 	"goa.design/goa/v3/security"
 )
@@ -99,20 +97,14 @@ func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *commi
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	if p.Etag == nil || *p.Etag == "" {
-		slog.WarnContext(ctx, "no ETag provided for update operation",
+	parsedRevision, err := etagValidator(p.Etag)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag",
+			"error", err,
+			"etag", p.Etag,
 			"committee_uid", p.UID,
 		)
-		return nil, wrapError(ctx, errors.NewValidation("ETag is required for update operations"))
-	}
-	parsedRevision, errParse := strconv.ParseUint(*p.Etag, 10, 64)
-	if errParse != nil {
-		slog.ErrorContext(ctx, "invalid ETag format",
-			"error", errParse,
-			"etag", *p.Etag,
-			"committee_uid", p.UID,
-		)
-		return nil, wrapError(ctx, errors.NewValidation("invalid ETag format", errParse))
+		return nil, wrapError(ctx, err)
 	}
 
 	// Convert payload to domain model
@@ -131,11 +123,29 @@ func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *commi
 }
 
 // Delete Committee
-func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committeeservice.DeleteCommitteePayload) (err error) {
+func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committeeservice.DeleteCommitteePayload) error {
 	slog.DebugContext(ctx, "committeeService.delete-committee",
 		"committee_uid", p.UID,
 	)
-	return
+
+	// Parse ETag to get revision for optimistic locking
+	parsedRevision, err := etagValidator(p.Etag)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag",
+			"error", err,
+			"etag", p.Etag,
+			"committee_uid", p.UID,
+		)
+		return wrapError(ctx, err)
+	}
+
+	// Execute delete use case
+	errDelete := s.committeeWriterOrchestrator.Delete(ctx, *p.UID, parsedRevision)
+	if errDelete != nil {
+		return wrapError(ctx, errDelete)
+	}
+
+	return nil
 }
 
 // Get Committee Settings
@@ -171,20 +181,14 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	if p.Etag == nil || *p.Etag == "" {
-		slog.WarnContext(ctx, "no ETag provided for update operation",
+	parsedRevision, err := etagValidator(p.Etag)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag",
+			"error", err,
+			"etag", p.Etag,
 			"committee_uid", p.UID,
 		)
-		return nil, wrapError(ctx, errors.NewValidation("ETag is required for update operations"))
-	}
-	parsedRevision, errParse := strconv.ParseUint(*p.Etag, 10, 64)
-	if errParse != nil {
-		slog.ErrorContext(ctx, "invalid ETag format",
-			"error", errParse,
-			"etag", *p.Etag,
-			"committee_uid", p.UID,
-		)
-		return nil, wrapError(ctx, errors.NewValidation("invalid ETag format", errParse))
+		return nil, wrapError(ctx, err)
 	}
 
 	// Convert payload to domain model
