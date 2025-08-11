@@ -227,6 +227,10 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 	return nil
 }
 
+func (s *storage) IsReady(ctx context.Context) error {
+	return s.client.IsReady(ctx)
+}
+
 func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
 	return &storage{
 		client: client,

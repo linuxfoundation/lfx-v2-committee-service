@@ -23,6 +23,7 @@ type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
 	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
+	storage                     port.CommitteeReaderWriter
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -204,19 +205,30 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 
 // Check if the service is able to take inbound requests.
 func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err error) {
-	return
+	// Check NATS readiness
+	if err := s.storage.IsReady(ctx); err != nil {
+		slog.ErrorContext(ctx, "service not ready", "error", err)
+		return nil, err // This will automatically return ServiceUnavailable
+	}
+
+	return []byte("OK\n"), nil
 }
 
 // Check if the service is alive.
 func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error) {
-	return
+	// This always returns as long as the service is still running. As this
+	// endpoint is expected to be used as a Kubernetes liveness check, this
+	// service must likewise self-detect non-recoverable errors and
+	// self-terminate.
+	return []byte("OK\n"), nil
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
+		storage:                     storage,
 	}
 }

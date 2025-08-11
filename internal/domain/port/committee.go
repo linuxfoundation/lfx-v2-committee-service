@@ -3,8 +3,12 @@
 
 package port
 
+import "context"
+
 // CommitteeReaderWriter provides access to committee reading and writing operations
 type CommitteeReaderWriter interface {
 	CommitteeReader
 	CommitteeWriter
+
+	IsReady(ctx context.Context) error
 }
