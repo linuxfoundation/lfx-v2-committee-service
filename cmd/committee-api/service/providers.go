@@ -74,7 +74,7 @@ func natsInit(ctx context.Context) {
 			ReconnectWait: natsReconnectWaitDuration,
 		}
 
-		client, errNewClient := nats.NewClient(ctx, config, nil)
+		client, errNewClient := nats.NewClient(ctx, config)
 		if errNewClient != nil {
 			log.Fatalf("failed to create NATS client: %v", errNewClient)
 		}
