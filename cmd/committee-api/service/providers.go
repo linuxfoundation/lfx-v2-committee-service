@@ -100,7 +100,7 @@ func CommitteeReaderImpl(ctx context.Context) port.CommitteeReader {
 	// Repository implementation configuration
 	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
-		repoSource = "mock"
+		repoSource = "nats"
 	}
 
 	switch repoSource {
@@ -263,7 +263,7 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 		slog.InfoContext(ctx, "initializing NATS committee storage")
 		natsClient := natsStorageImpl(ctx)
 		if natsClient == nil {
-			log.Fatalf("failed to initialize NATS client")
+			log.Fatalf("failed to initialize NATS committee storage")
 		}
 		storage = natsClient
 
