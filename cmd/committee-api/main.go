@@ -87,7 +87,8 @@ func main() {
 
 	// Create channel used by both the signal handler and server goroutines
 	// to notify the main goroutine when to stop the server.
-	errc := make(chan error)
+	// Buffered channel prevents deadlock if NATS startup fails before HTTP server starts
+	errc := make(chan error, 1)
 
 	// Setup interrupt handler. This optional step configures the process so
 	// that SIGINT and SIGTERM signals cause the services to stop gracefully.
