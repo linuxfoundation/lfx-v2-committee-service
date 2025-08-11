@@ -6,7 +6,7 @@ package service
 import (
 	"testing"
 
-	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,63 +42,63 @@ func TestEtagValidator(t *testing.T) {
 			name:         "nil etag",
 			etag:         nil,
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "ETag is required for update operations",
 		},
 		{
 			name:         "empty etag",
 			etag:         stringPtr(""),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "ETag is required for update operations",
 		},
 		{
 			name:         "invalid etag format - non-numeric",
 			etag:         stringPtr("abc"),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - negative number",
 			etag:         stringPtr("-123"),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - decimal number",
 			etag:         stringPtr("123.45"),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - mixed alphanumeric",
 			etag:         stringPtr("123abc"),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - number too large for uint64",
 			etag:         stringPtr("18446744073709551616"), // max uint64 + 1
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - whitespace",
 			etag:         stringPtr(" 123 "),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 		{
 			name:         "invalid etag format - special characters",
 			etag:         stringPtr("123!@#"),
 			expectError:  true,
-			errorType:    &committeeservice.BadRequestError{},
+			errorType:    errors.Validation{},
 			errorMessage: "invalid ETag format",
 		},
 	}
@@ -111,14 +111,14 @@ func TestEtagValidator(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, uint64(0), result)
 
-				// Check error type and message based on the specific GOA error type
-				switch expectedErr := tt.errorType.(type) {
-				case *committeeservice.BadRequestError:
-					badReqErr, ok := err.(*committeeservice.BadRequestError)
-					require.True(t, ok, "Expected BadRequestError, got %T", err)
-					assert.Contains(t, badReqErr.Message, tt.errorMessage)
+				// Check error type and message based on the specific error type
+				switch tt.errorType.(type) {
+				case errors.Validation:
+					validationErr, ok := err.(errors.Validation)
+					require.True(t, ok, "Expected errors.Validation, got %T", err)
+					assert.Contains(t, validationErr.Error(), tt.errorMessage)
 				default:
-					t.Errorf("Unexpected error type in test: %T", expectedErr)
+					t.Errorf("Unexpected error type in test: %T", tt.errorType)
 				}
 			} else {
 				require.NoError(t, err)
