@@ -289,16 +289,13 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	natsInit(ctx)
 
 	// Create message handler service
-	messageHandlerService := &MessageHandlerService{
-		messageHandler: usecaseSvc.NewMessageHandlerOrchestrator(
-			usecaseSvc.WithCommitteeReaderForMessageHandler(
-				// get the committee reader directly from the repository implementation
-				usecaseSvc.NewCommitteeReaderOrchestrator(
-					usecaseSvc.WithCommitteeReader(committeeReader),
-				),
-			),
-		),
-	}
+	committeeReaderOrchestrator := usecaseSvc.NewCommitteeReaderOrchestrator(
+		usecaseSvc.WithCommitteeReader(committeeReader),
+	)
+	messageHandler := usecaseSvc.NewMessageHandlerOrchestrator(
+		usecaseSvc.WithCommitteeReaderForMessageHandler(committeeReaderOrchestrator),
+	)
+	messageHandlerService := NewMessageHandlerService(messageHandler)
 
 	// Get the NATS client - we need to access it directly
 	natsClient := getNATSClient()
@@ -313,13 +310,16 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	}
 
 	for subject, handler := range subjects {
-		slog.InfoContext(ctx, "subscribing to NATS subject", "subject", subject)
+		slog.InfoContext(ctx, "subscribing to NATS subject",
+			"subject", subject,
+			"queue", constants.CommitteeAPIQueue,
+		)
 		if _, err := natsClient.SubscribeWithTransportMessenger(ctx, subject, constants.CommitteeAPIQueue, handler); err != nil {
 			slog.ErrorContext(ctx, "failed to subscribe to NATS subject",
 				"error", err,
 				"subject", subject,
 			)
-			return fmt.Errorf("failed to subscribe to subject %s: %w", subject, err)
+			return fmt.Errorf("failed to subscribe to subject %s on queue %s: %w", subject, constants.CommitteeAPIQueue, err)
 		}
 	}
 
