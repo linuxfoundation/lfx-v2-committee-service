@@ -178,7 +178,7 @@ type CreateCommitteePayload struct {
 	Version *string
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
-	ProjectUID *string
+	ProjectUID string
 	// The name of the committee
 	Name string
 	// The category of the committee
@@ -281,7 +281,7 @@ type UpdateCommitteeBasePayload struct {
 	UID *string
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
-	ProjectUID *string
+	ProjectUID string
 	// The name of the committee
 	Name string
 	// The category of the committee

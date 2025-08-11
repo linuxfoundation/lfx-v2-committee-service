@@ -67,7 +67,7 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 
 func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 
-	uniqueKey := fmt.Sprintf("%s/committees/%s", constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
+	uniqueKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
 	_, errUnique := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, uniqueKey, []byte(committee.CommitteeBase.UID))
 	if errUnique != nil {
 		if errors.Is(errUnique, jetstream.ErrKeyExists) {
@@ -80,7 +80,7 @@ func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Commit
 
 func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
 
-	ssoGroupKey := fmt.Sprintf("%s/committee-sso-groups/%s", constants.KVLookupPrefix, committee.SSOGroupName)
+	ssoGroupKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, committee.SSOGroupName)
 	_, errSSO := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, ssoGroupKey, []byte(committee.CommitteeBase.UID))
 	if errSSO != nil {
 		if errors.Is(errSSO, jetstream.ErrKeyExists) {
@@ -95,7 +95,7 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 // It unmarshals the data into the provided model and returns the revision.
 // If the UID is empty, it returns a validation error.
 // It can be used for any that has the similar need for fetching data by UID.
-func (s *storage) get(ctx context.Context, bucket, uid string, model any) (uint64, error) {
+func (s *storage) get(ctx context.Context, bucket, uid string, model any, onlyRevision bool) (uint64, error) {
 
 	if uid == "" {
 		return 0, errs.NewValidation("committee UID cannot be empty")
@@ -106,9 +106,11 @@ func (s *storage) get(ctx context.Context, bucket, uid string, model any) (uint6
 		return 0, errGet
 	}
 
-	errUnmarshal := json.Unmarshal(data.Value(), &model)
-	if errUnmarshal != nil {
-		return 0, errUnmarshal
+	if !onlyRevision {
+		errUnmarshal := json.Unmarshal(data.Value(), &model)
+		if errUnmarshal != nil {
+			return 0, errUnmarshal
+		}
 	}
 
 	return data.Revision(), nil
@@ -119,7 +121,7 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 
 	committee := &model.CommitteeBase{}
 
-	rev, errGet := s.get(ctx, constants.KVBucketNameCommittees, uid, committee)
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommittees, uid, committee, false)
 	if errGet != nil {
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
@@ -131,14 +133,14 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 }
 
 func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
-	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{})
+	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{}, true)
 }
 
 func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
 	settings := &model.CommitteeSettings{}
 
-	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeSettings, uid, settings)
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeSettings, uid, settings, false)
 	if errGet != nil {
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", uid))
@@ -150,10 +152,54 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 }
 
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+
+	// Marshal the committee base data
+	committeeBaseBytes, errMarshal := json.Marshal(committee.CommitteeBase)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee base", errMarshal)
+	}
+
+	// Update the committee base using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommittees].Update(ctx, committee.CommitteeBase.UID, committeeBaseBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", committee.CommitteeBase.UID))
+		}
+		return errs.NewUnexpected("failed to update committee base", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee base in NATS storage",
+		"committee_uid", committee.CommitteeBase.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
 	return nil
 }
 
-func (s *storage) UpdateSetting(ctx context.Context, committee *model.CommitteeSettings, revision uint64) error {
+func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
+
+	// Marshal the committee settings data
+	settingsBytes, errMarshal := json.Marshal(settings)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee settings", errMarshal)
+	}
+
+	// Update the committee settings using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Update(ctx, settings.UID, settingsBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
+		}
+		return errs.NewUnexpected("failed to update committee settings", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee settings in NATS storage",
+		"committee_uid", settings.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
 	return nil
 }
 
