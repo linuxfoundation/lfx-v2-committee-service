@@ -798,11 +798,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"sso_group_name", existing.SSOGroupName,
 	)
 
-	// Step 2: Get project slug for SSO group name index cleanup (if needed)
-	// Note: We don't actually need the slug for deletion since we already have the SSO group name
-	// but this is kept for consistency with the create/update flow
-
-	// Step 3: Build list of secondary indices to delete
+	// Step 2: Build list of secondary indices to delete
 	var indicesToDelete []string
 
 	// Build project+name index key
@@ -822,7 +818,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"indices", indicesToDelete,
 	)
 
-	// Step 4: Delete the main committee record and settings
+	// Step 3: Delete the main committee record and settings
 	errDelete := uc.committeeWriter.Delete(ctx, uid, revision)
 	if errDelete != nil {
 		slog.ErrorContext(ctx, "failed to delete committee",
@@ -836,7 +832,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"committee_uid", uid,
 	)
 
-	// Step 5: Delete secondary indices
+	// Step 4: Delete secondary indices
 	// We use the deleteKeys method which handles errors gracefully and logs them
 	// We don't abort here - secondary indices have a minor impact during deletion compared to the main index
 	// and access control, which must be executed successfully to avoid data inconsistency in the following steps
