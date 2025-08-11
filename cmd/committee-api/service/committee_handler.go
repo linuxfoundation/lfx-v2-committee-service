@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -31,11 +32,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 	handler, ok := handlers[subject]
 	if !ok {
 		slog.WarnContext(ctx, "unknown subject")
-		errRespond := msg.Respond(nil)
-		if errRespond != nil {
-			slog.ErrorContext(ctx, "error responding to NATS message", "error", errRespond)
-			return
-		}
+		mhs.respondWithError(ctx, msg, "unknown subject")
 		return
 	}
 
@@ -45,10 +42,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 			"error", errHandler,
 			"subject", subject,
 		)
-		errRespond := msg.Respond(nil)
-		if errRespond != nil {
-			slog.ErrorContext(ctx, "error responding to NATS message", "error", errRespond)
-		}
+		mhs.respondWithError(ctx, msg, errHandler.Error())
 		return
 	}
 
@@ -63,6 +57,13 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 
 func (mhs *MessageHandlerService) handleCommitteeGetName(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeGetAttribute(ctx, msg, "name")
+}
+
+func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
+	errResponse := []byte(fmt.Sprintf(`{"error":"%s"}`, errorMsg))
+	if err := msg.Respond(errResponse); err != nil {
+		slog.ErrorContext(ctx, "failed to send error response", "error", err)
+	}
 }
 
 // NewMessageHandlerService creates a new message handler service
