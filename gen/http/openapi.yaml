@@ -260,6 +260,12 @@ paths:
                         $ref: '#/definitions/NotFoundError'
                         required:
                             - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
                 "500":
                     description: Internal Server Error response.
                     schema:

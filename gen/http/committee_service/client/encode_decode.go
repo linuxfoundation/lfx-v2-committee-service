@@ -569,6 +569,7 @@ func EncodeDeleteCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) f
 // whether the response body should be restored after having been read.
 // DecodeDeleteCommitteeResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -604,6 +605,20 @@ func DecodeDeleteCommitteeResponse(decoder func(*http.Response) goahttp.Decoder,
 				return nil, goahttp.ErrValidationError("committee-service", "delete-committee", err)
 			}
 			return nil, NewDeleteCommitteeBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body DeleteCommitteeConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee", err)
+			}
+			err = ValidateDeleteCommitteeConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee", err)
+			}
+			return nil, NewDeleteCommitteeConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body DeleteCommitteeInternalServerErrorResponseBody

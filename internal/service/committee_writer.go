@@ -28,6 +28,8 @@ type CommitteeWriter interface {
 	Update(ctx context.Context, committee *model.Committee, revision uint64) (*model.Committee, error)
 	// UpdateSettings modifies the settings of an existing committee in the storage
 	UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error)
+	// Delete removes a committee and all its associated data (secondary indices, settings)
+	Delete(ctx context.Context, uid string, revision uint64) error
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options
@@ -760,6 +762,134 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	// ******************************************************
 
 	return settings, nil
+}
+
+// Delete orchestrates the committee deletion process
+func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, revision uint64) error {
+	slog.DebugContext(ctx, "executing delete committee use case",
+		"committee_uid", uid,
+		"revision", revision,
+	)
+
+	// Step 1: Retrieve existing committee data to get all the information needed for cleanup
+	existing, existingRevision, errGet := uc.committeeReader.GetBase(ctx, uid)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to retrieve existing committee for deletion",
+			"error", errGet,
+			"committee_uid", uid,
+		)
+		return errGet
+	}
+
+	// Verify revision matches to ensure optimistic locking
+	if existingRevision != revision {
+		slog.WarnContext(ctx, "revision mismatch during deletion",
+			"expected_revision", revision,
+			"current_revision", existingRevision,
+			"committee_uid", uid,
+		)
+		return errs.NewConflict("committee has been modified by another process")
+	}
+
+	slog.DebugContext(ctx, "existing committee retrieved for deletion",
+		"committee_uid", existing.UID,
+		"committee_name", existing.Name,
+		"project_uid", existing.ProjectUID,
+		"sso_group_name", existing.SSOGroupName,
+	)
+
+	// Step 2: Build list of secondary indices to delete
+	var indicesToDelete []string
+
+	// Build project+name index key
+	committee := &model.Committee{CommitteeBase: *existing}
+	nameIndexKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
+	indicesToDelete = append(indicesToDelete, nameIndexKey)
+
+	// Build SSO group name index key if it exists
+	if existing.SSOGroupEnabled && existing.SSOGroupName != "" {
+		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
+		indicesToDelete = append(indicesToDelete, ssoIndexKey)
+	}
+
+	slog.DebugContext(ctx, "secondary indices identified for deletion",
+		"committee_uid", uid,
+		"indices_count", len(indicesToDelete),
+		"indices", indicesToDelete,
+	)
+
+	// Step 3: Delete the main committee record and settings
+	errDelete := uc.committeeWriter.Delete(ctx, uid, revision)
+	if errDelete != nil {
+		slog.ErrorContext(ctx, "failed to delete committee",
+			"error", errDelete,
+			"committee_uid", uid,
+		)
+		return errDelete
+	}
+
+	slog.DebugContext(ctx, "committee main record and settings deleted successfully",
+		"committee_uid", uid,
+	)
+
+	// Step 4: Delete secondary indices
+	// We use the deleteKeys method which handles errors gracefully and logs them
+	// We don't abort here - secondary indices have a minor impact during deletion compared to the main index
+	// and access control, which must be executed successfully to avoid data inconsistency in the following steps
+	uc.deleteKeys(ctx, indicesToDelete, false)
+
+	// Prepare messages for publishing
+	messages := []func() error{}
+
+	// Build and publish indexer messages for committee and settings deletion
+	for subject, data := range map[string]any{
+		constants.IndexCommitteeSubject:         uid,
+		constants.IndexCommitteeSettingsSubject: uid,
+	} {
+		indexerMessage := model.CommitteeIndexerMessage{
+			Action: model.ActionDeleted,
+		}
+
+		message, errBuildIndexerMessage := indexerMessage.Build(ctx, data)
+		if errBuildIndexerMessage != nil {
+			slog.WarnContext(ctx, "failed to build indexer deletion message",
+				"error", errBuildIndexerMessage,
+				"subject", subject,
+				"committee_uid", uid,
+				log.PriorityCritical(),
+			)
+			continue
+		}
+
+		localSubject := subject
+		localMessage := message
+
+		messages = append(messages, func() error {
+			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage)
+		})
+	}
+
+	// Build access control deletion message
+	messages = append(messages, func() error {
+		return uc.committeePublisher.Access(ctx, constants.DeleteAllAccessCommitteeSubject, uid)
+	})
+
+	// Execute all messages concurrently
+	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
+	if errPublishingMessage != nil {
+		slog.ErrorContext(ctx, "failed to publish deletion messages",
+			"error", errPublishingMessage,
+			"committee_uid", uid,
+		)
+		return errPublishingMessage
+	}
+
+	slog.DebugContext(ctx, "committee deletion completed successfully",
+		"committee_uid", uid,
+		"indices_deleted", len(indicesToDelete),
+	)
+
+	return nil
 }
 
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern

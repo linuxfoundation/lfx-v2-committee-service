@@ -341,6 +341,14 @@ type DeleteCommitteeBadRequestResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// DeleteCommitteeConflictResponseBody is the type of the "committee-service"
+// service "delete-committee" endpoint HTTP response body for the "Conflict"
+// error.
+type DeleteCommitteeConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // DeleteCommitteeInternalServerErrorResponseBody is the type of the
 // "committee-service" service "delete-committee" endpoint HTTP response body
 // for the "InternalServerError" error.
@@ -883,6 +891,16 @@ func NewUpdateCommitteeBaseServiceUnavailableResponseBody(res *committeeservice.
 // service.
 func NewDeleteCommitteeBadRequestResponseBody(res *committeeservice.BadRequestError) *DeleteCommitteeBadRequestResponseBody {
 	body := &DeleteCommitteeBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeleteCommitteeConflictResponseBody builds the HTTP response body from
+// the result of the "delete-committee" endpoint of the "committee-service"
+// service.
+func NewDeleteCommitteeConflictResponseBody(res *committeeservice.ConflictError) *DeleteCommitteeConflictResponseBody {
+	body := &DeleteCommitteeConflictResponseBody{
 		Message: res.Message,
 	}
 	return body
