@@ -270,7 +270,7 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 		slog.InfoContext(ctx, "initializing NATS committee storage")
 		natsClient := natsStorageImpl(ctx)
 		if natsClient == nil {
-			log.Fatalf("failed to initialize NATS committee storage")
+			log.Fatalf("failed to initialize NATS client")
 		}
 		storage = natsClient
 
@@ -289,13 +289,16 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	natsInit(ctx)
 
 	// Create message handler service
-	committeeReaderOrchestrator := usecaseSvc.NewCommitteeReaderOrchestrator(
-		usecaseSvc.WithCommitteeReader(committeeReader),
-	)
-	messageHandler := usecaseSvc.NewMessageHandlerOrchestrator(
-		usecaseSvc.WithCommitteeReaderForMessageHandler(committeeReaderOrchestrator),
-	)
-	messageHandlerService := NewMessageHandlerService(messageHandler)
+	messageHandlerService := &MessageHandlerService{
+		messageHandler: usecaseSvc.NewMessageHandlerOrchestrator(
+			usecaseSvc.WithCommitteeReaderForMessageHandler(
+				// get the committee reader directly from the repository implementation
+				usecaseSvc.NewCommitteeReaderOrchestrator(
+					usecaseSvc.WithCommitteeReader(committeeReader),
+				),
+			),
+		),
+	}
 
 	// Get the NATS client - we need to access it directly
 	natsClient := getNATSClient()
@@ -310,16 +313,13 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	}
 
 	for subject, handler := range subjects {
-		slog.InfoContext(ctx, "subscribing to NATS subject",
-			"subject", subject,
-			"queue", constants.CommitteeAPIQueue,
-		)
+		slog.InfoContext(ctx, "subscribing to NATS subject", "subject", subject)
 		if _, err := natsClient.SubscribeWithTransportMessenger(ctx, subject, constants.CommitteeAPIQueue, handler); err != nil {
 			slog.ErrorContext(ctx, "failed to subscribe to NATS subject",
 				"error", err,
 				"subject", subject,
 			)
-			return fmt.Errorf("failed to subscribe to subject %s on queue %s: %w", subject, constants.CommitteeAPIQueue, err)
+			return fmt.Errorf("failed to subscribe to subject %s: %w", subject, err)
 		}
 	}
 
@@ -331,34 +331,4 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 // This is a helper function to access the client for subscription management
 func getNATSClient() *nats.NATSClient {
 	return natsClient
-}
-
-// CommitteeReaderWriterImpl initializes the committee reader/writer implementation based on the repository source
-func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
-	var storage port.CommitteeReaderWriter
-
-	// Repository implementation configuration
-	repoSource := os.Getenv("REPOSITORY_SOURCE")
-	if repoSource == "" {
-		repoSource = "nats"
-	}
-
-	switch repoSource {
-	case "mock":
-		slog.InfoContext(ctx, "initializing mock committee storage")
-		storage = infrastructure.NewMockCommitteeReaderWriter(infrastructure.NewMockRepository())
-
-	case "nats":
-		slog.InfoContext(ctx, "initializing NATS committee storage")
-		natsClient := natsStorageImpl(ctx)
-		if natsClient == nil {
-			log.Fatalf("failed to initialize NATS client")
-		}
-		storage = natsClient
-
-	default:
-		log.Fatalf("unsupported committee storage implementation: %s", repoSource)
-	}
-
-	return storage
 }
