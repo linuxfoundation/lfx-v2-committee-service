@@ -403,6 +403,292 @@ func TestCommitteeReaderOrchestratorIntegration(t *testing.T) {
 	})
 }
 
+func TestCommitteeReaderOrchestratorGetBaseAttributeValue(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+
+	// Setup test data
+	testCommitteeUID := uuid.New().String()
+	testCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:             testCommitteeUID,
+			ProjectUID:      "test-project-uid",
+			ProjectName:     "Test Project",
+			Name:            "Test Committee",
+			Category:        "technical",
+			Description:     "Test committee description",
+			Website:         readerStringPtr("https://example.com"),
+			EnableVoting:    true,
+			SSOGroupEnabled: false,
+			SSOGroupName:    "test-sso-group",
+			RequiresReview:  true,
+			Public:          false,
+			Calendar: model.Calendar{
+				Public: true,
+			},
+			DisplayName:      "Test Display Name",
+			ParentUID:        readerStringPtr("parent-committee-uid"),
+			TotalMembers:     5,
+			TotalVotingRepos: 3,
+			CreatedAt:        time.Now().Add(-24 * time.Hour),
+			UpdatedAt:        time.Now(),
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   testCommitteeUID,
+			BusinessEmailRequired: true,
+			Writers:               []string{"writer1", "writer2"},
+			Auditors:              []string{"auditor1"},
+			CreatedAt:             time.Now().Add(-24 * time.Hour),
+			UpdatedAt:             time.Now(),
+		},
+	}
+
+	tests := []struct {
+		name          string
+		setupMock     func()
+		committeeUID  string
+		attributeName string
+		expectedError bool
+		errorMessage  string
+		validateValue func(*testing.T, any)
+	}{
+		{
+			name: "successful retrieval of uid attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "uid",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, testCommitteeUID, value)
+			},
+		},
+		{
+			name: "successful retrieval of project_uid attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "project_uid",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, "test-project-uid", value)
+			},
+		},
+		{
+			name: "successful retrieval of name attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "name",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, "Test Committee", value)
+			},
+		},
+		{
+			name: "successful retrieval of enable_voting boolean attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "enable_voting",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, true, value)
+			},
+		},
+		{
+			name: "successful retrieval of total_members integer attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "total_members",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, 5, value)
+			},
+		},
+		{
+			name: "successful retrieval of website pointer attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "website,omitempty",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				website, ok := value.(*string)
+				assert.True(t, ok)
+				assert.NotNil(t, website)
+				assert.Equal(t, "https://example.com", *website)
+			},
+		},
+		{
+			name: "successful retrieval of calendar struct attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "calendar,omitempty",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				calendar, ok := value.(model.Calendar)
+				assert.True(t, ok)
+				assert.True(t, calendar.Public)
+			},
+		},
+		{
+			name: "successful retrieval of created_at time attribute",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "created_at",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				createdAt, ok := value.(time.Time)
+				assert.True(t, ok)
+				assert.False(t, createdAt.IsZero())
+			},
+		},
+		{
+			name: "successful retrieval of description attribute with omitempty",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "description,omitempty",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				assert.Equal(t, "Test committee description", value)
+			},
+		},
+		{
+			name: "successful retrieval of parent_uid pointer attribute with omitempty",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "parent_uid,omitempty",
+			expectedError: false,
+			validateValue: func(t *testing.T, value any) {
+				parentUID, ok := value.(*string)
+				assert.True(t, ok)
+				assert.NotNil(t, parentUID)
+				assert.Equal(t, "parent-committee-uid", *parentUID)
+			},
+		},
+		{
+			name: "committee not found error",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// Don't store any committee
+			},
+			committeeUID:  "nonexistent-committee-uid",
+			attributeName: "uid",
+			expectedError: true,
+			validateValue: func(t *testing.T, value any) {
+				assert.Nil(t, value)
+			},
+		},
+		{
+			name: "empty committee UID",
+			setupMock: func() {
+				mockRepo.ClearAll()
+			},
+			committeeUID:  "",
+			attributeName: "uid",
+			expectedError: true,
+			validateValue: func(t *testing.T, value any) {
+				assert.Nil(t, value)
+			},
+		},
+		{
+			name: "attribute not found error",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "nonexistent_attribute",
+			expectedError: true,
+			errorMessage:  "attribute not found",
+			validateValue: func(t *testing.T, value any) {
+				assert.Nil(t, value)
+			},
+		},
+		{
+			name: "empty attribute name",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "",
+			expectedError: true,
+			errorMessage:  "attribute not found",
+			validateValue: func(t *testing.T, value any) {
+				assert.Nil(t, value)
+			},
+		},
+		{
+			name: "invalid attribute name format",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			attributeName: "invalid-attribute-name",
+			expectedError: true,
+			errorMessage:  "attribute not found",
+			validateValue: func(t *testing.T, value any) {
+				assert.Nil(t, value)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			tt.setupMock()
+
+			// Create reader orchestrator
+			reader := NewCommitteeReaderOrchestrator(
+				WithCommitteeReader(mockRepo),
+			)
+
+			// Execute
+			value, err := reader.GetBaseAttributeValue(ctx, tt.committeeUID, tt.attributeName)
+
+			// Validate
+			if tt.expectedError {
+				require.Error(t, err)
+				if tt.errorMessage != "" {
+					assert.Contains(t, err.Error(), tt.errorMessage)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateValue(t, value)
+		})
+	}
+}
+
 // Helper function to create string pointer (same as in committee_writer_test.go)
 func readerStringPtr(s string) *string {
 	return &s

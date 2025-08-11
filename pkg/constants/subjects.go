@@ -4,6 +4,14 @@
 package constants
 
 const (
+	// CommitteeAPIQueue is the queue for the committee API.
+	// The queue is of the form: lfx.committee-api.queue
+	CommitteeAPIQueue = "lfx.committee-api.queue"
+
+	// CommitteeGetNameSubject is the subject for the committee get name.
+	// The subject is of the form: lfx.committee-api.get_name
+	CommitteeGetNameSubject = "lfx.committee-api.get_name"
+
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"

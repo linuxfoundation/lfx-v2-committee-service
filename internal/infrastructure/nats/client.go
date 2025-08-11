@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 
@@ -76,8 +77,23 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 	return nil
 }
 
+func (c *NATSClient) Subscribe(ctx context.Context, subject string, queueName string, f func(context.Context, any)) (*nats.Subscription, error) {
+	return c.conn.QueueSubscribe(subject, queueName, func(msg *nats.Msg) {
+		transportMsg := NewTransportMessenger(msg)
+		f(ctx, transportMsg)
+	})
+}
+
+// SubscribeWithTransportMessenger subscribes to a subject with proper TransportMessenger handling
+func (c *NATSClient) SubscribeWithTransportMessenger(ctx context.Context, subject string, queueName string, handler func(context.Context, port.TransportMessenger)) (*nats.Subscription, error) {
+	return c.conn.QueueSubscribe(subject, queueName, func(msg *nats.Msg) {
+		transportMsg := NewTransportMessenger(msg)
+		handler(ctx, transportMsg)
+	})
+}
+
 // NewClient creates a new NATS client with the given configuration
-func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
+func NewClient(ctx context.Context, config Config, subscribeFuncs map[string]func(ctx context.Context, msg any)) (*NATSClient, error) {
 	slog.InfoContext(ctx, "creating NATS client",
 		"url", config.URL,
 		"timeout", config.Timeout,
@@ -131,6 +147,17 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 				"bucket", bucketName,
 			)
 			return nil, errors.NewServiceUnavailable("failed to initialize NATS key-value store", err)
+		}
+	}
+
+	// Subscribe to all subjects if provided
+	for subject, f := range subscribeFuncs {
+		if _, err := client.Subscribe(ctx, subject, constants.CommitteeAPIQueue, f); err != nil {
+			slog.ErrorContext(ctx, "failed to subscribe to NATS subject",
+				"error", err,
+				"subject", subject,
+			)
+			return nil, errors.NewServiceUnavailable("failed to subscribe to NATS subject", err)
 		}
 	}
 
