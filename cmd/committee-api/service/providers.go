@@ -332,33 +332,3 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 func getNATSClient() *nats.NATSClient {
 	return natsClient
 }
-
-// CommitteeReaderWriterImpl initializes the committee reader/writer implementation based on the repository source
-func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
-	var storage port.CommitteeReaderWriter
-
-	// Repository implementation configuration
-	repoSource := os.Getenv("REPOSITORY_SOURCE")
-	if repoSource == "" {
-		repoSource = "nats"
-	}
-
-	switch repoSource {
-	case "mock":
-		slog.InfoContext(ctx, "initializing mock committee storage")
-		storage = infrastructure.NewMockCommitteeReaderWriter(infrastructure.NewMockRepository())
-
-	case "nats":
-		slog.InfoContext(ctx, "initializing NATS committee storage")
-		natsClient := natsStorageImpl(ctx)
-		if natsClient == nil {
-			log.Fatalf("failed to initialize NATS client")
-		}
-		storage = natsClient
-
-	default:
-		log.Fatalf("unsupported committee storage implementation: %s", repoSource)
-	}
-
-	return storage
-}
