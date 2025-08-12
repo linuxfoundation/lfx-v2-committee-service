@@ -399,6 +399,12 @@ type MockCommitteeReaderWriter struct {
 	port.CommitteeWriter
 }
 
+// IsReady checks if the committee reader writer is ready
+func (m *MockCommitteeReaderWriter) IsReady(ctx context.Context) error {
+	// Mock implementation - always return nil (ready)
+	return nil
+}
+
 // NewMockProjectRetriever creates a mock project retriever
 func NewMockProjectRetriever(mock *MockRepository) port.ProjectReader {
 	return &MockProjectRetriever{mock: mock}
