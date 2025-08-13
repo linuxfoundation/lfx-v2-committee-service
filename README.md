@@ -46,6 +46,40 @@ The LFX v2 Committee Service is a RESTful API service that manages committees wi
 - **Structured Logging**: JSON-formatted logs with contextual information
 - **Committee Settings**: Configurable voting, membership, and access control settings
 
+## Releases
+
+### Creating a Release
+
+To create a new release of the committee service:
+
+1. **Update the chart version** in `charts/lfx-v2-committee-service/Chart.yaml` prior to any project releases, or if any
+   change is made to the chart manifests or configuration:
+   ```yaml
+   version: 0.2.0  # Increment this version
+   appVersion: "latest"  # Keep this as "latest"
+   ```
+
+2. **After the pull request is merged**, create a GitHub release and choose the
+   option for GitHub to also tag the repository. The tag must follow the format
+   `v{version}` (e.g., `v0.2.0`). This tag does _not_ have to match the chart
+   version: it is the version for the project release, which will dynamically
+   update the `appVersion` in the released chart.
+
+3. **The GitHub Actions workflow will automatically**:
+   - Build and publish the container images (committee-api)
+   - Package and publish the Helm chart to GitHub Pages
+   - Publish the chart to GitHub Container Registry (GHCR)
+   - Sign the chart with Cosign
+   - Generate SLSA provenance
+
+### Important Notes
+
+- The `appVersion` in `Chart.yaml` should always remain `"latest"` in the committed code.
+- During the release process, the `ko-build-tag.yaml` workflow automatically overrides the `appVersion` with the actual tag version (e.g., `v0.2.0` becomes `0.2.0`).
+- Only update the chart `version` field when making releases - this represents the Helm chart version.
+- The container image tags are automatically managed by the consolidated CI/CD pipeline using the git tag.
+- Both container images (committee-api) and the Helm chart are published together in a single workflow.
+
 ## Development
 
 To contribute to this repository:
