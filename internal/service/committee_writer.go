@@ -194,30 +194,30 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 
 func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) (*model.CommitteeAccessMessage, error) {
 
-	var parentUID string
-	if committee.ParentUID != nil {
-		parentUID = *committee.ParentUID
+	message := &model.CommitteeAccessMessage{
+		UID:        committee.CommitteeBase.UID,
+		ObjectType: "committee",
+		Public:     committee.Public,
+		Relations:  map[string][]string{},
+		References: map[string]string{
+			constants.RelationProject: committee.ProjectUID,
+		},
 	}
 
-	if committee.CommitteeSettings == nil {
-		return nil, errs.NewUnexpected("committee settings (writers and auditors) not found")
+	if committee.ParentUID != nil {
+		message.References[constants.RelationParent] = *committee.ParentUID
+	}
+
+	if committee.CommitteeSettings != nil {
+		message.Relations[constants.RelationWriter] = committee.CommitteeSettings.Writers
+		message.Relations[constants.RelationAuditor] = committee.CommitteeSettings.Auditors
 	}
 
 	slog.DebugContext(ctx, "building access control message",
-		"committee_uid", committee.CommitteeBase.UID,
-		"public", committee.Public,
-		"parent_uid", parentUID,
-		"writers", committee.Writers,
-		"auditors", committee.Auditors,
+		"message", message,
 	)
 
-	return &model.CommitteeAccessMessage{
-		UID:       committee.CommitteeBase.UID,
-		Public:    committee.Public,
-		ParentUID: parentUID,
-		Writers:   committee.Writers,
-		Auditors:  committee.Auditors,
-	}, nil
+	return message, nil
 }
 
 func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Context, newNameKey string, existing *model.CommitteeBase) string {
