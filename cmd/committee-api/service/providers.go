@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -16,12 +17,17 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
 var (
 	natsStorage   port.CommitteeReaderWriter
 	natsMessaging port.ProjectReader
 	natsPublisher port.CommitteePublisher
+
+	// expose the NATS client for direct access in subscriptions
+	natsClient *nats.NATSClient
 
 	natsDoOnce sync.Once
 )
@@ -68,13 +74,14 @@ func natsInit(ctx context.Context) {
 			ReconnectWait: natsReconnectWaitDuration,
 		}
 
-		natsClient, errNewClient := nats.NewClient(ctx, config)
+		client, errNewClient := nats.NewClient(ctx, config)
 		if errNewClient != nil {
 			log.Fatalf("failed to create NATS client: %v", errNewClient)
 		}
-		natsStorage = nats.NewStorage(natsClient)
-		natsMessaging = nats.NewMessageRequest(natsClient)
-		natsPublisher = nats.NewMessagePublisher(natsClient)
+		natsClient = client
+		natsStorage = nats.NewStorage(client)
+		natsMessaging = nats.NewMessageRequest(client)
+		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
 
@@ -263,7 +270,7 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 		slog.InfoContext(ctx, "initializing NATS committee storage")
 		natsClient := natsStorageImpl(ctx)
 		if natsClient == nil {
-			log.Fatalf("failed to initialize NATS committee storage")
+			log.Fatalf("failed to initialize NATS client")
 		}
 		storage = natsClient
 
@@ -272,4 +279,56 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 	}
 
 	return storage
+}
+
+// QueueSubscriptions starts all NATS subscriptions with the provided dependencies
+func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReader) error {
+	slog.InfoContext(ctx, "starting NATS subscriptions")
+
+	// Initialize NATS client first
+	natsInit(ctx)
+
+	// Create message handler service
+	messageHandlerService := &MessageHandlerService{
+		messageHandler: usecaseSvc.NewMessageHandlerOrchestrator(
+			usecaseSvc.WithCommitteeReaderForMessageHandler(
+				// get the committee reader directly from the repository implementation
+				usecaseSvc.NewCommitteeReaderOrchestrator(
+					usecaseSvc.WithCommitteeReader(committeeReader),
+				),
+			),
+		),
+	}
+
+	// Get the NATS client - we need to access it directly
+	natsClient := getNATSClient()
+	if natsClient == nil {
+		return fmt.Errorf("NATS client not initialized")
+	}
+
+	// Start subscriptions for each subject
+	subjects := map[string]func(context.Context, port.TransportMessenger){
+		constants.CommitteeGetNameSubject: messageHandlerService.HandleMessage,
+		// Add more subjects here as needed
+	}
+
+	for subject, handler := range subjects {
+		slog.InfoContext(ctx, "subscribing to NATS subject", "subject", subject)
+		if _, err := natsClient.SubscribeWithTransportMessenger(ctx, subject, constants.CommitteeAPIQueue, handler); err != nil {
+			slog.ErrorContext(ctx, "failed to subscribe to NATS subject",
+				"error", err,
+				"subject", subject,
+			)
+			return fmt.Errorf("failed to subscribe to subject %s: %w", subject, err)
+		}
+	}
+
+	slog.InfoContext(ctx, "NATS subscriptions started successfully")
+	return nil
+}
+
+// getNATSClient returns the initialized NATS client
+// This is a helper function to access the client for subscription management
+func getNATSClient() *nats.NATSClient {
+	return natsClient
 }

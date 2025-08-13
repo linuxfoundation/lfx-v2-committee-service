@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 
@@ -74,6 +75,25 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 	}
 	c.kvStore[bucketName] = kvStore
 	return nil
+}
+
+// SubscribeWithTransportMessenger subscribes to a subject with proper TransportMessenger handling
+func (c *NATSClient) SubscribeWithTransportMessenger(ctx context.Context, subject string, queueName string, handler func(context.Context, port.TransportMessenger)) (*nats.Subscription, error) {
+	return c.conn.QueueSubscribe(subject, queueName, func(msg *nats.Msg) {
+		transportMsg := NewTransportMessenger(msg)
+
+		defer func() {
+			if r := recover(); r != nil {
+				slog.ErrorContext(ctx, "panic in NATS handler",
+					"subject", subject,
+					"queue", queueName,
+					"panic", r,
+				)
+			}
+		}()
+
+		handler(ctx, transportMsg)
+	})
 }
 
 // NewClient creates a new NATS client with the given configuration

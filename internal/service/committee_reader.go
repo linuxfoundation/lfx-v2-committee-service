@@ -5,10 +5,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 )
 
 // CommitteeReader defines the interface for committee read operations
@@ -17,6 +19,8 @@ type CommitteeReader interface {
 	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
 	// GetSettings retrieves committee settings by UID and returns the revision
 	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
+	// GetBaseAttributeValue retrieves an attribute value by UID and returns the revision
+	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -82,6 +86,22 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 	)
 
 	return committeeSettings, revision, nil
+}
+
+// GetAttributeValue retrieves an attribute value by UID and returns the revision
+func (rc *committeeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error) {
+
+	committeeBase, _, err := rc.committeeReader.GetBase(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	field, ok := fields.LookupByTag(committeeBase, "json", attributeName)
+	if !ok {
+		return nil, errors.New("attribute not found")
+	}
+
+	return field, nil
 }
 
 // NewCommitteeReaderOrchestrator creates a new committee reader use case using the option pattern

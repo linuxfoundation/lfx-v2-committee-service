@@ -67,7 +67,7 @@ func main() {
 	storage := service.CommitteeReaderWriterImpl(ctx)
 
 	// Initialize the service with use cases
-	createCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
+	writeCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
 		usecaseSvc.WithCommitteeWriter(committeeWriter),
 		usecaseSvc.WithProjectRetriever(projectRetriever),
@@ -78,7 +78,7 @@ func main() {
 		usecaseSvc.WithCommitteeReader(committeeRetriever),
 	)
 
-	committeeServiceSvc := service.NewCommitteeService(createCommitteeUseCase, readCommitteeUseCase, authService, storage)
+	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.
@@ -87,7 +87,8 @@ func main() {
 
 	// Create channel used by both the signal handler and server goroutines
 	// to notify the main goroutine when to stop the server.
-	errc := make(chan error)
+	// Buffered channel prevents deadlock if NATS startup fails before HTTP server starts
+	errc := make(chan error, 1)
 
 	// Setup interrupt handler. This optional step configures the process so
 	// that SIGINT and SIGTERM signals cause the services to stop gracefully.
@@ -104,6 +105,12 @@ func main() {
 	addr := ":" + *port
 	if *bind != "*" {
 		addr = *bind + ":" + *port
+	}
+
+	// Start NATS subscriptions
+	if err := service.QueueSubscriptions(ctx, committeeRetriever); err != nil {
+		slog.ErrorContext(ctx, "failed to start queue subscriptions", "error", err)
+		errc <- fmt.Errorf("failed to start queue subscriptions: %w", err)
 	}
 
 	handleHTTPServer(ctx, addr, committeeServiceEndpoints, &wg, errc, *dbgF)
