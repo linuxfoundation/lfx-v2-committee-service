@@ -205,10 +205,6 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		},
 	}
 
-	if committee.ParentUID != nil {
-		message.References[constants.RelationParent] = *committee.ParentUID
-	}
-
 	slog.DebugContext(ctx, "building access control message",
 		"message", message,
 	)

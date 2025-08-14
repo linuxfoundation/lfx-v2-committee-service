@@ -104,6 +104,8 @@ app:
   logLevel: debug
   # logAddSource is a boolean to determine if the log source should be added
   logAddSource: true
+  # use_oidc_contextualizer is a boolean to determine if the OIDC contextualizer should be used
+  use_oidc_contextualizer: true
   # jwt is the configuration for JWT authentication
   # audience is the intended audience for the JWT token
   audience: lfx-v2-committee-service

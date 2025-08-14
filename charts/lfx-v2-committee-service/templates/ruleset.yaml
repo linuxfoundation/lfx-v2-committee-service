@@ -15,25 +15,24 @@ spec:
         routes:
           - path: /committees
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          # TODO: Validate the sintax once we have the proper implementation
-          config:
-            values:
-              relation: writer
-              object: committee
+        # TODO: update this authorizer check once we have a way to get the project_uid from the request body.
+        # Check that user has writer permission on the project
+        - authorizer: allow_all
         {{- else -}}
+        # When OpenFGA is disabled, allow all requests
+        # (Only meant for *local development* because OpenFGA should be enabled when deployed)
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:get"
       match:
@@ -42,10 +41,10 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
         - authorizer: openfga_check
@@ -59,7 +58,7 @@ spec:
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_settings:get"
       match:
@@ -68,10 +67,10 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
         - authorizer: openfga_check
@@ -85,7 +84,7 @@ spec:
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:update"
       match:
@@ -94,10 +93,10 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
         - authorizer: openfga_check
@@ -111,7 +110,7 @@ spec:
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_settings:update"
       match:
@@ -120,10 +119,10 @@ spec:
         routes:
           - path: /committees/:uid/settings
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
         - authorizer: openfga_check
@@ -137,7 +136,7 @@ spec:
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:delete"
       match:
@@ -146,10 +145,10 @@ spec:
         routes:
           - path: /committees/:uid
       execute:
+        - authenticator: oidc
         - authenticator: anonymous_authenticator
-        {{- if .Values.authelia.enabled }}
-        - authenticator: authelia
-        - contextualizer: authelia_userinfo
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
         - authorizer: openfga_check
@@ -165,4 +164,4 @@ spec:
         - finalizer: create_jwt
           config:
             values:
-              aud: lfx-v2-committee-service
+              aud: {{ .Values.app.audience }}
