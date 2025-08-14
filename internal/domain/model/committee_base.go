@@ -27,6 +27,7 @@ type CommitteeBase struct {
 	UID              string    `json:"uid"`
 	ProjectUID       string    `json:"project_uid"`
 	ProjectName      string    `json:"project_name,omitempty"`
+	ProjectSlug      string    `json:"project_slug,omitempty"`
 	Name             string    `json:"name"`
 	Category         string    `json:"category"`
 	Description      string    `json:"description,omitempty"`
@@ -102,4 +103,36 @@ func (c *Committee) BuildIndexKey(ctx context.Context) string {
 	)
 
 	return key
+}
+
+// Tags generates a consistent set of tags for the committee.
+func (c *Committee) Tags() []string {
+
+	var tags []string
+
+	if c == nil {
+		return nil
+	}
+
+	if c.ParentUID == nil {
+		tag := fmt.Sprintf("project:%s", c.ProjectUID)
+		tags = append(tags, tag)
+	}
+
+	if c.ProjectSlug != "" {
+		tag := fmt.Sprintf("project_slug:%s", c.ProjectSlug)
+		tags = append(tags, tag)
+	}
+
+	if c.ParentUID != nil {
+		tag := fmt.Sprintf("parent:%s", *c.ParentUID)
+		tags = append(tags, tag)
+	}
+
+	if c.CommitteeBase.UID != "" {
+		tag := fmt.Sprintf("committee:%s", c.CommitteeBase.UID)
+		tags = append(tags, tag)
+	}
+
+	return tags
 }
