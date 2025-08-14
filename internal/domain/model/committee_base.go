@@ -114,8 +114,8 @@ func (c *Committee) Tags() []string {
 		return nil
 	}
 
-	if c.ParentUID == nil {
-		tag := fmt.Sprintf("project:%s", c.ProjectUID)
+	if c.ProjectUID != "" {
+		tag := fmt.Sprintf("project_uid:%s", c.ProjectUID)
 		tags = append(tags, tag)
 	}
 
@@ -125,12 +125,12 @@ func (c *Committee) Tags() []string {
 	}
 
 	if c.ParentUID != nil {
-		tag := fmt.Sprintf("parent:%s", *c.ParentUID)
+		tag := fmt.Sprintf("parent_uid:%s", *c.ParentUID)
 		tags = append(tags, tag)
 	}
 
 	if c.CommitteeBase.UID != "" {
-		tag := fmt.Sprintf("committee:%s", c.CommitteeBase.UID)
+		tag := fmt.Sprintf("committee_uid:%s", c.CommitteeBase.UID)
 		tags = append(tags, tag)
 	}
 
