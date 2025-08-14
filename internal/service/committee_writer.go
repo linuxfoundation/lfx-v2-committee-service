@@ -198,7 +198,8 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		UID:        committee.CommitteeBase.UID,
 		ObjectType: "committee",
 		Public:     committee.Public,
-		Relations:  map[string][]string{},
+		// Relations is reserved for future use and is intentionally left empty.
+		Relations: map[string][]string{},
 		References: map[string]string{
 			// project is required in the flow
 			constants.RelationProject: committee.ProjectUID,
