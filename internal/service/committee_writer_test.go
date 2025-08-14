@@ -515,7 +515,6 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Relations:  map[string][]string{},
 				References: map[string]string{
 					"project": "project-2",
-					"parent":  "parent-committee",
 				},
 			},
 		},
