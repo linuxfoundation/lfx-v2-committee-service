@@ -1112,7 +1112,7 @@ func NewGetCommitteeBasePayload(uid string, version *string, bearerToken *string
 
 // NewUpdateCommitteeBasePayload builds a committee-service service
 // update-committee-base endpoint payload.
-func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid string, version *string, bearerToken *string, etag *string) *committeeservice.UpdateCommitteeBasePayload {
+func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeBasePayload {
 	v := &committeeservice.UpdateCommitteeBasePayload{
 		ProjectUID:  *body.ProjectUID,
 		Name:        *body.Name,
@@ -1161,19 +1161,19 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v
 }
 
 // NewDeleteCommitteePayload builds a committee-service service
 // delete-committee endpoint payload.
-func NewDeleteCommitteePayload(uid string, version *string, bearerToken *string, etag *string) *committeeservice.DeleteCommitteePayload {
+func NewDeleteCommitteePayload(uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteePayload {
 	v := &committeeservice.DeleteCommitteePayload{}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v
 }
@@ -1191,7 +1191,7 @@ func NewGetCommitteeSettingsPayload(uid string, version *string, bearerToken *st
 
 // NewUpdateCommitteeSettingsPayload builds a committee-service service
 // update-committee-settings endpoint payload.
-func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody, uid string, version *string, bearerToken *string, etag *string) *committeeservice.UpdateCommitteeSettingsPayload {
+func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody, uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeSettingsPayload {
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
 		BusinessEmailRequired: *body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
@@ -1212,7 +1212,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v
 }

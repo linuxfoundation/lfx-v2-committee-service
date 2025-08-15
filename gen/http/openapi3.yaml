@@ -159,13 +159,13 @@ paths:
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                - name: ETag
+                - name: If-Match
                   in: header
-                  description: ETag header value
+                  description: If-Match header value for conditional requests
                   allowEmptyValue: true
                   schema:
                     type: string
-                    description: ETag header value
+                    description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
             responses:
@@ -329,13 +329,13 @@ paths:
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                - name: ETag
+                - name: If-Match
                   in: header
-                  description: ETag header value
+                  description: If-Match header value for conditional requests
                   allowEmptyValue: true
                   schema:
                     type: string
-                    description: ETag header value
+                    description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
             requestBody:
@@ -531,13 +531,13 @@ paths:
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                - name: ETag
+                - name: If-Match
                   in: header
-                  description: ETag header value
+                  description: If-Match header value for conditional requests
                   allowEmptyValue: true
                   schema:
                     type: string
-                    description: ETag header value
+                    description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
             requestBody:

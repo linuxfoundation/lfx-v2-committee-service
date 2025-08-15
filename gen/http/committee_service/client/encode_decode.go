@@ -373,9 +373,9 @@ func EncodeUpdateCommitteeBaseRequest(encoder func(*http.Request) goahttp.Encode
 				req.Header.Set("Authorization", head)
 			}
 		}
-		if p.Etag != nil {
-			head := *p.Etag
-			req.Header.Set("ETag", head)
+		if p.IfMatch != nil {
+			head := *p.IfMatch
+			req.Header.Set("If-Match", head)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -551,9 +551,9 @@ func EncodeDeleteCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) f
 				req.Header.Set("Authorization", head)
 			}
 		}
-		if p.Etag != nil {
-			head := *p.Etag
-			req.Header.Set("ETag", head)
+		if p.IfMatch != nil {
+			head := *p.IfMatch
+			req.Header.Set("If-Match", head)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -859,9 +859,9 @@ func EncodeUpdateCommitteeSettingsRequest(encoder func(*http.Request) goahttp.En
 				req.Header.Set("Authorization", head)
 			}
 		}
-		if p.Etag != nil {
-			head := *p.Etag
-			req.Header.Set("ETag", head)
+		if p.IfMatch != nil {
+			head := *p.IfMatch
+			req.Header.Set("If-Match", head)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {

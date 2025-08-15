@@ -315,6 +315,13 @@ func ETagAttribute() {
 	})
 }
 
+// IfMatchAttribute is the DSL attribute for If-Match header (for conditional requests).
+func IfMatchAttribute() {
+	dsl.Attribute("if_match", dsl.String, "If-Match header value for conditional requests", func() {
+		dsl.Example("123")
+	})
+}
+
 // BearerTokenAttribute is the DSL attribute for bearer token.
 func BearerTokenAttribute() {
 	dsl.Token("bearer_token", dsl.String, func() {

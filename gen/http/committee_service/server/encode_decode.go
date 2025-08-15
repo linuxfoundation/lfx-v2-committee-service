@@ -323,7 +323,7 @@ func DecodeUpdateCommitteeBaseRequest(mux goahttp.Muxer, decoder func(*http.Requ
 			uid         string
 			version     *string
 			bearerToken *string
-			etag        *string
+			ifMatch     *string
 
 			params = mux.Vars(r)
 		)
@@ -342,14 +342,14 @@ func DecodeUpdateCommitteeBaseRequest(mux goahttp.Muxer, decoder func(*http.Requ
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		etagRaw := r.Header.Get("ETag")
-		if etagRaw != "" {
-			etag = &etagRaw
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
 		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewUpdateCommitteeBasePayload(&body, uid, version, bearerToken, etag)
+		payload := NewUpdateCommitteeBasePayload(&body, uid, version, bearerToken, ifMatch)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -460,7 +460,7 @@ func DecodeDeleteCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request)
 			uid         string
 			version     *string
 			bearerToken *string
-			etag        *string
+			ifMatch     *string
 			err         error
 
 			params = mux.Vars(r)
@@ -480,14 +480,14 @@ func DecodeDeleteCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request)
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		etagRaw := r.Header.Get("ETag")
-		if etagRaw != "" {
-			etag = &etagRaw
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
 		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteePayload(uid, version, bearerToken, etag)
+		payload := NewDeleteCommitteePayload(uid, version, bearerToken, ifMatch)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -734,7 +734,7 @@ func DecodeUpdateCommitteeSettingsRequest(mux goahttp.Muxer, decoder func(*http.
 			uid         string
 			version     *string
 			bearerToken *string
-			etag        *string
+			ifMatch     *string
 
 			params = mux.Vars(r)
 		)
@@ -753,14 +753,14 @@ func DecodeUpdateCommitteeSettingsRequest(mux goahttp.Muxer, decoder func(*http.
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		etagRaw := r.Header.Get("ETag")
-		if etagRaw != "" {
-			etag = &etagRaw
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
 		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewUpdateCommitteeSettingsPayload(&body, uid, version, bearerToken, etag)
+		payload := NewUpdateCommitteeSettingsPayload(&body, uid, version, bearerToken, ifMatch)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

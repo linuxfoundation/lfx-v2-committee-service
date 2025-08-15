@@ -224,8 +224,8 @@ type DeleteCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
-	// ETag header value
-	Etag *string
+	// If-Match header value for conditional requests
+	IfMatch *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 }
@@ -275,8 +275,8 @@ type UpdateCommitteeBasePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
-	// ETag header value
-	Etag *string
+	// If-Match header value for conditional requests
+	IfMatch *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
@@ -317,8 +317,8 @@ type UpdateCommitteeSettingsPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
-	// ETag header value
-	Etag *string
+	// If-Match header value for conditional requests
+	IfMatch *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Whether business email is required for committee members

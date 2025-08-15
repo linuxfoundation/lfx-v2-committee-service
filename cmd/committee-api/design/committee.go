@@ -107,7 +107,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
-			ETagAttribute()
+			IfMatchAttribute()
 
 			CommitteeUIDAttribute()
 			CommitteeBaseAttributes()
@@ -128,7 +128,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
-			dsl.Header("etag:ETag")
+			dsl.Header("if_match:If-Match")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -146,7 +146,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
-			ETagAttribute()
+			IfMatchAttribute()
 			CommitteeUIDAttribute()
 		})
 
@@ -161,7 +161,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
-			dsl.Header("etag:ETag")
+			dsl.Header("if_match:If-Match")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -217,7 +217,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
-			ETagAttribute()
+			IfMatchAttribute()
 
 			CommitteeUIDAttribute()
 			CommitteeSettingsAttributes()
@@ -241,7 +241,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
-			dsl.Header("etag:ETag")
+			dsl.Header("if_match:If-Match")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)

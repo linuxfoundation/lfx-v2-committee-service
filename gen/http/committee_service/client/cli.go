@@ -196,7 +196,7 @@ func BuildGetCommitteeBasePayload(committeeServiceGetCommitteeBaseUID string, co
 
 // BuildUpdateCommitteeBasePayload builds the payload for the committee-service
 // update-committee-base endpoint from CLI flags.
-func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody string, committeeServiceUpdateCommitteeBaseUID string, committeeServiceUpdateCommitteeBaseVersion string, committeeServiceUpdateCommitteeBaseBearerToken string, committeeServiceUpdateCommitteeBaseEtag string) (*committeeservice.UpdateCommitteeBasePayload, error) {
+func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody string, committeeServiceUpdateCommitteeBaseUID string, committeeServiceUpdateCommitteeBaseVersion string, committeeServiceUpdateCommitteeBaseBearerToken string, committeeServiceUpdateCommitteeBaseIfMatch string) (*committeeservice.UpdateCommitteeBasePayload, error) {
 	var err error
 	var body UpdateCommitteeBaseRequestBody
 	{
@@ -260,10 +260,10 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 			bearerToken = &committeeServiceUpdateCommitteeBaseBearerToken
 		}
 	}
-	var etag *string
+	var ifMatch *string
 	{
-		if committeeServiceUpdateCommitteeBaseEtag != "" {
-			etag = &committeeServiceUpdateCommitteeBaseEtag
+		if committeeServiceUpdateCommitteeBaseIfMatch != "" {
+			ifMatch = &committeeServiceUpdateCommitteeBaseIfMatch
 		}
 	}
 	v := &committeeservice.UpdateCommitteeBasePayload{
@@ -320,14 +320,14 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v, nil
 }
 
 // BuildDeleteCommitteePayload builds the payload for the committee-service
 // delete-committee endpoint from CLI flags.
-func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, committeeServiceDeleteCommitteeVersion string, committeeServiceDeleteCommitteeBearerToken string, committeeServiceDeleteCommitteeEtag string) (*committeeservice.DeleteCommitteePayload, error) {
+func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, committeeServiceDeleteCommitteeVersion string, committeeServiceDeleteCommitteeBearerToken string, committeeServiceDeleteCommitteeIfMatch string) (*committeeservice.DeleteCommitteePayload, error) {
 	var err error
 	var uid string
 	{
@@ -355,17 +355,17 @@ func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, comm
 			bearerToken = &committeeServiceDeleteCommitteeBearerToken
 		}
 	}
-	var etag *string
+	var ifMatch *string
 	{
-		if committeeServiceDeleteCommitteeEtag != "" {
-			etag = &committeeServiceDeleteCommitteeEtag
+		if committeeServiceDeleteCommitteeIfMatch != "" {
+			ifMatch = &committeeServiceDeleteCommitteeIfMatch
 		}
 	}
 	v := &committeeservice.DeleteCommitteePayload{}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v, nil
 }
@@ -410,7 +410,7 @@ func BuildGetCommitteeSettingsPayload(committeeServiceGetCommitteeSettingsUID st
 
 // BuildUpdateCommitteeSettingsPayload builds the payload for the
 // committee-service update-committee-settings endpoint from CLI flags.
-func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettingsBody string, committeeServiceUpdateCommitteeSettingsUID string, committeeServiceUpdateCommitteeSettingsVersion string, committeeServiceUpdateCommitteeSettingsBearerToken string, committeeServiceUpdateCommitteeSettingsEtag string) (*committeeservice.UpdateCommitteeSettingsPayload, error) {
+func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettingsBody string, committeeServiceUpdateCommitteeSettingsUID string, committeeServiceUpdateCommitteeSettingsVersion string, committeeServiceUpdateCommitteeSettingsBearerToken string, committeeServiceUpdateCommitteeSettingsIfMatch string) (*committeeservice.UpdateCommitteeSettingsPayload, error) {
 	var err error
 	var body UpdateCommitteeSettingsRequestBody
 	{
@@ -451,10 +451,10 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 			bearerToken = &committeeServiceUpdateCommitteeSettingsBearerToken
 		}
 	}
-	var etag *string
+	var ifMatch *string
 	{
-		if committeeServiceUpdateCommitteeSettingsEtag != "" {
-			etag = &committeeServiceUpdateCommitteeSettingsEtag
+		if committeeServiceUpdateCommitteeSettingsIfMatch != "" {
+			ifMatch = &committeeServiceUpdateCommitteeSettingsIfMatch
 		}
 	}
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
@@ -477,7 +477,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
-	v.Etag = etag
+	v.IfMatch = ifMatch
 
 	return v, nil
 }
