@@ -98,11 +98,11 @@ func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *commi
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	parsedRevision, err := etagValidator(p.Etag)
+	parsedRevision, err := etagValidator(p.IfMatch)
 	if err != nil {
 		slog.ErrorContext(ctx, "invalid ETag",
 			"error", err,
-			"etag", p.Etag,
+			"etag", p.IfMatch,
 			"committee_uid", p.UID,
 		)
 		return nil, wrapError(ctx, err)
@@ -130,11 +130,11 @@ func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committee
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	parsedRevision, err := etagValidator(p.Etag)
+	parsedRevision, err := etagValidator(p.IfMatch)
 	if err != nil {
 		slog.ErrorContext(ctx, "invalid ETag",
 			"error", err,
-			"etag", p.Etag,
+			"etag", p.IfMatch,
 			"committee_uid", p.UID,
 		)
 		return wrapError(ctx, err)
@@ -182,11 +182,11 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	parsedRevision, err := etagValidator(p.Etag)
+	parsedRevision, err := etagValidator(p.IfMatch)
 	if err != nil {
 		slog.ErrorContext(ctx, "invalid ETag",
 			"error", err,
-			"etag", p.Etag,
+			"etag", p.IfMatch,
 			"committee_uid", p.UID,
 		)
 		return nil, wrapError(ctx, err)

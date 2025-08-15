@@ -86,13 +86,13 @@ func ParseEndpoint(
 		committeeServiceUpdateCommitteeBaseUIDFlag         = committeeServiceUpdateCommitteeBaseFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceUpdateCommitteeBaseVersionFlag     = committeeServiceUpdateCommitteeBaseFlags.String("version", "", "")
 		committeeServiceUpdateCommitteeBaseBearerTokenFlag = committeeServiceUpdateCommitteeBaseFlags.String("bearer-token", "", "")
-		committeeServiceUpdateCommitteeBaseEtagFlag        = committeeServiceUpdateCommitteeBaseFlags.String("etag", "", "")
+		committeeServiceUpdateCommitteeBaseIfMatchFlag     = committeeServiceUpdateCommitteeBaseFlags.String("if-match", "", "")
 
 		committeeServiceDeleteCommitteeFlags           = flag.NewFlagSet("delete-committee", flag.ExitOnError)
 		committeeServiceDeleteCommitteeUIDFlag         = committeeServiceDeleteCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceDeleteCommitteeVersionFlag     = committeeServiceDeleteCommitteeFlags.String("version", "", "")
 		committeeServiceDeleteCommitteeBearerTokenFlag = committeeServiceDeleteCommitteeFlags.String("bearer-token", "", "")
-		committeeServiceDeleteCommitteeEtagFlag        = committeeServiceDeleteCommitteeFlags.String("etag", "", "")
+		committeeServiceDeleteCommitteeIfMatchFlag     = committeeServiceDeleteCommitteeFlags.String("if-match", "", "")
 
 		committeeServiceGetCommitteeSettingsFlags           = flag.NewFlagSet("get-committee-settings", flag.ExitOnError)
 		committeeServiceGetCommitteeSettingsUIDFlag         = committeeServiceGetCommitteeSettingsFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
@@ -104,7 +104,7 @@ func ParseEndpoint(
 		committeeServiceUpdateCommitteeSettingsUIDFlag         = committeeServiceUpdateCommitteeSettingsFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceUpdateCommitteeSettingsVersionFlag     = committeeServiceUpdateCommitteeSettingsFlags.String("version", "", "")
 		committeeServiceUpdateCommitteeSettingsBearerTokenFlag = committeeServiceUpdateCommitteeSettingsFlags.String("bearer-token", "", "")
-		committeeServiceUpdateCommitteeSettingsEtagFlag        = committeeServiceUpdateCommitteeSettingsFlags.String("etag", "", "")
+		committeeServiceUpdateCommitteeSettingsIfMatchFlag     = committeeServiceUpdateCommitteeSettingsFlags.String("if-match", "", "")
 
 		committeeServiceReadyzFlags = flag.NewFlagSet("readyz", flag.ExitOnError)
 
@@ -211,16 +211,16 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildGetCommitteeBasePayload(*committeeServiceGetCommitteeBaseUIDFlag, *committeeServiceGetCommitteeBaseVersionFlag, *committeeServiceGetCommitteeBaseBearerTokenFlag)
 			case "update-committee-base":
 				endpoint = c.UpdateCommitteeBase()
-				data, err = committeeservicec.BuildUpdateCommitteeBasePayload(*committeeServiceUpdateCommitteeBaseBodyFlag, *committeeServiceUpdateCommitteeBaseUIDFlag, *committeeServiceUpdateCommitteeBaseVersionFlag, *committeeServiceUpdateCommitteeBaseBearerTokenFlag, *committeeServiceUpdateCommitteeBaseEtagFlag)
+				data, err = committeeservicec.BuildUpdateCommitteeBasePayload(*committeeServiceUpdateCommitteeBaseBodyFlag, *committeeServiceUpdateCommitteeBaseUIDFlag, *committeeServiceUpdateCommitteeBaseVersionFlag, *committeeServiceUpdateCommitteeBaseBearerTokenFlag, *committeeServiceUpdateCommitteeBaseIfMatchFlag)
 			case "delete-committee":
 				endpoint = c.DeleteCommittee()
-				data, err = committeeservicec.BuildDeleteCommitteePayload(*committeeServiceDeleteCommitteeUIDFlag, *committeeServiceDeleteCommitteeVersionFlag, *committeeServiceDeleteCommitteeBearerTokenFlag, *committeeServiceDeleteCommitteeEtagFlag)
+				data, err = committeeservicec.BuildDeleteCommitteePayload(*committeeServiceDeleteCommitteeUIDFlag, *committeeServiceDeleteCommitteeVersionFlag, *committeeServiceDeleteCommitteeBearerTokenFlag, *committeeServiceDeleteCommitteeIfMatchFlag)
 			case "get-committee-settings":
 				endpoint = c.GetCommitteeSettings()
 				data, err = committeeservicec.BuildGetCommitteeSettingsPayload(*committeeServiceGetCommitteeSettingsUIDFlag, *committeeServiceGetCommitteeSettingsVersionFlag, *committeeServiceGetCommitteeSettingsBearerTokenFlag)
 			case "update-committee-settings":
 				endpoint = c.UpdateCommitteeSettings()
-				data, err = committeeservicec.BuildUpdateCommitteeSettingsPayload(*committeeServiceUpdateCommitteeSettingsBodyFlag, *committeeServiceUpdateCommitteeSettingsUIDFlag, *committeeServiceUpdateCommitteeSettingsVersionFlag, *committeeServiceUpdateCommitteeSettingsBearerTokenFlag, *committeeServiceUpdateCommitteeSettingsEtagFlag)
+				data, err = committeeservicec.BuildUpdateCommitteeSettingsPayload(*committeeServiceUpdateCommitteeSettingsBodyFlag, *committeeServiceUpdateCommitteeSettingsUIDFlag, *committeeServiceUpdateCommitteeSettingsVersionFlag, *committeeServiceUpdateCommitteeSettingsBearerTokenFlag, *committeeServiceUpdateCommitteeSettingsIfMatchFlag)
 			case "readyz":
 				endpoint = c.Readyz()
 			case "livez":
@@ -309,14 +309,14 @@ Example:
 }
 
 func committeeServiceUpdateCommitteeBaseUsage() {
-	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service update-committee-base -body JSON -uid STRING -version STRING -bearer-token STRING -etag STRING
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service update-committee-base -body JSON -uid STRING -version STRING -bearer-token STRING -if-match STRING
 
 Update Committee
     -body JSON: 
     -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
     -version STRING: 
     -bearer-token STRING: 
-    -etag STRING: 
+    -if-match STRING: 
 
 Example:
     %[1]s committee-service update-committee-base --body '{
@@ -334,21 +334,21 @@ Example:
       "requires_review": true,
       "sso_group_enabled": true,
       "website": "https://committee.example.org"
-   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --etag "123"
+   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --if-match "123"
 `, os.Args[0])
 }
 
 func committeeServiceDeleteCommitteeUsage() {
-	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service delete-committee -uid STRING -version STRING -bearer-token STRING -etag STRING
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service delete-committee -uid STRING -version STRING -bearer-token STRING -if-match STRING
 
 Delete Committee
     -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
     -version STRING: 
     -bearer-token STRING: 
-    -etag STRING: 
+    -if-match STRING: 
 
 Example:
-    %[1]s committee-service delete-committee --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --etag "123"
+    %[1]s committee-service delete-committee --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --if-match "123"
 `, os.Args[0])
 }
 
@@ -366,14 +366,14 @@ Example:
 }
 
 func committeeServiceUpdateCommitteeSettingsUsage() {
-	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service update-committee-settings -body JSON -uid STRING -version STRING -bearer-token STRING -etag STRING
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-service update-committee-settings -body JSON -uid STRING -version STRING -bearer-token STRING -if-match STRING
 
 Update Committee Settings
     -body JSON: 
     -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
     -version STRING: 
     -bearer-token STRING: 
-    -etag STRING: 
+    -if-match STRING: 
 
 Example:
     %[1]s committee-service update-committee-settings --body '{
@@ -388,7 +388,7 @@ Example:
          "manager_user_id1",
          "manager_user_id2"
       ]
-   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --etag "123"
+   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..." --if-match "123"
 `, os.Args[0])
 }
 
