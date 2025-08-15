@@ -46,16 +46,15 @@ func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*Commit
 	}
 	c.Headers = headers
 
-	data, err := json.Marshal(input)
-	if err != nil {
-		slog.ErrorContext(ctx, "error marshalling data into JSON", "error", err)
-		return nil, err
-	}
-
 	var payload any
 
 	switch c.Action {
 	case ActionCreated, ActionUpdated:
+		data, err := json.Marshal(input)
+		if err != nil {
+			slog.ErrorContext(ctx, "error marshalling data into JSON", "error", err)
+			return nil, err
+		}
 		var jsonData any
 		if err := json.Unmarshal(data, &jsonData); err != nil {
 			slog.ErrorContext(ctx, "error unmarshalling data into JSON", "error", err)
@@ -78,7 +77,7 @@ func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*Commit
 		}
 	case ActionDeleted:
 		// The data should just be a string of the UID being deleted.
-		payload = data
+		payload = input
 	}
 
 	c.Data = payload
