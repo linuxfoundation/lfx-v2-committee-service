@@ -90,9 +90,16 @@ func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*Commit
 // CommitteeAccessMessage is the schema for the data in the message sent to the fga-sync service.
 // These are the fields that the fga-sync service needs in order to update the OpenFGA permissions.
 type CommitteeAccessMessage struct {
-	UID       string   `json:"uid"`
-	Public    bool     `json:"public"`
-	ParentUID string   `json:"parent_uid"`
-	Writers   []string `json:"writers"`
-	Auditors  []string `json:"auditors"`
+	UID string `json:"uid"`
+	// object_type is the type of the object that the message is about, e.g. "committee" or "project".
+	ObjectType string `json:"object_type"`
+	// public is the public flag for the object.
+	Public bool `json:"public"`
+	// relations are used to store the relations of the object, e.g. "writer"
+	// and it's value is a list of principals.
+	Relations map[string][]string `json:"relations"`
+	// references are used to store the references of the object,
+	// e.g. "project" and it's value is the project UID.
+	// e.g. "parent" and it's value is the parent UID.
+	References map[string]string `json:"references"`
 }

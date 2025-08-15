@@ -466,19 +466,18 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 
 func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
-		name          string
-		committee     *model.Committee
-		expected      *model.CommitteeAccessMessage
-		expectError   bool
-		errorContains string
+		name      string
+		committee *model.Committee
+		expected  *model.CommitteeAccessMessage
 	}{
 		{
 			name: "committee without parent",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
-					UID:       "committee-1",
-					Public:    true,
-					ParentUID: nil,
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Public:     true,
+					ParentUID:  nil,
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					Writers:  []string{"writer1@example.com", "writer2@example.com"},
@@ -486,21 +485,23 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				},
 			},
 			expected: &model.CommitteeAccessMessage{
-				UID:       "committee-1",
-				Public:    true,
-				ParentUID: "",
-				Writers:   []string{"writer1@example.com", "writer2@example.com"},
-				Auditors:  []string{"auditor1@example.com"},
+				UID:        "committee-1",
+				ObjectType: "committee",
+				Public:     true,
+				Relations:  map[string][]string{},
+				References: map[string]string{
+					"project": "project-1",
+				},
 			},
-			expectError: false,
 		},
 		{
 			name: "committee with parent",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
-					UID:       "committee-2",
-					Public:    false,
-					ParentUID: stringPtr("parent-committee"),
+					UID:        "committee-2",
+					ProjectUID: "project-2",
+					Public:     false,
+					ParentUID:  stringPtr("parent-committee"),
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					Writers:  []string{"writer@example.com"},
@@ -508,27 +509,35 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				},
 			},
 			expected: &model.CommitteeAccessMessage{
-				UID:       "committee-2",
-				Public:    false,
-				ParentUID: "parent-committee",
-				Writers:   []string{"writer@example.com"},
-				Auditors:  []string{},
+				UID:        "committee-2",
+				ObjectType: "committee",
+				Public:     false,
+				Relations:  map[string][]string{},
+				References: map[string]string{
+					"project": "project-2",
+				},
 			},
-			expectError: false,
 		},
 		{
-			name: "committee with nil settings should return error",
+			name: "committee with nil settings should work fine",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
-					UID:       "committee-3",
-					Public:    true,
-					ParentUID: nil,
+					UID:        "committee-3",
+					ProjectUID: "project-3",
+					Public:     true,
+					ParentUID:  nil,
 				},
 				CommitteeSettings: nil,
 			},
-			expected:      nil,
-			expectError:   true,
-			errorContains: "committee settings (writers and auditors) not found",
+			expected: &model.CommitteeAccessMessage{
+				UID:        "committee-3",
+				ObjectType: "committee",
+				Public:     true,
+				Relations:  map[string][]string{},
+				References: map[string]string{
+					"project": "project-3",
+				},
+			},
 		},
 	}
 
@@ -539,19 +548,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 			ctx := context.Background()
 
 			// Execute
-			result, err := orchestrator.buildAccessControlMessage(ctx, tc.committee)
+			result := orchestrator.buildAccessControlMessage(ctx, tc.committee)
 
 			// Validate
-			if tc.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, result)
-				if tc.errorContains != "" {
-					assert.Contains(t, err.Error(), tc.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

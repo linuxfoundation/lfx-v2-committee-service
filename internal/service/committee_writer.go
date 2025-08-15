@@ -192,32 +192,25 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) (*model.CommitteeAccessMessage, error) {
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
 
-	var parentUID string
-	if committee.ParentUID != nil {
-		parentUID = *committee.ParentUID
-	}
-
-	if committee.CommitteeSettings == nil {
-		return nil, errs.NewUnexpected("committee settings (writers and auditors) not found")
+	message := &model.CommitteeAccessMessage{
+		UID:        committee.CommitteeBase.UID,
+		ObjectType: "committee",
+		Public:     committee.Public,
+		// Relations is reserved for future use and is intentionally left empty.
+		Relations: map[string][]string{},
+		References: map[string]string{
+			// project is required in the flow
+			constants.RelationProject: committee.ProjectUID,
+		},
 	}
 
 	slog.DebugContext(ctx, "building access control message",
-		"committee_uid", committee.CommitteeBase.UID,
-		"public", committee.Public,
-		"parent_uid", parentUID,
-		"writers", committee.Writers,
-		"auditors", committee.Auditors,
+		"message", message,
 	)
 
-	return &model.CommitteeAccessMessage{
-		UID:       committee.CommitteeBase.UID,
-		Public:    committee.Public,
-		ParentUID: parentUID,
-		Writers:   committee.Writers,
-		Auditors:  committee.Auditors,
-	}, nil
+	return message
 }
 
 func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Context, newNameKey string, existing *model.CommitteeBase) string {
@@ -238,7 +231,7 @@ func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Con
 	return oldKeyNameIndex
 }
 
-func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Context, newSSOKey string, existing *model.CommitteeBase, slug string) string {
+func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Context, newSSOKey string, existing *model.CommitteeBase) string {
 	lastSlash := strings.LastIndex(newSSOKey, "/")
 	if lastSlash == -1 {
 		return ""
@@ -313,6 +306,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		)
 		return nil, errSlug
 	}
+	committee.ProjectSlug = slug
 	projectName, errProjectName := uc.projectRetriever.Name(ctx, committee.ProjectUID)
 	if errProjectName != nil {
 		slog.ErrorContext(ctx, "failed to retrieve project name",
@@ -381,17 +375,13 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
-	defaultTags := []string{
-		fmt.Sprintf("project_uid:%s", committee.ProjectUID),
-	}
-
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
 	for subject, data := range map[string]any{
 		constants.IndexCommitteeSubject:         committee.CommitteeBase,
 		constants.IndexCommitteeSettingsSubject: committee.CommitteeSettings,
 	} {
-		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, data, defaultTags)
+		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, data, committee.Tags())
 		if errBuildIndexerMessage != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 		}
@@ -405,10 +395,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 
 	// Publish access control message for the committee
-	accessControlMessage, errBuildAccessControlMessage := uc.buildAccessControlMessage(ctx, committee)
-	if errBuildAccessControlMessage != nil {
-		return nil, errBuildAccessControlMessage
-	}
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
 		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
 	})
@@ -502,6 +489,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		)
 		return nil, errSlug
 	}
+	committee.ProjectSlug = slug
 	projectName, errProjectName := uc.projectRetriever.Name(ctx, committee.ProjectUID)
 	if errProjectName != nil {
 		slog.ErrorContext(ctx, "failed to retrieve new project name",
@@ -535,7 +523,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 				newKeys = append(newKeys, newSSOKey)
 				// Add old SSO key for cleanup if it exists
 				if existing.SSOGroupName != "" {
-					oldSSOKey := uc.rebuildOldSSOIndexName(ctx, newSSOKey, existing, slug)
+					oldSSOKey := uc.rebuildOldSSOIndexName(ctx, newSSOKey, existing)
 					if oldSSOKey != "" {
 						staleKeys = append(staleKeys, oldSSOKey)
 					}
@@ -590,12 +578,9 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 
 	// ******************************************************
 	// Step 7: Publish messages
-	defaultTags := []string{
-		fmt.Sprintf("project_uid:%s", committee.ProjectUID),
-	}
 
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, committee.CommitteeBase, defaultTags)
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, committee.CommitteeBase, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,
@@ -621,14 +606,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		CommitteeBase:     committee.CommitteeBase,
 		CommitteeSettings: settings,
 	}
-	accessControlMessage, errBuildAccessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
-	if errBuildAccessControlMessage != nil {
-		slog.ErrorContext(ctx, "failed to build access control message",
-			"error", errBuildAccessControlMessage,
-		)
-		return nil, errBuildAccessControlMessage
-	}
-
+	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 	// Publish both messages
 	messages := []func() error{
 		func() error {
@@ -721,27 +699,19 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		)
 		return nil, errGet
 	}
-	defaultTags := []string{
-		fmt.Sprintf("project_uid:%s", committeeBase.ProjectUID),
-	}
+
+	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, settings, defaultTags)
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, settings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
 		)
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 	}
-	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
-	// Build and publish access control message
-	accessControlMessage, errBuildAccessControlMessage := uc.buildAccessControlMessage(ctx, committee)
-	if errBuildAccessControlMessage != nil {
-		slog.ErrorContext(ctx, "failed to build access control message",
-			"error", errBuildAccessControlMessage,
-		)
-		return nil, errBuildAccessControlMessage
-	}
 
+	// Build and publish access control message
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages := []func() error{
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer)
