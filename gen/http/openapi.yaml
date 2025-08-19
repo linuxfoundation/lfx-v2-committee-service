@@ -457,7 +457,7 @@ paths:
                 - name: If-Match
                   in: header
                   description: If-Match header value for conditional requests
-                  required: false
+                  required: true
                   type: string
                 - name: Update-Committee-MemberRequestBody
                   in: body
@@ -537,7 +537,7 @@ paths:
                 - name: If-Match
                   in: header
                   description: If-Match header value for conditional requests
-                  required: false
+                  required: true
                   type: string
             responses:
                 "204":

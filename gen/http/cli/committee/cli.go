@@ -116,14 +116,14 @@ func ParseEndpoint(
 		committeeMembersServiceUpdateCommitteeMemberMemberUIDFlag   = committeeMembersServiceUpdateCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeMembersServiceUpdateCommitteeMemberVersionFlag     = committeeMembersServiceUpdateCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeMembersServiceUpdateCommitteeMemberBearerTokenFlag = committeeMembersServiceUpdateCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeMembersServiceUpdateCommitteeMemberIfMatchFlag     = committeeMembersServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
+		committeeMembersServiceUpdateCommitteeMemberIfMatchFlag     = committeeMembersServiceUpdateCommitteeMemberFlags.String("if-match", "REQUIRED", "")
 
 		committeeMembersServiceDeleteCommitteeMemberFlags           = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
 		committeeMembersServiceDeleteCommitteeMemberUIDFlag         = committeeMembersServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeMembersServiceDeleteCommitteeMemberMemberUIDFlag   = committeeMembersServiceDeleteCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeMembersServiceDeleteCommitteeMemberVersionFlag     = committeeMembersServiceDeleteCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeMembersServiceDeleteCommitteeMemberBearerTokenFlag = committeeMembersServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeMembersServiceDeleteCommitteeMemberIfMatchFlag     = committeeMembersServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
+		committeeMembersServiceDeleteCommitteeMemberIfMatchFlag     = committeeMembersServiceDeleteCommitteeMemberFlags.String("if-match", "REQUIRED", "")
 
 		committeeServiceFlags = flag.NewFlagSet("committee-service", flag.ContinueOnError)
 

@@ -341,7 +341,7 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 			memberUID   string
 			version     string
 			bearerToken *string
-			ifMatch     *string
+			ifMatch     string
 
 			params = mux.Vars(r)
 		)
@@ -360,9 +360,9 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		ifMatchRaw := r.Header.Get("If-Match")
-		if ifMatchRaw != "" {
-			ifMatch = &ifMatchRaw
+		ifMatch = r.Header.Get("If-Match")
+		if ifMatch == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("if_match", "header"))
 		}
 		if err != nil {
 			return nil, err
@@ -479,7 +479,7 @@ func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 			memberUID   string
 			version     string
 			bearerToken *string
-			ifMatch     *string
+			ifMatch     string
 			err         error
 
 			params = mux.Vars(r)
@@ -499,9 +499,9 @@ func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		ifMatchRaw := r.Header.Get("If-Match")
-		if ifMatchRaw != "" {
-			ifMatch = &ifMatchRaw
+		ifMatch = r.Header.Get("If-Match")
+		if ifMatch == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("if_match", "header"))
 		}
 		if err != nil {
 			return nil, err

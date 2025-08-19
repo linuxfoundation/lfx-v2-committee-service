@@ -107,7 +107,7 @@ var _ = dsl.Service("committee-members-service", func() {
 
 			CommitteeMemberUpdateAttributes()
 
-			dsl.Required("version", "uid", "member_uid")
+			dsl.Required("version", "uid", "member_uid", "if_match")
 		})
 
 		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
@@ -147,7 +147,7 @@ var _ = dsl.Service("committee-members-service", func() {
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
-			dsl.Required("version", "uid", "member_uid")
+			dsl.Required("version", "uid", "member_uid", "if_match")
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")

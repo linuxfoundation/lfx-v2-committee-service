@@ -91,7 +91,10 @@ func main() {
 	committeeServiceEndpoints.Use(debug.LogPayloads())
 
 	committeeMemberServiceEndpoints := committeemembersservice.NewEndpoints(committeeMemberServiceSvc)
-	committeeMemberServiceEndpoints.Use(debug.LogPayloads())
+	// Only enable payload debugging if debug flag is set
+	if *dbgF {
+		committeeMemberServiceEndpoints.Use(debug.LogPayloads())
+	}
 
 	// Create channel used by both the signal handler and server goroutines
 	// to notify the main goroutine when to stop the server.

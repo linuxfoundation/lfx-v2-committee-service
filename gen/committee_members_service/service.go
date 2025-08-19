@@ -164,7 +164,7 @@ type DeleteCommitteeMemberPayload struct {
 	// Version of the API
 	Version string
 	// If-Match header value for conditional requests
-	IfMatch *string
+	IfMatch string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -200,7 +200,7 @@ type UpdateCommitteeMemberPayload struct {
 	// Version of the API
 	Version string
 	// If-Match header value for conditional requests
-	IfMatch *string
+	IfMatch string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
