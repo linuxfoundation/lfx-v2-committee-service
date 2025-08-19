@@ -11,7 +11,7 @@ import (
 var _ = dsl.Service("committee-members-service", func() {
 	dsl.Description("Committee members management service")
 
-	// POST - Create committee member
+	// POST - Create committee member (requires essential fields)
 	dsl.Method("create-committee-member", func() {
 		dsl.Description("Add a new member to a committee")
 
@@ -92,9 +92,11 @@ var _ = dsl.Service("committee-members-service", func() {
 		})
 	})
 
-	// PUT - Update committee member
+	// PUT - Replace committee member (complete resource replacement)
+	// This endpoint follows PUT semantics: it replaces the entire member resource.
+	// All required fields must be provided, even if unchanged.
 	dsl.Method("update-committee-member", func() {
-		dsl.Description("Update an existing committee member")
+		dsl.Description("Replace an existing committee member (requires complete resource)")
 
 		dsl.Security(JWTAuth)
 
@@ -107,7 +109,7 @@ var _ = dsl.Service("committee-members-service", func() {
 
 			CommitteeMemberUpdateAttributes()
 
-			dsl.Required("version", "uid", "member_uid", "if_match")
+			dsl.Required("version", "uid", "member_uid", "if_match", "email")
 		})
 
 		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)

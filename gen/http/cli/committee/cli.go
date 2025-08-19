@@ -341,7 +341,7 @@ Usage:
 COMMAND:
     create-committee-member: Add a new member to a committee
     get-committee-member: Get a specific committee member by UID
-    update-committee-member: Update an existing committee member
+    update-committee-member: Replace an existing committee member (requires complete resource)
     delete-committee-member: Remove a member from a committee
 
 Additional help:
@@ -403,7 +403,7 @@ Example:
 func committeeMembersServiceUpdateCommitteeMemberUsage() {
 	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-members-service update-committee-member -body JSON -uid STRING -member-uid STRING -version STRING -bearer-token STRING -if-match STRING
 
-Update an existing committee member
+Replace an existing committee member (requires complete resource)
     -body JSON: 
     -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
     -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly

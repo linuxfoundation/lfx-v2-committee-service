@@ -20,7 +20,7 @@ type Service interface {
 	CreateCommitteeMember(context.Context, *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Get a specific committee member by UID
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
-	// Update an existing committee member
+	// Replace an existing committee member (requires complete resource)
 	UpdateCommitteeMember(context.Context, *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Remove a member from a committee
 	DeleteCommitteeMember(context.Context, *DeleteCommitteeMemberPayload) (err error)
@@ -208,7 +208,7 @@ type UpdateCommitteeMemberPayload struct {
 	// User's LF ID
 	Username *string
 	// Primary email address
-	Email *string
+	Email string
 	// First name
 	FirstName *string
 	// Last name

@@ -427,7 +427,7 @@ paths:
             tags:
                 - committee-members-service
             summary: update-committee-member committee-members-service
-            description: Update an existing committee member
+            description: Replace an existing committee member (requires complete resource)
             operationId: committee-members-service#update-committee-member
             parameters:
                 - name: v
@@ -464,6 +464,8 @@ paths:
                   required: true
                   schema:
                     $ref: '#/definitions/CommitteeMembersServiceUpdateCommitteeMemberRequestBody'
+                    required:
+                        - email
             responses:
                 "200":
                     description: OK response.
@@ -1618,6 +1620,8 @@ definitions:
                 end_date: "2024-12-31"
                 start_date: "2023-01-01"
                 status: Voting Rep
+        required:
+            - email
     CommitteeServiceCreateCommitteeRequestBody:
         title: CommitteeServiceCreateCommitteeRequestBody
         type: object
