@@ -96,9 +96,9 @@ type CommitteeMemberFullWithReadonlyAttributes struct {
 		// Organization website URL
 		Website *string
 	}
-	// The timestamp when the committee was created (read-only)
+	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
-	// The timestamp when the committee was last updated (read-only)
+	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
 }
 

@@ -162,9 +162,9 @@ type CreateCommitteeMemberResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
-	// The timestamp when the committee was created (read-only)
+	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	// The timestamp when the committee was last updated (read-only)
+	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
@@ -222,9 +222,9 @@ type UpdateCommitteeMemberResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
-	// The timestamp when the committee was created (read-only)
+	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	// The timestamp when the committee was last updated (read-only)
+	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
@@ -428,9 +428,9 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
-	// The timestamp when the committee was created (read-only)
+	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	// The timestamp when the committee was last updated (read-only)
+	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 

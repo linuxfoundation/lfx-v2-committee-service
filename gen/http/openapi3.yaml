@@ -2093,7 +2093,7 @@ components:
                     maxLength: 100
                 created_at:
                     type: string
-                    description: The timestamp when the committee was created (read-only)
+                    description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 email:
@@ -2183,7 +2183,7 @@ components:
                     format: uuid
                 updated_at:
                     type: string
-                    description: The timestamp when the committee was last updated (read-only)
+                    description: The timestamp when the resource was last updated (read-only)
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
                 username:
@@ -2277,7 +2277,7 @@ components:
                     example: false
                 created_at:
                     type: string
-                    description: The timestamp when the committee was created (read-only)
+                    description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 last_reviewed_at:
@@ -2296,7 +2296,7 @@ components:
                     format: uuid
                 updated_at:
                     type: string
-                    description: The timestamp when the committee was last updated (read-only)
+                    description: The timestamp when the resource was last updated (read-only)
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
             description: A representation of LF Committee settings with readonly attributes.

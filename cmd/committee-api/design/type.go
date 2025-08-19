@@ -332,7 +332,7 @@ func BearerTokenAttribute() {
 
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
-	dsl.Attribute("created_at", dsl.String, "The timestamp when the committee was created (read-only)", func() {
+	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2023-01-15T10:30:00Z")
 	})
@@ -340,7 +340,7 @@ func CreatedAtAttribute() {
 
 // UpdatedAtAttribute is the DSL attribute for update timestamp.
 func UpdatedAtAttribute() {
-	dsl.Attribute("updated_at", dsl.String, "The timestamp when the committee was last updated (read-only)", func() {
+	dsl.Attribute("updated_at", dsl.String, "The timestamp when the resource was last updated (read-only)", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2023-06-20T14:45:30Z")
 	})
