@@ -429,10 +429,10 @@ paths:
     /committees/{uid}/members:
         post:
             tags:
-                - committee-members-service
-            summary: create-committee-member committee-members-service
+                - committee-service
+            summary: create-committee-member committee-service
             description: Add a new member to a committee
-            operationId: committee-members-service#create-committee-member
+            operationId: committee-service#create-committee-member
             parameters:
                 - name: v
                   in: query
@@ -559,10 +559,10 @@ paths:
     /committees/{uid}/members/{member_uid}:
         delete:
             tags:
-                - committee-members-service
-            summary: delete-committee-member committee-members-service
+                - committee-service
+            summary: delete-committee-member committee-service
             description: Remove a member from a committee
-            operationId: committee-members-service#delete-committee-member
+            operationId: committee-service#delete-committee-member
             parameters:
                 - name: v
                   in: query
@@ -653,10 +653,10 @@ paths:
                 - jwt_header_Authorization: []
         get:
             tags:
-                - committee-members-service
-            summary: get-committee-member committee-members-service
+                - committee-service
+            summary: get-committee-member committee-service
             description: Get a specific committee member by UID
-            operationId: committee-members-service#get-committee-member
+            operationId: committee-service#get-committee-member
             parameters:
                 - name: v
                   in: query
@@ -765,10 +765,10 @@ paths:
                 - jwt_header_Authorization: []
         put:
             tags:
-                - committee-members-service
-            summary: update-committee-member committee-members-service
+                - committee-service
+            summary: update-committee-member committee-service
             description: Replace an existing committee member (requires complete resource)
-            operationId: committee-members-service#update-committee-member
+            operationId: committee-service#update-committee-member
             parameters:
                 - name: v
                   in: query
@@ -2835,5 +2835,3 @@ components:
 tags:
     - name: committee-service
       description: Committee management service
-    - name: committee-members-service
-      description: Committee members management service

@@ -285,10 +285,10 @@ paths:
     /committees/{uid}/members:
         post:
             tags:
-                - committee-members-service
-            summary: create-committee-member committee-members-service
+                - committee-service
+            summary: create-committee-member committee-service
             description: Add a new member to a committee
-            operationId: committee-members-service#create-committee-member
+            operationId: committee-service#create-committee-member
             parameters:
                 - name: v
                   in: query
@@ -312,7 +312,7 @@ paths:
                   in: body
                   required: true
                   schema:
-                    $ref: '#/definitions/CommitteeMembersServiceCreateCommitteeMemberRequestBody'
+                    $ref: '#/definitions/CommitteeServiceCreateCommitteeMemberRequestBody'
                     required:
                         - email
             responses:
@@ -357,10 +357,10 @@ paths:
     /committees/{uid}/members/{member_uid}:
         get:
             tags:
-                - committee-members-service
-            summary: get-committee-member committee-members-service
+                - committee-service
+            summary: get-committee-member committee-service
             description: Get a specific committee member by UID
-            operationId: committee-members-service#get-committee-member
+            operationId: committee-service#get-committee-member
             parameters:
                 - name: v
                   in: query
@@ -390,7 +390,7 @@ paths:
                 "200":
                     description: OK response.
                     schema:
-                        $ref: '#/definitions/CommitteeMembersServiceGetCommitteeMemberResponseBody'
+                        $ref: '#/definitions/CommitteeServiceGetCommitteeMemberResponseBody'
                     headers:
                         ETag:
                             description: ETag header value
@@ -425,10 +425,10 @@ paths:
                 - jwt_header_Authorization: []
         put:
             tags:
-                - committee-members-service
-            summary: update-committee-member committee-members-service
+                - committee-service
+            summary: update-committee-member committee-service
             description: Replace an existing committee member (requires complete resource)
-            operationId: committee-members-service#update-committee-member
+            operationId: committee-service#update-committee-member
             parameters:
                 - name: v
                   in: query
@@ -463,7 +463,7 @@ paths:
                   in: body
                   required: true
                   schema:
-                    $ref: '#/definitions/CommitteeMembersServiceUpdateCommitteeMemberRequestBody'
+                    $ref: '#/definitions/CommitteeServiceUpdateCommitteeMemberRequestBody'
                     required:
                         - email
             responses:
@@ -507,10 +507,10 @@ paths:
                 - jwt_header_Authorization: []
         delete:
             tags:
-                - committee-members-service
-            summary: delete-committee-member committee-members-service
+                - committee-service
+            summary: delete-committee-member committee-service
             description: Remove a member from a committee
-            operationId: committee-members-service#delete-committee-member
+            operationId: committee-service#delete-committee-member
             parameters:
                 - name: v
                   in: query
@@ -1273,184 +1273,8 @@ definitions:
                 end_date: "2024-12-31"
                 start_date: "2023-01-01"
                 status: Voting Rep
-    CommitteeMembersServiceCreateCommitteeMemberRequestBody:
-        title: CommitteeMembersServiceCreateCommitteeMemberRequestBody
-        type: object
-        properties:
-            agency:
-                type: string
-                description: Government agency (for GAC members)
-                example: GSA
-                maxLength: 100
-            appointed_by:
-                type: string
-                description: How the member was appointed
-                default: None
-                example: Community
-                enum:
-                    - Community
-                    - Membership Entitlement
-                    - Vote of End User Member Class
-                    - Vote of TSC Committee
-                    - Vote of TAC Committee
-                    - Vote of Academic Member Class
-                    - Vote of Lab Member Class
-                    - Vote of Marketing Committee
-                    - Vote of Governing Board
-                    - Vote of General Member Class
-                    - Vote of End User Committee
-                    - Vote of TOC Committee
-                    - Vote of Gold Member Class
-                    - Vote of Silver Member Class
-                    - Vote of Strategic Membership Class
-                    - None
-            country:
-                type: string
-                description: Country (for GAC members)
-                example: United States
-                maxLength: 100
-            email:
-                type: string
-                description: Primary email address
-                example: user@example.com
-                format: email
-            first_name:
-                type: string
-                description: First name
-                example: John
-                maxLength: 100
-            job_title:
-                type: string
-                description: Job title at organization
-                example: Chief Technology Officer
-                maxLength: 200
-            last_name:
-                type: string
-                description: Last name
-                example: Doe
-                maxLength: 100
-            organization:
-                type: object
-                properties:
-                    name:
-                        type: string
-                        description: Organization name
-                        example: The Linux Foundation
-                        maxLength: 200
-                    website:
-                        type: string
-                        description: Organization website URL
-                        example: https://linuxfoundation.org
-                        format: uri
-                description: Organization information for the committee member
-                example:
-                    name: The Linux Foundation
-                    website: https://linuxfoundation.org
-            role:
-                type: object
-                properties:
-                    end_date:
-                        type: string
-                        description: Role end date
-                        example: "2024-12-31"
-                        format: date
-                    name:
-                        type: string
-                        description: Committee role name
-                        default: None
-                        example: Chair
-                        enum:
-                            - Chair
-                            - Counsel
-                            - Developer Seat
-                            - TAC/TOC Representative
-                            - Director
-                            - Lead
-                            - None
-                            - Secretary
-                            - Treasurer
-                            - Vice Chair
-                            - LF Staff
-                    start_date:
-                        type: string
-                        description: Role start date
-                        example: "2023-01-01"
-                        format: date
-                description: Committee role information
-                example:
-                    end_date: "2024-12-31"
-                    name: Chair
-                    start_date: "2023-01-01"
-            status:
-                type: string
-                description: Member status
-                default: Active
-                example: Active
-                enum:
-                    - Active
-                    - Inactive
-            username:
-                type: string
-                description: User's LF ID
-                example: user123
-                maxLength: 100
-            voting:
-                type: object
-                properties:
-                    end_date:
-                        type: string
-                        description: Voting end date
-                        example: "2024-12-31"
-                        format: date
-                    start_date:
-                        type: string
-                        description: Voting start date
-                        example: "2023-01-01"
-                        format: date
-                    status:
-                        type: string
-                        description: Voting status
-                        default: None
-                        example: Voting Rep
-                        enum:
-                            - Alternate Voting Rep
-                            - Observer
-                            - Voting Rep
-                            - Emeritus
-                            - None
-                description: Voting information for the committee member
-                example:
-                    end_date: "2024-12-31"
-                    start_date: "2023-01-01"
-                    status: Voting Rep
-        example:
-            agency: GSA
-            appointed_by: Community
-            country: United States
-            email: user@example.com
-            first_name: John
-            job_title: Chief Technology Officer
-            last_name: Doe
-            organization:
-                name: The Linux Foundation
-                website: https://linuxfoundation.org
-            role:
-                end_date: "2024-12-31"
-                name: Chair
-                start_date: "2023-01-01"
-            status: Active
-            username: user123
-            voting:
-                end_date: "2024-12-31"
-                start_date: "2023-01-01"
-                status: Voting Rep
-        required:
-            - email
-    CommitteeMembersServiceGetCommitteeMemberResponseBody:
-        title: CommitteeMembersServiceGetCommitteeMemberResponseBody
-        $ref: '#/definitions/CommitteeMemberFullWithReadonlyAttributes'
-    CommitteeMembersServiceUpdateCommitteeMemberRequestBody:
-        title: CommitteeMembersServiceUpdateCommitteeMemberRequestBody
+    CommitteeServiceCreateCommitteeMemberRequestBody:
+        title: CommitteeServiceCreateCommitteeMemberRequestBody
         type: object
         properties:
             agency:
@@ -1774,6 +1598,9 @@ definitions:
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
+    CommitteeServiceGetCommitteeMemberResponseBody:
+        title: CommitteeServiceGetCommitteeMemberResponseBody
+        $ref: '#/definitions/CommitteeMemberFullWithReadonlyAttributes'
     CommitteeServiceGetCommitteeSettingsResponseBody:
         title: CommitteeServiceGetCommitteeSettingsResponseBody
         $ref: '#/definitions/CommitteeSettingsWithReadonlyAttributes'
@@ -1885,6 +1712,179 @@ definitions:
             - name
             - category
             - project_uid
+    CommitteeServiceUpdateCommitteeMemberRequestBody:
+        title: CommitteeServiceUpdateCommitteeMemberRequestBody
+        type: object
+        properties:
+            agency:
+                type: string
+                description: Government agency (for GAC members)
+                example: GSA
+                maxLength: 100
+            appointed_by:
+                type: string
+                description: How the member was appointed
+                default: None
+                example: Community
+                enum:
+                    - Community
+                    - Membership Entitlement
+                    - Vote of End User Member Class
+                    - Vote of TSC Committee
+                    - Vote of TAC Committee
+                    - Vote of Academic Member Class
+                    - Vote of Lab Member Class
+                    - Vote of Marketing Committee
+                    - Vote of Governing Board
+                    - Vote of General Member Class
+                    - Vote of End User Committee
+                    - Vote of TOC Committee
+                    - Vote of Gold Member Class
+                    - Vote of Silver Member Class
+                    - Vote of Strategic Membership Class
+                    - None
+            country:
+                type: string
+                description: Country (for GAC members)
+                example: United States
+                maxLength: 100
+            email:
+                type: string
+                description: Primary email address
+                example: user@example.com
+                format: email
+            first_name:
+                type: string
+                description: First name
+                example: John
+                maxLength: 100
+            job_title:
+                type: string
+                description: Job title at organization
+                example: Chief Technology Officer
+                maxLength: 200
+            last_name:
+                type: string
+                description: Last name
+                example: Doe
+                maxLength: 100
+            organization:
+                type: object
+                properties:
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+            role:
+                type: object
+                properties:
+                    end_date:
+                        type: string
+                        description: Role end date
+                        example: "2024-12-31"
+                        format: date
+                    name:
+                        type: string
+                        description: Committee role name
+                        default: None
+                        example: Chair
+                        enum:
+                            - Chair
+                            - Counsel
+                            - Developer Seat
+                            - TAC/TOC Representative
+                            - Director
+                            - Lead
+                            - None
+                            - Secretary
+                            - Treasurer
+                            - Vice Chair
+                            - LF Staff
+                    start_date:
+                        type: string
+                        description: Role start date
+                        example: "2023-01-01"
+                        format: date
+                description: Committee role information
+                example:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+            status:
+                type: string
+                description: Member status
+                default: Active
+                example: Active
+                enum:
+                    - Active
+                    - Inactive
+            username:
+                type: string
+                description: User's LF ID
+                example: user123
+                maxLength: 100
+            voting:
+                type: object
+                properties:
+                    end_date:
+                        type: string
+                        description: Voting end date
+                        example: "2024-12-31"
+                        format: date
+                    start_date:
+                        type: string
+                        description: Voting start date
+                        example: "2023-01-01"
+                        format: date
+                    status:
+                        type: string
+                        description: Voting status
+                        default: None
+                        example: Voting Rep
+                        enum:
+                            - Alternate Voting Rep
+                            - Observer
+                            - Voting Rep
+                            - Emeritus
+                            - None
+                description: Voting information for the committee member
+                example:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+        example:
+            agency: GSA
+            appointed_by: Community
+            country: United States
+            email: user@example.com
+            first_name: John
+            job_title: Chief Technology Officer
+            last_name: Doe
+            organization:
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
+            role:
+                end_date: "2024-12-31"
+                name: Chair
+                start_date: "2023-01-01"
+            status: Active
+            username: user123
+            voting:
+                end_date: "2024-12-31"
+                start_date: "2023-01-01"
+                status: Voting Rep
+        required:
+            - email
     CommitteeServiceUpdateCommitteeSettingsRequestBody:
         title: CommitteeServiceUpdateCommitteeSettingsRequestBody
         type: object

@@ -481,3 +481,488 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 
 	return v, nil
 }
+
+// BuildCreateCommitteeMemberPayload builds the payload for the
+// committee-service create-committee-member endpoint from CLI flags.
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+	var err error
+	var body CreateCommitteeMemberRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeMemberBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"organization\": {\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
+		}
+		if body.Username != nil {
+			if utf8.RuneCountInString(*body.Username) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+			}
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
+		if body.FirstName != nil {
+			if utf8.RuneCountInString(*body.FirstName) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+			}
+		}
+		if body.LastName != nil {
+			if utf8.RuneCountInString(*body.LastName) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+			}
+		}
+		if body.JobTitle != nil {
+			if utf8.RuneCountInString(*body.JobTitle) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+			}
+		}
+		if body.Role != nil {
+			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+			if body.Role.StartDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+			}
+			if body.Role.EndDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+			}
+		}
+		if !(body.AppointedBy == "Community" || body.AppointedBy == "Membership Entitlement" || body.AppointedBy == "Vote of End User Member Class" || body.AppointedBy == "Vote of TSC Committee" || body.AppointedBy == "Vote of TAC Committee" || body.AppointedBy == "Vote of Academic Member Class" || body.AppointedBy == "Vote of Lab Member Class" || body.AppointedBy == "Vote of Marketing Committee" || body.AppointedBy == "Vote of Governing Board" || body.AppointedBy == "Vote of General Member Class" || body.AppointedBy == "Vote of End User Committee" || body.AppointedBy == "Vote of TOC Committee" || body.AppointedBy == "Vote of Gold Member Class" || body.AppointedBy == "Vote of Silver Member Class" || body.AppointedBy == "Vote of Strategic Membership Class" || body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+		if !(body.Status == "Active" || body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", body.Status, []any{"Active", "Inactive"}))
+		}
+		if body.Voting != nil {
+			if !(body.Voting.Status == "Alternate Voting Rep" || body.Voting.Status == "Observer" || body.Voting.Status == "Voting Rep" || body.Voting.Status == "Emeritus" || body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+			if body.Voting.StartDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+			}
+			if body.Voting.EndDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+			}
+		}
+		if body.Agency != nil {
+			if utf8.RuneCountInString(*body.Agency) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.agency", *body.Agency, utf8.RuneCountInString(*body.Agency), 100, false))
+			}
+		}
+		if body.Country != nil {
+			if utf8.RuneCountInString(*body.Country) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.country", *body.Country, utf8.RuneCountInString(*body.Country), 100, false))
+			}
+		}
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceCreateCommitteeMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceCreateCommitteeMemberVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceCreateCommitteeMemberBearerToken != "" {
+			bearerToken = &committeeServiceCreateCommitteeMemberBearerToken
+		}
+	}
+	v := &committeeservice.CreateCommitteeMemberPayload{
+		Username:    body.Username,
+		Email:       body.Email,
+		FirstName:   body.FirstName,
+		LastName:    body.LastName,
+		JobTitle:    body.JobTitle,
+		AppointedBy: body.AppointedBy,
+		Status:      body.Status,
+		Agency:      body.Agency,
+		Country:     body.Country,
+	}
+	if body.Role != nil {
+		v.Role = &struct {
+			// Committee role name
+			Name string
+			// Role start date
+			StartDate *string
+			// Role end date
+			EndDate *string
+		}{
+			Name:      body.Role.Name,
+			StartDate: body.Role.StartDate,
+			EndDate:   body.Role.EndDate,
+		}
+		{
+			var zero string
+			if v.Role.Name == zero {
+				v.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if v.AppointedBy == zero {
+			v.AppointedBy = "None"
+		}
+	}
+	{
+		var zero string
+		if v.Status == zero {
+			v.Status = "Active"
+		}
+	}
+	if body.Voting != nil {
+		v.Voting = &struct {
+			// Voting status
+			Status string
+			// Voting start date
+			StartDate *string
+			// Voting end date
+			EndDate *string
+		}{
+			Status:    body.Voting.Status,
+			StartDate: body.Voting.StartDate,
+			EndDate:   body.Voting.EndDate,
+		}
+		{
+			var zero string
+			if v.Voting.Status == zero {
+				v.Voting.Status = "None"
+			}
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildGetCommitteeMemberPayload builds the payload for the committee-service
+// get-committee-member endpoint from CLI flags.
+func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string, committeeServiceGetCommitteeMemberMemberUID string, committeeServiceGetCommitteeMemberVersion string, committeeServiceGetCommitteeMemberBearerToken string) (*committeeservice.GetCommitteeMemberPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceGetCommitteeMemberMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceGetCommitteeMemberVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeMemberBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeMemberBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeMemberPayload{}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildUpdateCommitteeMemberPayload builds the payload for the
+// committee-service update-committee-member endpoint from CLI flags.
+func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
+	var err error
+	var body UpdateCommitteeMemberRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeMemberBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"organization\": {\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
+		}
+		if body.Username != nil {
+			if utf8.RuneCountInString(*body.Username) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+			}
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
+		if body.FirstName != nil {
+			if utf8.RuneCountInString(*body.FirstName) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+			}
+		}
+		if body.LastName != nil {
+			if utf8.RuneCountInString(*body.LastName) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+			}
+		}
+		if body.JobTitle != nil {
+			if utf8.RuneCountInString(*body.JobTitle) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+			}
+		}
+		if body.Role != nil {
+			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+			if body.Role.StartDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+			}
+			if body.Role.EndDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+			}
+		}
+		if !(body.AppointedBy == "Community" || body.AppointedBy == "Membership Entitlement" || body.AppointedBy == "Vote of End User Member Class" || body.AppointedBy == "Vote of TSC Committee" || body.AppointedBy == "Vote of TAC Committee" || body.AppointedBy == "Vote of Academic Member Class" || body.AppointedBy == "Vote of Lab Member Class" || body.AppointedBy == "Vote of Marketing Committee" || body.AppointedBy == "Vote of Governing Board" || body.AppointedBy == "Vote of General Member Class" || body.AppointedBy == "Vote of End User Committee" || body.AppointedBy == "Vote of TOC Committee" || body.AppointedBy == "Vote of Gold Member Class" || body.AppointedBy == "Vote of Silver Member Class" || body.AppointedBy == "Vote of Strategic Membership Class" || body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+		if !(body.Status == "Active" || body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", body.Status, []any{"Active", "Inactive"}))
+		}
+		if body.Voting != nil {
+			if !(body.Voting.Status == "Alternate Voting Rep" || body.Voting.Status == "Observer" || body.Voting.Status == "Voting Rep" || body.Voting.Status == "Emeritus" || body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+			if body.Voting.StartDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+			}
+			if body.Voting.EndDate != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+			}
+		}
+		if body.Agency != nil {
+			if utf8.RuneCountInString(*body.Agency) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.agency", *body.Agency, utf8.RuneCountInString(*body.Agency), 100, false))
+			}
+		}
+		if body.Country != nil {
+			if utf8.RuneCountInString(*body.Country) > 100 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.country", *body.Country, utf8.RuneCountInString(*body.Country), 100, false))
+			}
+		}
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceUpdateCommitteeMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceUpdateCommitteeMemberMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceUpdateCommitteeMemberVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceUpdateCommitteeMemberBearerToken != "" {
+			bearerToken = &committeeServiceUpdateCommitteeMemberBearerToken
+		}
+	}
+	var ifMatch string
+	{
+		ifMatch = committeeServiceUpdateCommitteeMemberIfMatch
+	}
+	v := &committeeservice.UpdateCommitteeMemberPayload{
+		Username:    body.Username,
+		Email:       body.Email,
+		FirstName:   body.FirstName,
+		LastName:    body.LastName,
+		JobTitle:    body.JobTitle,
+		AppointedBy: body.AppointedBy,
+		Status:      body.Status,
+		Agency:      body.Agency,
+		Country:     body.Country,
+	}
+	if body.Role != nil {
+		v.Role = &struct {
+			// Committee role name
+			Name string
+			// Role start date
+			StartDate *string
+			// Role end date
+			EndDate *string
+		}{
+			Name:      body.Role.Name,
+			StartDate: body.Role.StartDate,
+			EndDate:   body.Role.EndDate,
+		}
+		{
+			var zero string
+			if v.Role.Name == zero {
+				v.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if v.AppointedBy == zero {
+			v.AppointedBy = "None"
+		}
+	}
+	{
+		var zero string
+		if v.Status == zero {
+			v.Status = "Active"
+		}
+	}
+	if body.Voting != nil {
+		v.Voting = &struct {
+			// Voting status
+			Status string
+			// Voting start date
+			StartDate *string
+			// Voting end date
+			EndDate *string
+		}{
+			Status:    body.Voting.Status,
+			StartDate: body.Voting.StartDate,
+			EndDate:   body.Voting.EndDate,
+		}
+		{
+			var zero string
+			if v.Voting.Status == zero {
+				v.Voting.Status = "None"
+			}
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+
+	return v, nil
+}
+
+// BuildDeleteCommitteeMemberPayload builds the payload for the
+// committee-service delete-committee-member endpoint from CLI flags.
+func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDeleteCommitteeMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceDeleteCommitteeMemberMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceDeleteCommitteeMemberVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDeleteCommitteeMemberBearerToken != "" {
+			bearerToken = &committeeServiceDeleteCommitteeMemberBearerToken
+		}
+	}
+	var ifMatch string
+	{
+		ifMatch = committeeServiceDeleteCommitteeMemberIfMatch
+	}
+	v := &committeeservice.DeleteCommitteeMemberPayload{}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+
+	return v, nil
+}

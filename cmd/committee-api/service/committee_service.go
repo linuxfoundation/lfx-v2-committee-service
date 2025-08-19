@@ -207,6 +207,125 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 	return result, nil
 }
 
+// CreateCommitteeMember adds a new member to a committee
+func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *committeeservice.CreateCommitteeMemberPayload) (res *committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
+
+	slog.DebugContext(ctx, "committeeMemberService.create-committee-member",
+		"committee_uid", p.UID,
+		"username", p.Username,
+		"email", p.Email,
+	)
+
+	// TODO: Convert payload to DTO
+	// request := s.convertPayloadToDomain(p)
+
+	// TODO: Execute use case
+	// response, err := s.committeeMemberWriterOrchestrator.Create(ctx, request)
+	// if err != nil {
+	// 	return nil, wrapError(ctx, err)
+	// }
+
+	// TODO: Convert response to GOA result
+	// result := s.convertDomainToFullResponse(response)
+
+	// TODO: Remove this placeholder return
+	return nil, nil
+}
+
+// GetCommitteeMember retrieves a specific committee member by UID
+func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *committeeservice.GetCommitteeMemberPayload) (res *committeeservice.GetCommitteeMemberResult, err error) {
+
+	slog.DebugContext(ctx, "committeeMemberService.get-committee-member",
+		"committee_uid", p.UID,
+		"member_uid", p.MemberUID,
+	)
+
+	// TODO: Execute use case
+	// committeeMember, revision, err := s.committeeMemberReaderOrchestrator.Get(ctx, *p.UID, *p.MemberUID)
+	// if err != nil {
+	// 	return nil, wrapError(ctx, err)
+	// }
+
+	// TODO: Convert domain model to GOA response
+	// result := s.convertMemberToResponse(committeeMember)
+
+	// TODO: Create result with ETag (using revision from NATS)
+	// revisionStr := fmt.Sprintf("%d", revision)
+	// res = &committeeservice.GetCommitteeMemberResult{
+	// 	Member: result,
+	// 	Etag:   &revisionStr,
+	// }
+
+	// TODO: Remove this placeholder return
+	return nil, nil
+}
+
+// UpdateCommitteeMember updates an existing committee member
+func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *committeeservice.UpdateCommitteeMemberPayload) (res *committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
+
+	slog.DebugContext(ctx, "committeeMemberService.update-committee-member",
+		"committee_uid", p.UID,
+		"member_uid", p.MemberUID,
+	)
+
+	// TODO: Parse ETag to get revision for optimistic locking
+	// parsedRevision, err := etagValidator(p.IfMatch)
+	// if err != nil {
+	// 	slog.ErrorContext(ctx, "invalid ETag",
+	// 		"error", err,
+	// 		"etag", p.IfMatch,
+	// 		"committee_uid", p.UID,
+	// 		"member_uid", p.MemberUID,
+	// 	)
+	// 	return nil, wrapError(ctx, err)
+	// }
+
+	// TODO: Convert payload to domain model
+	// committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// TODO: Execute use case
+	// updatedMember, err := s.committeeMemberWriterOrchestrator.Update(ctx, committeeMember, parsedRevision)
+	// if err != nil {
+	// 	return nil, wrapError(ctx, err)
+	// }
+
+	// TODO: Convert response to GOA result
+	// result := s.convertMemberToResponse(updatedMember)
+
+	// TODO: Remove this placeholder return
+	return nil, nil
+}
+
+// DeleteCommitteeMember removes a member from a committee
+func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *committeeservice.DeleteCommitteeMemberPayload) error {
+
+	slog.DebugContext(ctx, "committeeMemberService.delete-committee-member",
+		"committee_uid", p.UID,
+		"member_uid", p.MemberUID,
+	)
+
+	// TODO: Parse ETag to get revision for optimistic locking
+	// parsedRevision, err := etagValidator(p.IfMatch)
+	// if err != nil {
+	// 	slog.ErrorContext(ctx, "invalid ETag",
+	// 		"error", err,
+	// 		"etag", p.IfMatch,
+	// 		"committee_uid", p.UID,
+	// 		"member_uid", p.MemberUID,
+	// 	)
+	// 	return wrapError(ctx, err)
+	// }
+
+	// TODO: Execute delete use case
+	// errDelete := s.committeeMemberWriterOrchestrator.Delete(ctx, *p.UID, *p.MemberUID, parsedRevision)
+	// if errDelete != nil {
+	// 	return wrapError(ctx, errDelete)
+	// }
+
+	// TODO: Remove this placeholder return
+	return nil
+}
+
 // Check if the service is able to take inbound requests.
 func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err error) {
 	// Check NATS readiness

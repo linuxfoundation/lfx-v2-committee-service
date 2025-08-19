@@ -32,6 +32,14 @@ type Service interface {
 	Readyz(context.Context) (res []byte, err error)
 	// Check if the service is alive.
 	Livez(context.Context) (res []byte, err error)
+	// Add a new member to a committee
+	CreateCommitteeMember(context.Context, *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
+	// Get a specific committee member by UID
+	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
+	// Replace an existing committee member (requires complete resource)
+	UpdateCommitteeMember(context.Context, *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
+	// Remove a member from a committee
+	DeleteCommitteeMember(context.Context, *DeleteCommitteeMemberPayload) (err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -54,7 +62,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [8]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez"}
+var MethodNames = [12]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member"}
 
 // CommitteeBaseWithReadonlyAttributes is the result type of the
 // committee-service service update-committee-base method.
@@ -152,6 +160,60 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Auditors []string
 }
 
+// CommitteeMemberFullWithReadonlyAttributes is the result type of the
+// committee-service service create-committee-member method.
+type CommitteeMemberFullWithReadonlyAttributes struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// User's LF ID
+	Username *string
+	// Primary email address
+	Email *string
+	// First name
+	FirstName *string
+	// Last name
+	LastName *string
+	// Job title at organization
+	JobTitle *string
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string
+		// Role start date
+		StartDate *string
+		// Role end date
+		EndDate *string
+	}
+	// How the member was appointed
+	AppointedBy string
+	// Member status
+	Status string
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string
+		// Voting start date
+		StartDate *string
+		// Voting end date
+		EndDate *string
+	}
+	// Government agency (for GAC members)
+	Agency *string
+	// Country (for GAC members)
+	Country *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string
+}
+
 // CommitteeSettingsWithReadonlyAttributes is the result type of the
 // committee-service service update-committee-settings method.
 type CommitteeSettingsWithReadonlyAttributes struct {
@@ -167,6 +229,60 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
+}
+
+// CreateCommitteeMemberPayload is the payload type of the committee-service
+// service create-committee-member method.
+type CreateCommitteeMemberPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// User's LF ID
+	Username *string
+	// Primary email address
+	Email string
+	// First name
+	FirstName *string
+	// Last name
+	LastName *string
+	// Job title at organization
+	JobTitle *string
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string
+		// Role start date
+		StartDate *string
+		// Role end date
+		EndDate *string
+	}
+	// How the member was appointed
+	AppointedBy string
+	// Member status
+	Status string
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string
+		// Voting start date
+		StartDate *string
+		// Voting end date
+		EndDate *string
+	}
+	// Government agency (for GAC members)
+	Agency *string
+	// Country (for GAC members)
+	Country *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // CreateCommitteePayload is the payload type of the committee-service service
@@ -217,6 +333,21 @@ type CreateCommitteePayload struct {
 	Auditors []string
 }
 
+// DeleteCommitteeMemberPayload is the payload type of the committee-service
+// service delete-committee-member method.
+type DeleteCommitteeMemberPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// If-Match header value for conditional requests
+	IfMatch string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	MemberUID string
+}
+
 // DeleteCommitteePayload is the payload type of the committee-service service
 // delete-committee method.
 type DeleteCommitteePayload struct {
@@ -245,6 +376,27 @@ type GetCommitteeBasePayload struct {
 // get-committee-base method.
 type GetCommitteeBaseResult struct {
 	CommitteeBase *CommitteeBaseWithReadonlyAttributes
+	// ETag header value
+	Etag *string
+}
+
+// GetCommitteeMemberPayload is the payload type of the committee-service
+// service get-committee-member method.
+type GetCommitteeMemberPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	MemberUID string
+}
+
+// GetCommitteeMemberResult is the result type of the committee-service service
+// get-committee-member method.
+type GetCommitteeMemberResult struct {
+	Member *CommitteeMemberFullWithReadonlyAttributes
 	// ETag header value
 	Etag *string
 }
@@ -308,6 +460,64 @@ type UpdateCommitteeBasePayload struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
+}
+
+// UpdateCommitteeMemberPayload is the payload type of the committee-service
+// service update-committee-member method.
+type UpdateCommitteeMemberPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// If-Match header value for conditional requests
+	IfMatch string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	MemberUID string
+	// User's LF ID
+	Username *string
+	// Primary email address
+	Email string
+	// First name
+	FirstName *string
+	// Last name
+	LastName *string
+	// Job title at organization
+	JobTitle *string
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string
+		// Role start date
+		StartDate *string
+		// Role end date
+		EndDate *string
+	}
+	// How the member was appointed
+	AppointedBy string
+	// Member status
+	Status string
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string
+		// Voting start date
+		StartDate *string
+		// Voting end date
+		EndDate *string
+	}
+	// Government agency (for GAC members)
+	Agency *string
+	// Country (for GAC members)
+	Country *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // UpdateCommitteeSettingsPayload is the payload type of the committee-service
