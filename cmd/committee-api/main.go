@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/service"
+	committeemembersservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_members_service"
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
@@ -80,10 +81,17 @@ func main() {
 
 	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage)
 
+	// TODO: Initialize committee member service when domain interfaces are implemented
+	// For now, create service with minimal dependencies
+	committeeMemberServiceSvc := service.NewCommitteeMemberService(authService)
+
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.
 	committeeServiceEndpoints := committeeservice.NewEndpoints(committeeServiceSvc)
 	committeeServiceEndpoints.Use(debug.LogPayloads())
+
+	committeeMemberServiceEndpoints := committeemembersservice.NewEndpoints(committeeMemberServiceSvc)
+	committeeMemberServiceEndpoints.Use(debug.LogPayloads())
 
 	// Create channel used by both the signal handler and server goroutines
 	// to notify the main goroutine when to stop the server.
@@ -113,7 +121,7 @@ func main() {
 		errc <- fmt.Errorf("failed to start queue subscriptions: %w", err)
 	}
 
-	handleHTTPServer(ctx, addr, committeeServiceEndpoints, &wg, errc, *dbgF)
+	handleHTTPServer(ctx, addr, committeeServiceEndpoints, committeeMemberServiceEndpoints, &wg, errc, *dbgF)
 
 	// Wait for signal.
 	slog.InfoContext(ctx, "received shutdown signal, stopping servers",

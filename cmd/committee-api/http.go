@@ -10,7 +10,9 @@ import (
 	"sync"
 	"time"
 
+	committeemembersservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_members_service"
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	committeemembersservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_members_service/server"
 	committeeservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/middleware"
 
@@ -20,7 +22,7 @@ import (
 
 // handleHTTPServer starts configures and starts a HTTP server on the given
 // URL. It shuts down the server if any error is received in the error channel.
-func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoints *committeeservice.Endpoints, wg *sync.WaitGroup, errc chan error, dbg bool) {
+func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoints *committeeservice.Endpoints, committeeMemberServiceEndpoints *committeemembersservice.Endpoints, wg *sync.WaitGroup, errc chan error, dbg bool) {
 
 	// Provide the transport specific request decoder and response encoder.
 	// The goa http package has built-in support for JSON, XML and gob.
@@ -49,15 +51,18 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	// the service input and output data structures to HTTP requests and
 	// responses.
 	var (
-		committeeServiceServer *committeeservicesvr.Server
+		committeeServiceServer       *committeeservicesvr.Server
+		committeeMemberServiceServer *committeemembersservicesvr.Server
 	)
 	{
 		eh := errorHandler(ctx)
 		committeeServiceServer = committeeservicesvr.New(committeeServiceEndpoints, mux, dec, enc, eh, nil, nil)
+		committeeMemberServiceServer = committeemembersservicesvr.New(committeeMemberServiceEndpoints, mux, dec, enc, eh, nil)
 	}
 
 	// Configure the mux.
 	committeeservicesvr.Mount(mux, committeeServiceServer)
+	committeemembersservicesvr.Mount(mux, committeeMemberServiceServer)
 
 	var handler http.Handler = mux
 
@@ -74,6 +79,13 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	// configure the server as required by your service.
 	srv := &http.Server{Addr: host, Handler: handler, ReadHeaderTimeout: time.Second * 60}
 	for _, m := range committeeServiceServer.Mounts {
+		slog.InfoContext(ctx, "HTTP endpoint mounted",
+			"method", m.Method,
+			"verb", m.Verb,
+			"pattern", m.Pattern,
+		)
+	}
+	for _, m := range committeeMemberServiceServer.Mounts {
 		slog.InfoContext(ctx, "HTTP endpoint mounted",
 			"method", m.Method,
 			"verb", m.Verb,

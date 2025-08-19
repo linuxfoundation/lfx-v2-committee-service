@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 
+	committeemembersservicec "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_members_service/client"
 	committeeservicec "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/client"
 	goahttp "goa.design/goa/v3/http"
 	goa "goa.design/goa/v3/pkg"
@@ -23,13 +24,39 @@ import (
 //
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() string {
-	return `committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez)
+	return `committee-members-service (create-committee-member|get-committee-member|update-committee-member|delete-committee-member)
+committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez)
 `
 }
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` committee-service create-committee --body '{
+	return os.Args[0] + ` committee-members-service create-committee-member --body '{
+      "agency": "GSA",
+      "appointed_by": "Community",
+      "country": "United States",
+      "email": "user@example.com",
+      "first_name": "John",
+      "job_title": "Chief Technology Officer",
+      "last_name": "Doe",
+      "organization": {
+         "name": "The Linux Foundation",
+         "website": "https://linuxfoundation.org"
+      },
+      "role": {
+         "end_date": "2024-12-31",
+         "name": "Chair",
+         "start_date": "2023-01-01"
+      },
+      "status": "Active",
+      "username": "user123",
+      "voting": {
+         "end_date": "2024-12-31",
+         "start_date": "2023-01-01",
+         "status": "Voting Rep"
+      }
+   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..."` + "\n" +
+		os.Args[0] + ` committee-service create-committee --body '{
       "auditors": [
          "auditor_user_id1",
          "auditor_user_id2"
@@ -69,6 +96,35 @@ func ParseEndpoint(
 	restore bool,
 ) (goa.Endpoint, any, error) {
 	var (
+		committeeMembersServiceFlags = flag.NewFlagSet("committee-members-service", flag.ContinueOnError)
+
+		committeeMembersServiceCreateCommitteeMemberFlags           = flag.NewFlagSet("create-committee-member", flag.ExitOnError)
+		committeeMembersServiceCreateCommitteeMemberBodyFlag        = committeeMembersServiceCreateCommitteeMemberFlags.String("body", "REQUIRED", "")
+		committeeMembersServiceCreateCommitteeMemberUIDFlag         = committeeMembersServiceCreateCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceCreateCommitteeMemberVersionFlag     = committeeMembersServiceCreateCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeMembersServiceCreateCommitteeMemberBearerTokenFlag = committeeMembersServiceCreateCommitteeMemberFlags.String("bearer-token", "", "")
+
+		committeeMembersServiceGetCommitteeMemberFlags           = flag.NewFlagSet("get-committee-member", flag.ExitOnError)
+		committeeMembersServiceGetCommitteeMemberUIDFlag         = committeeMembersServiceGetCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceGetCommitteeMemberMemberUIDFlag   = committeeMembersServiceGetCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceGetCommitteeMemberVersionFlag     = committeeMembersServiceGetCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeMembersServiceGetCommitteeMemberBearerTokenFlag = committeeMembersServiceGetCommitteeMemberFlags.String("bearer-token", "", "")
+
+		committeeMembersServiceUpdateCommitteeMemberFlags           = flag.NewFlagSet("update-committee-member", flag.ExitOnError)
+		committeeMembersServiceUpdateCommitteeMemberBodyFlag        = committeeMembersServiceUpdateCommitteeMemberFlags.String("body", "REQUIRED", "")
+		committeeMembersServiceUpdateCommitteeMemberUIDFlag         = committeeMembersServiceUpdateCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceUpdateCommitteeMemberMemberUIDFlag   = committeeMembersServiceUpdateCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceUpdateCommitteeMemberVersionFlag     = committeeMembersServiceUpdateCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeMembersServiceUpdateCommitteeMemberBearerTokenFlag = committeeMembersServiceUpdateCommitteeMemberFlags.String("bearer-token", "", "")
+		committeeMembersServiceUpdateCommitteeMemberIfMatchFlag     = committeeMembersServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
+
+		committeeMembersServiceDeleteCommitteeMemberFlags           = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
+		committeeMembersServiceDeleteCommitteeMemberUIDFlag         = committeeMembersServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceDeleteCommitteeMemberMemberUIDFlag   = committeeMembersServiceDeleteCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeMembersServiceDeleteCommitteeMemberVersionFlag     = committeeMembersServiceDeleteCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeMembersServiceDeleteCommitteeMemberBearerTokenFlag = committeeMembersServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
+		committeeMembersServiceDeleteCommitteeMemberIfMatchFlag     = committeeMembersServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
+
 		committeeServiceFlags = flag.NewFlagSet("committee-service", flag.ContinueOnError)
 
 		committeeServiceCreateCommitteeFlags           = flag.NewFlagSet("create-committee", flag.ExitOnError)
@@ -110,6 +166,12 @@ func ParseEndpoint(
 
 		committeeServiceLivezFlags = flag.NewFlagSet("livez", flag.ExitOnError)
 	)
+	committeeMembersServiceFlags.Usage = committeeMembersServiceUsage
+	committeeMembersServiceCreateCommitteeMemberFlags.Usage = committeeMembersServiceCreateCommitteeMemberUsage
+	committeeMembersServiceGetCommitteeMemberFlags.Usage = committeeMembersServiceGetCommitteeMemberUsage
+	committeeMembersServiceUpdateCommitteeMemberFlags.Usage = committeeMembersServiceUpdateCommitteeMemberUsage
+	committeeMembersServiceDeleteCommitteeMemberFlags.Usage = committeeMembersServiceDeleteCommitteeMemberUsage
+
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
 	committeeServiceGetCommitteeBaseFlags.Usage = committeeServiceGetCommitteeBaseUsage
@@ -135,6 +197,8 @@ func ParseEndpoint(
 	{
 		svcn = flag.Arg(0)
 		switch svcn {
+		case "committee-members-service":
+			svcf = committeeMembersServiceFlags
 		case "committee-service":
 			svcf = committeeServiceFlags
 		default:
@@ -152,6 +216,22 @@ func ParseEndpoint(
 	{
 		epn = svcf.Arg(0)
 		switch svcn {
+		case "committee-members-service":
+			switch epn {
+			case "create-committee-member":
+				epf = committeeMembersServiceCreateCommitteeMemberFlags
+
+			case "get-committee-member":
+				epf = committeeMembersServiceGetCommitteeMemberFlags
+
+			case "update-committee-member":
+				epf = committeeMembersServiceUpdateCommitteeMemberFlags
+
+			case "delete-committee-member":
+				epf = committeeMembersServiceDeleteCommitteeMemberFlags
+
+			}
+
 		case "committee-service":
 			switch epn {
 			case "create-committee":
@@ -200,6 +280,22 @@ func ParseEndpoint(
 	)
 	{
 		switch svcn {
+		case "committee-members-service":
+			c := committeemembersservicec.NewClient(scheme, host, doer, enc, dec, restore)
+			switch epn {
+			case "create-committee-member":
+				endpoint = c.CreateCommitteeMember()
+				data, err = committeemembersservicec.BuildCreateCommitteeMemberPayload(*committeeMembersServiceCreateCommitteeMemberBodyFlag, *committeeMembersServiceCreateCommitteeMemberUIDFlag, *committeeMembersServiceCreateCommitteeMemberVersionFlag, *committeeMembersServiceCreateCommitteeMemberBearerTokenFlag)
+			case "get-committee-member":
+				endpoint = c.GetCommitteeMember()
+				data, err = committeemembersservicec.BuildGetCommitteeMemberPayload(*committeeMembersServiceGetCommitteeMemberUIDFlag, *committeeMembersServiceGetCommitteeMemberMemberUIDFlag, *committeeMembersServiceGetCommitteeMemberVersionFlag, *committeeMembersServiceGetCommitteeMemberBearerTokenFlag)
+			case "update-committee-member":
+				endpoint = c.UpdateCommitteeMember()
+				data, err = committeemembersservicec.BuildUpdateCommitteeMemberPayload(*committeeMembersServiceUpdateCommitteeMemberBodyFlag, *committeeMembersServiceUpdateCommitteeMemberUIDFlag, *committeeMembersServiceUpdateCommitteeMemberMemberUIDFlag, *committeeMembersServiceUpdateCommitteeMemberVersionFlag, *committeeMembersServiceUpdateCommitteeMemberBearerTokenFlag, *committeeMembersServiceUpdateCommitteeMemberIfMatchFlag)
+			case "delete-committee-member":
+				endpoint = c.DeleteCommitteeMember()
+				data, err = committeemembersservicec.BuildDeleteCommitteeMemberPayload(*committeeMembersServiceDeleteCommitteeMemberUIDFlag, *committeeMembersServiceDeleteCommitteeMemberMemberUIDFlag, *committeeMembersServiceDeleteCommitteeMemberVersionFlag, *committeeMembersServiceDeleteCommitteeMemberBearerTokenFlag, *committeeMembersServiceDeleteCommitteeMemberIfMatchFlag)
+			}
 		case "committee-service":
 			c := committeeservicec.NewClient(scheme, host, doer, enc, dec, restore)
 			switch epn {
@@ -233,6 +329,130 @@ func ParseEndpoint(
 	}
 
 	return endpoint, data, nil
+}
+
+// committeeMembersServiceUsage displays the usage of the
+// committee-members-service command and its subcommands.
+func committeeMembersServiceUsage() {
+	fmt.Fprintf(os.Stderr, `Committee members management service
+Usage:
+    %[1]s [globalflags] committee-members-service COMMAND [flags]
+
+COMMAND:
+    create-committee-member: Add a new member to a committee
+    get-committee-member: Get a specific committee member by UID
+    update-committee-member: Update an existing committee member
+    delete-committee-member: Remove a member from a committee
+
+Additional help:
+    %[1]s committee-members-service COMMAND --help
+`, os.Args[0])
+}
+func committeeMembersServiceCreateCommitteeMemberUsage() {
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-members-service create-committee-member -body JSON -uid STRING -version STRING -bearer-token STRING
+
+Add a new member to a committee
+    -body JSON: 
+    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
+    -version STRING: 
+    -bearer-token STRING: 
+
+Example:
+    %[1]s committee-members-service create-committee-member --body '{
+      "agency": "GSA",
+      "appointed_by": "Community",
+      "country": "United States",
+      "email": "user@example.com",
+      "first_name": "John",
+      "job_title": "Chief Technology Officer",
+      "last_name": "Doe",
+      "organization": {
+         "name": "The Linux Foundation",
+         "website": "https://linuxfoundation.org"
+      },
+      "role": {
+         "end_date": "2024-12-31",
+         "name": "Chair",
+         "start_date": "2023-01-01"
+      },
+      "status": "Active",
+      "username": "user123",
+      "voting": {
+         "end_date": "2024-12-31",
+         "start_date": "2023-01-01",
+         "status": "Voting Rep"
+      }
+   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --version "1" --bearer-token "eyJhbGci..."
+`, os.Args[0])
+}
+
+func committeeMembersServiceGetCommitteeMemberUsage() {
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-members-service get-committee-member -uid STRING -member-uid STRING -version STRING -bearer-token STRING
+
+Get a specific committee member by UID
+    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
+    -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly
+    -version STRING: 
+    -bearer-token STRING: 
+
+Example:
+    %[1]s committee-members-service get-committee-member --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --member-uid "2200b646-fbb2-4de7-ad80-fd195a874baf" --version "1" --bearer-token "eyJhbGci..."
+`, os.Args[0])
+}
+
+func committeeMembersServiceUpdateCommitteeMemberUsage() {
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-members-service update-committee-member -body JSON -uid STRING -member-uid STRING -version STRING -bearer-token STRING -if-match STRING
+
+Update an existing committee member
+    -body JSON: 
+    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
+    -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly
+    -version STRING: 
+    -bearer-token STRING: 
+    -if-match STRING: 
+
+Example:
+    %[1]s committee-members-service update-committee-member --body '{
+      "agency": "GSA",
+      "appointed_by": "Community",
+      "country": "United States",
+      "email": "user@example.com",
+      "first_name": "John",
+      "job_title": "Chief Technology Officer",
+      "last_name": "Doe",
+      "organization": {
+         "name": "The Linux Foundation",
+         "website": "https://linuxfoundation.org"
+      },
+      "role": {
+         "end_date": "2024-12-31",
+         "name": "Chair",
+         "start_date": "2023-01-01"
+      },
+      "status": "Active",
+      "username": "user123",
+      "voting": {
+         "end_date": "2024-12-31",
+         "start_date": "2023-01-01",
+         "status": "Voting Rep"
+      }
+   }' --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --member-uid "2200b646-fbb2-4de7-ad80-fd195a874baf" --version "1" --bearer-token "eyJhbGci..." --if-match "123"
+`, os.Args[0])
+}
+
+func committeeMembersServiceDeleteCommitteeMemberUsage() {
+	fmt.Fprintf(os.Stderr, `%[1]s [flags] committee-members-service delete-committee-member -uid STRING -member-uid STRING -version STRING -bearer-token STRING -if-match STRING
+
+Remove a member from a committee
+    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly
+    -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly
+    -version STRING: 
+    -bearer-token STRING: 
+    -if-match STRING: 
+
+Example:
+    %[1]s committee-members-service delete-committee-member --uid "7cad5a8d-19d0-41a4-81a6-043453daf9ee" --member-uid "2200b646-fbb2-4de7-ad80-fd195a874baf" --version "1" --bearer-token "eyJhbGci..." --if-match "123"
+`, os.Args[0])
 }
 
 // committeeServiceUsage displays the usage of the committee-service command

@@ -165,3 +165,107 @@ spec:
           config:
             values:
               aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_members:create"
+      match:
+        methods:
+          - POST
+        routes:
+          - path: /committees/:uid/members
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_members:get"
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/:uid/members/:member_uid
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: viewer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_members:update"
+      match:
+        methods:
+          - PUT
+        routes:
+          - path: /committees/:uid/members/:member_uid
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_members:delete"
+      match:
+        methods:
+          - DELETE
+        routes:
+          - path: /committees/:uid/members/:member_uid
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else -}}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
