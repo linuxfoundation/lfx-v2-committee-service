@@ -11,6 +11,9 @@ const (
 	// KVBucketNameCommitteeSettings is the name of the KV bucket for committee settings.
 	KVBucketNameCommitteeSettings = "committee-settings"
 
+	// KVBucketNameCommitteeMembers is the name of the KV bucket for committee members.
+	KVBucketNameCommitteeMembers = "committee-members"
+
 	// KVLookupPrefix is the prefix for lookup keys in the KV store.
 	KVLookupPrefix = "lookup/committees/%s"
 
