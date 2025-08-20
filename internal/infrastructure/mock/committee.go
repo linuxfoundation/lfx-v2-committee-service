@@ -133,19 +133,19 @@ func NewMockRepository() *MockRepository {
 				FirstName: "John",
 				LastName:  "Doe",
 				JobTitle:  "Senior Developer",
-				Role: model.Role{
+				Role: model.CommitteeMemberRole{
 					Name:      "Chair",
 					StartDate: "2023-01-01",
 					EndDate:   "2024-12-31",
 				},
 				AppointedBy: "Community",
 				Status:      "Active",
-				Voting: model.VotingInfo{
+				Voting: model.CommitteeMemberVotingInfo{
 					Status:    "Voting Rep",
 					StartDate: "2023-01-01",
 					EndDate:   "2024-12-31",
 				},
-				Organization: model.Organization{
+				Organization: model.CommitteeMemberOrganization{
 					Name:    "Example Corp",
 					Website: "https://example.com",
 				},
@@ -162,17 +162,17 @@ func NewMockRepository() *MockRepository {
 				FirstName: "Jane",
 				LastName:  "Smith",
 				JobTitle:  "Security Engineer",
-				Role: model.Role{
+				Role: model.CommitteeMemberRole{
 					Name:      "Secretary",
 					StartDate: "2023-06-01",
 				},
 				AppointedBy: "Vote of TSC Committee",
 				Status:      "Active",
-				Voting: model.VotingInfo{
+				Voting: model.CommitteeMemberVotingInfo{
 					Status:    "Observer",
 					StartDate: "2023-06-01",
 				},
-				Organization: model.Organization{
+				Organization: model.CommitteeMemberOrganization{
 					Name:    "Security Inc",
 					Website: "https://security-inc.com",
 				},

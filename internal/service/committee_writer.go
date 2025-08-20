@@ -878,38 +878,6 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	return nil
 }
 
-// CreateMember creates a new committee member (placeholder implementation)
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) (*model.CommitteeMember, error) {
-	// TODO: Implement committee member creation logic
-	slog.DebugContext(ctx, "creating committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_username", member.Username,
-	)
-	return nil, errs.NewUnexpected("committee member creation not yet implemented")
-}
-
-// UpdateMember updates an existing committee member (placeholder implementation)
-func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
-	// TODO: Implement committee member update logic
-	slog.DebugContext(ctx, "updating committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_uid", member.UID,
-		"revision", revision,
-	)
-	return nil, errs.NewUnexpected("committee member update not yet implemented")
-}
-
-// DeleteMember removes a committee member (placeholder implementation)
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error {
-	// TODO: Implement committee member deletion logic
-	slog.DebugContext(ctx, "deleting committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-		"revision", revision,
-	)
-	return errs.NewUnexpected("committee member deletion not yet implemented")
-}
-
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern
 func NewCommitteeWriterOrchestrator(opts ...committeeWriterOrchestratorOption) CommitteeWriter {
 	uc := &committeeWriterOrchestrator{}

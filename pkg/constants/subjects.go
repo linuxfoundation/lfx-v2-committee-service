@@ -27,6 +27,10 @@ const (
 	// The subject is of the form: lfx.index.committee.committee_settings
 	IndexCommitteeSettingsSubject = "lfx.index.committee_settings"
 
+	// IndexCommitteeMemberSubject is the subject for the committee member index.
+	// The subject is of the form: lfx.index.committee_member
+	IndexCommitteeMemberSubject = "lfx.index.committee_member"
+
 	// UpdateAccessCommitteeSubject is the subject for the committee access control updates.
 	// The subject is of the form: lfx.update_access.committee
 	UpdateAccessCommitteeSubject = "lfx.update_access.committee"

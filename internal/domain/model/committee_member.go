@@ -9,7 +9,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
+
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // CommitteeMember represents the complete committee member business entity
@@ -111,4 +114,63 @@ func (cm *CommitteeMember) Tags(committeeUID string) []string {
 	}
 
 	return tags
+}
+
+// Validate validates the committee member against the committee's requirements
+func (cm *CommitteeMember) Validate(committee *Committee) error {
+	if cm == nil {
+		return errs.NewValidation("committee member cannot be nil")
+	}
+
+	if committee == nil {
+		return errs.NewValidation("committee cannot be nil")
+	}
+
+	// Validate basic required fields
+	if err := cm.validateRequiredFields(); err != nil {
+		return err
+	}
+
+	// Validate committee-specific requirements
+	if err := cm.validateCategory(committee); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateRequiredFields validates basic required fields for all committee members
+func (cm *CommitteeMember) validateRequiredFields() error {
+	if cm.Email == "" {
+		return errs.NewValidation("email is required")
+	}
+
+	return nil
+}
+
+// validateCategory validates the committee member against the committee's category
+func (cm *CommitteeMember) validateCategory(committee *Committee) error {
+	// Government Advisory Council specific validation
+	if committee.IsGovernmentAdvisoryCouncil() {
+		missingFields := []string{}
+		if cm.Agency == "" {
+			missingFields = append(missingFields, "agency")
+		}
+
+		if cm.Country == "" {
+			missingFields = append(missingFields, "country")
+		}
+
+		if len(missingFields) > 0 {
+			return errs.NewValidation("missing required fields for Government Advisory Council members: " + strings.Join(missingFields, ", "))
+		}
+
+		return nil
+	}
+
+	if cm.Agency != "" || cm.Country != "" {
+		return errs.NewValidation("agency and country should not be set for non-Government Advisory Council members")
+	}
+
+	return nil
 }
