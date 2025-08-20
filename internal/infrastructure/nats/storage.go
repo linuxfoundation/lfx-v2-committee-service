@@ -230,67 +230,64 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 // ================== CommitteeMemberReader implementation ==================
 
 // GetMember retrieves a committee member by committee UID and member UID
-func (s *storage) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
-	// TODO: Implement committee member retrieval from NATS KV store
-	slog.DebugContext(ctx, "NATS storage: getting committee member (not implemented)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-	)
+func (s *storage) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
 	return nil, 0, errs.NewUnexpected("committee member retrieval not yet implemented")
 }
 
 // GetMemberRevision retrieves the revision number for a committee member
-func (s *storage) GetMemberRevision(ctx context.Context, committeeUID, memberUID string) (uint64, error) {
-	// TODO: Implement committee member revision retrieval from NATS KV store
-	slog.DebugContext(ctx, "NATS storage: getting member revision (not implemented)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-	)
+func (s *storage) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	return 0, errs.NewUnexpected("committee member revision retrieval not yet implemented")
 }
 
 // ================== CommitteeMemberWriter implementation ==================
 
 // CreateMember creates a new committee member
-func (s *storage) CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) error {
-	// TODO: Implement committee member creation in NATS KV store
-	slog.DebugContext(ctx, "NATS storage: creating committee member (not implemented)",
-		"committee_uid", committeeUID,
-		"member_email", member.Email,
+func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
+
+	if member == nil {
+		return errs.NewValidation("committee member cannot be nil")
+	}
+
+	memberBytes, errMarshal := json.Marshal(member)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee member", errMarshal)
+	}
+
+	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, member.UID, memberBytes)
+	if errCreate != nil {
+		return errs.NewUnexpected("failed to create committee member", errCreate)
+	}
+
+	slog.DebugContext(ctx, "created committee member in NATS storage",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"revision", rev,
 	)
-	return errs.NewUnexpected("committee member creation not yet implemented")
+
+	return nil
 }
 
 // UpdateMember updates an existing committee member
-func (s *storage) UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) error {
-	// TODO: Implement committee member update in NATS KV store
-	slog.DebugContext(ctx, "NATS storage: updating committee member (not implemented)",
-		"committee_uid", committeeUID,
-		"member_uid", member.UID,
-		"revision", revision,
-	)
+func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
 	return errs.NewUnexpected("committee member update not yet implemented")
 }
 
 // DeleteMember removes a committee member
-func (s *storage) DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error {
-	// TODO: Implement committee member deletion in NATS KV store
-	slog.DebugContext(ctx, "NATS storage: deleting committee member (not implemented)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-		"revision", revision,
-	)
+func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64) error {
 	return errs.NewUnexpected("committee member deletion not yet implemented")
 }
 
-// UniqueMemberUsername verifies if a member with the same username exists in the committee
-func (s *storage) UniqueMemberUsername(ctx context.Context, committeeUID string, member *model.CommitteeMember) (string, error) {
-	// TODO: Implement committee member username uniqueness check in NATS KV store
-	slog.DebugContext(ctx, "NATS storage: checking member username uniqueness (not implemented)",
-		"committee_uid", committeeUID,
-		"username", member.Username,
-	)
-	return "", errs.NewUnexpected("committee member username uniqueness check not yet implemented")
+// UniqueMember verifies if a member with the same email exists in the committee
+func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	uniqueKey := fmt.Sprintf(constants.KVLookupMemberPrefix, member.BuildIndexKey(ctx))
+	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, uniqueKey, []byte(member.UID))
+	if errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return uniqueKey, errs.NewConflict("member with the same email already exists in the committee")
+		}
+		return uniqueKey, errs.NewUnexpected("failed to create unique key for member", errUnique)
+	}
+	return uniqueKey, nil
 }
 
 func (s *storage) IsReady(ctx context.Context) error {

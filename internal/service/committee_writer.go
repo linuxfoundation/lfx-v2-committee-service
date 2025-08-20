@@ -41,11 +41,11 @@ type CommitteeDataWriter interface {
 // CommitteeMemberDataWriter defines the interface for committee member write operations
 type CommitteeMemberDataWriter interface {
 	// CreateMember inserts a new committee member into the storage
-	CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) (*model.CommitteeMember, error)
+	CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error)
 	// UpdateMember modifies an existing committee member in the storage
-	UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error
+	DeleteMember(ctx context.Context, uid string, revision uint64) error
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options

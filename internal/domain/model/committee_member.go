@@ -13,6 +13,7 @@ import (
 	"time"
 
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
 // CommitteeMember represents the complete committee member business entity
@@ -35,6 +36,7 @@ type CommitteeMemberBase struct {
 	Agency       string                      `json:"agency,omitempty"`
 	Country      string                      `json:"country,omitempty"`
 	Organization CommitteeMemberOrganization `json:"organization"`
+	CommitteeUID string                      `json:"committee_uid"`
 	CreatedAt    time.Time                   `json:"created_at"`
 	UpdatedAt    time.Time                   `json:"updated_at"`
 }
@@ -63,17 +65,17 @@ type CommitteeMemberOrganization struct {
 // This is necessary because the original input may contain special characters,
 // exceed length limits, or have inconsistent formatting, and we do not control its content.
 // Using a hash ensures a safe, fixed-length, and deterministic key.
-func (cm *CommitteeMember) BuildIndexKey(ctx context.Context, committeeUID string) string {
+func (cm *CommitteeMember) BuildIndexKey(ctx context.Context) string {
 	// Combine committee_uid and member email with a delimiter
-	data := fmt.Sprintf("%s|%s", committeeUID, cm.Email)
+	data := fmt.Sprintf("%s|%s", cm.CommitteeUID, cm.Email)
 
 	hash := sha256.Sum256([]byte(data))
 
 	key := hex.EncodeToString(hash[:])
 
 	slog.DebugContext(ctx, "member index key built",
-		"committee_uid", committeeUID,
-		"email", cm.Email,
+		"committee_uid", cm.CommitteeUID,
+		"email", redaction.RedactEmail(cm.Email),
 		"key", key,
 	)
 

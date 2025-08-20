@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,10 +20,53 @@ import (
 
 // type committeeWriterOrchestrator from committee_writer.go
 
+func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, keys []string, isRollback bool) {
+
+	if len(keys) == 0 {
+		return
+	}
+
+	slog.DebugContext(ctx, "deleting member keys",
+		"keys", keys,
+		"is_rollback", isRollback,
+	)
+
+	for _, key := range keys {
+		rev, errGet := uc.committeeReader.GetMemberRevision(ctx, key)
+		if errGet != nil {
+			slog.ErrorContext(ctx, "failed to get member revision",
+				"error", errGet,
+				"key", key,
+				"is_rollback", isRollback,
+				// This is critical because if we don't delete them,
+				// the member would be locked for reuse for a long time.
+				log.PriorityCritical(),
+			)
+			continue
+		}
+
+		errDelete := uc.committeeWriter.DeleteMember(ctx, key, rev)
+		if errDelete != nil {
+			slog.ErrorContext(ctx, "failed to delete member key",
+				"error", errDelete,
+				"key", key,
+				"is_rollback", isRollback,
+				// This is critical because if we don't delete them,
+				// the member would be locked for reuse for a long time.
+				log.PriorityCritical(),
+			)
+		}
+		slog.DebugContext(ctx, "deleted member key",
+			"key", key,
+			"is_rollback", isRollback,
+		)
+	}
+}
+
 // CreateMember creates a new committee member includes validation and rollback support
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "creating committee member",
-		"committee_uid", committeeUID,
+		"committee_uid", member.CommitteeUID,
 		"member_email", redaction.RedactEmail(member.Email),
 		"member_username", redaction.Redact(member.Username),
 	)
@@ -36,21 +78,21 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 
 	// Track resources for rollback purposes
 	var (
-		memberCreated    bool
+		keys             []string
 		rollbackRequired bool
 	)
 	defer func() {
 		if err := recover(); err != nil || rollbackRequired {
-			uc.rollbackMemberCreation(ctx, committeeUID, member.UID, memberCreated)
+			uc.deleteMemberKeys(ctx, keys, rollbackRequired)
 		}
 	}()
 
 	// Step 1: Validate that the committee exists
-	committee, committeeRevision, errCommittee := uc.committeeReader.GetBase(ctx, committeeUID)
+	committee, committeeRevision, errCommittee := uc.committeeReader.GetBase(ctx, member.CommitteeUID)
 	if errCommittee != nil {
 		slog.ErrorContext(ctx, "committee not found",
 			"error", errCommittee,
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 		)
 		return nil, errCommittee
 	}
@@ -64,11 +106,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 
 	// Get committee settings to check business email requirements
 	var settings *model.CommitteeSettings
-	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, committeeUID)
+	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
 	if errSettings != nil && !errors.Is(errSettings, errs.NotFound{}) {
 		slog.ErrorContext(ctx, "failed to retrieve committee settings",
 			"error", errSettings,
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 		)
 		return nil, errSettings
 	}
@@ -78,7 +120,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 	}
 
 	slog.DebugContext(ctx, "committee settings retrieved",
-		"committee_uid", committeeUID,
+		"committee_uid", member.CommitteeUID,
 		"business_email_required", settings.BusinessEmailRequired,
 	)
 
@@ -88,7 +130,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 		slog.ErrorContext(ctx, "committee member validation failed",
 			"error", errValidation,
 			"member_uid", member.UID,
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 			"committee_category", committee.Category,
 			"member_email", redaction.RedactEmail(member.Email),
 			"member_username", redaction.Redact(member.Username),
@@ -104,54 +146,57 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 			slog.WarnContext(ctx, "corporate email domain validation failed",
 				"error", errEmailValidation,
 				"email", redaction.RedactEmail(member.Email),
-				"committee_uid", committeeUID,
+				"committee_uid", member.CommitteeUID,
 			)
 			return nil, errEmailValidation
 		}
 	}
 
-	// Step 4: Check if member already exists in committee
-	if errMemberExists := uc.validateMemberUniqueness(ctx, committeeUID, member); errMemberExists != nil {
-		slog.WarnContext(ctx, "member already exists in committee",
-			"error", errMemberExists,
-			"committee_uid", committeeUID,
-			"member_email", redaction.RedactEmail(member.Email),
-		)
-		return nil, errMemberExists
-	}
-
-	// Step 5: Validate username exists
+	// Step 4: Validate username exists
 	if errUsername := uc.validateUsernameExists(ctx, member.Username); errUsername != nil {
-		slog.WarnContext(ctx, "username validation failed",
+		slog.ErrorContext(ctx, "username validation failed",
 			"error", errUsername,
 			"username", redaction.Redact(member.Username),
 		)
 		return nil, errUsername
 	}
 
-	// Step 6: Validate organization exists (external service call)
+	// Step 5: Validate organization exists (external service call)
 	if errOrganization := uc.validateOrganizationExists(ctx, member.Organization.Name); errOrganization != nil {
-		slog.WarnContext(ctx, "organization validation failed",
+		slog.ErrorContext(ctx, "organization validation failed",
 			"error", errOrganization,
 			"organization", member.Organization.Name,
 		)
 		return nil, errOrganization
 	}
 
+	// Step 6: Check if member already exists in committee
+	key, errMemberExists := uc.committeeWriter.UniqueMember(ctx, member)
+	if errMemberExists != nil {
+		slog.WarnContext(ctx, "member already exists in committee",
+			"error", errMemberExists,
+			"committee_uid", member.CommitteeUID,
+			"member_email", redaction.RedactEmail(member.Email),
+		)
+		return nil, errMemberExists
+	}
+	keys = append(keys, key)
+
 	// Step 7: Create the member record with rollback support
-	errCreate := uc.committeeWriter.CreateMember(ctx, committeeUID, member)
+	errCreate := uc.committeeWriter.CreateMember(ctx, member)
 	if errCreate != nil {
 		slog.ErrorContext(ctx, "failed to create committee member",
 			"error", errCreate,
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 			"member_uid", member.UID,
 		)
+		rollbackRequired = true
 		return nil, errCreate
 	}
-	memberCreated = true
+	keys = append(keys, member.UID)
 
 	slog.DebugContext(ctx, "committee member created successfully",
-		"committee_uid", committeeUID,
+		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
 		"member_email", redaction.RedactEmail(member.Email),
 		"member_username", redaction.Redact(member.Username),
@@ -164,17 +209,17 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 			"error", errEngagement,
 			"organization", member.Organization.Name,
 			"username", redaction.Redact(member.Username),
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 			"member_uid", member.UID,
 		)
 	}
 
 	// Step 9: Publish indexer and access control messages
-	if errPublish := uc.publishMemberMessages(ctx, committeeUID, member); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, member.CommitteeUID, member); errPublish != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to publish member messages",
 			"error", errPublish,
-			"committee_uid", committeeUID,
+			"committee_uid", member.CommitteeUID,
 			"member_uid", member.UID,
 		)
 	}
@@ -183,22 +228,15 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, committ
 }
 
 // UpdateMember updates an existing committee member (placeholder implementation)
-func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
-	// TODO: Implement committee member update logic
-	slog.DebugContext(ctx, "updating committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_uid", member.UID,
-		"revision", revision,
-	)
+func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
 	return nil, errs.NewUnexpected("committee member update not yet implemented")
 }
 
 // DeleteMember removes a committee member (placeholder implementation)
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error {
+func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64) error {
 	// TODO: Implement committee member deletion logic
 	slog.DebugContext(ctx, "deleting committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
+		"member_uid", uid,
 		"revision", revision,
 	)
 	return errs.NewUnexpected("committee member deletion not yet implemented")
@@ -211,47 +249,8 @@ func (uc *committeeWriterOrchestrator) validateCorporateEmailDomain(ctx context.
 		"email", redaction.RedactEmail(email),
 	)
 
-	// For now, we'll implement basic validation - reject common personal email domains
-	personalDomains := []string{
-		"gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
-		"aol.com", "icloud.com", "protonmail.com", "yandex.com",
-	}
-
-	emailParts := strings.Split(email, "@")
-	if len(emailParts) != 2 {
-		return errs.NewValidation("invalid email format")
-	}
-
-	domain := strings.ToLower(emailParts[1])
-	for _, personalDomain := range personalDomains {
-		if domain == personalDomain {
-			return errs.NewValidation("personal email domains are not allowed for this committee")
-		}
-	}
-
-	// TODO: Implement more sophisticated corporate domain validation
-	// This could involve checking against a whitelist of known corporate domains
-	// or using an external service to validate corporate domains
-
-	return nil
-}
-
-// validateMemberUniqueness checks if a member with the same email already exists in the committee
-func (uc *committeeWriterOrchestrator) validateMemberUniqueness(ctx context.Context, committeeUID string, member *model.CommitteeMember) error {
-	slog.DebugContext(ctx, "validating member uniqueness",
-		"committee_uid", committeeUID,
-		"member_email", redaction.RedactEmail(member.Email),
-	)
-
-	// Try to create a unique key for the member
-	// This will fail if a member with the same email already exists
-	_, errUnique := uc.committeeWriter.UniqueMemberUsername(ctx, committeeUID, member)
-	if errUnique != nil {
-		if errors.As(errUnique, &errs.Conflict{}) {
-			return errs.NewConflict("a member with this email already exists in the committee")
-		}
-		return errUnique
-	}
+	// TODO: Implement actual corporate email domain validation logic
+	// This could involve calling LFX user service /v1/users/public-email
 
 	return nil
 }
@@ -309,45 +308,6 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	// This should add the user engagement record to track committee participation
 
 	return nil
-}
-
-// rollbackMemberCreation handles rollback of member creation in case of failures
-func (uc *committeeWriterOrchestrator) rollbackMemberCreation(ctx context.Context, committeeUID, memberUID string, memberCreated bool) {
-	slog.WarnContext(ctx, "rolling back member creation",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-		"member_created", memberCreated,
-	)
-
-	if memberCreated {
-		// Get member revision for deletion
-		rev, errRev := uc.committeeReader.GetMemberRevision(ctx, committeeUID, memberUID)
-		if errRev != nil {
-			slog.ErrorContext(ctx, "failed to get member revision for rollback",
-				"error", errRev,
-				"committee_uid", committeeUID,
-				"member_uid", memberUID,
-				log.PriorityCritical(),
-			)
-			return
-		}
-
-		// Delete the created member
-		errDelete := uc.committeeWriter.DeleteMember(ctx, committeeUID, memberUID, rev)
-		if errDelete != nil {
-			slog.ErrorContext(ctx, "failed to delete member during rollback",
-				"error", errDelete,
-				"committee_uid", committeeUID,
-				"member_uid", memberUID,
-				log.PriorityCritical(),
-			)
-		} else {
-			slog.DebugContext(ctx, "successfully rolled back member creation",
-				"committee_uid", committeeUID,
-				"member_uid", memberUID,
-			)
-		}
-	}
 }
 
 // publishMemberMessages publishes indexer and access control messages for the new member

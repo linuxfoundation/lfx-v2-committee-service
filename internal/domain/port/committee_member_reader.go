@@ -12,7 +12,7 @@ import (
 // CommitteeMemberReader provides access to committee member reading operations
 type CommitteeMemberReader interface {
 	// GetMember retrieves a committee member by committee UID and member UID
-	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
+	GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error)
 	// GetMemberRevision retrieves the revision number for a committee member
-	GetMemberRevision(ctx context.Context, committeeUID, memberUID string) (uint64, error)
+	GetMemberRevision(ctx context.Context, uid string) (uint64, error)
 }

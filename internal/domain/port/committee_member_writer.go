@@ -12,12 +12,12 @@ import (
 // CommitteeMemberWriter provides access to committee member writing operations
 type CommitteeMemberWriter interface {
 	// CreateMember creates a new committee member
-	CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) error
+	CreateMember(ctx context.Context, member *model.CommitteeMember) error
 	// UpdateMember updates an existing committee member
-	UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) error
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error
+	DeleteMember(ctx context.Context, uid string, revision uint64) error
 
 	// Checkers for uniqueness
-	UniqueMemberUsername(ctx context.Context, committeeUID string, member *model.CommitteeMember) (string, error)
+	UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error)
 }

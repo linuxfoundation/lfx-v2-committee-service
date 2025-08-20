@@ -186,8 +186,8 @@ func NewMockRepository() *MockRepository {
 		mock.memberIndexKeys["committee-1"] = make(map[string]*model.CommitteeMember)
 		mock.committeeMembers["committee-1"][sampleMember1.UID] = sampleMember1
 		mock.committeeMembers["committee-1"][sampleMember2.UID] = sampleMember2
-		mock.memberIndexKeys["committee-1"][sampleMember1.BuildIndexKey(ctx, "committee-1")] = sampleMember1
-		mock.memberIndexKeys["committee-1"][sampleMember2.BuildIndexKey(ctx, "committee-1")] = sampleMember2
+		mock.memberIndexKeys["committee-1"][sampleMember1.BuildIndexKey(ctx)] = sampleMember1
+		mock.memberIndexKeys["committee-1"][sampleMember2.BuildIndexKey(ctx)] = sampleMember2
 		mock.memberRevisions[sampleMember1.UID] = 1
 		mock.memberRevisions[sampleMember2.UID] = 1
 
@@ -269,53 +269,48 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 
 // ================== CommitteeMemberReader implementation ==================
 
-// GetMember retrieves a committee member by committee UID and member UID
-func (m *MockRepository) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
-	slog.DebugContext(ctx, "mock repository: getting committee member", "committee_uid", committeeUID, "member_uid", memberUID)
+// GetMember retrieves a committee member by member UID
+func (m *MockRepository) GetMember(ctx context.Context, memberUID string) (*model.CommitteeMember, uint64, error) {
+	slog.DebugContext(ctx, "mock repository: getting committee member", "member_uid", memberUID)
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	committeeMembers, exists := m.committeeMembers[committeeUID]
-	if !exists {
-		return nil, 0, errors.NewNotFound(fmt.Sprintf("no members found for committee %s", committeeUID))
+	// Search across all committees for the member
+	for _, committeeMembers := range m.committeeMembers {
+		if member, exists := committeeMembers[memberUID]; exists {
+			// Return a copy to avoid data races
+			memberCopy := *member
+			revision := m.memberRevisions[memberUID]
+			if revision == 0 {
+				revision = 1
+			}
+			return &memberCopy, revision, nil
+		}
 	}
 
-	member, exists := committeeMembers[memberUID]
-	if !exists {
-		return nil, 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found in committee %s", memberUID, committeeUID))
-	}
-
-	// Return a copy to avoid data races
-	memberCopy := *member
-	revision := m.memberRevisions[memberUID]
-	if revision == 0 {
-		revision = 1
-	}
-	return &memberCopy, revision, nil
+	return nil, 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 }
 
 // GetMemberRevision retrieves the revision number for a committee member
-func (m *MockRepository) GetMemberRevision(ctx context.Context, committeeUID, memberUID string) (uint64, error) {
-	slog.DebugContext(ctx, "mock repository: getting member revision", "committee_uid", committeeUID, "member_uid", memberUID)
+func (m *MockRepository) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
+	slog.DebugContext(ctx, "mock repository: getting member revision", "member_uid", memberUID)
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	committeeMembers, exists := m.committeeMembers[committeeUID]
-	if !exists {
-		return 0, errors.NewNotFound(fmt.Sprintf("no members found for committee %s", committeeUID))
+	// Check if member exists across all committees
+	for _, committeeMembers := range m.committeeMembers {
+		if _, exists := committeeMembers[memberUID]; exists {
+			revision := m.memberRevisions[memberUID]
+			if revision == 0 {
+				revision = 1
+			}
+			return revision, nil
+		}
 	}
 
-	if _, exists := committeeMembers[memberUID]; !exists {
-		return 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found in committee %s", memberUID, committeeUID))
-	}
-
-	revision := m.memberRevisions[memberUID]
-	if revision == 0 {
-		revision = 1
-	}
-	return revision, nil
+	return 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 }
 
 // ListMembers retrieves all members for a committee
@@ -488,8 +483,8 @@ func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model
 // ================== CommitteeMemberWriter implementation ==================
 
 // CreateMember creates a new committee member
-func (w *MockCommitteeWriter) CreateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember) error {
-	slog.DebugContext(ctx, "mock committee writer: creating committee member", "committee_uid", committeeUID, "email", member.Email)
+func (w *MockCommitteeWriter) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
+	slog.DebugContext(ctx, "mock committee writer: creating committee member", "member_uid", member.UID, "email", member.Email)
 
 	// Generate UID if not set
 	if member.UID == "" {
@@ -503,6 +498,13 @@ func (w *MockCommitteeWriter) CreateMember(ctx context.Context, committeeUID str
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
+	// For mock purposes, we'll store in a default committee or use member's committee reference
+	// This is a simplified approach since we no longer have committeeUID as parameter
+	committeeUID := "default-committee" // Fallback for mock
+	if member.CommitteeUID != "" {
+		committeeUID = member.CommitteeUID
+	}
+
 	// Initialize committee members map if it doesn't exist
 	if w.mock.committeeMembers[committeeUID] == nil {
 		w.mock.committeeMembers[committeeUID] = make(map[string]*model.CommitteeMember)
@@ -513,33 +515,35 @@ func (w *MockCommitteeWriter) CreateMember(ctx context.Context, committeeUID str
 
 	// Store member
 	w.mock.committeeMembers[committeeUID][member.UID] = member
-	w.mock.memberIndexKeys[committeeUID][member.BuildIndexKey(ctx, committeeUID)] = member
+	w.mock.memberIndexKeys[committeeUID][member.BuildIndexKey(ctx)] = member
 	w.mock.memberRevisions[member.UID] = 1
 
 	return nil
 }
 
 // UpdateMember updates an existing committee member
-func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, committeeUID string, member *model.CommitteeMember, revision uint64) error {
-	slog.DebugContext(ctx, "mock committee writer: updating committee member", "committee_uid", committeeUID, "member_uid", member.UID, "revision", revision)
+func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: updating committee member", "member_uid", member.UID, "revision", revision)
 
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
-	// Check if committee has members
-	committeeMembers, exists := w.mock.committeeMembers[committeeUID]
-	if !exists {
-		return errors.NewNotFound(fmt.Sprintf("no members found for committee %s", committeeUID))
+	// Find the member across all committees
+	var foundCommitteeUID string
+	for committeeUID, committeeMembers := range w.mock.committeeMembers {
+		if _, exists := committeeMembers[member.UID]; exists {
+			foundCommitteeUID = committeeUID
+			break
+		}
 	}
 
-	// Check if member exists
-	if _, exists := committeeMembers[member.UID]; !exists {
-		return errors.NewNotFound(fmt.Sprintf("member with UID %s not found in committee %s", member.UID, committeeUID))
+	if foundCommitteeUID == "" {
+		return errors.NewNotFound(fmt.Sprintf("member with UID %s not found", member.UID))
 	}
 
 	member.UpdatedAt = time.Now()
-	w.mock.committeeMembers[committeeUID][member.UID] = member
-	w.mock.memberIndexKeys[committeeUID][member.BuildIndexKey(ctx, committeeUID)] = member
+	w.mock.committeeMembers[foundCommitteeUID][member.UID] = member
+	w.mock.memberIndexKeys[foundCommitteeUID][member.BuildIndexKey(ctx)] = member
 
 	// Update revision
 	currentRevision := w.mock.memberRevisions[member.UID]
@@ -549,57 +553,57 @@ func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, committeeUID str
 }
 
 // DeleteMember removes a committee member
-func (w *MockCommitteeWriter) DeleteMember(ctx context.Context, committeeUID, memberUID string, revision uint64) error {
-	slog.DebugContext(ctx, "mock committee writer: deleting committee member", "committee_uid", committeeUID, "member_uid", memberUID, "revision", revision)
+func (w *MockCommitteeWriter) DeleteMember(ctx context.Context, memberUID string, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: deleting committee member", "member_uid", memberUID, "revision", revision)
 
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
-	// Check if committee has members
-	committeeMembers, exists := w.mock.committeeMembers[committeeUID]
-	if !exists {
-		return errors.NewNotFound(fmt.Sprintf("no members found for committee %s", committeeUID))
+	// Find the member across all committees
+	var foundCommitteeUID string
+	var member *model.CommitteeMember
+	for committeeUID, committeeMembers := range w.mock.committeeMembers {
+		if m, exists := committeeMembers[memberUID]; exists {
+			foundCommitteeUID = committeeUID
+			member = m
+			break
+		}
 	}
 
-	// Get member to obtain index key before deleting
-	member, exists := committeeMembers[memberUID]
-	if !exists {
-		return errors.NewNotFound(fmt.Sprintf("member with UID %s not found in committee %s", memberUID, committeeUID))
+	if foundCommitteeUID == "" {
+		return errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 	}
 
 	// Get the index key before deleting
-	indexKey := member.BuildIndexKey(ctx, committeeUID)
+	indexKey := member.BuildIndexKey(ctx)
 
 	// Delete member
-	delete(w.mock.committeeMembers[committeeUID], memberUID)
-	delete(w.mock.memberIndexKeys[committeeUID], indexKey)
+	delete(w.mock.committeeMembers[foundCommitteeUID], memberUID)
+	delete(w.mock.memberIndexKeys[foundCommitteeUID], indexKey)
 	delete(w.mock.memberRevisions, memberUID)
 
 	return nil
 }
 
-// UniqueMemberUsername verifies if a member with the same username exists in the committee
-func (w *MockCommitteeWriter) UniqueMemberUsername(ctx context.Context, committeeUID string, member *model.CommitteeMember) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking member username uniqueness", "committee_uid", committeeUID, "username", member.Username)
+// UniqueMember verifies if a member is unique (based on email or other unique identifiers)
+func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: checking member uniqueness", "member_uid", member.UID, "email", member.Email)
 
 	w.mock.mu.RLock()
 	defer w.mock.mu.RUnlock()
 
-	committeeMembers, exists := w.mock.committeeMembers[committeeUID]
-	if !exists {
-		// No members exist, so username is unique
-		return "", errors.NewNotFound(fmt.Sprintf("no members found for committee %s", committeeUID))
-	}
-
-	for _, existing := range committeeMembers {
-		if existing.Username == member.Username && existing.UID != member.UID {
-			// Return conflict error to indicate non-uniqueness
-			return existing.UID, errors.NewConflict(fmt.Sprintf("member with username %s already exists in committee %s", member.Username, committeeUID))
+	// Check across all committees for existing member with same email
+	for _, committeeMembers := range w.mock.committeeMembers {
+		for _, existing := range committeeMembers {
+			if existing.Email == member.Email && existing.UID != member.UID {
+				// Return conflict error to indicate non-uniqueness
+				return existing.UID, errors.NewConflict(fmt.Sprintf("member with email %s already exists", member.Email))
+			}
 		}
 	}
 
 	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("member with username %s not found in committee %s", member.Username, committeeUID))
+	return "", errors.NewNotFound(fmt.Sprintf("member with email %s not found", member.Email))
 }
 
 // MockProjectRetriever implements ProjectRetriever interface
@@ -751,7 +755,7 @@ func (m *MockRepository) AddCommitteeMember(committeeUID string, member *model.C
 	}
 
 	m.committeeMembers[committeeUID][member.UID] = member
-	m.memberIndexKeys[committeeUID][member.BuildIndexKey(context.Background(), committeeUID)] = member
+	m.memberIndexKeys[committeeUID][member.BuildIndexKey(context.Background())] = member
 	m.memberRevisions[member.UID] = 1
 }
 
