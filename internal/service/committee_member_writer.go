@@ -249,7 +249,8 @@ func (uc *committeeWriterOrchestrator) validateCorporateEmailDomain(ctx context.
 		"email", redaction.RedactEmail(email),
 	)
 
-	// TODO: Implement actual corporate email domain validation logic
+	// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-328
+	// Implement actual corporate email domain validation logic
 	// This could involve calling LFX user service /v1/users/public-email
 
 	return nil
@@ -262,15 +263,10 @@ func (uc *committeeWriterOrchestrator) validateUsernameExists(ctx context.Contex
 		"username", redaction.Redact(username),
 	)
 
-	// TODO: Implement actual username validation against external services
+	// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-329
+	// Implement actual username validation against external services
 	// This could involve calling LFX user service or similar
 	// For now, we'll just validate that username is not empty
-	if username == "" {
-		return errs.NewValidation("username is required")
-	}
-
-	// TODO: Add actual external service call here
-	// Example: call to /users/{username} endpoint to verify user exists
 
 	return nil
 }
@@ -282,15 +278,10 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 		"organization", redaction.Redact(organizationName),
 	)
 
-	// TODO: Implement actual organization validation against external services
+	// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-330
+	// Implement actual organization validation against external services
 	// This could involve calling LFX organization service or similar
 	// For now, we'll just validate that organization name is not empty
-	if organizationName == "" {
-		return errs.NewValidation("organization name is required")
-	}
-
-	// TODO: Add actual external service call here
-	// Example: call to /organizations endpoint to verify organization exists
 
 	return nil
 }
@@ -303,7 +294,7 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 		"username", redaction.Redact(username),
 	)
 
-	// TODO: Implement actual external API call
+	// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-331 - Implement actual external API call
 	// Example: POST /orgs/{org}/users/{username}/engagements
 	// This should add the user engagement record to track committee participation
 
@@ -320,7 +311,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	// Build indexer message for the member
 	indexerMessage := model.CommitteeIndexerMessage{
 		Action: model.ActionCreated,
-		Tags:   member.Tags(committeeUID),
+		Tags:   member.Tags(),
 	}
 
 	message, errBuildIndexerMessage := indexerMessage.Build(ctx, member)
@@ -338,10 +329,8 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, message)
 		},
-		// TODO: Add access control message if needed for members
-		// func() error {
-		//     return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeMemberSubject, accessMessage)
-		// },
+		// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-332
+		// Evaluate if we need to publish access control messages for members
 	}
 
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)

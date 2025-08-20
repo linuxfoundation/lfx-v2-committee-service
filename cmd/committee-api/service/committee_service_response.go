@@ -243,3 +243,152 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 
 	return result
 }
+
+// convertMemberPayloadToDomain converts GOA CreateCommitteeMemberPayload to domain model
+func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.CreateCommitteeMemberPayload) *model.CommitteeMember {
+	// Check for nil payload to avoid panic
+	if p == nil {
+		return &model.CommitteeMember{}
+	}
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: p.UID,
+			Email:        p.Email,
+			AppointedBy:  p.AppointedBy,
+			Status:       p.Status,
+		},
+	}
+
+	// Handle Username with nil check
+	if p.Username != nil {
+		member.Username = *p.Username
+	}
+
+	// Handle FirstName with nil check
+	if p.FirstName != nil {
+		member.FirstName = *p.FirstName
+	}
+
+	// Handle LastName with nil check
+	if p.LastName != nil {
+		member.LastName = *p.LastName
+	}
+
+	// Handle JobTitle with nil check
+	if p.JobTitle != nil {
+		member.JobTitle = *p.JobTitle
+	}
+
+	// Handle Role if present
+	if p.Role != nil {
+		member.Role = model.CommitteeMemberRole{
+			Name: p.Role.Name,
+		}
+		if p.Role.StartDate != nil {
+			member.Role.StartDate = *p.Role.StartDate
+		}
+		if p.Role.EndDate != nil {
+			member.Role.EndDate = *p.Role.EndDate
+		}
+	}
+
+	// Handle Voting if present
+	if p.Voting != nil {
+		member.Voting = model.CommitteeMemberVotingInfo{
+			Status: p.Voting.Status,
+		}
+		if p.Voting.StartDate != nil {
+			member.Voting.StartDate = *p.Voting.StartDate
+		}
+		if p.Voting.EndDate != nil {
+			member.Voting.EndDate = *p.Voting.EndDate
+		}
+	}
+
+	// Handle Agency with nil check (for GAC members)
+	if p.Agency != nil {
+		member.Agency = *p.Agency
+	}
+
+	// Handle Country with nil check (for GAC members)
+	if p.Country != nil {
+		member.Country = *p.Country
+	}
+
+	// Handle Organization if present
+	if p.Organization != nil {
+		if p.Organization.Name != nil {
+			member.Organization.Name = *p.Organization.Name
+		}
+		if p.Organization.Website != nil {
+			member.Organization.Website = *p.Organization.Website
+		}
+	}
+
+	return member
+}
+
+// convertMemberDomainToFullResponse converts domain CommitteeMember to GOA response type
+func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
+	if member == nil {
+		return nil
+	}
+
+	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+		UID:         &member.UID,
+		Username:    &member.Username,
+		Email:       &member.Email,
+		FirstName:   &member.FirstName,
+		LastName:    &member.LastName,
+		JobTitle:    &member.JobTitle,
+		AppointedBy: member.AppointedBy,
+		Status:      member.Status,
+		Agency:      &member.Agency,
+		Country:     &member.Country,
+	}
+
+	// Handle Role mapping
+	result.Role = &struct {
+		Name      string
+		StartDate *string
+		EndDate   *string
+	}{
+		Name:      member.Role.Name,
+		StartDate: &member.Role.StartDate,
+		EndDate:   &member.Role.EndDate,
+	}
+
+	// Handle Voting mapping
+	result.Voting = &struct {
+		Status    string
+		StartDate *string
+		EndDate   *string
+	}{
+		Status:    member.Voting.Status,
+		StartDate: &member.Voting.StartDate,
+		EndDate:   &member.Voting.EndDate,
+	}
+
+	// Handle Organization mapping
+	result.Organization = &struct {
+		Name    *string
+		Website *string
+	}{
+		Name:    &member.Organization.Name,
+		Website: &member.Organization.Website,
+	}
+
+	// Convert timestamps to strings if they exist
+	if !member.CreatedAt.IsZero() {
+		createdAt := member.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+
+	if !member.UpdatedAt.IsZero() {
+		updatedAt := member.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.UpdatedAt = &updatedAt
+	}
+
+	return result
+}
