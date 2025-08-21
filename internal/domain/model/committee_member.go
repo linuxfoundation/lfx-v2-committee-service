@@ -62,12 +62,17 @@ type CommitteeMemberOrganization struct {
 }
 
 // BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
+// The hash is generated from the committee UID and the member's email (i.e., committee_uid + email).
+// This enforces uniqueness for committee members within a committee.
 // This is necessary because the original input may contain special characters,
 // exceed length limits, or have inconsistent formatting, and we do not control its content.
 // Using a hash ensures a safe, fixed-length, and deterministic key.
 func (cm *CommitteeMember) BuildIndexKey(ctx context.Context) string {
-	// Combine committee_uid and member email with a delimiter
-	data := fmt.Sprintf("%s|%s", cm.CommitteeUID, cm.Email)
+
+	committee := strings.TrimSpace(strings.ToLower(cm.CommitteeUID))
+	email := strings.TrimSpace(strings.ToLower(cm.Email))
+	// Combine normalized values with a delimiter
+	data := fmt.Sprintf("%s|%s", committee, email)
 
 	hash := sha256.Sum256([]byte(data))
 

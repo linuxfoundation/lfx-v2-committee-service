@@ -12,6 +12,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 
 	"goa.design/goa/v3/security"
 )
@@ -212,8 +213,7 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 
 	slog.DebugContext(ctx, "committeeMemberService.create-committee-member",
 		"committee_uid", p.UID,
-		"username", p.Username,
-		"email", p.Email,
+		"email", redaction.RedactEmail(p.Email),
 	)
 
 	// Convert payload to domain model

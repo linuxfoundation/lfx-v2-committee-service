@@ -278,6 +278,8 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 }
 
 // UniqueMember verifies if a member with the same email exists in the committee
+// It stores the member UID in the KV store with the index key as the value as secondary index
+// to ensure that the member is unique, avoiding concurrent operations for the same member.
 func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	uniqueKey := fmt.Sprintf(constants.KVLookupMemberPrefix, member.BuildIndexKey(ctx))
 	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, uniqueKey, []byte(member.UID))

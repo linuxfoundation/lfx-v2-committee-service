@@ -107,12 +107,15 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	// Get committee settings to check business email requirements
 	var settings *model.CommitteeSettings
 	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
-	if errSettings != nil && !errors.Is(errSettings, errs.NotFound{}) {
-		slog.ErrorContext(ctx, "failed to retrieve committee settings",
-			"error", errSettings,
-			"committee_uid", member.CommitteeUID,
-		)
-		return nil, errSettings
+	if errSettings != nil {
+		var notFoundErr errs.NotFound
+		if !errors.As(errSettings, &notFoundErr) {
+			slog.ErrorContext(ctx, "failed to retrieve committee settings",
+				"error", errSettings,
+				"committee_uid", member.CommitteeUID,
+			)
+			return nil, errSettings
+		}
 	}
 	// Use empty settings if not found
 	if settings == nil {

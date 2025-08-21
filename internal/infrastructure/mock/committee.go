@@ -127,12 +127,13 @@ func NewMockRepository() *MockRepository {
 		// Add sample committee members
 		sampleMember1 := &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID:       "member-1",
-				Username:  "john.doe",
-				Email:     "john.doe@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				JobTitle:  "Senior Developer",
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Username:     "john.doe",
+				Email:        "john.doe@example.com",
+				FirstName:    "John",
+				LastName:     "Doe",
+				JobTitle:     "Senior Developer",
 				Role: model.CommitteeMemberRole{
 					Name:      "Chair",
 					StartDate: "2023-01-01",
@@ -498,12 +499,10 @@ func (w *MockCommitteeWriter) CreateMember(ctx context.Context, member *model.Co
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
-	// For mock purposes, we'll store in a default committee or use member's committee reference
-	// This is a simplified approach since we no longer have committeeUID as parameter
-	committeeUID := "default-committee" // Fallback for mock
-	if member.CommitteeUID != "" {
-		committeeUID = member.CommitteeUID
+	if member.CommitteeUID == "" {
+		return errors.NewValidation("committee UID is required for member creation")
 	}
+	committeeUID := member.CommitteeUID
 
 	// Initialize committee members map if it doesn't exist
 	if w.mock.committeeMembers[committeeUID] == nil {
@@ -602,8 +601,7 @@ func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.Co
 		}
 	}
 
-	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("member with email %s not found", member.Email))
+	return "", nil
 }
 
 // MockProjectRetriever implements ProjectRetriever interface
