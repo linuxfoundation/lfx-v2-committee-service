@@ -24,18 +24,21 @@ func Redact(sensitive string) string {
 		return ""
 	}
 
+	runes := []rune(sensitive)
+	n := len(runes)
+
 	// For very short strings (1-2 chars), show asterisks
-	if len(sensitive) <= 2 {
+	if n <= 2 {
 		return "**"
 	}
 
-	// For short strings (3-5 chars), show first char + asterisks
-	if len(sensitive) <= 5 {
-		return string(sensitive[0]) + "****"
+	// For short strings (3-5 chars), show first rune + asterisks
+	if n <= 5 {
+		return string(runes[0]) + "****"
 	}
 
-	// For longer strings (>5 chars), show first 3 chars + asterisks
-	return sensitive[:3] + "****"
+	// For longer strings (>5 runes), show first 3 runes + asterisks
+	return string(runes[:3]) + "****"
 }
 
 // RedactEmail redacts email addresses for logging and output purposes.

@@ -106,6 +106,18 @@ func TestRedactEmail(t *testing.T) {
 			input:    "verylongusername@domain.org",
 			expected: "ver****@domain.org",
 		},
+		{
+			name:  "multiple at signs (invalid email)",
+			input: "a@b@c.com",
+			// fallback to Redact of the whole string
+			expected: "a@b****",
+		},
+		{
+			name:  "unicode local part",
+			input: "jóse@example.com",
+			// 4 runes -> first rune + ****
+			expected: "j****@example.com",
+		},
 	}
 
 	for _, tt := range tests {
