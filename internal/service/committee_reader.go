@@ -10,6 +10,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 )
 
@@ -152,7 +153,7 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 			"member_uid", memberUID,
 			"member_committee_uid", committeeMember.CommitteeUID,
 		)
-		return nil, 0, errors.New("committee member not found in the specified committee")
+		return nil, 0, errs.NewValidation("committee member does not belong to the requested committee")
 	}
 
 	slog.DebugContext(ctx, "committee member retrieved successfully",
