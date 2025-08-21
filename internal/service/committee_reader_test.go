@@ -689,6 +689,228 @@ func TestCommitteeReaderOrchestratorGetBaseAttributeValue(t *testing.T) {
 	}
 }
 
+func TestCommitteeReaderOrchestratorGetMember(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+
+	// Setup test data
+	testCommitteeUID := uuid.New().String()
+	testMemberUID := uuid.New().String()
+	testMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          testMemberUID,
+			CommitteeUID: testCommitteeUID,
+			Username:     "testuser",
+			Email:        "test@example.com",
+			FirstName:    "John",
+			LastName:     "Doe",
+			JobTitle:     "Software Engineer",
+			AppointedBy:  "committee-chair",
+			Status:       "active",
+			Role: model.CommitteeMemberRole{
+				Name:      "contributor",
+				StartDate: "2024-01-01",
+				EndDate:   "2024-12-31",
+			},
+			Voting: model.CommitteeMemberVotingInfo{
+				Status:    "eligible",
+				StartDate: "2024-01-01",
+				EndDate:   "2024-12-31",
+			},
+			Organization: model.CommitteeMemberOrganization{
+				Name:    "Test Organization",
+				Website: "https://test-org.com",
+			},
+			CreatedAt: time.Now().Add(-24 * time.Hour),
+			UpdatedAt: time.Now(),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		setupMock      func()
+		committeeUID   string
+		memberUID      string
+		expectedError  bool
+		errorType      error
+		validateMember func(*testing.T, *model.CommitteeMember, uint64)
+	}{
+		{
+			name: "successful committee member retrieval",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// First, add the committee so it exists
+				testCommittee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        testCommitteeUID,
+						ProjectUID: "test-project-uid",
+						Name:       "Test Committee",
+						Category:   "technical",
+						CreatedAt:  time.Now().Add(-24 * time.Hour),
+						UpdatedAt:  time.Now(),
+					},
+				}
+				mockRepo.AddCommittee(testCommittee)
+				// Store the committee member in mock repository
+				mockRepo.AddCommitteeMember(testCommitteeUID, testMember)
+			},
+			committeeUID:  testCommitteeUID,
+			memberUID:     testMemberUID,
+			expectedError: false,
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.NotNil(t, member)
+				assert.Equal(t, testMemberUID, member.UID)
+				assert.Equal(t, testCommitteeUID, member.CommitteeUID)
+				assert.Equal(t, "testuser", member.Username)
+				assert.Equal(t, "test@example.com", member.Email)
+				assert.Equal(t, "John", member.FirstName)
+				assert.Equal(t, "Doe", member.LastName)
+				assert.Equal(t, "Software Engineer", member.JobTitle)
+				assert.Equal(t, "committee-chair", member.AppointedBy)
+				assert.Equal(t, "active", member.Status)
+				assert.Equal(t, "contributor", member.Role.Name)
+				assert.Equal(t, "2024-01-01", member.Role.StartDate)
+				assert.Equal(t, "2024-12-31", member.Role.EndDate)
+				assert.Equal(t, "eligible", member.Voting.Status)
+				assert.Equal(t, "Test Organization", member.Organization.Name)
+				assert.Equal(t, "https://test-org.com", member.Organization.Website)
+				assert.Equal(t, uint64(1), revision) // Mock returns revision 1
+			},
+		},
+		{
+			name: "committee member not found error",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// Don't store any committee member
+			},
+			committeeUID:  testCommitteeUID,
+			memberUID:     "nonexistent-member-uid",
+			expectedError: true,
+			errorType:     errs.NotFound{},
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.Nil(t, member)
+				assert.Equal(t, uint64(0), revision)
+			},
+		},
+		{
+			name: "member belongs to different committee",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// Add the requested committee so it exists
+				testCommittee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        testCommitteeUID,
+						ProjectUID: "test-project-uid",
+						Name:       "Test Committee",
+						Category:   "technical",
+						CreatedAt:  time.Now().Add(-24 * time.Hour),
+						UpdatedAt:  time.Now(),
+					},
+				}
+				mockRepo.AddCommittee(testCommittee)
+				// Create a member that belongs to a different committee
+				differentMember := &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          testMemberUID,
+						CommitteeUID: "different-committee-uid",
+						Email:        "test@example.com",
+						AppointedBy:  "different-chair",
+						Status:       "active",
+					},
+				}
+				mockRepo.AddCommitteeMember("different-committee-uid", differentMember)
+			},
+			committeeUID:  testCommitteeUID,
+			memberUID:     testMemberUID,
+			expectedError: true,
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.Nil(t, member)
+				assert.Equal(t, uint64(0), revision)
+			},
+		},
+		{
+			name: "empty committee UID",
+			setupMock: func() {
+				mockRepo.ClearAll()
+			},
+			committeeUID:  "",
+			memberUID:     testMemberUID,
+			expectedError: true,
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.Nil(t, member)
+				assert.Equal(t, uint64(0), revision)
+			},
+		},
+		{
+			name: "committee does not exist",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// Don't add any committee, so committee lookup will fail
+			},
+			committeeUID:  "nonexistent-committee-uid",
+			memberUID:     testMemberUID,
+			expectedError: true,
+			errorType:     errs.NotFound{},
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.Nil(t, member)
+				assert.Equal(t, uint64(0), revision)
+			},
+		},
+		{
+			name: "empty member UID",
+			setupMock: func() {
+				mockRepo.ClearAll()
+				// Add the committee so it exists
+				testCommittee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        testCommitteeUID,
+						ProjectUID: "test-project-uid",
+						Name:       "Test Committee",
+						Category:   "technical",
+						CreatedAt:  time.Now().Add(-24 * time.Hour),
+						UpdatedAt:  time.Now(),
+					},
+				}
+				mockRepo.AddCommittee(testCommittee)
+			},
+			committeeUID:  testCommitteeUID,
+			memberUID:     "",
+			expectedError: true,
+			validateMember: func(t *testing.T, member *model.CommitteeMember, revision uint64) {
+				assert.Nil(t, member)
+				assert.Equal(t, uint64(0), revision)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			tt.setupMock()
+
+			// Create reader orchestrator
+			reader := NewCommitteeReaderOrchestrator(
+				WithCommitteeReader(mockRepo),
+			)
+
+			// Execute
+			member, revision, err := reader.GetMember(ctx, tt.committeeUID, tt.memberUID)
+
+			// Validate
+			if tt.expectedError {
+				require.Error(t, err)
+				if tt.errorType != nil {
+					assert.IsType(t, tt.errorType, err)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateMember(t, member, revision)
+		})
+	}
+}
+
 // Helper function to create string pointer (same as in committee_writer_test.go)
 func readerStringPtr(s string) *string {
 	return &s
