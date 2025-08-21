@@ -781,6 +781,18 @@ func TestCommitteeReaderOrchestratorGetMember(t *testing.T) {
 			name: "committee member not found error",
 			setupMock: func() {
 				mockRepo.ClearAll()
+				// Ensure committee exists so we test the 'member not found' path
+				testCommittee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        testCommitteeUID,
+						ProjectUID: "test-project-uid",
+						Name:       "Test Committee",
+						Category:   "technical",
+						CreatedAt:  time.Now().Add(-24 * time.Hour),
+						UpdatedAt:  time.Now(),
+					},
+				}
+				mockRepo.AddCommittee(testCommittee)
 				// Don't store any committee member
 			},
 			committeeUID:  testCommitteeUID,
