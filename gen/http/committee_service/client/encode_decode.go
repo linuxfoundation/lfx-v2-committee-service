@@ -1110,3 +1110,668 @@ func DecodeLivezResponse(decoder func(*http.Response) goahttp.Decoder, restoreBo
 		}
 	}
 }
+
+// BuildCreateCommitteeMemberRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "create-committee-member" endpoint
+func (c *Client) BuildCreateCommitteeMemberRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.CreateCommitteeMemberPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "create-committee-member", "*committeeservice.CreateCommitteeMemberPayload", v)
+		}
+		uid = p.UID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateCommitteeMemberCommitteeServicePath(uid)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "create-committee-member", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeCreateCommitteeMemberRequest returns an encoder for requests sent to
+// the committee-service create-committee-member server.
+func EncodeCreateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.CreateCommitteeMemberPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "create-committee-member", "*committeeservice.CreateCommitteeMemberPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		body := NewCreateCommitteeMemberRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "create-committee-member", err)
+		}
+		return nil
+	}
+}
+
+// DecodeCreateCommitteeMemberResponse returns a decoder for responses returned
+// by the committee-service create-committee-member endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeCreateCommitteeMemberResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeCreateCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusCreated:
+			var (
+				body CreateCommitteeMemberResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			res := NewCreateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesCreated(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body CreateCommitteeMemberBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			return nil, NewCreateCommitteeMemberBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body CreateCommitteeMemberConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			return nil, NewCreateCommitteeMemberConflict(&body)
+		case http.StatusInternalServerError:
+			var (
+				body CreateCommitteeMemberInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			return nil, NewCreateCommitteeMemberInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body CreateCommitteeMemberNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			return nil, NewCreateCommitteeMemberNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body CreateCommitteeMemberServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-member", err)
+			}
+			err = ValidateCreateCommitteeMemberServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-member", err)
+			}
+			return nil, NewCreateCommitteeMemberServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "create-committee-member", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildGetCommitteeMemberRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "get-committee-member" endpoint
+func (c *Client) BuildGetCommitteeMemberRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		memberUID string
+	)
+	{
+		p, ok := v.(*committeeservice.GetCommitteeMemberPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "get-committee-member", "*committeeservice.GetCommitteeMemberPayload", v)
+		}
+		uid = p.UID
+		memberUID = p.MemberUID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetCommitteeMemberCommitteeServicePath(uid, memberUID)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-committee-member", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGetCommitteeMemberRequest returns an encoder for requests sent to the
+// committee-service get-committee-member server.
+func EncodeGetCommitteeMemberRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GetCommitteeMemberPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "get-committee-member", "*committeeservice.GetCommitteeMemberPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeGetCommitteeMemberResponse returns a decoder for responses returned by
+// the committee-service get-committee-member endpoint. restoreBody controls
+// whether the response body should be restored after having been read.
+// DecodeGetCommitteeMemberResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGetCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetCommitteeMemberResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member", err)
+			}
+			err = ValidateGetCommitteeMemberResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member", err)
+			}
+			var (
+				etag *string
+			)
+			etagRaw := resp.Header.Get("Etag")
+			if etagRaw != "" {
+				etag = &etagRaw
+			}
+			res := NewGetCommitteeMemberResultOK(&body, etag)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body GetCommitteeMemberBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member", err)
+			}
+			err = ValidateGetCommitteeMemberBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member", err)
+			}
+			return nil, NewGetCommitteeMemberBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body GetCommitteeMemberInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member", err)
+			}
+			err = ValidateGetCommitteeMemberInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member", err)
+			}
+			return nil, NewGetCommitteeMemberInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body GetCommitteeMemberNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member", err)
+			}
+			err = ValidateGetCommitteeMemberNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member", err)
+			}
+			return nil, NewGetCommitteeMemberNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GetCommitteeMemberServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member", err)
+			}
+			err = ValidateGetCommitteeMemberServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member", err)
+			}
+			return nil, NewGetCommitteeMemberServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-committee-member", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildUpdateCommitteeMemberRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "update-committee-member" endpoint
+func (c *Client) BuildUpdateCommitteeMemberRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		memberUID string
+	)
+	{
+		p, ok := v.(*committeeservice.UpdateCommitteeMemberPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "update-committee-member", "*committeeservice.UpdateCommitteeMemberPayload", v)
+		}
+		uid = p.UID
+		memberUID = p.MemberUID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: UpdateCommitteeMemberCommitteeServicePath(uid, memberUID)}
+	req, err := http.NewRequest("PUT", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "update-committee-member", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeUpdateCommitteeMemberRequest returns an encoder for requests sent to
+// the committee-service update-committee-member server.
+func EncodeUpdateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.UpdateCommitteeMemberPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "update-committee-member", "*committeeservice.UpdateCommitteeMemberPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		{
+			head := p.IfMatch
+			req.Header.Set("If-Match", head)
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		body := NewUpdateCommitteeMemberRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "update-committee-member", err)
+		}
+		return nil
+	}
+}
+
+// DecodeUpdateCommitteeMemberResponse returns a decoder for responses returned
+// by the committee-service update-committee-member endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeUpdateCommitteeMemberResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeUpdateCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body UpdateCommitteeMemberResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			res := NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body UpdateCommitteeMemberBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			return nil, NewUpdateCommitteeMemberBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body UpdateCommitteeMemberConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			return nil, NewUpdateCommitteeMemberConflict(&body)
+		case http.StatusInternalServerError:
+			var (
+				body UpdateCommitteeMemberInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			return nil, NewUpdateCommitteeMemberInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body UpdateCommitteeMemberNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			return nil, NewUpdateCommitteeMemberNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body UpdateCommitteeMemberServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-committee-member", err)
+			}
+			err = ValidateUpdateCommitteeMemberServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-committee-member", err)
+			}
+			return nil, NewUpdateCommitteeMemberServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "update-committee-member", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildDeleteCommitteeMemberRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "delete-committee-member" endpoint
+func (c *Client) BuildDeleteCommitteeMemberRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		memberUID string
+	)
+	{
+		p, ok := v.(*committeeservice.DeleteCommitteeMemberPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "delete-committee-member", "*committeeservice.DeleteCommitteeMemberPayload", v)
+		}
+		uid = p.UID
+		memberUID = p.MemberUID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteCommitteeMemberCommitteeServicePath(uid, memberUID)}
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "delete-committee-member", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeDeleteCommitteeMemberRequest returns an encoder for requests sent to
+// the committee-service delete-committee-member server.
+func EncodeDeleteCommitteeMemberRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.DeleteCommitteeMemberPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "delete-committee-member", "*committeeservice.DeleteCommitteeMemberPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		{
+			head := p.IfMatch
+			req.Header.Set("If-Match", head)
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeDeleteCommitteeMemberResponse returns a decoder for responses returned
+// by the committee-service delete-committee-member endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeDeleteCommitteeMemberResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeDeleteCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusNoContent:
+			return nil, nil
+		case http.StatusBadRequest:
+			var (
+				body DeleteCommitteeMemberBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-member", err)
+			}
+			err = ValidateDeleteCommitteeMemberBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-member", err)
+			}
+			return nil, NewDeleteCommitteeMemberBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body DeleteCommitteeMemberConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-member", err)
+			}
+			err = ValidateDeleteCommitteeMemberConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-member", err)
+			}
+			return nil, NewDeleteCommitteeMemberConflict(&body)
+		case http.StatusInternalServerError:
+			var (
+				body DeleteCommitteeMemberInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-member", err)
+			}
+			err = ValidateDeleteCommitteeMemberInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-member", err)
+			}
+			return nil, NewDeleteCommitteeMemberInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body DeleteCommitteeMemberNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-member", err)
+			}
+			err = ValidateDeleteCommitteeMemberNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-member", err)
+			}
+			return nil, NewDeleteCommitteeMemberNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body DeleteCommitteeMemberServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-member", err)
+			}
+			err = ValidateDeleteCommitteeMemberServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-member", err)
+			}
+			return nil, NewDeleteCommitteeMemberServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "delete-committee-member", resp.StatusCode, string(body))
+		}
+	}
+}

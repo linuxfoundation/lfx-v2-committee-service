@@ -48,6 +48,22 @@ type Client struct {
 	// Livez Doer is the HTTP client used to make requests to the livez endpoint.
 	LivezDoer goahttp.Doer
 
+	// CreateCommitteeMember Doer is the HTTP client used to make requests to the
+	// create-committee-member endpoint.
+	CreateCommitteeMemberDoer goahttp.Doer
+
+	// GetCommitteeMember Doer is the HTTP client used to make requests to the
+	// get-committee-member endpoint.
+	GetCommitteeMemberDoer goahttp.Doer
+
+	// UpdateCommitteeMember Doer is the HTTP client used to make requests to the
+	// update-committee-member endpoint.
+	UpdateCommitteeMemberDoer goahttp.Doer
+
+	// DeleteCommitteeMember Doer is the HTTP client used to make requests to the
+	// delete-committee-member endpoint.
+	DeleteCommitteeMemberDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -77,6 +93,10 @@ func NewClient(
 		UpdateCommitteeSettingsDoer: doer,
 		ReadyzDoer:                  doer,
 		LivezDoer:                   doer,
+		CreateCommitteeMemberDoer:   doer,
+		GetCommitteeMemberDoer:      doer,
+		UpdateCommitteeMemberDoer:   doer,
+		DeleteCommitteeMemberDoer:   doer,
 		RestoreResponseBody:         restoreBody,
 		scheme:                      scheme,
 		host:                        host,
@@ -262,6 +282,102 @@ func (c *Client) Livez() goa.Endpoint {
 		resp, err := c.LivezDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "livez", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// CreateCommitteeMember returns an endpoint that makes HTTP requests to the
+// committee-service service create-committee-member server.
+func (c *Client) CreateCommitteeMember() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeCreateCommitteeMemberRequest(c.encoder)
+		decodeResponse = DecodeCreateCommitteeMemberResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildCreateCommitteeMemberRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.CreateCommitteeMemberDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "create-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetCommitteeMember returns an endpoint that makes HTTP requests to the
+// committee-service service get-committee-member server.
+func (c *Client) GetCommitteeMember() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCommitteeMemberRequest(c.encoder)
+		decodeResponse = DecodeGetCommitteeMemberResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCommitteeMemberRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCommitteeMemberDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// UpdateCommitteeMember returns an endpoint that makes HTTP requests to the
+// committee-service service update-committee-member server.
+func (c *Client) UpdateCommitteeMember() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeUpdateCommitteeMemberRequest(c.encoder)
+		decodeResponse = DecodeUpdateCommitteeMemberResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildUpdateCommitteeMemberRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.UpdateCommitteeMemberDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "update-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// DeleteCommitteeMember returns an endpoint that makes HTTP requests to the
+// committee-service service delete-committee-member server.
+func (c *Client) DeleteCommitteeMember() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeDeleteCommitteeMemberRequest(c.encoder)
+		decodeResponse = DecodeDeleteCommitteeMemberResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildDeleteCommitteeMemberRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.DeleteCommitteeMemberDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-member", err)
 		}
 		return decodeResponse(resp)
 	}
