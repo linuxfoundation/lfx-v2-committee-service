@@ -4,7 +4,7 @@ This repository contains the source code for the LFX v2 platform committee servi
 
 ## Overview
 
-The LFX v2 Committee Service is a RESTful API service that manages committees within the Linux Foundation's LFX platform. It provides endpoints for creating, reading, updating, and deleting committees with built-in authorization and audit capabilities. Committees are associated with projects and can have hierarchical structures with parent-child relationships.
+The LFX v2 Committee Service is a RESTful API service that manages committees and their members within the Linux Foundation's LFX platform. It provides endpoints for creating, reading, updating, and deleting committees and committee members with built-in authorization and audit capabilities. Committees are associated with projects and can have hierarchical structures with parent-child relationships.
 
 ## File Structure
 
@@ -34,8 +34,9 @@ The LFX v2 Committee Service is a RESTful API service that manages committees wi
 
 ## Key Features
 
-- **RESTful API**: Full CRUD operations for committee management
+- **RESTful API**: Full CRUD operations for committee and committee member management
 - **Committee Hierarchies**: Support for parent-child committee relationships
+- **Member Management**: Comprehensive committee member operations including roles, voting status, and organization details
 - **Project Integration**: Committees are associated with projects for organizational structure
 - **Clean Architecture**: Follows clean architecture principles with clear separation of domain, service, and infrastructure layers
 - **NATS Storage**: Uses NATS key-value buckets for persistent committee data storage

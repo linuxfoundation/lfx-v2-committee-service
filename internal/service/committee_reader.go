@@ -118,11 +118,6 @@ func (rc *committeeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context
 
 // GetMember retrieves a committee member by committee UID and member UID (placeholder implementation)
 func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
-	// TODO: Implement committee member retrieval logic
-	slog.DebugContext(ctx, "getting committee member (placeholder)",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-	)
 	return nil, 0, errors.New("committee member retrieval not yet implemented")
 }
 
