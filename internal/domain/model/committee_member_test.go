@@ -172,10 +172,8 @@ func TestCommitteeMember_Validate(t *testing.T) {
 				if err.Error() != tt.expectedError {
 					t.Errorf("expected error %q, got %q", tt.expectedError, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}
@@ -340,7 +338,7 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 
 			// Check that it's a valid hex string
 			for _, r := range result {
-				if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+				if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 					t.Errorf("BuildIndexKey() returned non-hex character: %c", r)
 				}
 			}
