@@ -227,6 +227,71 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 	return nil
 }
 
+// ================== CommitteeMemberReader implementation ==================
+
+// GetMember retrieves a committee member by committee UID and member UID
+func (s *storage) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	return nil, 0, errs.NewUnexpected("committee member retrieval not yet implemented")
+}
+
+// GetMemberRevision retrieves the revision number for a committee member
+func (s *storage) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
+	return 0, errs.NewUnexpected("committee member revision retrieval not yet implemented")
+}
+
+// ================== CommitteeMemberWriter implementation ==================
+
+// CreateMember creates a new committee member
+func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
+
+	if member == nil {
+		return errs.NewValidation("committee member cannot be nil")
+	}
+
+	memberBytes, errMarshal := json.Marshal(member)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee member", errMarshal)
+	}
+
+	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, member.UID, memberBytes)
+	if errCreate != nil {
+		return errs.NewUnexpected("failed to create committee member", errCreate)
+	}
+
+	slog.DebugContext(ctx, "created committee member in NATS storage",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"revision", rev,
+	)
+
+	return nil
+}
+
+// UpdateMember updates an existing committee member
+func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
+	return errs.NewUnexpected("committee member update not yet implemented")
+}
+
+// DeleteMember removes a committee member
+func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+	return errs.NewUnexpected("committee member deletion not yet implemented")
+}
+
+// UniqueMember verifies if a member with the same email exists in the committee
+// It stores the member UID in the KV store with the index key as the value as secondary index
+// to ensure that the member is unique, avoiding concurrent operations for the same member.
+func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	uniqueKey := fmt.Sprintf(constants.KVLookupMemberPrefix, member.BuildIndexKey(ctx))
+	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, uniqueKey, []byte(member.UID))
+	if errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return uniqueKey, errs.NewConflict("member with the same email already exists in the committee")
+		}
+		return uniqueKey, errs.NewUnexpected("failed to create unique key for member", errUnique)
+	}
+	return uniqueKey, nil
+}
+
 func (s *storage) IsReady(ctx context.Context) error {
 	return s.client.IsReady(ctx)
 }

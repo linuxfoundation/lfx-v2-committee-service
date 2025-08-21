@@ -12,6 +12,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 
 	"goa.design/goa/v3/security"
 )
@@ -212,24 +213,22 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 
 	slog.DebugContext(ctx, "committeeMemberService.create-committee-member",
 		"committee_uid", p.UID,
-		"username", p.Username,
-		"email", p.Email,
+		"email", redaction.RedactEmail(p.Email),
 	)
 
-	// TODO: Convert payload to DTO
-	// request := s.convertPayloadToDomain(p)
+	// Convert payload to domain model
+	request := s.convertMemberPayloadToDomain(p)
 
-	// TODO: Execute use case
-	// response, err := s.committeeMemberWriterOrchestrator.Create(ctx, request)
-	// if err != nil {
-	// 	return nil, wrapError(ctx, err)
-	// }
+	// Execute use case
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
-	// TODO: Convert response to GOA result
-	// result := s.convertDomainToFullResponse(response)
+	// Convert response to GOA result
+	result := s.convertMemberDomainToFullResponse(response)
 
-	// TODO: Remove this placeholder return
-	return nil, nil
+	return result, nil
 }
 
 // GetCommitteeMember retrieves a specific committee member by UID

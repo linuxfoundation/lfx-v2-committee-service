@@ -22,6 +22,12 @@ import (
 
 // CommitteeWriter defines the interface for committee write operations
 type CommitteeWriter interface {
+	CommitteeDataWriter
+	CommitteeMemberDataWriter
+}
+
+// CommitteeDataWriter defines the interface for committee-specific write operations
+type CommitteeDataWriter interface {
 	// Create inserts a new committee into the storage, along with its settings, when applicable
 	Create(ctx context.Context, committee *model.Committee) (*model.Committee, error)
 	// Update modifies an existing committee in the storage
@@ -30,6 +36,16 @@ type CommitteeWriter interface {
 	UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error)
 	// Delete removes a committee and all its associated data (secondary indices, settings)
 	Delete(ctx context.Context, uid string, revision uint64) error
+}
+
+// CommitteeMemberDataWriter defines the interface for committee member write operations
+type CommitteeMemberDataWriter interface {
+	// CreateMember inserts a new committee member into the storage
+	CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error)
+	// UpdateMember modifies an existing committee member in the storage
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
+	// DeleteMember removes a committee member
+	DeleteMember(ctx context.Context, uid string, revision uint64) error
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options

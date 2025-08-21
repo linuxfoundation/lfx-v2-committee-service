@@ -175,6 +175,39 @@ func TestCommitteeSSOGroupNameBuildIdempotent(t *testing.T) {
 	assert.NotEqual(t, firstSSOGroupName, secondSSOGroupName)
 }
 
+func TestCommitteeGovernmentAdvisoryCouncil(t *testing.T) {
+	tests := []struct {
+		name        string
+		committee   Committee
+		expectedKey bool
+	}{
+		{
+			name: "basic functionality",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					Category: categoryGovernmentAdvisoryCouncil,
+				},
+			},
+			expectedKey: true,
+		},
+		{
+			name: "not a GAC",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{
+					Category: "Other",
+				},
+			},
+			expectedKey: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedKey, tc.committee.IsGovernmentAdvisoryCouncil())
+		})
+	}
+}
+
 func TestCommitteeBuildIndexKey(t *testing.T) {
 	tests := []struct {
 		name        string

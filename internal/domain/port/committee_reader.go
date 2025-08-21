@@ -13,6 +13,7 @@ import (
 type CommitteeReader interface {
 	CommitteeBaseReader
 	CommitteeSettingsReader
+	CommitteeMemberReader
 }
 
 // CommitteeBaseReader handles committee base data reading operations

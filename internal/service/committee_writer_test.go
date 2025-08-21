@@ -125,6 +125,27 @@ func (w *TestMockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, commit
 	return existingUID, err
 }
 
+// CommitteeMemberWriter interface methods
+func (w *TestMockCommitteeWriter) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.CreateMember(ctx, member)
+}
+
+func (w *TestMockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UpdateMember(ctx, member, revision)
+}
+
+func (w *TestMockCommitteeWriter) DeleteMember(ctx context.Context, memberUID string, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.DeleteMember(ctx, memberUID, revision)
+}
+
+func (w *TestMockCommitteeWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UniqueMember(ctx, member)
+}
+
 func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 	testCases := []struct {
 		name           string
