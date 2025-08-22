@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -32,9 +33,10 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 	)
 
 	for _, key := range keys {
+		// Member keys should use member-specific methods
 		rev, errGet := uc.committeeReader.GetMemberRevision(ctx, key)
 		if errGet != nil {
-			slog.ErrorContext(ctx, "failed to get member revision",
+			slog.ErrorContext(ctx, "failed to get revision for member key deletion",
 				"error", errGet,
 				"key", key,
 				"is_rollback", isRollback,
@@ -218,7 +220,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 
 	// Step 9: Publish indexer and access control messages
-	if errPublish := uc.publishMemberMessages(ctx, member.CommitteeUID, member); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, member); errPublish != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to publish member messages",
 			"error", errPublish,
@@ -235,14 +237,87 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	return nil, errs.NewUnexpected("committee member update not yet implemented")
 }
 
-// DeleteMember removes a committee member (placeholder implementation)
+// DeleteMember removes a committee member
 func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64) error {
-	// TODO: Implement committee member deletion logic
-	slog.DebugContext(ctx, "deleting committee member (placeholder)",
+	slog.DebugContext(ctx, "executing delete committee member use case",
 		"member_uid", uid,
 		"revision", revision,
 	)
-	return errs.NewUnexpected("committee member deletion not yet implemented")
+
+	// Step 1: Retrieve existing member data to get all the information needed for cleanup
+	existing, existingRevision, errGet := uc.committeeReader.GetMember(ctx, uid)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to retrieve existing committee member for deletion",
+			"error", errGet,
+			"member_uid", uid,
+		)
+		return errGet
+	}
+
+	// Verify revision matches to ensure optimistic locking
+	if existingRevision != revision {
+		slog.WarnContext(ctx, "revision mismatch during member deletion",
+			"expected_revision", revision,
+			"current_revision", existingRevision,
+			"member_uid", uid,
+		)
+		return errs.NewConflict("committee member has been modified by another process")
+	}
+
+	slog.DebugContext(ctx, "existing committee member retrieved for deletion",
+		"member_uid", existing.UID,
+		"member_email", redaction.RedactEmail(existing.Email),
+		"member_username", redaction.Redact(existing.Username),
+		"committee_uid", existing.CommitteeUID,
+	)
+
+	// Step 2: Build list of secondary indices to delete
+	var indicesToDelete []string
+
+	// Build member lookup index key (committee_uid + email hash)
+	memberIndexKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
+	indicesToDelete = append(indicesToDelete, memberIndexKey)
+
+	slog.DebugContext(ctx, "secondary indices identified for member deletion",
+		"member_uid", uid,
+		"indices_count", len(indicesToDelete),
+		"indices", indicesToDelete,
+	)
+
+	// Step 3: Delete the main member record
+	errDelete := uc.committeeWriter.DeleteMember(ctx, uid, revision)
+	if errDelete != nil {
+		slog.ErrorContext(ctx, "failed to delete committee member",
+			"error", errDelete,
+			"member_uid", uid,
+		)
+		return errDelete
+	}
+
+	slog.DebugContext(ctx, "committee member main record deleted successfully",
+		"member_uid", uid,
+	)
+
+	// Step 4: Delete secondary indices
+	// We use the deleteMemberKeys method which handles errors gracefully and logs them
+	// We don't abort here - secondary indices have a minor impact during deletion
+	uc.deleteMemberKeys(ctx, indicesToDelete, false)
+
+	// Step 5: Publish indexer message for member deletion
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, uid); errPublish != nil {
+		slog.ErrorContext(ctx, "failed to publish member deletion message",
+			"error", errPublish,
+			"member_uid", uid,
+		)
+		return errPublish
+	}
+
+	slog.DebugContext(ctx, "committee member deletion completed successfully",
+		"member_uid", uid,
+		"indices_deleted", len(indicesToDelete),
+	)
+
+	return nil
 }
 
 // validateCorporateEmailDomain validates if the email domain is a corporate domain
@@ -304,25 +379,27 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	return nil
 }
 
-// publishMemberMessages publishes indexer and access control messages for the new member
-func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, committeeUID string, member *model.CommitteeMember) error {
+// publishMemberMessages publishes indexer and access control messages for committee member operations
+func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data any) error {
 	slog.DebugContext(ctx, "publishing member messages",
-		"committee_uid", committeeUID,
-		"member_uid", member.UID,
+		"action", action,
 	)
 
 	// Build indexer message for the member
 	indexerMessage := model.CommitteeIndexerMessage{
-		Action: model.ActionCreated,
-		Tags:   member.Tags(),
+		Action: action,
 	}
 
-	message, errBuildIndexerMessage := indexerMessage.Build(ctx, member)
+	// Add tags for create/update operations (when we have the full member data)
+	if member, ok := data.(*model.CommitteeMember); ok {
+		indexerMessage.Tags = member.Tags()
+	}
+
+	message, errBuildIndexerMessage := indexerMessage.Build(ctx, data)
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member indexer message",
 			"error", errBuildIndexerMessage,
-			"committee_uid", committeeUID,
-			"member_uid", member.UID,
+			"action", action,
 		)
 		return errs.NewUnexpected("failed to build member indexer message", errBuildIndexerMessage)
 	}
@@ -340,8 +417,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	if errPublishingMessage != nil {
 		slog.ErrorContext(ctx, "failed to publish member messages",
 			"error", errPublishingMessage,
-			"committee_uid", committeeUID,
-			"member_uid", member.UID,
+			"action", action,
 		)
 		return errPublishingMessage
 	}

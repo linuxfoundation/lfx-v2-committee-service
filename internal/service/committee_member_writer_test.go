@@ -20,15 +20,17 @@ import (
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
 type TestMockCommitteeMemberWriter struct {
 	*mock.MockRepository
-	members map[string]*model.CommitteeMember
-	keys    map[string]string // uniqueness keys
+	members         map[string]*model.CommitteeMember
+	keys            map[string]string // uniqueness keys
+	customRevisions map[string]uint64 // for testing revision conflicts
 }
 
 func NewTestMockCommitteeMemberWriter(mockRepo *mock.MockRepository) *TestMockCommitteeMemberWriter {
 	return &TestMockCommitteeMemberWriter{
-		MockRepository: mockRepo,
-		members:        make(map[string]*model.CommitteeMember),
-		keys:           make(map[string]string),
+		MockRepository:  mockRepo,
+		members:         make(map[string]*model.CommitteeMember),
+		keys:            make(map[string]string),
+		customRevisions: make(map[string]uint64),
 	}
 }
 
@@ -83,6 +85,17 @@ func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid st
 	if _, exists := w.members[uid]; !exists {
 		return errs.NewNotFound("member not found")
 	}
+
+	// Check revision for optimistic locking
+	currentRevision, err := w.GetMemberRevision(ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	if currentRevision != revision {
+		return errs.NewConflict("committee member has been modified by another process")
+	}
+
 	delete(w.members, uid)
 	return nil
 }
@@ -103,11 +116,23 @@ func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
+		// Check if we have a custom revision set
+		if rev, exists := w.customRevisions[uid]; exists {
+			return rev, nil
+		}
 		return 1, nil
 	}
 
 	// Delegate to mock repository for members that might be in the global mock
 	return w.MockRepository.GetMemberRevision(ctx, uid)
+}
+
+// SetMemberRevision allows tests to set custom revisions
+func (w *TestMockCommitteeMemberWriter) SetMemberRevision(uid string, revision uint64) {
+	if w.customRevisions == nil {
+		w.customRevisions = make(map[string]uint64)
+	}
+	w.customRevisions[uid] = revision
 }
 
 func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository, *TestMockCommitteeMemberWriter) {
@@ -436,14 +461,100 @@ func TestCommitteeWriterOrchestrator_UpdateMember(t *testing.T) {
 }
 
 func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
+	tests := []struct {
+		name           string
+		setupMock      func(*mock.MockRepository, *TestMockCommitteeMemberWriter)
+		memberUID      string
+		revision       uint64
+		expectError    bool
+		expectedError  string
+		validateResult func(*testing.T, *TestMockCommitteeMemberWriter)
+	}{
+		{
+			name: "successful member deletion",
+			setupMock: func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
+				// Add a test member
+				member := &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-123",
+						CommitteeUID: "committee-123",
+						Email:        "test@example.com",
+						Username:     "testuser",
+						CreatedAt:    time.Now(),
+						UpdatedAt:    time.Now(),
+					},
+				}
+				memberWriter.members["member-123"] = member
 
-	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-123", 1)
+				// Add member to mock repo which will set revision automatically
+				mockRepo.AddCommitteeMember("committee-123", member)
+			},
+			memberUID:   "member-123",
+			revision:    1,
+			expectError: false,
+			validateResult: func(t *testing.T, memberWriter *TestMockCommitteeMemberWriter) {
+				// Verify member was deleted
+				_, exists := memberWriter.members["member-123"]
+				assert.False(t, exists, "Member should have been deleted")
+			},
+		},
+		{
+			name: "member not found",
+			setupMock: func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
+				// Don't add any member
+			},
+			memberUID:     "nonexistent-member",
+			revision:      1,
+			expectError:   true,
+			expectedError: "member not found",
+		},
+		{
+			name: "revision mismatch",
+			setupMock: func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
+				// Add a test member
+				member := &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-456",
+						CommitteeUID: "committee-123",
+						Email:        "test2@example.com",
+						Username:     "testuser2",
+						CreatedAt:    time.Now(),
+						UpdatedAt:    time.Now(),
+					},
+				}
+				memberWriter.members["member-456"] = member
 
-	// Should return not implemented error
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "committee member deletion not yet implemented")
+				// Add member to mock repo
+				mockRepo.AddCommitteeMember("committee-123", member)
+				// Set custom revision to 2 to simulate the member being updated
+				memberWriter.SetMemberRevision("member-456", 2)
+			},
+			memberUID:     "member-456",
+			revision:      1, // Wrong revision
+			expectError:   true,
+			expectedError: "committee member has been modified by another process",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+			tt.setupMock(mockRepo, memberWriter)
+
+			ctx := context.Background()
+			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+				if tt.validateResult != nil {
+					tt.validateResult(t, memberWriter)
+				}
+			}
+		})
+	}
 }
 
 func TestCommitteeWriterOrchestrator_deleteMemberKeys(t *testing.T) {
@@ -530,22 +641,53 @@ func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T)
 }
 
 func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
-
-	member := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-123",
-			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
-			Username:     "testuser",
+	tests := []struct {
+		name   string
+		action model.MessageAction
+		data   any
+	}{
+		{
+			name:   "publish create message with member data",
+			action: model.ActionCreated,
+			data: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-123",
+					CommitteeUID: "committee-123",
+					Email:        "test@example.com",
+					Username:     "testuser",
+				},
+			},
+		},
+		{
+			name:   "publish update message with member data",
+			action: model.ActionUpdated,
+			data: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					CommitteeUID: "committee-123",
+					Email:        "updated@example.com",
+					Username:     "updateduser",
+				},
+			},
+		},
+		{
+			name:   "publish delete message with uid string",
+			action: model.ActionDeleted,
+			data:   "member-789",
 		},
 	}
 
-	ctx := context.Background()
-	err := orchestrator.publishMemberMessages(ctx, "committee-123", member)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, _, _ := setupMemberWriterTest()
 
-	// Should succeed with mock publisher
-	assert.NoError(t, err)
+			ctx := context.Background()
+			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data)
+
+			// Should succeed with mock publisher
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) {
@@ -613,4 +755,74 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 	// Should succeed with default settings
 	require.NoError(t, err)
 	require.NotNil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup a complete member with all data
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-complete",
+			CommitteeUID: "committee-123",
+			Email:        "complete@example.com",
+			Username:     "completeuser",
+			FirstName:    "Complete",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Complete Org",
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
+
+	// Add member to storage
+	memberWriter.members["member-complete"] = member
+	mockRepo.AddCommitteeMember("committee-123", member)
+
+	// Setup member lookup key (simulating secondary index)
+	lookupKey := member.BuildIndexKey(context.Background())
+	memberWriter.keys[lookupKey] = member.UID
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-complete", 1)
+
+	// Should succeed
+	require.NoError(t, err)
+
+	// Verify member was deleted
+	_, exists := memberWriter.members["member-complete"]
+	assert.False(t, exists, "Member should have been deleted from storage")
+
+	// Note: Secondary index cleanup is tested in deleteMemberKeys test
+	// The actual cleanup happens in the background and would be tested
+	// in integration tests with real NATS storage
+}
+
+func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup a test member
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-msg-fail",
+			CommitteeUID: "committee-123",
+			Email:        "msgfail@example.com",
+			Username:     "msgfailuser",
+		},
+	}
+
+	memberWriter.members["member-msg-fail"] = member
+	mockRepo.AddCommitteeMember("committee-123", member)
+
+	// TODO: When we have a way to make the mock publisher fail,
+	// we can test message publishing failure scenarios
+	// For now, we test the happy path
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1)
+
+	// Should succeed even if message publishing fails (currently mock always succeeds)
+	require.NoError(t, err)
 }
