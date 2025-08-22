@@ -10,6 +10,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 )
 
@@ -116,9 +117,52 @@ func (rc *committeeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context
 	return field, nil
 }
 
-// GetMember retrieves a committee member by committee UID and member UID (placeholder implementation)
+// GetMember retrieves a committee member by committee UID and member UID
 func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
-	return nil, 0, errors.New("committee member retrieval not yet implemented")
+
+	slog.DebugContext(ctx, "executing get committee member use case",
+		"committee_uid", committeeUID,
+		"member_uid", memberUID,
+	)
+
+	// First, verify that the committee exists
+	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get committee base - committee does not exist",
+			"error", err,
+			"committee_uid", committeeUID,
+		)
+		return nil, 0, err
+	}
+
+	// Get committee member from storage
+	committeeMember, revision, err := rc.committeeReader.GetMember(ctx, memberUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get committee member",
+			"error", err,
+			"committee_uid", committeeUID,
+			"member_uid", memberUID,
+		)
+		return nil, 0, err
+	}
+
+	// Verify that the member belongs to the requested committee
+	if committeeMember.CommitteeUID != committeeUID {
+		slog.ErrorContext(ctx, "committee member does not belong to the requested committee",
+			"committee_uid", committeeUID,
+			"member_uid", memberUID,
+			"member_committee_uid", committeeMember.CommitteeUID,
+		)
+		return nil, 0, errs.NewValidation("committee member does not belong to the requested committee")
+	}
+
+	slog.DebugContext(ctx, "committee member retrieved successfully",
+		"committee_uid", committeeUID,
+		"member_uid", memberUID,
+		"revision", revision,
+	)
+
+	return committeeMember, revision, nil
 }
 
 // NewCommitteeReaderOrchestrator creates a new committee reader use case using the option pattern

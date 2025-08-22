@@ -621,6 +621,459 @@ func TestConvertSettingsToResponse(t *testing.T) {
 	}
 }
 
+func TestConvertMemberPayloadToDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: &model.CommitteeMember{},
+		},
+		{
+			name: "complete member payload conversion",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-123",
+				Email:       "john.doe@example.com",
+				Username:    stringPtr("johndoe"),
+				FirstName:   stringPtr("John"),
+				LastName:    stringPtr("Doe"),
+				JobTitle:    stringPtr("Software Engineer"),
+				AppointedBy: "committee-chair",
+				Status:      "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "contributor",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Agency:  stringPtr("Test Agency"),
+				Country: stringPtr("USA"),
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr("Test Organization"),
+					Website: stringPtr("https://test-org.com"),
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-123",
+					Email:        "john.doe@example.com",
+					Username:     "johndoe",
+					FirstName:    "John",
+					LastName:     "Doe",
+					JobTitle:     "Software Engineer",
+					AppointedBy:  "committee-chair",
+					Status:       "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "contributor",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status:    "eligible",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Agency:  "Test Agency",
+					Country: "USA",
+					Organization: model.CommitteeMemberOrganization{
+						Name:    "Test Organization",
+						Website: "https://test-org.com",
+					},
+				},
+			},
+		},
+		{
+			name: "minimal member payload conversion",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-456",
+				Email:       "minimal@example.com",
+				AppointedBy: "chair",
+				Status:      "pending",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-456",
+					Email:        "minimal@example.com",
+					AppointedBy:  "chair",
+					Status:       "pending",
+				},
+			},
+		},
+		{
+			name: "member payload with nil optional fields",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:          "committee-789",
+				Email:        "test@example.com",
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				AppointedBy:  "chair",
+				Status:       "active",
+				Role:         nil,
+				Voting:       nil,
+				Agency:       nil,
+				Country:      nil,
+				Organization: nil,
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-789",
+					Email:        "test@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+				},
+			},
+		},
+		{
+			name: "member payload with partial role information",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-abc",
+				Email:       "partial@example.com",
+				AppointedBy: "chair",
+				Status:      "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "maintainer",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   nil,
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-abc",
+					Email:        "partial@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "maintainer",
+						StartDate: "2024-01-01",
+						EndDate:   "",
+					},
+				},
+			},
+		},
+		{
+			name: "member payload with partial organization information",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-def",
+				Email:       "org@example.com",
+				AppointedBy: "chair",
+				Status:      "active",
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr("Partial Org"),
+					Website: nil,
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-def",
+					Email:        "org@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					Organization: model.CommitteeMemberOrganization{
+						Name:    "Partial Org",
+						Website: "",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberPayloadToDomain(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberDomainToFullResponse(t *testing.T) {
+	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		member   *model.CommitteeMember
+		expected *committeeservice.CommitteeMemberFullWithReadonlyAttributes
+	}{
+		{
+			name:     "nil member",
+			member:   nil,
+			expected: nil,
+		},
+		{
+			name: "complete member domain to response conversion",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:         "member-123",
+					Username:    "johndoe",
+					Email:       "john.doe@example.com",
+					FirstName:   "John",
+					LastName:    "Doe",
+					JobTitle:    "Senior Software Engineer",
+					AppointedBy: "committee-chair",
+					Status:      "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "maintainer",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status:    "eligible",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Agency:  "Test Agency",
+					Country: "USA",
+					Organization: model.CommitteeMemberOrganization{
+						Name:    "Test Organization",
+						Website: "https://test-org.com",
+					},
+					CommitteeUID: "committee-123",
+					CreatedAt:    createdAt,
+					UpdatedAt:    updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:         stringPtr("member-123"),
+				Username:    stringPtr("johndoe"),
+				Email:       stringPtr("john.doe@example.com"),
+				FirstName:   stringPtr("John"),
+				LastName:    stringPtr("Doe"),
+				JobTitle:    stringPtr("Senior Software Engineer"),
+				AppointedBy: "committee-chair",
+				Status:      "active",
+				Agency:      stringPtr("Test Agency"),
+				Country:     stringPtr("USA"),
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "maintainer",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr("Test Organization"),
+					Website: stringPtr("https://test-org.com"),
+				},
+				CreatedAt: stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt: stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "minimal member domain to response conversion",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					Email:        "minimal@example.com",
+					AppointedBy:  "chair",
+					Status:       "pending",
+					CommitteeUID: "committee-456",
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:         stringPtr("member-456"),
+				Username:    stringPtr(""),
+				Email:       stringPtr("minimal@example.com"),
+				FirstName:   stringPtr(""),
+				LastName:    stringPtr(""),
+				JobTitle:    stringPtr(""),
+				AppointedBy: "chair",
+				Status:      "pending",
+				Agency:      stringPtr(""),
+				Country:     stringPtr(""),
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "",
+					StartDate: stringPtr(""),
+					EndDate:   stringPtr(""),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "",
+					StartDate: stringPtr(""),
+					EndDate:   stringPtr(""),
+				},
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr(""),
+					Website: stringPtr(""),
+				},
+			},
+		},
+		{
+			name: "member with zero timestamps",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-789",
+					Email:        "timestamps@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					CommitteeUID: "committee-789",
+					CreatedAt:    time.Time{},
+					UpdatedAt:    time.Time{},
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:         stringPtr("member-789"),
+				Username:    stringPtr(""),
+				Email:       stringPtr("timestamps@example.com"),
+				FirstName:   stringPtr(""),
+				LastName:    stringPtr(""),
+				JobTitle:    stringPtr(""),
+				AppointedBy: "chair",
+				Status:      "active",
+				Agency:      stringPtr(""),
+				Country:     stringPtr(""),
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "",
+					StartDate: stringPtr(""),
+					EndDate:   stringPtr(""),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "",
+					StartDate: stringPtr(""),
+					EndDate:   stringPtr(""),
+				},
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr(""),
+					Website: stringPtr(""),
+				},
+				// CreatedAt and UpdatedAt should be nil when timestamps are zero
+				CreatedAt: nil,
+				UpdatedAt: nil,
+			},
+		},
+		{
+			name: "member with partial role and voting info",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:         "member-partial",
+					Email:       "partial@example.com",
+					AppointedBy: "chair",
+					Status:      "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "contributor",
+						StartDate: "2024-01-01",
+						// EndDate is empty
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status: "eligible",
+						// StartDate and EndDate are empty
+					},
+					CommitteeUID: "committee-partial",
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:         stringPtr("member-partial"),
+				Username:    stringPtr(""),
+				Email:       stringPtr("partial@example.com"),
+				FirstName:   stringPtr(""),
+				LastName:    stringPtr(""),
+				JobTitle:    stringPtr(""),
+				AppointedBy: "chair",
+				Status:      "active",
+				Agency:      stringPtr(""),
+				Country:     stringPtr(""),
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "contributor",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr(""),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr(""),
+					EndDate:   stringPtr(""),
+				},
+				Organization: &struct {
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr(""),
+					Website: stringPtr(""),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberDomainToFullResponse(tt.member)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // Helper functions for creating pointers to primitives
 func stringPtr(s string) *string {
 	return &s

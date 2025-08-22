@@ -229,14 +229,25 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 
 // ================== CommitteeMemberReader implementation ==================
 
-// GetMember retrieves a committee member by committee UID and member UID
-func (s *storage) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
-	return nil, 0, errs.NewUnexpected("committee member retrieval not yet implemented")
+// GetMember retrieves a committee member by member UID
+func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.CommitteeMember, uint64, error) {
+
+	member := &model.CommitteeMember{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee member", errGet)
+	}
+
+	return member, rev, nil
 }
 
 // GetMemberRevision retrieves the revision number for a committee member
-func (s *storage) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
-	return 0, errs.NewUnexpected("committee member revision retrieval not yet implemented")
+func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
+	return s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
 }
 
 // ================== CommitteeMemberWriter implementation ==================

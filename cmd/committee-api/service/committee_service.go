@@ -239,24 +239,23 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 		"member_uid", p.MemberUID,
 	)
 
-	// TODO: Execute use case
-	// committeeMember, revision, err := s.committeeMemberReaderOrchestrator.Get(ctx, *p.UID, *p.MemberUID)
-	// if err != nil {
-	// 	return nil, wrapError(ctx, err)
-	// }
+	// Execute use case
+	committeeMember, revision, err := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
-	// TODO: Convert domain model to GOA response
-	// result := s.convertMemberToResponse(committeeMember)
+	// Convert domain model to GOA response
+	result := s.convertMemberDomainToFullResponse(committeeMember)
 
-	// TODO: Create result with ETag (using revision from NATS)
-	// revisionStr := fmt.Sprintf("%d", revision)
-	// res = &committeeservice.GetCommitteeMemberResult{
-	// 	Member: result,
-	// 	Etag:   &revisionStr,
-	// }
+	// Create result with ETag (using revision from NATS)
+	revisionStr := fmt.Sprintf("%d", revision)
+	res = &committeeservice.GetCommitteeMemberResult{
+		Member: result,
+		Etag:   &revisionStr,
+	}
 
-	// TODO: Remove this placeholder return
-	return nil, nil
+	return res, nil
 }
 
 // UpdateCommitteeMember updates an existing committee member
