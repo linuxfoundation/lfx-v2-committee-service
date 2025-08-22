@@ -303,7 +303,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	)
 
 	// Parse ETag to get revision for optimistic locking
-	parsedRevision, err := etagValidator(&p.IfMatch)
+	parsedRevision, err := etagValidator(p.IfMatch)
 	if err != nil {
 		slog.ErrorContext(ctx, "invalid ETag",
 			"error", err,

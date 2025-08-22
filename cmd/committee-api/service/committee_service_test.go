@@ -84,7 +84,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			payload: &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   "1",
+				IfMatch:   stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.deleteError = nil
@@ -101,7 +101,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			payload: &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   "invalid",
+				IfMatch:   stringPtr("invalid"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				// Should not be called due to etag validation failure
@@ -117,7 +117,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			payload: &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   "",
+				IfMatch:   nil,
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				// Should not be called due to etag validation failure
@@ -133,7 +133,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			payload: &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   "1",
+				IfMatch:   stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.deleteError = errs.NewNotFound("member not found")
@@ -151,7 +151,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			payload: &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   "2",
+				IfMatch:   stringPtr("2"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.deleteError = errs.NewConflict("committee member has been modified by another process")
@@ -246,7 +246,7 @@ func TestDeleteCommitteeMember_ETagValidation(t *testing.T) {
 			payload := &committeeservice.DeleteCommitteeMemberPayload{
 				UID:       "committee-123",
 				MemberUID: "member-456",
-				IfMatch:   tt.etag,
+				IfMatch:   stringPtr(tt.etag),
 			}
 
 			ctx := context.Background()

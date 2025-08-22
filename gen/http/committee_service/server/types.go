@@ -2176,7 +2176,7 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 
 // NewUpdateCommitteeMemberPayload builds a committee-service service
 // update-committee-member endpoint payload.
-func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch string) *committeeservice.UpdateCommitteeMemberPayload {
+func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:  body.Username,
 		Email:     *body.Email,
@@ -2258,7 +2258,7 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 
 // NewDeleteCommitteeMemberPayload builds a committee-service service
 // delete-committee-member endpoint payload.
-func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch string) *committeeservice.DeleteCommitteeMemberPayload {
+func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteeMemberPayload {
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
