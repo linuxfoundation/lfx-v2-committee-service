@@ -264,34 +264,34 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	slog.DebugContext(ctx, "committeeMemberService.update-committee-member",
 		"committee_uid", p.UID,
 		"member_uid", p.MemberUID,
+		"email", redaction.RedactEmail(p.Email),
 	)
 
-	// TODO: Parse ETag to get revision for optimistic locking
-	// parsedRevision, err := etagValidator(p.IfMatch)
-	// if err != nil {
-	// 	slog.ErrorContext(ctx, "invalid ETag",
-	// 		"error", err,
-	// 		"etag", p.IfMatch,
-	// 		"committee_uid", p.UID,
-	// 		"member_uid", p.MemberUID,
-	// 	)
-	// 	return nil, wrapError(ctx, err)
-	// }
+	// Parse ETag to get revision for optimistic locking
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag",
+			"error", err,
+			"etag", p.IfMatch,
+			"committee_uid", p.UID,
+			"member_uid", p.MemberUID,
+		)
+		return nil, wrapError(ctx, err)
+	}
 
-	// TODO: Convert payload to domain model
-	// committeeMember := s.convertPayloadToUpdateMember(p)
+	// Convert payload to domain model
+	committeeMember := s.convertPayloadToUpdateMember(p)
 
-	// TODO: Execute use case
-	// updatedMember, err := s.committeeMemberWriterOrchestrator.Update(ctx, committeeMember, parsedRevision)
-	// if err != nil {
-	// 	return nil, wrapError(ctx, err)
-	// }
+	// Execute use case
+	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
-	// TODO: Convert response to GOA result
-	// result := s.convertMemberToResponse(updatedMember)
+	// Convert response to GOA result
+	result := s.convertMemberDomainToFullResponse(updatedMember)
 
-	// TODO: Remove this placeholder return
-	return nil, nil
+	return result, nil
 }
 
 // DeleteCommitteeMember removes a member from a committee

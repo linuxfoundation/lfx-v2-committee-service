@@ -131,7 +131,7 @@ func (w *TestMockCommitteeWriter) CreateMember(ctx context.Context, member *mode
 	return mockWriter.CreateMember(ctx, member)
 }
 
-func (w *TestMockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
+func (w *TestMockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.UpdateMember(ctx, member, revision)
 }
