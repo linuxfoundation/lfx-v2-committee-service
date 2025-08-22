@@ -24,11 +24,15 @@ type Client struct {
 	UpdateCommitteeSettingsEndpoint goa.Endpoint
 	ReadyzEndpoint                  goa.Endpoint
 	LivezEndpoint                   goa.Endpoint
+	CreateCommitteeMemberEndpoint   goa.Endpoint
+	GetCommitteeMemberEndpoint      goa.Endpoint
+	UpdateCommitteeMemberEndpoint   goa.Endpoint
+	DeleteCommitteeMemberEndpoint   goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:         createCommittee,
 		GetCommitteeBaseEndpoint:        getCommitteeBase,
@@ -38,6 +42,10 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		UpdateCommitteeSettingsEndpoint: updateCommitteeSettings,
 		ReadyzEndpoint:                  readyz,
 		LivezEndpoint:                   livez,
+		CreateCommitteeMemberEndpoint:   createCommitteeMember,
+		GetCommitteeMemberEndpoint:      getCommitteeMember,
+		UpdateCommitteeMemberEndpoint:   updateCommitteeMember,
+		DeleteCommitteeMemberEndpoint:   deleteCommitteeMember,
 	}
 }
 
@@ -162,4 +170,71 @@ func (c *Client) Livez(ctx context.Context) (res []byte, err error) {
 		return
 	}
 	return ires.([]byte), nil
+}
+
+// CreateCommitteeMember calls the "create-committee-member" endpoint of the
+// "committee-service" service.
+// CreateCommitteeMember may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "Conflict" (type *ConflictError): Member already exists
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) CreateCommitteeMember(ctx context.Context, p *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.CreateCommitteeMemberEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// GetCommitteeMember calls the "get-committee-member" endpoint of the
+// "committee-service" service.
+// GetCommitteeMember may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Member not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error) {
+	var ires any
+	ires, err = c.GetCommitteeMemberEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GetCommitteeMemberResult), nil
+}
+
+// UpdateCommitteeMember calls the "update-committee-member" endpoint of the
+// "committee-service" service.
+// UpdateCommitteeMember may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Member not found
+//   - "Conflict" (type *ConflictError): Conflict
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) UpdateCommitteeMember(ctx context.Context, p *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.UpdateCommitteeMemberEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// DeleteCommitteeMember calls the "delete-committee-member" endpoint of the
+// "committee-service" service.
+// DeleteCommitteeMember may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Member not found
+//   - "Conflict" (type *ConflictError): Conflict
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) DeleteCommitteeMember(ctx context.Context, p *DeleteCommitteeMemberPayload) (err error) {
+	_, err = c.DeleteCommitteeMemberEndpoint(ctx, p)
+	return
 }

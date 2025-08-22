@@ -16,6 +16,10 @@ import (
 	"github.com/gosimple/slug"
 )
 
+const (
+	categoryGovernmentAdvisoryCouncil = "Government Advisory Council"
+)
+
 // Committee represents the core committee business entity
 type Committee struct {
 	CommitteeBase
@@ -135,4 +139,9 @@ func (c *Committee) Tags() []string {
 	}
 
 	return tags
+}
+
+// IsGovernmentAdvisoryCouncil returns true if the committee is a Government Advisory Council
+func (c *Committee) IsGovernmentAdvisoryCouncil() bool {
+	return c.Category == categoryGovernmentAdvisoryCouncil
 }

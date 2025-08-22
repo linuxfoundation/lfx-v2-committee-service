@@ -15,12 +15,24 @@ import (
 
 // CommitteeReader defines the interface for committee read operations
 type CommitteeReader interface {
+	CommitteeDataReader
+	CommitteeMemberDataReader
+}
+
+// CommitteeDataReader defines the interface for committee-specific read operations
+type CommitteeDataReader interface {
 	// GetBase retrieves committee base information by UID and returns the revision
 	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
 	// GetSettings retrieves committee settings by UID and returns the revision
 	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
 	// GetBaseAttributeValue retrieves an attribute value by UID and returns the revision
 	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
+}
+
+// CommitteeMemberDataReader defines the interface for committee member read operations
+type CommitteeMemberDataReader interface {
+	// GetMember retrieves a committee member by committee UID and member UID
+	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -102,6 +114,11 @@ func (rc *committeeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context
 	}
 
 	return field, nil
+}
+
+// GetMember retrieves a committee member by committee UID and member UID (placeholder implementation)
+func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
+	return nil, 0, errors.New("committee member retrieval not yet implemented")
 }
 
 // NewCommitteeReaderOrchestrator creates a new committee reader use case using the option pattern

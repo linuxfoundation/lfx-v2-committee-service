@@ -5,6 +5,7 @@ This directory contains the Committee API service. The service provides comprehe
 - It serves HTTP requests via Traefik to perform CRUD operations on committee data
 - Manages committee base information (name, category, description, settings, etc.)
 - Handles committee settings including voting configurations, member management, and access controls
+- Manages committee members including their roles, voting status, organization details, and appointment information
 - Integrates with project services to ensure committee-project relationships
 
 Applications with a BFF should use the REST API with HTTP requests to perform the needed operations on committees, while other resource API services can communicate with this service as needed.
@@ -21,6 +22,12 @@ This service contains the following API endpoints:
   - `GET`: retrieve committee settings by committee UID (includes sensitive data like writers, auditors, business email requirements)
   - `PUT`: update committee settings
 
+- `/committees/{uid}/members`
+  - `POST`: add a new member to a committee (requires email and other member details)
+  - `GET /{member_uid}`: retrieve a specific committee member by member UID
+  - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
+  - `DELETE /{member_uid}`: remove a member from a committee
+
 ## File Structure
 
 ```bash
@@ -28,7 +35,7 @@ This service contains the following API endpoints:
 │   ├── committee.go                # Goa committee service specification
 │   └── type.go                     # Goa data types and models
 ├── service/                        # Service implementation (presentation layer)
-│   ├── committee_service.go        # Committee service implementation
+│   ├── committee_service.go        # Committee and member service implementation
 │   ├── error.go                    # Error handling utilities
 │   └── providers.go                # Dependency injection providers
 ├── main.go                         # Application startup and dependency injection
@@ -36,8 +43,8 @@ This service contains the following API endpoints:
 └── README.md                       # This documentation
 
 # Dependencies from internal/ packages:
-# - internal/service/              # Business logic and use case orchestration
-# - internal/domain/               # Domain models, ports, and business rules
+# - internal/service/              # Business logic and use case orchestration (committee & member operations)
+# - internal/domain/               # Domain models, ports, and business rules (committee & member entities)
 # - internal/infrastructure/       # Infrastructure implementations (NATS storage, Auth, Messaging)
 # - internal/middleware/           # HTTP middleware components
 ```
@@ -57,13 +64,15 @@ This service follows clean architecture principles with clear separation of conc
 2. **Service/Use Case Layer** (`internal/service/`)
    - `CommitteeWriter` orchestrates committee creation, updates, and deletion
    - `CommitteeReader` orchestrates committee data retrieval operations
-   - Contains business logic for committee operations
+   - `CommitteeMemberWriter` orchestrates committee member creation, updates, and deletion
+   - `MessageHandler` processes committee-related events and notifications
+   - Contains business logic for committee and member operations
    - Validates business rules and coordinates between domain and infrastructure
 
 3. **Domain Layer** (`internal/domain/`)
-   - Domain models (`model/`)
-   - Port interfaces (`port/`)
-   - Business rules and domain-specific validation
+   - Domain models (`model/`) - committee base, settings, and member entities
+   - Port interfaces (`port/`) - committee and member reader/writer interfaces
+   - Business rules and domain-specific validation for committees and members
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
    - NATS storage implementation (`nats/`)
@@ -76,8 +85,8 @@ This service follows clean architecture principles with clear separation of conc
 - **Storage Independence**: Can switch from NATS to PostgreSQL without changing business logic
 - **Testability**: Each layer can be tested in isolation using comprehensive mocks
 - **Maintainability**: Clear separation of concerns and dependency direction
-- **Scalability**: Support for committee hierarchies and complex organizational structures
-- **Integration**: Seamless integration with project services and external authentication systems
+- **Scalability**: Support for committee hierarchies, complex organizational structures, and member management
+- **Integration**: Seamless integration with project services, member data, and external authentication systems
 
 ## Development
 
@@ -139,6 +148,7 @@ The service relies on some resources and external services being spun up prior t
     # if using the nats cli tool
     nats kv add committees --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
     nats kv add committee-settings --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
+    nats kv add committee-members --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
     ```
 
 #### 3. Export environment variables

@@ -144,7 +144,11 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		timeout: config.Timeout,
 	}
 
-	for _, bucketName := range []string{constants.KVBucketNameCommittees, constants.KVBucketNameCommitteeSettings} {
+	for _, bucketName := range []string{
+		constants.KVBucketNameCommittees,
+		constants.KVBucketNameCommitteeSettings,
+		constants.KVBucketNameCommitteeMembers,
+	} {
 		if err := client.KeyValueStore(ctx, bucketName); err != nil {
 			slog.ErrorContext(ctx, "failed to initialize NATS key-value store",
 				"error", err,
@@ -152,6 +156,9 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 			)
 			return nil, errors.NewServiceUnavailable("failed to initialize NATS key-value store", err)
 		}
+		slog.InfoContext(ctx, "NATS key-value store initialized",
+			"bucket", bucketName,
+		)
 	}
 
 	slog.InfoContext(ctx, "NATS client created successfully",

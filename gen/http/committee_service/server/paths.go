@@ -51,3 +51,23 @@ func ReadyzCommitteeServicePath() string {
 func LivezCommitteeServicePath() string {
 	return "/livez"
 }
+
+// CreateCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service create-committee-member HTTP endpoint.
+func CreateCommitteeMemberCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/members", uid)
+}
+
+// GetCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service get-committee-member HTTP endpoint.
+func GetCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
+	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
+}
+
+// UpdateCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service update-committee-member HTTP endpoint.
+func UpdateCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
+	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
+}
+
+// DeleteCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service delete-committee-member HTTP endpoint.
+func DeleteCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
+	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
+}

@@ -426,6 +426,492 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/members:
+        post:
+            tags:
+                - committee-service
+            summary: create-committee-member committee-service
+            description: Add a new member to a committee
+            operationId: committee-service#create-committee-member
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
+                        example:
+                            agency: GSA
+                            appointed_by: Community
+                            country: United States
+                            email: user@example.com
+                            first_name: John
+                            job_title: Chief Technology Officer
+                            last_name: Doe
+                            organization:
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
+                            role:
+                                end_date: "2024-12-31"
+                                name: Chair
+                                start_date: "2023-01-01"
+                            status: Active
+                            username: user123
+                            voting:
+                                end_date: "2024-12-31"
+                                start_date: "2023-01-01"
+                                status: Voting Rep
+            responses:
+                "201":
+                    description: Created response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                            example:
+                                agency: GSA
+                                appointed_by: Community
+                                country: United States
+                                created_at: "2023-01-15T10:30:00Z"
+                                email: user@example.com
+                                first_name: John
+                                job_title: Chief Technology Officer
+                                last_name: Doe
+                                organization:
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                status: Active
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                                username: user123
+                                voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Member already exists'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/members/{member_uid}:
+        delete:
+            tags:
+                - committee-service
+            summary: delete-committee-member committee-service
+            description: Remove a member from a committee
+            operationId: committee-service#delete-committee-member
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                  example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: If-Match header value for conditional requests
+                    example: "123"
+                  example: "123"
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Member not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Conflict'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-member committee-service
+            description: Get a specific committee member by UID
+            operationId: committee-service#get-committee-member
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                  example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            responses:
+                "200":
+                    description: OK response.
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            schema:
+                                type: string
+                                description: ETag header value
+                                example: "123"
+                            example: "123"
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                            example:
+                                agency: GSA
+                                appointed_by: Community
+                                country: United States
+                                created_at: "2023-01-15T10:30:00Z"
+                                email: user@example.com
+                                first_name: John
+                                job_title: Chief Technology Officer
+                                last_name: Doe
+                                organization:
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                status: Active
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                                username: user123
+                                voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Member not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        put:
+            tags:
+                - committee-service
+            summary: update-committee-member committee-service
+            description: Replace an existing committee member (requires complete resource)
+            operationId: committee-service#update-committee-member
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                  example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: If-Match header value for conditional requests
+                    example: "123"
+                  example: "123"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
+                        example:
+                            agency: GSA
+                            appointed_by: Community
+                            country: United States
+                            email: user@example.com
+                            first_name: John
+                            job_title: Chief Technology Officer
+                            last_name: Doe
+                            organization:
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
+                            role:
+                                end_date: "2024-12-31"
+                                name: Chair
+                                start_date: "2023-01-01"
+                            status: Active
+                            username: user123
+                            voting:
+                                end_date: "2024-12-31"
+                                start_date: "2023-01-01"
+                                status: Voting Rep
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                            example:
+                                agency: GSA
+                                appointed_by: Community
+                                country: United States
+                                created_at: "2023-01-15T10:30:00Z"
+                                email: user@example.com
+                                first_name: John
+                                job_title: Chief Technology Officer
+                                last_name: Doe
+                                organization:
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                status: Active
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                                username: user123
+                                voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Member not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Conflict'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/settings:
         get:
             tags:
@@ -1230,6 +1716,537 @@ components:
                 writers:
                     - manager_user_id1
                     - manager_user_id2
+        CommitteeMemberBase:
+            type: object
+            properties:
+                agency:
+                    type: string
+                    description: Government agency (for GAC members)
+                    example: GSA
+                    maxLength: 100
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                country:
+                    type: string
+                    description: Country (for GAC members)
+                    example: United States
+                    maxLength: 100
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: First name
+                    example: John
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Doe
+                    maxLength: 100
+                organization:
+                    type: object
+                    properties:
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Counsel
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: user123
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            description: A base representation of committee members.
+            example:
+                agency: GSA
+                appointed_by: Community
+                country: United States
+                email: user@example.com
+                first_name: John
+                job_title: Chief Technology Officer
+                last_name: Doe
+                organization:
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                username: user123
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+        CommitteeMemberFull:
+            type: object
+            properties:
+                agency:
+                    type: string
+                    description: Government agency (for GAC members)
+                    example: GSA
+                    maxLength: 100
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                country:
+                    type: string
+                    description: Country (for GAC members)
+                    example: United States
+                    maxLength: 100
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: First name
+                    example: John
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Doe
+                    maxLength: 100
+                organization:
+                    type: object
+                    properties:
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Counsel
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: user123
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            description: A complete representation of committee members with all attributes.
+            example:
+                agency: GSA
+                appointed_by: Community
+                country: United States
+                email: user@example.com
+                first_name: John
+                job_title: Chief Technology Officer
+                last_name: Doe
+                organization:
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                username: user123
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+        CommitteeMemberFullWithReadonlyAttributes:
+            type: object
+            properties:
+                agency:
+                    type: string
+                    description: Government agency (for GAC members)
+                    example: GSA
+                    maxLength: 100
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                country:
+                    type: string
+                    description: Country (for GAC members)
+                    example: United States
+                    maxLength: 100
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: First name
+                    example: John
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Doe
+                    maxLength: 100
+                organization:
+                    type: object
+                    properties:
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Counsel
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                uid:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                updated_at:
+                    type: string
+                    description: The timestamp when the resource was last updated (read-only)
+                    example: "2023-06-20T14:45:30Z"
+                    format: date-time
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: user123
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            description: A complete representation of committee members with readonly attributes.
+            example:
+                agency: GSA
+                appointed_by: Community
+                country: United States
+                created_at: "2023-01-15T10:30:00Z"
+                email: user@example.com
+                first_name: John
+                job_title: Chief Technology Officer
+                last_name: Doe
+                organization:
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                updated_at: "2023-06-20T14:45:30Z"
+                username: user123
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
         CommitteeSettings:
             type: object
             properties:
@@ -1262,7 +2279,7 @@ components:
                     example: false
                 created_at:
                     type: string
-                    description: The timestamp when the committee was created (read-only)
+                    description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 last_reviewed_at:
@@ -1281,7 +2298,7 @@ components:
                     format: uuid
                 updated_at:
                     type: string
-                    description: The timestamp when the committee was last updated (read-only)
+                    description: The timestamp when the resource was last updated (read-only)
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
             description: A representation of LF Committee settings with readonly attributes.
@@ -1303,6 +2320,178 @@ components:
                 message: The resource already exists.
             required:
                 - message
+        CreateCommitteeMemberRequestBody:
+            type: object
+            properties:
+                agency:
+                    type: string
+                    description: Government agency (for GAC members)
+                    example: GSA
+                    maxLength: 100
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                country:
+                    type: string
+                    description: Country (for GAC members)
+                    example: United States
+                    maxLength: 100
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: First name
+                    example: John
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Doe
+                    maxLength: 100
+                organization:
+                    type: object
+                    properties:
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Counsel
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: user123
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            example:
+                agency: GSA
+                appointed_by: Community
+                country: United States
+                email: user@example.com
+                first_name: John
+                job_title: Chief Technology Officer
+                last_name: Doe
+                organization:
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                username: user123
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+            required:
+                - email
         CreateCommitteeRequestBody:
             type: object
             properties:

@@ -13,6 +13,7 @@ import (
 type CommitteeWriter interface {
 	CommitteeBaseWriter
 	CommitteeSettingsWriter
+	CommitteeMemberWriter
 }
 
 // CommitteeBaseWriter handles committee base data writing operations

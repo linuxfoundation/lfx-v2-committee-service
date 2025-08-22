@@ -38,3 +38,22 @@ spec:
   maxBytes: {{ .Values.nats.committees_settings_kv_bucket.maxBytes }}
   compression: {{ .Values.nats.committees_settings_kv_bucket.compression }}
 {{- end }}
+---
+{{- if .Values.nats.committee_members_kv_bucket.creation }}
+apiVersion: jetstream.nats.io/v1beta2
+kind: KeyValue
+metadata:
+  name: {{ .Values.nats.committee_members_kv_bucket.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.nats.committee_members_kv_bucket.keep }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  {{- end }}
+spec:
+  bucket: {{ .Values.nats.committee_members_kv_bucket.name }}
+  history: {{ .Values.nats.committee_members_kv_bucket.history }}
+  storage: {{ .Values.nats.committee_members_kv_bucket.storage }}
+  maxValueSize: {{ .Values.nats.committee_members_kv_bucket.maxValueSize }}
+  maxBytes: {{ .Values.nats.committee_members_kv_bucket.maxBytes }}
+  compression: {{ .Values.nats.committee_members_kv_bucket.compression }}
+{{- end }}

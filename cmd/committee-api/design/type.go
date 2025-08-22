@@ -332,7 +332,7 @@ func BearerTokenAttribute() {
 
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
-	dsl.Attribute("created_at", dsl.String, "The timestamp when the committee was created (read-only)", func() {
+	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2023-01-15T10:30:00Z")
 	})
@@ -340,7 +340,7 @@ func CreatedAtAttribute() {
 
 // UpdatedAtAttribute is the DSL attribute for update timestamp.
 func UpdatedAtAttribute() {
-	dsl.Attribute("updated_at", dsl.String, "The timestamp when the committee was last updated (read-only)", func() {
+	dsl.Attribute("updated_at", dsl.String, "The timestamp when the resource was last updated (read-only)", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2023-06-20T14:45:30Z")
 	})
@@ -365,6 +365,282 @@ func LastAuditedTimeAttribute() {
 func AuditorsAttribute() {
 	dsl.Attribute("auditors", dsl.ArrayOf(dsl.String), "Auditor user IDs who can audit this committee", func() {
 		dsl.Example([]string{"auditor_user_id1", "auditor_user_id2"})
+	})
+}
+
+// Committee Member Types and Attributes
+
+// CommitteeMemberBase is the DSL type for a committee member base.
+var CommitteeMemberBase = dsl.Type("committee-member-base", func() {
+	dsl.Description("A base representation of committee members.")
+
+	CommitteeMemberBaseAttributes()
+})
+
+// CommitteeMemberBaseAttributes defines the base attributes for a committee member.
+func CommitteeMemberBaseAttributes() {
+	UsernameAttribute()
+	EmailAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	JobTitleAttribute()
+	RoleInfoAttributes()
+	AppointedByAttribute()
+	StatusAttribute()
+	VotingInfoAttributes()
+	AgencyAttribute()
+	CountryAttribute()
+	OrganizationInfoAttributes()
+}
+
+// CommitteeMemberFull is the DSL type for a complete committee member.
+var CommitteeMemberFull = dsl.Type("committee-member-full", func() {
+	dsl.Description("A complete representation of committee members with all attributes.")
+
+	CommitteeMemberBaseAttributes()
+})
+
+// CommitteeMemberFullWithReadonlyAttributes is the DSL type for a complete committee member with readonly attributes.
+var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-with-readonly-attributes", func() {
+	dsl.Description("A complete representation of committee members with readonly attributes.")
+
+	CommitteeMemberUIDAttribute()
+	CommitteeMemberBaseAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// CommitteeMemberCreateAttributes defines attributes for creating a committee member.
+func CommitteeMemberCreateAttributes() {
+	CommitteeMemberBaseAttributes()
+}
+
+// CommitteeMemberUpdateAttributes defines attributes for updating a committee member.
+func CommitteeMemberUpdateAttributes() {
+	CommitteeMemberBaseAttributes()
+}
+
+// Organization Information Attributes
+func OrganizationInfoAttributes() {
+	dsl.Attribute("organization", func() {
+		dsl.Description("Organization information for the committee member")
+		OrganizationNameAttribute()
+		OrganizationWebsiteAttribute()
+	})
+}
+
+// Role Information Attributes
+func RoleInfoAttributes() {
+	dsl.Attribute("role", func() {
+		dsl.Description("Committee role information")
+		RoleNameAttribute()
+		RoleStartDateAttribute()
+		RoleEndDateAttribute()
+	})
+}
+
+// Voting Information Attributes
+func VotingInfoAttributes() {
+	dsl.Attribute("voting", func() {
+		dsl.Description("Voting information for the committee member")
+		VotingStatusAttribute()
+		VotingStartDateAttribute()
+		VotingEndDateAttribute()
+	})
+}
+
+// Committee Member Specific Attributes
+
+// CommitteeMemberUIDAttribute is the DSL attribute for committee member UID.
+func CommitteeMemberUIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "Committee member UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// MemberUIDAttribute is the DSL attribute for member UID in URL paths.
+func MemberUIDAttribute() {
+	dsl.Attribute("member_uid", dsl.String, "Committee member UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// UsernameAttribute is the DSL attribute for username.
+func UsernameAttribute() {
+	dsl.Attribute("username", dsl.String, "User's LF ID", func() {
+		dsl.MaxLength(100)
+		dsl.Example("user123")
+	})
+}
+
+// EmailAttribute is the DSL attribute for email.
+func EmailAttribute() {
+	dsl.Attribute("email", dsl.String, "Primary email address", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("user@example.com")
+	})
+}
+
+// FirstNameAttribute is the DSL attribute for first name.
+func FirstNameAttribute() {
+	dsl.Attribute("first_name", dsl.String, "First name", func() {
+		dsl.MaxLength(100)
+		dsl.Example("John")
+	})
+}
+
+// LastNameAttribute is the DSL attribute for last name.
+func LastNameAttribute() {
+	dsl.Attribute("last_name", dsl.String, "Last name", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Doe")
+	})
+}
+
+// JobTitleAttribute is the DSL attribute for job title.
+func JobTitleAttribute() {
+	dsl.Attribute("job_title", dsl.String, "Job title at organization", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Chief Technology Officer")
+	})
+}
+
+// RoleNameAttribute is the DSL attribute for committee role name.
+func RoleNameAttribute() {
+	dsl.Attribute("name", dsl.String, "Committee role name", func() {
+		dsl.Enum(
+			"Chair",
+			"Counsel",
+			"Developer Seat",
+			"TAC/TOC Representative",
+			"Director",
+			"Lead",
+			"None",
+			"Secretary",
+			"Treasurer",
+			"Vice Chair",
+			"LF Staff",
+		)
+		dsl.Default("None")
+		dsl.Example("Chair")
+	})
+}
+
+// RoleStartDateAttribute is the DSL attribute for role start date.
+func RoleStartDateAttribute() {
+	dsl.Attribute("start_date", dsl.String, "Role start date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2023-01-01")
+	})
+}
+
+// RoleEndDateAttribute is the DSL attribute for role end date.
+func RoleEndDateAttribute() {
+	dsl.Attribute("end_date", dsl.String, "Role end date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2024-12-31")
+	})
+}
+
+// AppointedByAttribute is the DSL attribute for appointed by.
+func AppointedByAttribute() {
+	dsl.Attribute("appointed_by", dsl.String, "How the member was appointed", func() {
+		dsl.Enum(
+			"Community",
+			"Membership Entitlement",
+			"Vote of End User Member Class",
+			"Vote of TSC Committee",
+			"Vote of TAC Committee",
+			"Vote of Academic Member Class",
+			"Vote of Lab Member Class",
+			"Vote of Marketing Committee",
+			"Vote of Governing Board",
+			"Vote of General Member Class",
+			"Vote of End User Committee",
+			"Vote of TOC Committee",
+			"Vote of Gold Member Class",
+			"Vote of Silver Member Class",
+			"Vote of Strategic Membership Class",
+			"None",
+		)
+		dsl.Default("None")
+		dsl.Example("Community")
+	})
+}
+
+// StatusAttribute is the DSL attribute for member status.
+func StatusAttribute() {
+	dsl.Attribute("status", dsl.String, "Member status", func() {
+		dsl.Enum("Active", "Inactive")
+		dsl.Default("Active")
+		dsl.Example("Active")
+	})
+}
+
+// VotingStatusAttribute is the DSL attribute for voting status.
+func VotingStatusAttribute() {
+	dsl.Attribute("status", dsl.String, "Voting status", func() {
+		dsl.Enum(
+			"Alternate Voting Rep",
+			"Observer",
+			"Voting Rep",
+			"Emeritus",
+			"None",
+		)
+		dsl.Default("None")
+		dsl.Example("Voting Rep")
+	})
+}
+
+// VotingStartDateAttribute is the DSL attribute for voting start date.
+func VotingStartDateAttribute() {
+	dsl.Attribute("start_date", dsl.String, "Voting start date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2023-01-01")
+	})
+}
+
+// VotingEndDateAttribute is the DSL attribute for voting end date.
+func VotingEndDateAttribute() {
+	dsl.Attribute("end_date", dsl.String, "Voting end date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2024-12-31")
+	})
+}
+
+// AgencyAttribute is the DSL attribute for government agency.
+func AgencyAttribute() {
+	dsl.Attribute("agency", dsl.String, "Government agency (for GAC members)", func() {
+		dsl.MaxLength(100)
+		dsl.Example("GSA")
+	})
+}
+
+// CountryAttribute is the DSL attribute for country.
+func CountryAttribute() {
+	dsl.Attribute("country", dsl.String, "Country (for GAC members)", func() {
+		dsl.MaxLength(100)
+		dsl.Example("United States")
+	})
+}
+
+// Organization Specific Attributes
+
+// OrganizationNameAttribute is the DSL attribute for organization name.
+func OrganizationNameAttribute() {
+	dsl.Attribute("name", dsl.String, "Organization name", func() {
+		dsl.MaxLength(200)
+		dsl.Example("The Linux Foundation")
+	})
+}
+
+// OrganizationWebsiteAttribute is the DSL attribute for organization website.
+func OrganizationWebsiteAttribute() {
+	dsl.Attribute("website", dsl.String, "Organization website URL", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Example("https://linuxfoundation.org")
 	})
 }
 
