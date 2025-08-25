@@ -422,18 +422,22 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
-		CommitteeUID:  &member.CommitteeUID,
-		CommitteeName: &member.CommitteeName,
-		UID:           &member.UID,
-		Username:      &member.Username,
-		Email:         &member.Email,
-		FirstName:     &member.FirstName,
-		LastName:      &member.LastName,
-		JobTitle:      &member.JobTitle,
-		AppointedBy:   member.AppointedBy,
-		Status:        member.Status,
-		Agency:        &member.Agency,
-		Country:       &member.Country,
+		CommitteeUID: &member.CommitteeUID,
+		UID:          &member.UID,
+		Username:     &member.Username,
+		Email:        &member.Email,
+		FirstName:    &member.FirstName,
+		LastName:     &member.LastName,
+		JobTitle:     &member.JobTitle,
+		AppointedBy:  member.AppointedBy,
+		Status:       member.Status,
+		Agency:       &member.Agency,
+		Country:      &member.Country,
+	}
+
+	// Only set CommitteeName if it's not empty
+	if member.CommitteeName != "" {
+		result.CommitteeName = &member.CommitteeName
 	}
 
 	// Handle Role mapping
