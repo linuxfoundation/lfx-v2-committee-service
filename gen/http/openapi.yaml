@@ -1115,6 +1115,11 @@ definitions:
                     - Vote of Silver Member Class
                     - Vote of Strategic Membership Class
                     - None
+            committee_name:
+                type: string
+                description: The name of the committee this member belongs to
+                example: Technical Steering Committee
+                maxLength: 100
             committee_uid:
                 type: string
                 description: Committee UID -- v2 uid, not related to v1 id directly
@@ -1257,6 +1262,7 @@ definitions:
         example:
             agency: GSA
             appointed_by: Community
+            committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             country: United States
             created_at: "2023-01-15T10:30:00Z"

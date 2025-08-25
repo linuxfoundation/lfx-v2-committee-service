@@ -14,7 +14,7 @@ type CommitteeMemberWriter interface {
 	// CreateMember creates a new committee member
 	CreateMember(ctx context.Context, member *model.CommitteeMember) error
 	// UpdateMember updates an existing committee member
-	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
 	DeleteMember(ctx context.Context, uid string, revision uint64) error
 

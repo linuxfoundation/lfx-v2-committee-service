@@ -167,6 +167,8 @@ type CommitteeMemberFullWithReadonlyAttributes struct {
 	UID *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string
+	// The name of the committee this member belongs to
+	CommitteeName *string
 	// User's LF ID
 	Username *string
 	// Primary email address

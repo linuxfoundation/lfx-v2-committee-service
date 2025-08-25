@@ -23,22 +23,23 @@ type CommitteeMember struct {
 
 // CommitteeMemberBase represents the base committee member attributes
 type CommitteeMemberBase struct {
-	UID          string                      `json:"uid"`
-	Username     string                      `json:"username"`
-	Email        string                      `json:"email"`
-	FirstName    string                      `json:"first_name"`
-	LastName     string                      `json:"last_name"`
-	JobTitle     string                      `json:"job_title,omitempty"`
-	Role         CommitteeMemberRole         `json:"role"`
-	AppointedBy  string                      `json:"appointed_by"`
-	Status       string                      `json:"status"`
-	Voting       CommitteeMemberVotingInfo   `json:"voting"`
-	Agency       string                      `json:"agency,omitempty"`
-	Country      string                      `json:"country,omitempty"`
-	Organization CommitteeMemberOrganization `json:"organization"`
-	CommitteeUID string                      `json:"committee_uid"`
-	CreatedAt    time.Time                   `json:"created_at"`
-	UpdatedAt    time.Time                   `json:"updated_at"`
+	UID           string                      `json:"uid"`
+	Username      string                      `json:"username"`
+	Email         string                      `json:"email"`
+	FirstName     string                      `json:"first_name"`
+	LastName      string                      `json:"last_name"`
+	JobTitle      string                      `json:"job_title,omitempty"`
+	Role          CommitteeMemberRole         `json:"role"`
+	AppointedBy   string                      `json:"appointed_by"`
+	Status        string                      `json:"status"`
+	Voting        CommitteeMemberVotingInfo   `json:"voting"`
+	Agency        string                      `json:"agency,omitempty"`
+	Country       string                      `json:"country,omitempty"`
+	Organization  CommitteeMemberOrganization `json:"organization"`
+	CommitteeUID  string                      `json:"committee_uid"`
+	CommitteeName string                      `json:"committee_name"`
+	CreatedAt     time.Time                   `json:"created_at"`
+	UpdatedAt     time.Time                   `json:"updated_at"`
 }
 
 // Role represents committee role information

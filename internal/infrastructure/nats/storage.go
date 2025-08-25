@@ -279,8 +279,35 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 }
 
 // UpdateMember updates an existing committee member
-func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
-	return errs.NewUnexpected("committee member update not yet implemented")
+func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+
+	if member == nil {
+		return nil, errs.NewValidation("committee member cannot be nil")
+	}
+
+	// Marshal the committee member data
+	memberBytes, errMarshal := json.Marshal(member)
+	if errMarshal != nil {
+		return nil, errs.NewUnexpected("failed to marshal committee member", errMarshal)
+	}
+
+	// Update the committee member using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Update(ctx, member.UID, memberBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
+		}
+		return nil, errs.NewUnexpected("failed to update committee member", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee member in NATS storage",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
+	return member, nil
 }
 
 // DeleteMember removes a committee member

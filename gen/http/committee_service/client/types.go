@@ -332,6 +332,8 @@ type CreateCommitteeMemberResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -392,6 +394,8 @@ type UpdateCommitteeMemberResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -877,6 +881,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -1764,17 +1770,18 @@ func NewReadyzServiceUnavailable(body *ReadyzServiceUnavailableResponseBody) *co
 // result from a HTTP "Created" response.
 func NewCreateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesCreated(body *CreateCommitteeMemberResponseBody) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
 	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
-		UID:          body.UID,
-		CommitteeUID: body.CommitteeUID,
-		Username:     body.Username,
-		Email:        body.Email,
-		FirstName:    body.FirstName,
-		LastName:     body.LastName,
-		JobTitle:     body.JobTitle,
-		Agency:       body.Agency,
-		Country:      body.Country,
-		CreatedAt:    body.CreatedAt,
-		UpdatedAt:    body.UpdatedAt,
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		CommitteeName: body.CommitteeName,
+		Username:      body.Username,
+		Email:         body.Email,
+		FirstName:     body.FirstName,
+		LastName:      body.LastName,
+		JobTitle:      body.JobTitle,
+		Agency:        body.Agency,
+		Country:       body.Country,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -1895,17 +1902,18 @@ func NewCreateCommitteeMemberServiceUnavailable(body *CreateCommitteeMemberServi
 // "get-committee-member" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeMemberResultOK(body *GetCommitteeMemberResponseBody, etag *string) *committeeservice.GetCommitteeMemberResult {
 	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
-		UID:          body.UID,
-		CommitteeUID: body.CommitteeUID,
-		Username:     body.Username,
-		Email:        body.Email,
-		FirstName:    body.FirstName,
-		LastName:     body.LastName,
-		JobTitle:     body.JobTitle,
-		Agency:       body.Agency,
-		Country:      body.Country,
-		CreatedAt:    body.CreatedAt,
-		UpdatedAt:    body.UpdatedAt,
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		CommitteeName: body.CommitteeName,
+		Username:      body.Username,
+		Email:         body.Email,
+		FirstName:     body.FirstName,
+		LastName:      body.LastName,
+		JobTitle:      body.JobTitle,
+		Agency:        body.Agency,
+		Country:       body.Country,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2021,17 +2029,18 @@ func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnav
 // HTTP "OK" response.
 func NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK(body *UpdateCommitteeMemberResponseBody) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
 	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
-		UID:          body.UID,
-		CommitteeUID: body.CommitteeUID,
-		Username:     body.Username,
-		Email:        body.Email,
-		FirstName:    body.FirstName,
-		LastName:     body.LastName,
-		JobTitle:     body.JobTitle,
-		Agency:       body.Agency,
-		Country:      body.Country,
-		CreatedAt:    body.CreatedAt,
-		UpdatedAt:    body.UpdatedAt,
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		CommitteeName: body.CommitteeName,
+		Username:      body.Username,
+		Email:         body.Email,
+		FirstName:     body.FirstName,
+		LastName:      body.LastName,
+		JobTitle:      body.JobTitle,
+		Agency:        body.Agency,
+		Country:       body.Country,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2409,6 +2418,11 @@ func ValidateCreateCommitteeMemberResponseBody(body *CreateCommitteeMemberRespon
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
 	if body.Username != nil {
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
@@ -2506,6 +2520,11 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
 	if body.Username != nil {
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
@@ -2602,6 +2621,11 @@ func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberRespon
 	}
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
 	}
 	if body.Username != nil {
 		if utf8.RuneCountInString(*body.Username) > 100 {
@@ -3200,6 +3224,11 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 	}
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
 	}
 	if body.Username != nil {
 		if utf8.RuneCountInString(*body.Username) > 100 {

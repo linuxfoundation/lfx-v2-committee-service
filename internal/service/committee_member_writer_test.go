@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -77,8 +78,21 @@ func (w *TestMockCommitteeMemberWriter) CreateMember(ctx context.Context, member
 	return nil
 }
 
-func (w *TestMockCommitteeMemberWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
-	return errs.NewUnexpected("committee member update not yet implemented")
+func (w *TestMockCommitteeMemberWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+	if _, exists := w.members[member.UID]; !exists {
+		return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
+	}
+
+	// Check revision if custom revision is set
+	if expectedRev, hasCustom := w.customRevisions[member.UID]; hasCustom {
+		if expectedRev != revision {
+			return nil, errs.NewConflict("committee member has been modified by another process")
+		}
+	}
+
+	// Update the member
+	w.members[member.UID] = member
+	return member, nil
 }
 
 func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid string, revision uint64) error {
@@ -439,25 +453,6 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 	// this should succeed
 	require.NoError(t, err)
 	require.NotNil(t, result)
-}
-
-func TestCommitteeWriterOrchestrator_UpdateMember(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
-
-	member := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:   "member-123",
-			Email: "test@example.com",
-		},
-	}
-
-	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, member, 1)
-
-	// Should return not implemented error
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "committee member update not yet implemented")
-	assert.Nil(t, result)
 }
 
 func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
@@ -825,4 +820,333 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 
 	// Should succeed even if message publishing fails (currently mock always succeeds)
 	require.NoError(t, err)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee with settings
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-123",
+			Name:     "Test Committee",
+			Category: "Technical",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup existing member
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "old@example.com",
+			Username:     "olduser",
+			FirstName:    "Old",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Old Org",
+			},
+			CreatedAt: time.Now().Add(-time.Hour),
+			UpdatedAt: time.Now().Add(-time.Hour),
+		},
+	}
+
+	// Add member to mock repository (this is what the orchestrator will read from)
+	mockRepo.AddCommitteeMember("committee-123", existingMember)
+
+	// Also add to the member writer for storage operations
+	memberWriter.members["member-123"] = existingMember
+	memberWriter.customRevisions["member-123"] = 1
+
+	// Create updated member with changes
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "new@example.com", // Email changed
+			Username:     "newuser",         // Username changed
+			FirstName:    "New",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "New Org", // Organization changed
+			},
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should succeed
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify the member was updated
+	assert.Equal(t, "member-123", result.UID)
+	assert.Equal(t, "new@example.com", result.Email)
+	assert.Equal(t, "newuser", result.Username)
+	assert.Equal(t, "New Org", result.Organization.Name)
+
+	// Verify timestamps were preserved/updated correctly
+	assert.Equal(t, existingMember.CreatedAt, result.CreatedAt)      // CreatedAt should be preserved
+	assert.True(t, result.UpdatedAt.After(existingMember.UpdatedAt)) // UpdatedAt should be newer
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-123",
+			Name:     "Test Committee",
+			Category: "Technical",
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup existing member
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+		},
+	}
+	memberWriter.members["member-123"] = existingMember
+	memberWriter.customRevisions["member-123"] = 5 // Current revision is 5
+
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "updated@example.com",
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3) // Using old revision 3
+
+	// Should fail with conflict error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "modified by another process")
+	assert.Nil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "nonexistent-member",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should fail with not found error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+	assert.Nil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup existing member belonging to a valid committee
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+		},
+	}
+	// Add member to mock repository (this is what the orchestrator will read from)
+	mockRepo.AddCommitteeMember("committee-123", existingMember)
+	// Also add to the member writer for storage operations
+	memberWriter.members["member-123"] = existingMember
+	memberWriter.customRevisions["member-123"] = 1
+
+	// Try to update member to belong to a nonexistent committee
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "nonexistent-committee",
+			Email:        "updated@example.com",
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should fail because member belongs to different committee
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "committee member does not belong to the requested committee")
+	assert.Nil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValidation(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee with business email required
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-123",
+			Name:     "Test Committee",
+			Category: "Technical",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			BusinessEmailRequired: true, // Corporate email validation required
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup existing member
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "old@example.com",
+			Username:     "testuser",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Test Org",
+			},
+		},
+	}
+	memberWriter.members["member-123"] = existingMember
+	memberWriter.customRevisions["member-123"] = 1
+	mockRepo.AddCommitteeMember("committee-123", existingMember)
+
+	// Create updated member with new email
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "new@corporate.com", // Email changed
+			Username:     "testuser",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Test Org",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should succeed (corporate validation is mocked to always pass)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "new@corporate.com", result.Email)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_ValidationFailure(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup GAC committee that requires agency and country
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "gac-committee",
+			Name:     "Government Advisory Committee",
+			Category: "Government Advisory Council",
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup existing member
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-gac-validation",
+			CommitteeUID: "gac-committee",
+			Email:        "test@gov.com",
+			Agency:       "Test Agency",
+			Country:      "US",
+		},
+	}
+	// Add member to mock repository (this is what the orchestrator will read from)
+	mockRepo.AddCommitteeMember("gac-committee", existingMember)
+	// Also add to the member writer for storage operations
+	memberWriter.members["member-gac-validation"] = existingMember
+	memberWriter.customRevisions["member-gac-validation"] = 1
+
+	// Create updated member without required GAC fields
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-gac-validation",
+			CommitteeUID: "gac-committee",
+			Email:        "updated@gov.com",
+			// Missing Agency and Country - should fail validation
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should fail validation
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required fields")
+	assert.Nil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-123",
+			Name:     "Test Committee",
+			Category: "Technical",
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup existing member 1
+	existingMember1 := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "member1@example.com",
+		},
+	}
+	memberWriter.members["member-123"] = existingMember1
+	memberWriter.customRevisions["member-123"] = 1
+
+	// Setup existing member 2 with different email
+	existingMember2 := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-456",
+			CommitteeUID: "committee-123",
+			Email:        "member2@example.com",
+		},
+	}
+	memberWriter.members["member-456"] = existingMember2
+	memberWriter.customRevisions["member-456"] = 1
+
+	// Create lookup key for member 2's email
+	lookupKey2 := existingMember2.BuildIndexKey(context.Background())
+	memberWriter.keys[lookupKey2] = existingMember2.UID
+
+	// Try to update member 1 to use member 2's email
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "member2@example.com", // Email already used by member-456
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+
+	// Should fail with conflict error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+	assert.Nil(t, result)
 }
