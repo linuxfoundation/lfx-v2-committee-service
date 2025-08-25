@@ -958,19 +958,23 @@ func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T) {
-	orchestrator, _, memberWriter := setupMemberWriterTest()
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 
-	// Setup existing member
+	// Setup existing member belonging to a valid committee
 	existingMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
-			CommitteeUID: "nonexistent-committee",
+			CommitteeUID: "committee-123",
 			Email:        "test@example.com",
 		},
 	}
+	// Add member to mock repository (this is what the orchestrator will read from)
+	mockRepo.AddCommitteeMember("committee-123", existingMember)
+	// Also add to the member writer for storage operations
 	memberWriter.members["member-123"] = existingMember
 	memberWriter.customRevisions["member-123"] = 1
 
+	// Try to update member to belong to a nonexistent committee
 	updatedMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
@@ -982,9 +986,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 	ctx := context.Background()
 	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
 
-	// Should fail because committee doesn't exist
+	// Should fail because member belongs to different committee
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "committee not found")
+	assert.Contains(t, err.Error(), "committee member does not belong to the requested committee")
 	assert.Nil(t, result)
 }
 
@@ -1058,20 +1062,23 @@ func TestCommitteeWriterOrchestrator_UpdateMember_ValidationFailure(t *testing.T
 	// Setup existing member
 	existingMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-123",
+			UID:          "member-gac-validation",
 			CommitteeUID: "gac-committee",
 			Email:        "test@gov.com",
 			Agency:       "Test Agency",
 			Country:      "US",
 		},
 	}
-	memberWriter.members["member-123"] = existingMember
-	memberWriter.customRevisions["member-123"] = 1
+	// Add member to mock repository (this is what the orchestrator will read from)
+	mockRepo.AddCommitteeMember("gac-committee", existingMember)
+	// Also add to the member writer for storage operations
+	memberWriter.members["member-gac-validation"] = existingMember
+	memberWriter.customRevisions["member-gac-validation"] = 1
 
 	// Create updated member without required GAC fields
 	updatedMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-123",
+			UID:          "member-gac-validation",
 			CommitteeUID: "gac-committee",
 			Email:        "updated@gov.com",
 			// Missing Agency and Country - should fail validation
