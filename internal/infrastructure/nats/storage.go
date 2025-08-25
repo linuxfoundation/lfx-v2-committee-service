@@ -285,7 +285,34 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 
 // DeleteMember removes a committee member
 func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64) error {
-	return errs.NewUnexpected("committee member deletion not yet implemented")
+	slog.DebugContext(ctx, "deleting committee member from storage",
+		"member_uid", uid,
+		"revision", revision,
+	)
+
+	// Delete the member record with optimistic locking
+	err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Delete(ctx, uid, jetstream.LastRevision(revision))
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "committee member not found for deletion",
+				"member_uid", uid,
+				"revision", revision,
+			)
+			return errs.NewNotFound("committee member not found")
+		}
+		slog.ErrorContext(ctx, "failed to delete committee member from storage",
+			"error", err,
+			"member_uid", uid,
+			"revision", revision,
+		)
+		return errs.NewUnexpected("failed to delete committee member", err)
+	}
+
+	slog.DebugContext(ctx, "committee member deleted successfully from storage",
+		"member_uid", uid,
+	)
+
+	return nil
 }
 
 // UniqueMember verifies if a member with the same email exists in the committee

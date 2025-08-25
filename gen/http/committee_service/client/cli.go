@@ -830,9 +830,11 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			bearerToken = &committeeServiceUpdateCommitteeMemberBearerToken
 		}
 	}
-	var ifMatch string
+	var ifMatch *string
 	{
-		ifMatch = committeeServiceUpdateCommitteeMemberIfMatch
+		if committeeServiceUpdateCommitteeMemberIfMatch != "" {
+			ifMatch = &committeeServiceUpdateCommitteeMemberIfMatch
+		}
 	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:    body.Username,
@@ -953,9 +955,11 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 			bearerToken = &committeeServiceDeleteCommitteeMemberBearerToken
 		}
 	}
-	var ifMatch string
+	var ifMatch *string
 	{
-		ifMatch = committeeServiceDeleteCommitteeMemberIfMatch
+		if committeeServiceDeleteCommitteeMemberIfMatch != "" {
+			ifMatch = &committeeServiceDeleteCommitteeMemberIfMatch
+		}
 	}
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid

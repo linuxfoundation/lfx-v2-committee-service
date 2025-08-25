@@ -302,25 +302,24 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 		"member_uid", p.MemberUID,
 	)
 
-	// TODO: Parse ETag to get revision for optimistic locking
-	// parsedRevision, err := etagValidator(p.IfMatch)
-	// if err != nil {
-	// 	slog.ErrorContext(ctx, "invalid ETag",
-	// 		"error", err,
-	// 		"etag", p.IfMatch,
-	// 		"committee_uid", p.UID,
-	// 		"member_uid", p.MemberUID,
-	// 	)
-	// 	return wrapError(ctx, err)
-	// }
+	// Parse ETag to get revision for optimistic locking
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag",
+			"error", err,
+			"etag", p.IfMatch,
+			"committee_uid", p.UID,
+			"member_uid", p.MemberUID,
+		)
+		return wrapError(ctx, err)
+	}
 
-	// TODO: Execute delete use case
-	// errDelete := s.committeeMemberWriterOrchestrator.Delete(ctx, *p.UID, *p.MemberUID, parsedRevision)
-	// if errDelete != nil {
-	// 	return wrapError(ctx, errDelete)
-	// }
+	// Execute delete use case
+	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision)
+	if errDelete != nil {
+		return wrapError(ctx, errDelete)
+	}
 
-	// TODO: Remove this placeholder return
 	return nil
 }
 
