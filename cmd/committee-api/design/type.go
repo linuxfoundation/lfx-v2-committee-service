@@ -405,6 +405,8 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	dsl.Description("A complete representation of committee members with readonly attributes.")
 
 	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
 	CommitteeMemberBaseAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
@@ -456,6 +458,22 @@ func CommitteeMemberUIDAttribute() {
 	dsl.Attribute("uid", dsl.String, "Committee member UID -- v2 uid, not related to v1 id directly", func() {
 		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
 		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeUIDAttribute is the DSL attribute for committee UID.
+func CommitteeUIDMemberAttribute() {
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeNameMemberAttribute is the DSL attribute for committee name in member context.
+func CommitteeNameMemberAttribute() {
+	dsl.Attribute("committee_name", dsl.String, "The name of the committee this member belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Technical Steering Committee")
 	})
 }
 

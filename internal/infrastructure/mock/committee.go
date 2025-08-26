@@ -521,7 +521,7 @@ func (w *MockCommitteeWriter) CreateMember(ctx context.Context, member *model.Co
 }
 
 // UpdateMember updates an existing committee member
-func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
+func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "mock committee writer: updating committee member", "member_uid", member.UID, "revision", revision)
 
 	w.mock.mu.Lock()
@@ -537,7 +537,7 @@ func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.Co
 	}
 
 	if foundCommitteeUID == "" {
-		return errors.NewNotFound(fmt.Sprintf("member with UID %s not found", member.UID))
+		return nil, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", member.UID))
 	}
 
 	member.UpdatedAt = time.Now()
@@ -548,7 +548,7 @@ func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.Co
 	currentRevision := w.mock.memberRevisions[member.UID]
 	w.mock.memberRevisions[member.UID] = currentRevision + 1
 
-	return nil
+	return member, nil
 }
 
 // DeleteMember removes a committee member

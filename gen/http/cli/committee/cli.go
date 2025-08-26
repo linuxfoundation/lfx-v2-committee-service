@@ -128,14 +128,14 @@ func ParseEndpoint(
 		committeeServiceUpdateCommitteeMemberMemberUIDFlag   = committeeServiceUpdateCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeServiceUpdateCommitteeMemberVersionFlag     = committeeServiceUpdateCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeServiceUpdateCommitteeMemberBearerTokenFlag = committeeServiceUpdateCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeServiceUpdateCommitteeMemberIfMatchFlag     = committeeServiceUpdateCommitteeMemberFlags.String("if-match", "REQUIRED", "")
+		committeeServiceUpdateCommitteeMemberIfMatchFlag     = committeeServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
 
 		committeeServiceDeleteCommitteeMemberFlags           = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
 		committeeServiceDeleteCommitteeMemberUIDFlag         = committeeServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceDeleteCommitteeMemberMemberUIDFlag   = committeeServiceDeleteCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeServiceDeleteCommitteeMemberVersionFlag     = committeeServiceDeleteCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeServiceDeleteCommitteeMemberBearerTokenFlag = committeeServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeServiceDeleteCommitteeMemberIfMatchFlag     = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "REQUIRED", "")
+		committeeServiceDeleteCommitteeMemberIfMatchFlag     = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage

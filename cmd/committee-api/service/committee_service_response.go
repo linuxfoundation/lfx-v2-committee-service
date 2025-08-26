@@ -329,6 +329,92 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 	return member
 }
 
+// convertPayloadToUpdateMember converts GOA UpdateCommitteeMemberPayload to domain model
+func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.UpdateCommitteeMemberPayload) *model.CommitteeMember {
+	// Check for nil payload to avoid panic
+	if p == nil {
+		return &model.CommitteeMember{}
+	}
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          p.MemberUID, // Member UID is required for updates
+			CommitteeUID: p.UID,       // Committee UID from path parameter
+			Email:        p.Email,
+			AppointedBy:  p.AppointedBy,
+			Status:       p.Status,
+		},
+	}
+
+	// Handle Username with nil check
+	if p.Username != nil {
+		member.Username = *p.Username
+	}
+
+	// Handle FirstName with nil check
+	if p.FirstName != nil {
+		member.FirstName = *p.FirstName
+	}
+
+	// Handle LastName with nil check
+	if p.LastName != nil {
+		member.LastName = *p.LastName
+	}
+
+	// Handle JobTitle with nil check
+	if p.JobTitle != nil {
+		member.JobTitle = *p.JobTitle
+	}
+
+	// Handle Role if present
+	if p.Role != nil {
+		member.Role = model.CommitteeMemberRole{
+			Name: p.Role.Name,
+		}
+		if p.Role.StartDate != nil {
+			member.Role.StartDate = *p.Role.StartDate
+		}
+		if p.Role.EndDate != nil {
+			member.Role.EndDate = *p.Role.EndDate
+		}
+	}
+
+	// Handle Voting if present
+	if p.Voting != nil {
+		member.Voting = model.CommitteeMemberVotingInfo{
+			Status: p.Voting.Status,
+		}
+		if p.Voting.StartDate != nil {
+			member.Voting.StartDate = *p.Voting.StartDate
+		}
+		if p.Voting.EndDate != nil {
+			member.Voting.EndDate = *p.Voting.EndDate
+		}
+	}
+
+	// Handle Agency with nil check (for GAC members)
+	if p.Agency != nil {
+		member.Agency = *p.Agency
+	}
+
+	// Handle Country with nil check (for GAC members)
+	if p.Country != nil {
+		member.Country = *p.Country
+	}
+
+	// Handle Organization if present
+	if p.Organization != nil {
+		if p.Organization.Name != nil {
+			member.Organization.Name = *p.Organization.Name
+		}
+		if p.Organization.Website != nil {
+			member.Organization.Website = *p.Organization.Website
+		}
+	}
+
+	return member
+}
+
 // convertMemberDomainToFullResponse converts domain CommitteeMember to GOA response type
 func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
 	if member == nil {
@@ -336,16 +422,22 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
-		UID:         &member.UID,
-		Username:    &member.Username,
-		Email:       &member.Email,
-		FirstName:   &member.FirstName,
-		LastName:    &member.LastName,
-		JobTitle:    &member.JobTitle,
-		AppointedBy: member.AppointedBy,
-		Status:      member.Status,
-		Agency:      &member.Agency,
-		Country:     &member.Country,
+		CommitteeUID: &member.CommitteeUID,
+		UID:          &member.UID,
+		Username:     &member.Username,
+		Email:        &member.Email,
+		FirstName:    &member.FirstName,
+		LastName:     &member.LastName,
+		JobTitle:     &member.JobTitle,
+		AppointedBy:  member.AppointedBy,
+		Status:       member.Status,
+		Agency:       &member.Agency,
+		Country:      &member.Country,
+	}
+
+	// Only set CommitteeName if it's not empty
+	if member.CommitteeName != "" {
+		result.CommitteeName = &member.CommitteeName
 	}
 
 	// Handle Role mapping

@@ -229,14 +229,25 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 
 // ================== CommitteeMemberReader implementation ==================
 
-// GetMember retrieves a committee member by committee UID and member UID
-func (s *storage) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
-	return nil, 0, errs.NewUnexpected("committee member retrieval not yet implemented")
+// GetMember retrieves a committee member by member UID
+func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.CommitteeMember, uint64, error) {
+
+	member := &model.CommitteeMember{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee member", errGet)
+	}
+
+	return member, rev, nil
 }
 
 // GetMemberRevision retrieves the revision number for a committee member
-func (s *storage) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
-	return 0, errs.NewUnexpected("committee member revision retrieval not yet implemented")
+func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
+	return s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
 }
 
 // ================== CommitteeMemberWriter implementation ==================
@@ -268,13 +279,67 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 }
 
 // UpdateMember updates an existing committee member
-func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) error {
-	return errs.NewUnexpected("committee member update not yet implemented")
+func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+
+	if member == nil {
+		return nil, errs.NewValidation("committee member cannot be nil")
+	}
+
+	// Marshal the committee member data
+	memberBytes, errMarshal := json.Marshal(member)
+	if errMarshal != nil {
+		return nil, errs.NewUnexpected("failed to marshal committee member", errMarshal)
+	}
+
+	// Update the committee member using optimistic locking (revision check)
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Update(ctx, member.UID, memberBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
+		}
+		return nil, errs.NewUnexpected("failed to update committee member", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee member in NATS storage",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
+	return member, nil
 }
 
 // DeleteMember removes a committee member
 func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64) error {
-	return errs.NewUnexpected("committee member deletion not yet implemented")
+	slog.DebugContext(ctx, "deleting committee member from storage",
+		"member_uid", uid,
+		"revision", revision,
+	)
+
+	// Delete the member record with optimistic locking
+	err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Delete(ctx, uid, jetstream.LastRevision(revision))
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "committee member not found for deletion",
+				"member_uid", uid,
+				"revision", revision,
+			)
+			return errs.NewNotFound("committee member not found")
+		}
+		slog.ErrorContext(ctx, "failed to delete committee member from storage",
+			"error", err,
+			"member_uid", uid,
+			"revision", revision,
+		)
+		return errs.NewUnexpected("failed to delete committee member", err)
+	}
+
+	slog.DebugContext(ctx, "committee member deleted successfully from storage",
+		"member_uid", uid,
+	)
+
+	return nil
 }
 
 // UniqueMember verifies if a member with the same email exists in the committee
