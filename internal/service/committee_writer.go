@@ -208,18 +208,27 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee, action model.MessageAction) *model.CommitteeAccessMessage {
 
 	message := &model.CommitteeAccessMessage{
 		UID:        committee.CommitteeBase.UID,
 		ObjectType: "committee",
 		Public:     committee.Public,
+		Action:     action,
 		// Relations is reserved for future use and is intentionally left empty.
 		Relations: map[string][]string{},
 		References: map[string]string{
 			// project is required in the flow
 			constants.RelationProject: committee.ProjectUID,
 		},
+	}
+
+	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
+		message.Relations[constants.RelationWriter] = committee.Writers
+	}
+
+	if committee.CommitteeSettings != nil && len(committee.Auditors) > 0 {
+		message.Relations[constants.RelationAuditor] = committee.Auditors
 	}
 
 	slog.DebugContext(ctx, "building access control message",
@@ -411,7 +420,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 
 	// Publish access control message for the committee
-	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee, model.ActionCreated)
 	messages = append(messages, func() error {
 		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
 	})
@@ -622,7 +631,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		CommitteeBase:     committee.CommitteeBase,
 		CommitteeSettings: settings,
 	}
-	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee, model.ActionUpdated)
 	// Publish both messages
 	messages := []func() error{
 		func() error {
@@ -727,7 +736,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	}
 
 	// Build and publish access control message
-	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee, model.ActionUpdated)
 	messages := []func() error{
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer)

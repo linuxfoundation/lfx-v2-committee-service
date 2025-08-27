@@ -509,7 +509,11 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				UID:        "committee-1",
 				ObjectType: "committee",
 				Public:     true,
-				Relations:  map[string][]string{},
+				Action:     model.ActionCreated,
+				Relations: map[string][]string{
+					"writer":  {"writer1@example.com", "writer2@example.com"},
+					"auditor": {"auditor1@example.com"},
+				},
 				References: map[string]string{
 					"project": "project-1",
 				},
@@ -533,7 +537,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				UID:        "committee-2",
 				ObjectType: "committee",
 				Public:     false,
-				Relations:  map[string][]string{},
+				Action:     model.ActionCreated,
+				Relations: map[string][]string{
+					"writer": {"writer@example.com"},
+				},
 				References: map[string]string{
 					"project": "project-2",
 				},
@@ -554,6 +561,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				UID:        "committee-3",
 				ObjectType: "committee",
 				Public:     true,
+				Action:     model.ActionCreated,
 				Relations:  map[string][]string{},
 				References: map[string]string{
 					"project": "project-3",
@@ -569,7 +577,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 			ctx := context.Background()
 
 			// Execute
-			result := orchestrator.buildAccessControlMessage(ctx, tc.committee)
+			result := orchestrator.buildAccessControlMessage(ctx, tc.committee, model.ActionCreated)
 
 			// Validate
 			assert.Equal(t, tc.expected, result)
