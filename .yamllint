@@ -6,6 +6,9 @@ ignore: |
   .git
   megalinter-reports
   styles
+  gen/
+  cmd/committee-api/kodata/
+  templates/
 rules:
   line-length:
     max: 120

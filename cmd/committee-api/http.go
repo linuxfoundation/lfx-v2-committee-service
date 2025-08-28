@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -44,6 +45,13 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 		}
 	}
 
+	koDataPath := os.Getenv("KO_DATA_PATH")
+	if koDataPath == "" {
+		koDataPath = "../../gen/http/"
+	}
+
+	koDataDir := http.Dir(koDataPath)
+
 	// Wrap the endpoints with the transport specific layers. The generated
 	// server packages contains code generated from the design which maps
 	// the service input and output data structures to HTTP requests and
@@ -53,7 +61,7 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	)
 	{
 		eh := errorHandler(ctx)
-		committeeServiceServer = committeeservicesvr.New(committeeServiceEndpoints, mux, dec, enc, eh, nil, nil)
+		committeeServiceServer = committeeservicesvr.New(committeeServiceEndpoints, mux, dec, enc, eh, nil, koDataDir, koDataDir, koDataDir, koDataDir)
 	}
 
 	// Configure the mux.
