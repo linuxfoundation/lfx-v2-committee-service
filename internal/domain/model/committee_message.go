@@ -94,8 +94,6 @@ type CommitteeAccessMessage struct {
 	ObjectType string `json:"object_type"`
 	// public is the public flag for the object.
 	Public bool `json:"public"`
-	// action is the action that is being performed on the object, e.g. "create", "update", "delete".
-	Action MessageAction `json:"action"`
 	// relations are used to store the relations of the object, e.g. "writer"
 	// and it's value is a list of principals.
 	Relations map[string][]string `json:"relations"`

@@ -208,13 +208,12 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee, action model.MessageAction) *model.CommitteeAccessMessage {
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
 
 	message := &model.CommitteeAccessMessage{
 		UID:        committee.CommitteeBase.UID,
 		ObjectType: "committee",
 		Public:     committee.Public,
-		Action:     action,
 		// Relations is reserved for future use and is intentionally left empty.
 		Relations: map[string][]string{},
 		References: map[string]string{
@@ -420,7 +419,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 
 	// Publish access control message for the committee
-	accessControlMessage := uc.buildAccessControlMessage(ctx, committee, model.ActionCreated)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
 		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
 	})
@@ -631,7 +630,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		CommitteeBase:     committee.CommitteeBase,
 		CommitteeSettings: settings,
 	}
-	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee, model.ActionUpdated)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 	// Publish both messages
 	messages := []func() error{
 		func() error {
@@ -736,7 +735,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	}
 
 	// Build and publish access control message
-	accessControlMessage := uc.buildAccessControlMessage(ctx, committee, model.ActionUpdated)
+	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages := []func() error{
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer)
