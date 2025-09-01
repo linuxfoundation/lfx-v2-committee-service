@@ -21,6 +21,7 @@ spec:
         - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
+        - authorizer: json_content_type
         - authorizer: openfga_check
           config:
             values:
