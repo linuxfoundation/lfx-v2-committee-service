@@ -254,6 +254,7 @@ var _ = dsl.Service("committee-service", func() {
 	// Health check endpoints
 	dsl.Method("readyz", func() {
 		dsl.Description("Check if the service is able to take inbound requests.")
+		dsl.Meta("swagger:generate", "false")
 		dsl.Result(dsl.Bytes, func() {
 			dsl.Example("OK")
 		})
@@ -271,6 +272,7 @@ var _ = dsl.Service("committee-service", func() {
 
 	dsl.Method("livez", func() {
 		dsl.Description("Check if the service is alive.")
+		dsl.Meta("swagger:generate", "false")
 		dsl.Result(dsl.Bytes, func() {
 			dsl.Example("OK")
 		})
@@ -447,5 +449,16 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
-	dsl.Files("/openapi.json", "gen/http/openapi3.json")
+	dsl.Files("/openapi.json", "gen/http/openapi.json", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/openapi.yaml", "gen/http/openapi.yaml", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/openapi3.json", "gen/http/openapi3.json", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/openapi3.yaml", "gen/http/openapi3.yaml", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
 })

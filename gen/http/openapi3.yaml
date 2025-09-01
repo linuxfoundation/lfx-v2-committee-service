@@ -1102,57 +1102,6 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
-    /livez:
-        get:
-            tags:
-                - committee-service
-            summary: livez committee-service
-            description: Check if the service is alive.
-            operationId: committee-service#livez
-            responses:
-                "200":
-                    description: OK response.
-                    content:
-                        text/plain:
-                            schema:
-                                type: string
-                                example: OK
-                                format: binary
-                            example: OK
-    /openapi.json:
-        get:
-            tags:
-                - committee-service
-            summary: Download gen/http/openapi3.json
-            operationId: committee-service#/openapi.json
-            responses:
-                "200":
-                    description: File downloaded
-    /readyz:
-        get:
-            tags:
-                - committee-service
-            summary: readyz committee-service
-            description: Check if the service is able to take inbound requests.
-            operationId: committee-service#readyz
-            responses:
-                "200":
-                    description: OK response.
-                    content:
-                        text/plain:
-                            schema:
-                                type: string
-                                example: OK
-                                format: binary
-                            example: OK
-                "503":
-                    description: 'ServiceUnavailable: Service unavailable'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ServiceUnavailableError'
-                            example:
-                                message: The service is unavailable.
 components:
     schemas:
         BadRequestError:
