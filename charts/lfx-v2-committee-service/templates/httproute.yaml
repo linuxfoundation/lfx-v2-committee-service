@@ -27,7 +27,7 @@ spec:
       extensionRef:
         group: traefik.io
         kind: Middleware
-        name: heimdall
+        name: heimdall-forward-body
     {{- end }}
     backendRefs:
     - name: {{ .Chart.Name }}

@@ -21,9 +21,12 @@ spec:
         - contextualizer: oidc_contextualizer
         {{- end }}
         {{- if .Values.openfga.enabled }}
-        # TODO: update this authorizer check once we have a way to get the project_uid from the request body.
-        # Check that user has writer permission on the project
-        - authorizer: allow_all
+        - authorizer: json_content_type
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "project:{{ "{{- .Request.Body.project_uid -}}" }}"
         {{- else -}}
         # When OpenFGA is disabled, allow all requests
         # (Only meant for *local development* because OpenFGA should be enabled when deployed)
