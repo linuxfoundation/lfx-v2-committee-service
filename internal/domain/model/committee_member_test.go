@@ -244,7 +244,7 @@ func TestCommitteeMember_Tags(t *testing.T) {
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
 					Email:        "test@example.com",
-					// Missing CommitteeUID, Username, and Voting.Status
+					// Missing Username, and Voting.Status
 				},
 			},
 			expected: []string{
