@@ -448,3 +448,145 @@ func BenchmarkCommitteeBuildIndexKey_Parallel(b *testing.B) {
 		}
 	})
 }
+
+func TestCommitteeTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		committee     *Committee
+		expectedTags  []string
+		expectedCount int
+	}{
+		{
+			name:          "nil committee",
+			committee:     nil,
+			expectedTags:  nil,
+			expectedCount: 0,
+		},
+		{
+			name: "empty committee",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{},
+			},
+			expectedTags:  []string{},
+			expectedCount: 0,
+		},
+		{
+			name: "committee with project uid only",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectUID: "proj-123",
+				},
+			},
+			expectedTags:  []string{"project_uid:proj-123"},
+			expectedCount: 1,
+		},
+		{
+			name: "committee with project slug only",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{
+					ProjectSlug: "proj-slug",
+				},
+			},
+			expectedTags:  []string{"project_slug:proj-slug"},
+			expectedCount: 1,
+		},
+		{
+			name: "committee with parent uid only",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{
+					ParentUID: stringPtr("parent-123"),
+				},
+			},
+			expectedTags:  []string{"parent_uid:parent-123"},
+			expectedCount: 1,
+		},
+		{
+			name: "committee with committee uid only",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{
+					UID: "comm-123",
+				},
+			},
+			expectedTags:  []string{"comm-123", "committee_uid:comm-123"},
+			expectedCount: 2,
+		},
+		{
+			name: "committee with all fields",
+			committee: &Committee{
+				CommitteeBase: CommitteeBase{
+					UID:         "comm-123",
+					ProjectUID:  "proj-123",
+					ProjectSlug: "proj-slug",
+					ParentUID:   stringPtr("parent-123"),
+				},
+			},
+			expectedTags: []string{
+				"project_uid:proj-123",
+				"project_slug:proj-slug",
+				"parent_uid:parent-123",
+				"comm-123",
+				"committee_uid:comm-123",
+			},
+			expectedCount: 5,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tags := tc.committee.Tags()
+			assert.Equal(t, tc.expectedCount, len(tags), "Expected %d tags but got %d", tc.expectedCount, len(tags))
+
+			if tc.expectedTags == nil {
+				assert.Nil(t, tags, "Expected nil tags")
+				return
+			}
+
+			// Check each expected tag is present
+			for _, expectedTag := range tc.expectedTags {
+				assert.Contains(t, tags, expectedTag, "Tag %s is missing", expectedTag)
+			}
+
+			// Check no unexpected tags are present
+			assert.Equal(t, tc.expectedCount, len(tags), "Unexpected number of tags")
+		})
+	}
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
+}
+
+func BenchmarkCommitteeTags(b *testing.B) {
+	committee := &Committee{
+		CommitteeBase: CommitteeBase{
+			UID:         "comm-123",
+			ProjectUID:  "proj-123",
+			ProjectSlug: "proj-slug",
+			ParentUID:   stringPtr("parent-123"),
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = committee.Tags()
+	}
+}
+
+func BenchmarkCommitteeTags_Parallel(b *testing.B) {
+	committee := &Committee{
+		CommitteeBase: CommitteeBase{
+			UID:         "comm-123",
+			ProjectUID:  "proj-123",
+			ProjectSlug: "proj-slug",
+			ParentUID:   stringPtr("parent-123"),
+		},
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = committee.Tags()
+		}
+	})
+}
