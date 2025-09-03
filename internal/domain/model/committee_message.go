@@ -157,19 +157,16 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 	switch action {
 	case ActionCreated:
 		e.Subject = constants.CommitteeMemberCreatedSubject
-		e.buildEventType(resource, action)
 	case ActionUpdated:
 		e.Subject = constants.CommitteeMemberUpdatedSubject
-		e.buildEventType(resource, action)
 	case ActionDeleted:
 		e.Subject = constants.CommitteeMemberDeletedSubject
-		e.buildEventType(resource, action)
 	default:
 		return nil, fmt.Errorf("unsupported action: %s", action)
 	}
 
 	member, ok := input.(*CommitteeMember)
-	if !ok {
+	if !ok || member == nil {
 		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
 			"resource", resource,
 			"action", action,
@@ -178,6 +175,7 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		)
 		return nil, fmt.Errorf("invalid input type, got %T", input)
 	}
+	e.buildEventType(resource, action)
 	e.Data = member
 
 	return e, nil

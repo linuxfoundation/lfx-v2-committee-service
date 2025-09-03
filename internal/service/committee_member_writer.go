@@ -666,6 +666,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	case model.ActionCreated, model.ActionUpdated:
 		// Add tags for create/update operations (when we have the full member data)
 		indexerMessage.Tags = data.Tags()
+		indexerMessage.Data = data
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
 		indexerMessage.Data = data.UID
