@@ -509,7 +509,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				UID:        "committee-1",
 				ObjectType: "committee",
 				Public:     true,
-				Relations:  map[string][]string{},
+				Relations: map[string][]string{
+					"writer":  {"writer1@example.com", "writer2@example.com"},
+					"auditor": {"auditor1@example.com"},
+				},
 				References: map[string]string{
 					"project": "project-1",
 				},
@@ -533,7 +536,9 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				UID:        "committee-2",
 				ObjectType: "committee",
 				Public:     false,
-				Relations:  map[string][]string{},
+				Relations: map[string][]string{
+					"writer": {"writer@example.com"},
+				},
 				References: map[string]string{
 					"project": "project-2",
 				},
