@@ -222,6 +222,14 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		},
 	}
 
+	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
+		message.Relations[constants.RelationWriter] = committee.Writers
+	}
+
+	if committee.CommitteeSettings != nil && len(committee.Auditors) > 0 {
+		message.Relations[constants.RelationAuditor] = committee.Auditors
+	}
+
 	slog.DebugContext(ctx, "building access control message",
 		"message", message,
 	)
