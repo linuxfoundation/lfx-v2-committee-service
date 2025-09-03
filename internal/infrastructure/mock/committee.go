@@ -789,6 +789,15 @@ func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, mes
 	return nil
 }
 
+// Event simulates publishing an event message
+func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, event any) error {
+	slog.InfoContext(ctx, "mock publisher: event message published",
+		"subject", subject,
+		"message_type", "event",
+	)
+	return nil
+}
+
 // NewMockCommitteePublisher creates a mock committee publisher
 func NewMockCommitteePublisher() port.CommitteePublisher {
 	return &MockCommitteePublisher{}

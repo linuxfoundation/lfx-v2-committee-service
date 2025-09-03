@@ -39,3 +39,18 @@ const (
 	// The subject is of the form: lfx.delete_all_access.committee
 	DeleteAllAccessCommitteeSubject = "lfx.delete_all_access.committee"
 )
+
+// Event subjects emitted by the committee service for general consumption by any service
+const (
+	// CommitteeMemberCreatedSubject is the subject for committee member creation events.
+	// The subject is of the form: lfx.committee-api.member_created
+	CommitteeMemberCreatedSubject = "lfx.committee-api.committee_member.created"
+
+	// CommitteeMemberDeletedSubject is the subject for committee member deletion events.
+	// The subject is of the form: lfx.committee-api.committee_member.deleted
+	CommitteeMemberDeletedSubject = "lfx.committee-api.committee_member.deleted"
+
+	// CommitteeMemberUpdatedSubject is the subject for committee member update events.
+	// The subject is of the form: lfx.committee-api.committee_member.updated
+	CommitteeMemberUpdatedSubject = "lfx.committee-api.committee_member.updated"
+)

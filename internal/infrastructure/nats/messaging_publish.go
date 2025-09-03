@@ -66,6 +66,10 @@ func (m *messagePublisher) Access(ctx context.Context, subject string, message a
 	return m.publish(ctx, subject, message, "access")
 }
 
+func (m *messagePublisher) Event(ctx context.Context, subject string, event any) error {
+	return m.publish(ctx, subject, event, "event")
+}
+
 // NewMessagePublish creates a new message publish service
 func NewMessagePublisher(client *NATSClient) port.CommitteePublisher {
 	return &messagePublisher{
