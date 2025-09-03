@@ -671,7 +671,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		indexerMessage.Data = data.UID
 	}
 
-	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, data)
+	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member indexer message",
 			"error", errBuildIndexerMessage,
@@ -681,9 +681,11 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Build event message for the member
-	eventMessage := model.CommitteeEvent{}
+	eventMessage := model.CommitteeEvent{
+		Data: data,
+	}
 
-	eventMessageBuild, errBuildEventMessage := eventMessage.Build(ctx, model.ResourceCommitteeMember, action, data)
+	eventMessageBuild, errBuildEventMessage := eventMessage.Build(ctx, model.ResourceCommitteeMember, action, eventMessage.Data)
 	if errBuildEventMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member event message",
 			"error", errBuildEventMessage,

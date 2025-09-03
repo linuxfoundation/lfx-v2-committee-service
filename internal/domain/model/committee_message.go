@@ -168,7 +168,6 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		return nil, fmt.Errorf("unsupported action: %s", action)
 	}
 
-	// For both created and deleted actions, we expect the full CommitteeMember object
 	member, ok := input.(*CommitteeMember)
 	if !ok {
 		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
