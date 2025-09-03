@@ -6,7 +6,9 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 
@@ -101,4 +103,83 @@ type CommitteeAccessMessage struct {
 	// e.g. "project" and it's value is the project UID.
 	// e.g. "parent" and it's value is the parent UID.
 	References map[string]string `json:"references"`
+}
+
+// CommitteeEvent represents a generic event emitted for committee service operations
+type CommitteeEvent struct {
+	// EventType identifies the type of event (e.g., committee_member.created)
+	EventType string `json:"event_type"`
+	// Subject is the subject of the event (e.g. lfx.committee-api.committee_member.created)
+	Subject string `json:"subject"`
+	// Timestamp is when the event occurred
+	Timestamp time.Time `json:"timestamp"`
+	// Version is the event schema version
+	Version string `json:"version"`
+	// Data contains the event data
+	Data any `json:"data,omitempty"`
+}
+
+// ResourceType is a type for the resource type of a committee event.
+type ResourceType string
+
+// ResourceType constants for the resource type of a committee event.
+const (
+	ResourceCommitteeMember ResourceType = "committee_member"
+)
+
+// Build creates a CommitteeEvent from the resource type, action and input data
+func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	e.buildVersion()
+	e.buildTimestamp()
+
+	// Build events depending on the resource type
+	switch resource {
+	case ResourceCommitteeMember:
+		return e.buildCommitteeMembers(ctx, resource, action, input)
+	default:
+		return nil, fmt.Errorf("unsupported resource type: %s", resource)
+	}
+}
+
+func (e *CommitteeEvent) buildVersion() {
+	e.Version = "1"
+}
+
+func (e *CommitteeEvent) buildTimestamp() {
+	e.Timestamp = time.Now().UTC()
+}
+
+func (e *CommitteeEvent) buildEventType(resource ResourceType, action MessageAction) {
+	e.EventType = fmt.Sprintf("%s.%s", resource, action)
+}
+
+func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeMemberCreatedSubject
+		e.buildEventType(resource, action)
+	case ActionUpdated:
+		e.Subject = constants.CommitteeMemberUpdatedSubject
+		e.buildEventType(resource, action)
+	case ActionDeleted:
+		e.Subject = constants.CommitteeMemberDeletedSubject
+		e.buildEventType(resource, action)
+	default:
+		return nil, fmt.Errorf("unsupported action: %s", action)
+	}
+
+	// For both created and deleted actions, we expect the full CommitteeMember object
+	member, ok := input.(*CommitteeMember)
+	if !ok {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeMember",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = member
+
+	return e, nil
 }

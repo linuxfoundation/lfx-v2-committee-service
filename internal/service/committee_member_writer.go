@@ -575,7 +575,7 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	uc.deleteMemberKeys(ctx, indicesToDelete, false)
 
 	// Step 5: Publish indexer message for member deletion
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, uid); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, existing); errPublish != nil {
 		slog.ErrorContext(ctx, "failed to publish member deletion message",
 			"error", errPublish,
 			"member_uid", uid,
@@ -651,7 +651,7 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 }
 
 // publishMemberMessages publishes indexer and access control messages for committee member operations
-func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data any) error {
+func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMember) error {
 	slog.DebugContext(ctx, "publishing member messages",
 		"action", action,
 	)
@@ -661,12 +661,17 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		Action: action,
 	}
 
-	// Add tags for create/update operations (when we have the full member data)
-	if member, ok := data.(*model.CommitteeMember); ok {
-		indexerMessage.Tags = member.Tags()
+	// Customize the indexer message based on the action
+	switch action {
+	case model.ActionCreated, model.ActionUpdated:
+		// Add tags for create/update operations (when we have the full member data)
+		indexerMessage.Tags = data.Tags()
+	case model.ActionDeleted:
+		// Indexer message only expects the UID for deleted operations
+		indexerMessage.Data = data.UID
 	}
 
-	message, errBuildIndexerMessage := indexerMessage.Build(ctx, data)
+	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, data)
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member indexer message",
 			"error", errBuildIndexerMessage,
@@ -675,10 +680,25 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		return errs.NewUnexpected("failed to build member indexer message", errBuildIndexerMessage)
 	}
 
+	// Build event message for the member
+	eventMessage := model.CommitteeEvent{}
+
+	eventMessageBuild, errBuildEventMessage := eventMessage.Build(ctx, model.ResourceCommitteeMember, action, data)
+	if errBuildEventMessage != nil {
+		slog.ErrorContext(ctx, "failed to build member event message",
+			"error", errBuildEventMessage,
+			"action", action,
+		)
+		return errs.NewUnexpected("failed to build member event message", errBuildEventMessage)
+	}
+
 	// Publish messages concurrently
 	messages := []func() error{
 		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, message)
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, indexerMessageBuild)
+		},
+		func() error {
+			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild)
 		},
 		// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-332
 		// Evaluate if we need to publish access control messages for members
