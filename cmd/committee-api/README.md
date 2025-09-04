@@ -88,6 +88,54 @@ This service follows clean architecture principles with clear separation of conc
 - **Scalability**: Support for committee hierarchies, complex organizational structures, and member management
 - **Integration**: Seamless integration with project services, member data, and external authentication systems
 
+### Committee and Member Tags
+
+The Committee API service generates a set of tags for committees and committee members that are sent to the indexer-service. These tags enable searchability and discoverability of committees through OpenSearch.
+
+#### Tags Generated for Committees and Settings
+
+When committees and committee settings are created or updated, the following tags are automatically generated:
+
+| Field | Tag Format | Example | Purpose |
+|----------------|-----------|---------|---------|
+| UID | Plain value | `061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Direct lookup by ID |
+| UID | `committee_uid:<value>` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Namespaced lookup by ID |
+| ParentUID | `parent_uid:<value>` | `parent_uid:9493eae5-cd73-4c4a-b28f-3b8ec5280f6c` | Find child committees of a parent |
+| ProjectUID | `project_uid:<value>` | `project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878` | Find committees for a project |
+| ProjectSlug | `project_slug:<value>` | `project_slug:test-project-slug-1` | Find committees by project slug |
+
+Both committee base and committee settings entities use the same tag structure to ensure consistent searchability.
+
+#### Tags Generated for Committee Members
+
+When committee members are created or updated, the following tags are automatically generated:
+
+| Member Field | Tag Format | Example | Purpose |
+|--------------|-----------|---------|---------|
+| UID | Plain value | `c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Direct lookup by ID |
+| UID | `committee_member_uid:<value>` | `committee_member_uid:c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Namespaced lookup by ID |
+| CommitteeUID | `committee_uid:<value>` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find members of a committee |
+| Username | `username:<value>` | `username:govofficial4` | Find members by username |
+| Email | `email:<value>` | `email:gac010@example.com` | Find members by email |
+| Voting Status | `voting_status:<value>` | `voting_status:Voting Rep` | Find members with specific voting status |
+
+#### How Tags Are Used
+
+Tags serve multiple important purposes in the LFX system:
+
+1. **Indexed Search**: Tags are indexed in OpenSearch, enabling fast lookups and text searches across committees and members
+
+2. **Relationship Navigation**: 
+   - Parent-child committee relationships can be traversed using the parent_uid tags
+   - Committee-project relationships can be traversed using the project_uid tags
+   - Committee-member relationships can be traversed using the committee_uid tags
+
+3. **Multiple Access Patterns**: Both plain value and prefixed tags support different query patterns:
+   - Plain values support general text search (e.g., "find committees containing 'TSC'")
+   - Prefixed values support field-specific search (e.g., "find members with username 'govofficial4'")
+
+4. **Data Synchronization**: When committees or members are updated, their tags are automatically updated, ensuring search results remain current
+  
 ## Development
 
 ### Prerequisites
