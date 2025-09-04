@@ -89,6 +89,8 @@ func (cm *CommitteeMember) BuildIndexKey(ctx context.Context) string {
 }
 
 // Tags generates a consistent set of tags for the committee member.
+// IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
+// to ensure consumers understand how to use these tags for searching.
 func (cm *CommitteeMember) Tags() []string {
 	var tags []string
 
@@ -97,7 +99,10 @@ func (cm *CommitteeMember) Tags() []string {
 	}
 
 	if cm.UID != "" {
-		tag := fmt.Sprintf("member_uid:%s", cm.UID)
+		// without prefix
+		tags = append(tags, cm.UID)
+		// with prefix
+		tag := fmt.Sprintf("committee_member_uid:%s", cm.UID)
 		tags = append(tags, tag)
 	}
 

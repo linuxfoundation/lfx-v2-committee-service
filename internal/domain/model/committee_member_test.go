@@ -208,7 +208,8 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				},
 			},
 			expected: []string{
-				"member_uid:member-123",
+				"member-123",
+				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
 				"username:testuser",
 				"email:test@example.com",
@@ -228,7 +229,8 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				},
 			},
 			expected: []string{
-				"member_uid:member-123",
+				"member-123",
+				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
 				"username:testuser",
 				"email:test@example.com",
@@ -239,13 +241,16 @@ func TestCommitteeMember_Tags(t *testing.T) {
 			name: "member with partial fields",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					UID:   "member-123",
-					Email: "test@example.com",
-					// Missing CommitteeUID, Username, and Voting.Status
+					UID:          "member-123",
+					CommitteeUID: "committee-456",
+					Email:        "test@example.com",
+					// Missing Username, and Voting.Status
 				},
 			},
 			expected: []string{
-				"member_uid:member-123",
+				"member-123",
+				"committee_member_uid:member-123",
+				"committee_uid:committee-456",
 				"email:test@example.com",
 			},
 		},
@@ -253,10 +258,15 @@ func TestCommitteeMember_Tags(t *testing.T) {
 			name: "member with only email",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "test@example.com",
+					UID:          "member-123",
+					CommitteeUID: "committee-456",
+					Email:        "test@example.com",
 				},
 			},
 			expected: []string{
+				"member-123",
+				"committee_member_uid:member-123",
+				"committee_uid:committee-456",
 				"email:test@example.com",
 			},
 		},
