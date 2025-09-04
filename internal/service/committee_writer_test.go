@@ -846,6 +846,11 @@ func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject st
 	return nil
 }
 
+func (p *MockCommitteePublisherWithError) Event(ctx context.Context, subject string, event any) error {
+	// For testing purposes, we don't fail on events
+	return nil
+}
+
 func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 	testCases := []struct {
 		name           string

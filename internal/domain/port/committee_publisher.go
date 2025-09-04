@@ -11,4 +11,5 @@ import (
 type CommitteePublisher interface {
 	Indexer(ctx context.Context, subject string, message any) error
 	Access(ctx context.Context, subject string, message any) error
+	Event(ctx context.Context, subject string, event any) error
 }

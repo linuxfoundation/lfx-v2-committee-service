@@ -666,9 +666,16 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 			},
 		},
 		{
-			name:   "publish delete message with uid string",
+			name:   "publish delete message with member data",
 			action: model.ActionDeleted,
-			data:   "member-789",
+			data: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-789",
+					CommitteeUID: "committee-123",
+					Email:        "deleted@example.com",
+					Username:     "deleteduser",
+				},
+			},
 		},
 	}
 
@@ -677,7 +684,8 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 			orchestrator, _, _ := setupMemberWriterTest()
 
 			ctx := context.Background()
-			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data)
+			member := tt.data.(*model.CommitteeMember)
+			err := orchestrator.publishMemberMessages(ctx, tt.action, member)
 
 			// Should succeed with mock publisher
 			assert.NoError(t, err)
