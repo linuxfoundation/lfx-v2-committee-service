@@ -112,6 +112,9 @@ heimdall:
   url: http://lfx-platform-heimdall.lfx.svc.cluster.local:4456
   # jwksUrl is the URL to the JSON Web Key Set endpoint for JWT validation
   jwksUrl: http://lfx-platform-heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
+  # add_middleware determines whether or not the middleware is installed. If not managed
+  # by another service or helm chart then it is needed.
+  add_middleware: false
 
 # authelia is the configuration for the Authelia server
 authelia:
