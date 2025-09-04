@@ -28,6 +28,44 @@ This service contains the following API endpoints:
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee
 
+## NATS Messaging Interface
+
+In addition to HTTP endpoints, this service provides NATS messaging capabilities for inter-service communication. Other LFX services can send requests via NATS subjects to retrieve committee data.
+
+### Supported NATS Subjects
+
+| Subject | Purpose | Request Format | Response Format |
+|---------|---------|----------------|----------------|
+| `lfx.committee-api.get_name` | Get committee name by UID | Committee UID (string) | Committee name (string) |
+| `lfx.committee-api.list_members` | List all members of a committee | Committee UID (string) | JSON array of committee members |
+
+### Usage Examples
+
+#### Get Committee Name
+```bash
+# Send request with committee UID as message data
+nats request lfx.committee-api.get_name "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
+# Response: "Technical Steering Committee"
+```
+
+#### List Committee Members
+```bash
+# Send request with committee UID as message data
+nats request lfx.committee-api.list_members "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
+# Response: JSON array of CommitteeMember objects
+```
+
+### Error Handling
+
+NATS message responses follow this format:
+- **Success**: Direct data response (string for name, JSON for members)
+- **Error**: JSON object with error message: `{"error": "error description"}`
+
+Common error scenarios:
+- Invalid UUID format: `{"error": "invalid UUID format"}`
+- Committee not found: `{"error": "committee with UID <uid> not found"}`
+- Committee has no members: `[]` (empty array for list_members)
+
 ## File Structure
 
 ```bash

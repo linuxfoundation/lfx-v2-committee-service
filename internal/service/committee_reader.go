@@ -34,6 +34,8 @@ type CommitteeDataReader interface {
 type CommitteeMemberDataReader interface {
 	// GetMember retrieves a committee member by committee UID and member UID
 	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
+	// ListMembers retrieves all members for a given committee UID
+	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -163,6 +165,41 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 	)
 
 	return committeeMember, revision, nil
+}
+
+// ListMembers retrieves all members for a given committee UID
+func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+
+	slog.DebugContext(ctx, "executing list committee members use case",
+		"committee_uid", committeeUID,
+	)
+
+	// First, verify that the committee exists
+	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get committee base - committee does not exist",
+			"error", err,
+			"committee_uid", committeeUID,
+		)
+		return nil, err
+	}
+
+	// Get all committee members from storage
+	members, err := rc.committeeReader.ListMembers(ctx, committeeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members",
+			"error", err,
+			"committee_uid", committeeUID,
+		)
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "committee members retrieved successfully",
+		"committee_uid", committeeUID,
+		"member_count", len(members),
+	)
+
+	return members, nil
 }
 
 // NewCommitteeReaderOrchestrator creates a new committee reader use case using the option pattern

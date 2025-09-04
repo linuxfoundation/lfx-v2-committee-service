@@ -9,4 +9,6 @@ import "context"
 type MessageHandler interface {
 	// HandleCommitteeGetAttribute handles committee get attribute messages
 	HandleCommitteeGetAttribute(ctx context.Context, msg TransportMessenger, attribute string) ([]byte, error)
+	// HandleCommitteeListMembers handles committee list members messages
+	HandleCommitteeListMembers(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }

@@ -15,4 +15,6 @@ type CommitteeMemberReader interface {
 	GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error)
 	// GetMemberRevision retrieves the revision number for a committee member
 	GetMemberRevision(ctx context.Context, uid string) (uint64, error)
+	// ListMembers retrieves all members for a given committee UID
+	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 }

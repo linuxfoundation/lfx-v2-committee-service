@@ -35,6 +35,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 ## Key Features
 
 - **RESTful API**: Full CRUD operations for committee and committee member management
+- **NATS Messaging**: Inter-service communication for committee data retrieval via NATS subjects
 - **Committee Hierarchies**: Support for parent-child committee relationships
 - **Member Management**: Comprehensive committee member operations including roles, voting status, and organization details
 - **Project Integration**: Committees are associated with projects for organizational structure
