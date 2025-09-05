@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -256,30 +255,21 @@ func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*mode
 		return nil, errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
 	}
 
-	var members []*model.CommitteeMember
+	committeeMember := &model.CommitteeMember{}
 
-	// Iterate through all keys and filter by committee UID
-	for key := range keys.Keys() {
-		// Skip lookup keys (they start with "lookup/")
-		if strings.HasPrefix(key, "lookup/") {
-			continue
-		}
-
-		// Get the member
-		member := &model.CommitteeMember{}
-		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
-		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get member while listing",
-				"key", key,
-				"error", errGet,
-				"committee_uid", committeeUID)
-			continue
-		}
-
-		// Filter by committee UID
-		if member.CommitteeUID == committeeUID {
-			members = append(members, member)
-		}
+	members, errFilter := filter(
+		keys,
+		committeeMember,
+		func(uid string, m *model.CommitteeMember) error {
+			_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, uid, m, false)
+			return errGet
+		},
+		func(m *model.CommitteeMember) bool {
+			return m.CommitteeUID == committeeUID
+		},
+	)
+	if errFilter != nil {
+		return nil, errs.NewUnexpected("failed to filter committee members", errFilter)
 	}
 
 	slog.DebugContext(ctx, "retrieved committee members from NATS storage",
