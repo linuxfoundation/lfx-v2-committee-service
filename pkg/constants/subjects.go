@@ -12,6 +12,10 @@ const (
 	// The subject is of the form: lfx.committee-api.get_name
 	CommitteeGetNameSubject = "lfx.committee-api.get_name"
 
+	// CommitteeListMembersSubject is the subject for listing committee members.
+	// The subject is of the form: lfx.committee-api.list_members
+	CommitteeListMembersSubject = "lfx.committee-api.list_members"
+
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"

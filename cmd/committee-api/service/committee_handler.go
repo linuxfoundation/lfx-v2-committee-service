@@ -26,7 +26,8 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 	slog.DebugContext(ctx, "handling NATS message")
 
 	handlers := map[string]func(ctx context.Context, msg port.TransportMessenger) ([]byte, error){
-		constants.CommitteeGetNameSubject: mhs.handleCommitteeGetName,
+		constants.CommitteeGetNameSubject:     mhs.handleCommitteeGetName,
+		constants.CommitteeListMembersSubject: mhs.handleCommitteeListMembers,
 	}
 
 	handler, ok := handlers[subject]
@@ -57,6 +58,10 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 
 func (mhs *MessageHandlerService) handleCommitteeGetName(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeGetAttribute(ctx, msg, "name")
+}
+
+func (mhs *MessageHandlerService) handleCommitteeListMembers(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeListMembers(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {

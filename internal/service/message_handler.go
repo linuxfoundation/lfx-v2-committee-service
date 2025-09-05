@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -77,6 +78,61 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 	}
 
 	return []byte(strValue), nil
+}
+
+// HandleCommitteeListMembers handles the retrieval of all members for a committee
+func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+
+	// Parse message data to extract committee UID
+	uid := string(msg.Data())
+
+	slog.DebugContext(ctx, "committee list members request",
+		"committee_uid", uid,
+	)
+
+	// Validate that the committee ID is a valid UUID.
+	_, err := uuid.Parse(uid)
+	if err != nil {
+		slog.ErrorContext(ctx, "error parsing committee ID", "error", err)
+		return nil, err
+	}
+
+	// Check if the committee exists first
+	_, _, err = m.committeeReader.GetBase(ctx, uid)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get committee base",
+			"error", err,
+			"committee_uid", uid,
+		)
+		return nil, err
+	}
+
+	// Get all members for the committee
+	members, err := m.committeeReader.ListMembers(ctx, uid)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members",
+			"error", err,
+			"committee_uid", uid,
+		)
+		return nil, err
+	}
+
+	// Marshal the members to JSON
+	membersJSON, err := json.Marshal(members)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to marshal committee members",
+			"error", err,
+			"committee_uid", uid,
+		)
+		return nil, errors.NewUnexpected("failed to marshal committee members", err)
+	}
+
+	slog.DebugContext(ctx, "committee list members response",
+		"committee_uid", uid,
+		"member_count", len(members),
+	)
+
+	return membersJSON, nil
 }
 
 // NewMessageHandlerOrchestrator creates a new message handler orchestrator using the option pattern
