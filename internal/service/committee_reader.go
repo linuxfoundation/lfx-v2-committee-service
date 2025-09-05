@@ -174,16 +174,6 @@ func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committe
 		"committee_uid", committeeUID,
 	)
 
-	// First, verify that the committee exists
-	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base - committee does not exist",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
-		return nil, err
-	}
-
 	// Get all committee members from storage
 	members, err := rc.committeeReader.ListMembers(ctx, committeeUID)
 	if err != nil {
