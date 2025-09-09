@@ -98,10 +98,10 @@ func New(
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
 			{"UpdateCommitteeMember", "PUT", "/committees/{uid}/members/{member_uid}"},
 			{"DeleteCommitteeMember", "DELETE", "/committees/{uid}/members/{member_uid}"},
-			{"Serve gen/http/openapi.json", "GET", "/openapi.json"},
-			{"Serve gen/http/openapi.yaml", "GET", "/openapi.yaml"},
-			{"Serve gen/http/openapi3.json", "GET", "/openapi3.json"},
-			{"Serve gen/http/openapi3.yaml", "GET", "/openapi3.yaml"},
+			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
+			{"Serve gen/http/openapi.yaml", "GET", "/_committees/openapi.yaml"},
+			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
+			{"Serve gen/http/openapi3.yaml", "GET", "/_committees/openapi3.yaml"},
 		},
 		CreateCommittee:         NewCreateCommitteeHandler(e.CreateCommittee, mux, decoder, encoder, errhandler, formatter),
 		GetCommitteeBase:        NewGetCommitteeBaseHandler(e.GetCommitteeBase, mux, decoder, encoder, errhandler, formatter),
@@ -158,10 +158,10 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
 	MountUpdateCommitteeMemberHandler(mux, h.UpdateCommitteeMember)
 	MountDeleteCommitteeMemberHandler(mux, h.DeleteCommitteeMember)
-	MountGenHTTPOpenapiJSON(mux, h.GenHTTPOpenapiJSON)
-	MountGenHTTPOpenapiYaml(mux, h.GenHTTPOpenapiYaml)
-	MountGenHTTPOpenapi3JSON(mux, h.GenHTTPOpenapi3JSON)
-	MountGenHTTPOpenapi3Yaml(mux, h.GenHTTPOpenapi3Yaml)
+	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
+	MountGenHTTPOpenapiYaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiYaml))
+	MountGenHTTPOpenapi3JSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3JSON))
+	MountGenHTTPOpenapi3Yaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3Yaml))
 }
 
 // Mount configures the mux to serve the committee-service endpoints.
@@ -823,25 +823,25 @@ func appendPrefix(fsys http.FileSystem, prefix string) http.FileSystem {
 }
 
 // MountGenHTTPOpenapiJSON configures the mux to serve GET request made to
-// "/openapi.json".
+// "/_committees/openapi.json".
 func MountGenHTTPOpenapiJSON(mux goahttp.Muxer, h http.Handler) {
-	mux.Handle("GET", "/openapi.json", h.ServeHTTP)
+	mux.Handle("GET", "/_committees/openapi.json", h.ServeHTTP)
 }
 
 // MountGenHTTPOpenapiYaml configures the mux to serve GET request made to
-// "/openapi.yaml".
+// "/_committees/openapi.yaml".
 func MountGenHTTPOpenapiYaml(mux goahttp.Muxer, h http.Handler) {
-	mux.Handle("GET", "/openapi.yaml", h.ServeHTTP)
+	mux.Handle("GET", "/_committees/openapi.yaml", h.ServeHTTP)
 }
 
 // MountGenHTTPOpenapi3JSON configures the mux to serve GET request made to
-// "/openapi3.json".
+// "/_committees/openapi3.json".
 func MountGenHTTPOpenapi3JSON(mux goahttp.Muxer, h http.Handler) {
-	mux.Handle("GET", "/openapi3.json", h.ServeHTTP)
+	mux.Handle("GET", "/_committees/openapi3.json", h.ServeHTTP)
 }
 
 // MountGenHTTPOpenapi3Yaml configures the mux to serve GET request made to
-// "/openapi3.yaml".
+// "/_committees/openapi3.yaml".
 func MountGenHTTPOpenapi3Yaml(mux goahttp.Muxer, h http.Handler) {
-	mux.Handle("GET", "/openapi3.yaml", h.ServeHTTP)
+	mux.Handle("GET", "/_committees/openapi3.yaml", h.ServeHTTP)
 }
