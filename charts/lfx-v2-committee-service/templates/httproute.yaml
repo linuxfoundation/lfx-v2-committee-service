@@ -21,6 +21,9 @@ spec:
     - path:
         type: PathPrefix
         value: /committees/
+    - path:
+        type: PathPrefix
+        value: /_committees/
     {{- if .Values.heimdall.enabled }}
     filters:
     - type: ExtensionRef

@@ -449,16 +449,16 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
-	dsl.Files("/openapi.json", "gen/http/openapi.json", func() {
+	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
 		dsl.Meta("swagger:generate", "false")
 	})
-	dsl.Files("/openapi.yaml", "gen/http/openapi.yaml", func() {
+	dsl.Files("/_committees/openapi.yaml", "gen/http/openapi.yaml", func() {
 		dsl.Meta("swagger:generate", "false")
 	})
-	dsl.Files("/openapi3.json", "gen/http/openapi3.json", func() {
+	dsl.Files("/_committees/openapi3.json", "gen/http/openapi3.json", func() {
 		dsl.Meta("swagger:generate", "false")
 	})
-	dsl.Files("/openapi3.yaml", "gen/http/openapi3.yaml", func() {
+	dsl.Files("/_committees/openapi3.yaml", "gen/http/openapi3.yaml", func() {
 		dsl.Meta("swagger:generate", "false")
 	})
 })

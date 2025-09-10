@@ -8,6 +8,27 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   rules:
+    - id: "rule:lfx:lfx-v2-committee-service:openapi:get"
+      match:
+        methods:
+          - GET
+          - HEAD
+        routes:
+          - path: /_committees/openapi.json
+          - path: /_committees/openapi.yaml
+          - path: /_committees/openapi3.json
+          - path: /_committees/openapi3.yaml
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        - authorizer: allow_all
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
     - id: "rule:lfx:lfx-v2-committee-service:committees:create"
       match:
         methods:
