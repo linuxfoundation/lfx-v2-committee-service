@@ -178,7 +178,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: owner
+              relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else -}}
         # When OpenFGA is disabled, allow all requests
