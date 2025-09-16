@@ -9,6 +9,7 @@ metadata:
 spec:
   rules:
     - id: "rule:lfx:lfx-v2-committee-service:openapi:get"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
@@ -30,6 +31,7 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
     - id: "rule:lfx:lfx-v2-committee-service:committees:create"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - POST
@@ -59,6 +61,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:get"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
@@ -85,6 +88,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_settings:get"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
@@ -111,6 +115,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:update"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - PUT
@@ -137,6 +142,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_settings:update"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - PUT
@@ -163,6 +169,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committees:delete"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - DELETE
@@ -191,6 +198,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_members:create"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - POST
@@ -217,6 +225,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_members:get"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
@@ -243,6 +252,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_members:update"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - PUT
@@ -269,6 +279,7 @@ spec:
               aud: {{ .Values.app.audience }}
 
     - id: "rule:lfx:lfx-v2-committee-service:committee_members:delete"
+      allow_encoded_slashes: 'off'
       match:
         methods:
           - DELETE
