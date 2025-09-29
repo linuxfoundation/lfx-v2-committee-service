@@ -28,6 +28,12 @@ const (
 	ActionDeleted MessageAction = "deleted"
 )
 
+// CommitteeMemberMessageData is a wrapper that contains context for publishing messages
+type CommitteeMemberMessageData struct {
+	Member    *CommitteeMember
+	OldMember *CommitteeMember // Only used for ActionUpdated
+}
+
 // CommitteeIndexerMessage is a NATS message schema for sending messages related to committees CRUD operations.
 type CommitteeIndexerMessage struct {
 	Action  MessageAction     `json:"action"`
@@ -105,6 +111,13 @@ type CommitteeAccessMessage struct {
 	References map[string]string `json:"references"`
 }
 
+// CommitteeMemberUpdateEventData represents the data structure for committee member update events
+type CommitteeMemberUpdateEventData struct {
+	MemberUID string           `json:"member_uid"`
+	OldMember *CommitteeMember `json:"old_member"`
+	Member    *CommitteeMember `json:"member"`
+}
+
 // CommitteeEvent represents a generic event emitted for committee service operations
 type CommitteeEvent struct {
 	// EventType identifies the type of event (e.g., committee_member.created)
@@ -165,18 +178,37 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		return nil, fmt.Errorf("unsupported action: %s", action)
 	}
 
-	member, ok := input.(*CommitteeMember)
-	if !ok || member == nil {
-		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
-			"resource", resource,
-			"action", action,
-			"expected", "*CommitteeMember",
-			"got", fmt.Sprintf("%T", input),
-		)
-		return nil, fmt.Errorf("invalid input type, got %T", input)
-	}
 	e.buildEventType(resource, action)
-	e.Data = member
+
+	// Handle different input types based on action
+	switch action {
+	case ActionCreated, ActionDeleted:
+		// For create/delete, expect CommitteeMember
+		member, ok := input.(*CommitteeMember)
+		if !ok || member == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMember",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type, got %T", input)
+		}
+		e.Data = member
+	case ActionUpdated:
+		// For updates, expect CommitteeMemberUpdateEventData
+		updateData, ok := input.(*CommitteeMemberUpdateEventData)
+		if !ok || updateData == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent update",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMemberUpdateEventData",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type for update action, got %T", input)
+		}
+		e.Data = updateData
+	}
 
 	return e, nil
 }

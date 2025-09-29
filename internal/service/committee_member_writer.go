@@ -221,7 +221,10 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 
 	// Step 9: Publish indexer and access control messages
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, member); errPublish != nil {
+	eventData := &model.CommitteeMemberMessageData{
+		Member: member,
+	}
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, eventData); errPublish != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to publish member messages",
 			"error", errPublish,
@@ -489,7 +492,11 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	}
 
 	// Step 10: Publish indexer messages
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionUpdated, member); errPublish != nil {
+	updateEventData := &model.CommitteeMemberMessageData{
+		Member:    member,
+		OldMember: existing,
+	}
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionUpdated, updateEventData); errPublish != nil {
 		// Log the error but don't fail the member update
 		slog.WarnContext(ctx, "failed to publish member update messages",
 			"error", errPublish,
@@ -575,7 +582,10 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	uc.deleteMemberKeys(ctx, indicesToDelete, false)
 
 	// Step 5: Publish indexer message for member deletion
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, existing); errPublish != nil {
+	deleteEventData := &model.CommitteeMemberMessageData{
+		Member: existing,
+	}
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, deleteEventData); errPublish != nil {
 		slog.ErrorContext(ctx, "failed to publish member deletion message",
 			"error", errPublish,
 			"member_uid", uid,
@@ -651,7 +661,7 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 }
 
 // publishMemberMessages publishes indexer and access control messages for committee member operations
-func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMember) error {
+func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData) error {
 	slog.DebugContext(ctx, "publishing member messages",
 		"action", action,
 	)
@@ -665,11 +675,11 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		// Add tags for create/update operations (when we have the full member data)
-		indexerMessage.Tags = data.Tags()
-		indexerMessage.Data = data
+		indexerMessage.Tags = data.Member.Tags()
+		indexerMessage.Data = data.Member
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
-		indexerMessage.Data = data.UID
+		indexerMessage.Data = data.Member.UID
 	}
 
 	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
@@ -682,11 +692,22 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Build event message for the member
-	eventMessage := model.CommitteeEvent{
-		Data: data,
+	var eventInput any
+	switch action {
+	case model.ActionUpdated:
+		// For updates, create the structured event data
+		eventInput = &model.CommitteeMemberUpdateEventData{
+			MemberUID: data.Member.UID,
+			OldMember: data.OldMember,
+			Member:    data.Member,
+		}
+	case model.ActionCreated, model.ActionDeleted:
+		// For create/delete, use the member directly
+		eventInput = data.Member
 	}
 
-	eventMessageBuild, errBuildEventMessage := eventMessage.Build(ctx, model.ResourceCommitteeMember, action, eventMessage.Data)
+	eventMessage := model.CommitteeEvent{}
+	eventMessageBuild, errBuildEventMessage := eventMessage.Build(ctx, model.ResourceCommitteeMember, action, eventInput)
 	if errBuildEventMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member event message",
 			"error", errBuildEventMessage,

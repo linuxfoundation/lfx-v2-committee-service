@@ -180,7 +180,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: owner
+              relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else }}
         {{/*
