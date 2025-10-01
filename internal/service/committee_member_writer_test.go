@@ -643,41 +643,55 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 	tests := []struct {
 		name   string
 		action model.MessageAction
-		data   any
+		data   *model.CommitteeMemberMessageData
 	}{
 		{
 			name:   "publish create message with member data",
 			action: model.ActionCreated,
-			data: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					UID:          "member-123",
-					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
-					Username:     "testuser",
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-123",
+						CommitteeUID: "committee-123",
+						Email:        "test@example.com",
+						Username:     "testuser",
+					},
 				},
 			},
 		},
 		{
 			name:   "publish update message with member data",
 			action: model.ActionUpdated,
-			data: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					UID:          "member-456",
-					CommitteeUID: "committee-123",
-					Email:        "updated@example.com",
-					Username:     "updateduser",
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-456",
+						CommitteeUID: "committee-123",
+						Email:        "updated@example.com",
+						Username:     "updateduser",
+					},
+				},
+				OldMember: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-456",
+						CommitteeUID: "committee-123",
+						Email:        "old@example.com",
+						Username:     "olduser",
+					},
 				},
 			},
 		},
 		{
 			name:   "publish delete message with member data",
 			action: model.ActionDeleted,
-			data: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					UID:          "member-789",
-					CommitteeUID: "committee-123",
-					Email:        "deleted@example.com",
-					Username:     "deleteduser",
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-123",
+						Email:        "deleted@example.com",
+						Username:     "deleteduser",
+					},
 				},
 			},
 		},
@@ -688,8 +702,7 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 			orchestrator, _, _ := setupMemberWriterTest()
 
 			ctx := context.Background()
-			member := tt.data.(*model.CommitteeMember)
-			err := orchestrator.publishMemberMessages(ctx, tt.action, member)
+			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data)
 
 			// Should succeed with mock publisher
 			assert.NoError(t, err)

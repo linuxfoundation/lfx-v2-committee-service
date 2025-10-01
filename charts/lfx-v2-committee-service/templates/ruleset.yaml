@@ -50,9 +50,11 @@ spec:
             values:
               relation: writer
               object: "project:{{ "{{- .Request.Body.project_uid -}}" }}"
-        {{- else -}}
-        # When OpenFGA is disabled, allow all requests
-        # (Only meant for *local development* because OpenFGA should be enabled when deployed)
+        {{- else }}
+        {{/*
+          When OpenFGA is disabled, allow all requests
+          (Only meant for *local development* because OpenFGA should be enabled when deployed)
+        */}}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -79,7 +81,7 @@ spec:
             values:
               relation: viewer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -106,7 +108,7 @@ spec:
             values:
               relation: auditor
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -133,7 +135,7 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -160,7 +162,7 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -187,9 +189,11 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
-        # When OpenFGA is disabled, allow all requests
-        # (Only meant for *local development* because OpenFGA should be enabled when deployed)
+        {{- else }}
+        {{/*
+          When OpenFGA is disabled, allow all requests
+          (Only meant for *local development* because OpenFGA should be enabled when deployed)
+        */}}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -216,7 +220,7 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -243,7 +247,7 @@ spec:
             values:
               relation: viewer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -270,7 +274,7 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
@@ -297,7 +301,7 @@ spec:
             values:
               relation: writer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else -}}
+        {{- else }}
         - authorizer: allow_all
         {{- end }}
         - finalizer: create_jwt
