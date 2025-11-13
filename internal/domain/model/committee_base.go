@@ -135,6 +135,11 @@ func (c *Committee) Tags() []string {
 		tags = append(tags, tag)
 	}
 
+	if c.Category != "" {
+		tag := fmt.Sprintf("category:%s", c.Category)
+		tags = append(tags, tag)
+	}
+
 	if c.CommitteeBase.UID != "" {
 		// without prefix
 		tags = append(tags, c.CommitteeBase.UID)
