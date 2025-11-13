@@ -141,6 +141,7 @@ When committees and committee settings are created or updated, the following tag
 | ParentUID | `parent_uid:<value>` | `parent_uid:9493eae5-cd73-4c4a-b28f-3b8ec5280f6c` | Find child committees of a parent |
 | ProjectUID | `project_uid:<value>` | `project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878` | Find committees for a project |
 | ProjectSlug | `project_slug:<value>` | `project_slug:test-project-slug-1` | Find committees by project slug |
+| Category | `category:<value>` | `category:Board` | Find committees by category type |
 
 Both committee base and committee settings entities use the same tag structure to ensure consistent searchability.
 
