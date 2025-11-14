@@ -49,13 +49,14 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 	slog.DebugContext(ctx, "committeeService.create-committee",
 		"project_uid", p.ProjectUID,
 		"name", p.Name,
+		"x_sync", p.XSync,
 	)
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
 
 	// Execute use case
-	response, err := s.committeeWriterOrchestrator.Create(ctx, request)
+	response, err := s.committeeWriterOrchestrator.Create(ctx, request, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -96,6 +97,7 @@ func (s *committeeServicesrvc) GetCommitteeBase(ctx context.Context, p *committe
 func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *committeeservice.UpdateCommitteeBasePayload) (res *committeeservice.CommitteeBaseWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.update-committee-base",
 		"committee_uid", p.UID,
+		"x_sync", p.XSync,
 	)
 
 	// Parse ETag to get revision for optimistic locking
@@ -113,7 +115,7 @@ func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *commi
 	committee := s.convertPayloadToUpdateBase(p)
 
 	// Execute use case
-	updatedCommittee, err := s.committeeWriterOrchestrator.Update(ctx, committee, parsedRevision)
+	updatedCommittee, err := s.committeeWriterOrchestrator.Update(ctx, committee, parsedRevision, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -128,6 +130,7 @@ func (s *committeeServicesrvc) UpdateCommitteeBase(ctx context.Context, p *commi
 func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committeeservice.DeleteCommitteePayload) error {
 	slog.DebugContext(ctx, "committeeService.delete-committee",
 		"committee_uid", p.UID,
+		"x_sync", p.XSync,
 	)
 
 	// Parse ETag to get revision for optimistic locking
@@ -142,7 +145,7 @@ func (s *committeeServicesrvc) DeleteCommittee(ctx context.Context, p *committee
 	}
 
 	// Execute delete use case
-	errDelete := s.committeeWriterOrchestrator.Delete(ctx, *p.UID, parsedRevision)
+	errDelete := s.committeeWriterOrchestrator.Delete(ctx, *p.UID, parsedRevision, p.XSync)
 	if errDelete != nil {
 		return wrapError(ctx, errDelete)
 	}
@@ -180,6 +183,7 @@ func (s *committeeServicesrvc) GetCommitteeSettings(ctx context.Context, p *comm
 func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *committeeservice.UpdateCommitteeSettingsPayload) (res *committeeservice.CommitteeSettingsWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.update-committee-settings",
 		"committee_uid", p.UID,
+		"x_sync", p.XSync,
 	)
 
 	// Parse ETag to get revision for optimistic locking
@@ -197,7 +201,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 	settings := s.convertPayloadToUpdateSettings(p)
 
 	// Execute use case
-	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision)
+	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -214,13 +218,14 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	slog.DebugContext(ctx, "committeeMemberService.create-committee-member",
 		"committee_uid", p.UID,
 		"email", redaction.RedactEmail(p.Email),
+		"x_sync", p.XSync,
 	)
 
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
 
 	// Execute use case
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -265,6 +270,7 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 		"committee_uid", p.UID,
 		"member_uid", p.MemberUID,
 		"email", redaction.RedactEmail(p.Email),
+		"x_sync", p.XSync,
 	)
 
 	// Parse ETag to get revision for optimistic locking
@@ -283,7 +289,7 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	committeeMember := s.convertPayloadToUpdateMember(p)
 
 	// Execute use case
-	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision)
+	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -300,6 +306,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	slog.DebugContext(ctx, "committeeMemberService.delete-committee-member",
 		"committee_uid", p.UID,
 		"member_uid", p.MemberUID,
+		"x_sync", p.XSync,
 	)
 
 	// Parse ETag to get revision for optimistic locking
@@ -315,7 +322,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	}
 
 	// Execute delete use case
-	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision)
+	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync)
 	if errDelete != nil {
 		return wrapError(ctx, errDelete)
 	}

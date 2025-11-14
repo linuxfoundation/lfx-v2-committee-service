@@ -330,6 +330,14 @@ func BearerTokenAttribute() {
 	})
 }
 
+// XSyncAttribute is the DSL attribute for X-Sync header (for synchronous/asynchronous operations).
+func XSyncAttribute() {
+	dsl.Attribute("x_sync", dsl.Boolean, "Determines if the operation should be synchronous (true) or asynchronous (false, default)", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
 	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {

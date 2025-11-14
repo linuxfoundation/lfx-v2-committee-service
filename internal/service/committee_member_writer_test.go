@@ -405,7 +405,7 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			result, err := orchestrator.CreateMember(ctx, tt.member)
+			result, err := orchestrator.CreateMember(ctx, tt.member, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -451,7 +451,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member)
+	result, err := orchestrator.CreateMember(ctx, member, false)
 
 	// Since validateCorporateEmailDomain is currently a placeholder that returns nil,
 	// this should succeed
@@ -541,7 +541,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 			tt.setupMock(mockRepo, memberWriter)
 
 			ctx := context.Background()
-			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision)
+			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -702,7 +702,7 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 			orchestrator, _, _ := setupMemberWriterTest()
 
 			ctx := context.Background()
-			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data)
+			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data, false)
 
 			// Should succeed with mock publisher
 			assert.NoError(t, err)
@@ -736,7 +736,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) 
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member)
+	result, err := orchestrator.CreateMember(ctx, member, false)
 
 	// Should fail because committee doesn't exist
 	require.Error(t, err)
@@ -770,7 +770,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member)
+	result, err := orchestrator.CreateMember(ctx, member, false)
 
 	// Should succeed with default settings
 	require.NoError(t, err)
@@ -806,7 +806,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	memberWriter.keys[lookupKey] = member.UID
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-complete", 1)
+	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -841,7 +841,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 	// For now, we test the happy path
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1)
+	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false)
 
 	// Should succeed even if message publishing fails (currently mock always succeeds)
 	require.NoError(t, err)
@@ -903,7 +903,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -954,7 +954,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3) // Using old revision 3
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3, false) // Using old revision 3
 
 	// Should fail with conflict error
 	require.Error(t, err)
@@ -974,7 +974,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should fail with not found error
 	require.Error(t, err)
@@ -1009,7 +1009,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should fail because member belongs to different committee
 	require.Error(t, err)
@@ -1063,7 +1063,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should succeed (corporate validation is mocked to always pass)
 	require.NoError(t, err)
@@ -1111,7 +1111,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_ValidationFailure(t *testing.T
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should fail validation
 	require.Error(t, err)
@@ -1168,7 +1168,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
 
 	// Should fail with conflict error
 	require.Error(t, err)

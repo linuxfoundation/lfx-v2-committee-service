@@ -35,27 +35,27 @@ type deleteCall struct {
 	revision uint64
 }
 
-func (m *mockCommitteeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee) (*model.Committee, error) {
+func (m *mockCommitteeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) Update(ctx context.Context, committee *model.Committee, revision uint64) (*model.Committee, error) {
+func (m *mockCommitteeWriterOrchestrator) Update(ctx context.Context, committee *model.Committee, revision uint64, sync bool) (*model.Committee, error) {
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error) {
+func (m *mockCommitteeWriterOrchestrator) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64, sync bool) (*model.CommitteeSettings, error) {
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string, revision uint64) error {
+func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string, revision uint64, sync bool) error {
 	return errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
 	m.updateMemberCalls = append(m.updateMemberCalls, updateMemberCall{member: member, revision: revision})
 	if m.updateMemberErr != nil {
 		return nil, m.updateMemberErr
@@ -63,7 +63,7 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 	return m.updateMember, nil
 }
 
-func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{uid: uid, revision: revision})
 	return m.deleteError
 }

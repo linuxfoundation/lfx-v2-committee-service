@@ -416,7 +416,7 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.Create(ctx, tc.inputCommittee)
+			result, err := orchestrator.Create(ctx, tc.inputCommittee, false)
 
 			// Validate
 			if tc.expectedError != nil {
@@ -802,7 +802,7 @@ func TestNewcommitteeWriterOrchestrator(t *testing.T) {
 					},
 					CommitteeSettings: &model.CommitteeSettings{},
 				}
-				_, err := orchestrator.Create(ctx, committee)
+				_, err := orchestrator.Create(ctx, committee, false)
 				// We expect an error since project doesn't exist, but method should be callable
 				assert.Error(t, err)
 			},
@@ -832,21 +832,21 @@ type MockCommitteePublisherWithError struct {
 	accessError  error
 }
 
-func (p *MockCommitteePublisherWithError) Indexer(ctx context.Context, subject string, message any) error {
+func (p *MockCommitteePublisherWithError) Indexer(ctx context.Context, subject string, message any, sync bool) error {
 	if p.indexerError != nil {
 		return p.indexerError
 	}
 	return nil
 }
 
-func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject string, message any) error {
+func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject string, message any, sync bool) error {
 	if p.accessError != nil {
 		return p.accessError
 	}
 	return nil
 }
 
-func (p *MockCommitteePublisherWithError) Event(ctx context.Context, subject string, event any) error {
+func (p *MockCommitteePublisherWithError) Event(ctx context.Context, subject string, event any, sync bool) error {
 	// For testing purposes, we don't fail on events
 	return nil
 }
@@ -917,7 +917,7 @@ func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.Create(ctx, committee)
+			result, err := orchestrator.Create(ctx, committee, false)
 
 			// Validate
 			if tc.expectComplete {
@@ -1277,7 +1277,7 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.Update(ctx, tc.updateData, revision)
+			result, err := orchestrator.Update(ctx, tc.updateData, revision, false)
 
 			// Validate
 			if tc.expectError {
@@ -1376,7 +1376,7 @@ func TestCommitteeWriterOrchestrator_Update_SSO_Scenarios(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.Update(ctx, tc.updateData, uint64(1))
+			result, err := orchestrator.Update(ctx, tc.updateData, uint64(1), false)
 
 			// Validate
 			if tc.expectError {
@@ -1487,7 +1487,7 @@ func TestCommitteeWriterOrchestrator_Update_PublishingErrors(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.Update(ctx, updateData, uint64(1))
+			result, err := orchestrator.Update(ctx, updateData, uint64(1), false)
 
 			// Validate
 			if tc.expectComplete {
@@ -1588,7 +1588,7 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_PublishingErrors(t *testing.
 
 			// Execute
 			ctx := context.Background()
-			result, err := orchestrator.UpdateSettings(ctx, updateSettings, uint64(1))
+			result, err := orchestrator.UpdateSettings(ctx, updateSettings, uint64(1), false)
 
 			// Validate
 			if tc.expectComplete {
@@ -1828,7 +1828,7 @@ func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			err := orchestrator.Delete(ctx, tt.uid, tt.revision)
+			err := orchestrator.Delete(ctx, tt.uid, tt.revision, false)
 
 			// Validate
 			if tt.expectError {
@@ -1942,7 +1942,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			err := orchestrator.Delete(ctx, "committee-1", uint64(1))
+			err := orchestrator.Delete(ctx, "committee-1", uint64(1), false)
 
 			// Validate
 			if tc.expectComplete {
@@ -2050,7 +2050,7 @@ func TestCommitteeWriterOrchestrator_Delete_EdgeCases(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			err := orchestrator.Delete(ctx, tt.uid, tt.revision)
+			err := orchestrator.Delete(ctx, tt.uid, tt.revision, false)
 
 			// Validate
 			if tt.expectError {

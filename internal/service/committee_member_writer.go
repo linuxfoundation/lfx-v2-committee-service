@@ -66,11 +66,12 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 }
 
 // CreateMember creates a new committee member includes validation and rollback support
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "creating committee member",
 		"committee_uid", member.CommitteeUID,
 		"member_email", redaction.RedactEmail(member.Email),
 		"member_username", redaction.Redact(member.Username),
+		"sync", sync,
 	)
 
 	now := time.Now()
@@ -224,7 +225,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	eventData := &model.CommitteeMemberMessageData{
 		Member: member,
 	}
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, eventData); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, eventData, sync); errPublish != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to publish member messages",
 			"error", errPublish,
@@ -237,7 +238,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 }
 
 // UpdateMember updates an existing committee member
-func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "executing update committee member use case",
 		"member_uid", member.UID,
 		"committee_uid", member.CommitteeUID,
@@ -496,7 +497,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		Member:    member,
 		OldMember: existing,
 	}
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionUpdated, updateEventData); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionUpdated, updateEventData, sync); errPublish != nil {
 		// Log the error but don't fail the member update
 		slog.WarnContext(ctx, "failed to publish member update messages",
 			"error", errPublish,
@@ -516,7 +517,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 }
 
 // DeleteMember removes a committee member
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
 	slog.DebugContext(ctx, "executing delete committee member use case",
 		"member_uid", uid,
 		"revision", revision,
@@ -585,7 +586,7 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	deleteEventData := &model.CommitteeMemberMessageData{
 		Member: existing,
 	}
-	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, deleteEventData); errPublish != nil {
+	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, deleteEventData, sync); errPublish != nil {
 		slog.ErrorContext(ctx, "failed to publish member deletion message",
 			"error", errPublish,
 			"member_uid", uid,
@@ -661,7 +662,7 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 }
 
 // publishMemberMessages publishes indexer and access control messages for committee member operations
-func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData) error {
+func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData, sync bool) error {
 	slog.DebugContext(ctx, "publishing member messages",
 		"action", action,
 	)
@@ -719,10 +720,10 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	// Publish messages concurrently
 	messages := []func() error{
 		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, indexerMessageBuild)
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, indexerMessageBuild, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild)
+			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild, false)
 		},
 		// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-332
 		// Evaluate if we need to publish access control messages for members
