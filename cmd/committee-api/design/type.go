@@ -415,6 +415,7 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	CommitteeMemberUIDAttribute()
 	CommitteeUIDMemberAttribute()
 	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
 	CommitteeMemberBaseAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
@@ -482,6 +483,14 @@ func CommitteeNameMemberAttribute() {
 	dsl.Attribute("committee_name", dsl.String, "The name of the committee this member belongs to", func() {
 		dsl.MaxLength(100)
 		dsl.Example("Technical Steering Committee")
+	})
+}
+
+// CommitteeCategoryMemberAttribute is the DSL attribute for committee category in member context.
+func CommitteeCategoryMemberAttribute() {
+	dsl.Attribute("committee_category", dsl.String, "The category of the committee this member belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Board")
 	})
 }
 

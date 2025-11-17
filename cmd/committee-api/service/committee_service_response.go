@@ -440,6 +440,11 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 		result.CommitteeName = &member.CommitteeName
 	}
 
+	// Only set CommitteeCategory if it's not empty
+	if member.CommitteeCategory != "" {
+		result.CommitteeCategory = &member.CommitteeCategory
+	}
+
 	// Handle Role mapping
 	result.Role = &struct {
 		Name      string

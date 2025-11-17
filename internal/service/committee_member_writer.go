@@ -100,6 +100,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errCommittee
 	}
 	member.CommitteeName = committee.Name
+	member.CommitteeCategory = committee.Category
 
 	slog.DebugContext(ctx, "committee found",
 		"committee_uid", committee.UID,
@@ -322,6 +323,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		return nil, errCommittee
 	}
 	member.CommitteeName = committee.Name
+	member.CommitteeCategory = committee.Category
 
 	slog.DebugContext(ctx, "committee found for member update",
 		"committee_uid", committee.UID,

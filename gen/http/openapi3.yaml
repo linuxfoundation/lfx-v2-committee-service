@@ -533,6 +533,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -759,6 +760,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -911,6 +913,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -2111,6 +2114,11 @@ components:
                         - Vote of Silver Member Class
                         - Vote of Strategic Membership Class
                         - None
+                committee_category:
+                    type: string
+                    description: The category of the committee this member belongs to
+                    example: Board
+                    maxLength: 100
                 committee_name:
                     type: string
                     description: The name of the committee this member belongs to
@@ -2259,6 +2267,7 @@ components:
             example:
                 agency: GSA
                 appointed_by: Community
+                committee_category: Board
                 committee_name: Technical Steering Committee
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 country: United States
