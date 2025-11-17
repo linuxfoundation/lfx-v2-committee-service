@@ -9,7 +9,7 @@ import (
 
 // CommitteePublisher defines the behavior of a service that publishes committee messages
 type CommitteePublisher interface {
-	Indexer(ctx context.Context, subject string, message any) error
-	Access(ctx context.Context, subject string, message any) error
-	Event(ctx context.Context, subject string, event any) error
+	Indexer(ctx context.Context, subject string, message any, sync bool) error
+	Access(ctx context.Context, subject string, message any, sync bool) error
+	Event(ctx context.Context, subject string, event any, sync bool) error
 }

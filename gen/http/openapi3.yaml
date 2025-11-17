@@ -25,6 +25,16 @@ paths:
                     enum:
                         - "1"
                   example: "1"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -168,6 +178,16 @@ paths:
                     description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             responses:
                 "204":
                     description: No Content response.
@@ -338,6 +358,16 @@ paths:
                     description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -456,6 +486,16 @@ paths:
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -493,7 +533,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
-                                committee_category: technical-advisory-council
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -608,6 +648,16 @@ paths:
                     description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             responses:
                 "204":
                     description: No Content response.
@@ -710,7 +760,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
-                                committee_category: technical-advisory-council
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -816,6 +866,16 @@ paths:
                     description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -853,7 +913,7 @@ paths:
                             example:
                                 agency: GSA
                                 appointed_by: Community
-                                committee_category: technical-advisory-council
+                                committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 country: United States
@@ -1033,6 +1093,16 @@ paths:
                     description: If-Match header value for conditional requests
                     example: "123"
                   example: "123"
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -2047,7 +2117,7 @@ components:
                 committee_category:
                     type: string
                     description: The category of the committee this member belongs to
-                    example: technical-advisory-council
+                    example: Board
                     maxLength: 100
                 committee_name:
                     type: string
@@ -2197,7 +2267,7 @@ components:
             example:
                 agency: GSA
                 appointed_by: Community
-                committee_category: technical-advisory-council
+                committee_category: Board
                 committee_name: Technical Steering Committee
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 country: United States

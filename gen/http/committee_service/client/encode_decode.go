@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -51,6 +52,11 @@ func EncodeCreateCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) f
 			} else {
 				req.Header.Set("Authorization", head)
 			}
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -377,6 +383,11 @@ func EncodeUpdateCommitteeBaseRequest(encoder func(*http.Request) goahttp.Encode
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		if p.Version != nil {
 			values.Add("v", *p.Version)
@@ -554,6 +565,11 @@ func EncodeDeleteCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) f
 		if p.IfMatch != nil {
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -863,6 +879,11 @@ func EncodeUpdateCommitteeSettingsRequest(encoder func(*http.Request) goahttp.En
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		if p.Version != nil {
 			values.Add("v", *p.Version)
@@ -1152,6 +1173,11 @@ func EncodeCreateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			} else {
 				req.Header.Set("Authorization", head)
 			}
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)
@@ -1489,6 +1515,11 @@ func EncodeUpdateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()
@@ -1664,6 +1695,11 @@ func EncodeDeleteCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 		if p.IfMatch != nil {
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)

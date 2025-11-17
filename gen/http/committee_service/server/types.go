@@ -1910,7 +1910,7 @@ func NewDeleteCommitteeMemberServiceUnavailableResponseBody(res *committeeservic
 
 // NewCreateCommitteePayload builds a committee-service service
 // create-committee endpoint payload.
-func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string) *committeeservice.CreateCommitteePayload {
+func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteePayload {
 	v := &committeeservice.CreateCommitteePayload{
 		ProjectUID:     *body.ProjectUID,
 		Name:           *body.Name,
@@ -1978,6 +1978,7 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }
@@ -1995,7 +1996,7 @@ func NewGetCommitteeBasePayload(uid string, version *string, bearerToken *string
 
 // NewUpdateCommitteeBasePayload builds a committee-service service
 // update-committee-base endpoint payload.
-func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeBasePayload {
+func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeBasePayload {
 	v := &committeeservice.UpdateCommitteeBasePayload{
 		ProjectUID:  *body.ProjectUID,
 		Name:        *body.Name,
@@ -2045,18 +2046,20 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
 
 // NewDeleteCommitteePayload builds a committee-service service
 // delete-committee endpoint payload.
-func NewDeleteCommitteePayload(uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteePayload {
+func NewDeleteCommitteePayload(uid string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteePayload {
 	v := &committeeservice.DeleteCommitteePayload{}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
@@ -2074,7 +2077,7 @@ func NewGetCommitteeSettingsPayload(uid string, version *string, bearerToken *st
 
 // NewUpdateCommitteeSettingsPayload builds a committee-service service
 // update-committee-settings endpoint payload.
-func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody, uid string, version *string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeSettingsPayload {
+func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody, uid string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeSettingsPayload {
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
 		BusinessEmailRequired: *body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
@@ -2096,13 +2099,14 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
 
 // NewCreateCommitteeMemberPayload builds a committee-service service
 // create-committee-member endpoint payload.
-func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string) *committeeservice.CreateCommitteeMemberPayload {
+func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteeMemberPayload {
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:  body.Username,
 		Email:     *body.Email,
@@ -2176,6 +2180,7 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }
@@ -2194,7 +2199,7 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 
 // NewUpdateCommitteeMemberPayload builds a committee-service service
 // update-committee-member endpoint payload.
-func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string) *committeeservice.UpdateCommitteeMemberPayload {
+func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:  body.Username,
 		Email:     *body.Email,
@@ -2270,19 +2275,21 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
 
 // NewDeleteCommitteeMemberPayload builds a committee-service service
 // delete-committee-member endpoint payload.
-func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteeMemberPayload {
+func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeMemberPayload {
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }

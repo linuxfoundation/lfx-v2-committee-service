@@ -244,6 +244,9 @@ type CreateCommitteeMemberPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// User's LF ID
@@ -298,6 +301,9 @@ type CreateCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
 	ProjectUID string
@@ -348,6 +354,9 @@ type DeleteCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -363,6 +372,9 @@ type DeleteCommitteePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 }
@@ -435,6 +447,9 @@ type UpdateCommitteeBasePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
@@ -477,6 +492,9 @@ type UpdateCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -535,6 +553,9 @@ type UpdateCommitteeSettingsPayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Whether business email is required for committee members

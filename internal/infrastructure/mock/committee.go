@@ -772,28 +772,31 @@ func (m *MockRepository) GetCommitteeMemberCount(committeeUID string) int {
 type MockCommitteePublisher struct{}
 
 // Indexer simulates publishing an indexer message
-func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any) error {
+func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any, sync bool) error {
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
 		"message_type", "indexer",
+		"sync", sync,
 	)
 	return nil
 }
 
 // Access simulates publishing an access message
-func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any) error {
+func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
 	slog.InfoContext(ctx, "mock publisher: access message published",
 		"subject", subject,
 		"message_type", "access",
+		"sync", sync,
 	)
 	return nil
 }
 
 // Event simulates publishing an event message
-func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, event any) error {
+func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, event any, sync bool) error {
 	slog.InfoContext(ctx, "mock publisher: event message published",
 		"subject", subject,
 		"message_type", "event",
+		"sync", sync,
 	)
 	return nil
 }

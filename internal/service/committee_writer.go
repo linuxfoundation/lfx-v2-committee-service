@@ -29,23 +29,23 @@ type CommitteeWriter interface {
 // CommitteeDataWriter defines the interface for committee-specific write operations
 type CommitteeDataWriter interface {
 	// Create inserts a new committee into the storage, along with its settings, when applicable
-	Create(ctx context.Context, committee *model.Committee) (*model.Committee, error)
+	Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error)
 	// Update modifies an existing committee in the storage
-	Update(ctx context.Context, committee *model.Committee, revision uint64) (*model.Committee, error)
+	Update(ctx context.Context, committee *model.Committee, revision uint64, sync bool) (*model.Committee, error)
 	// UpdateSettings modifies the settings of an existing committee in the storage
-	UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error)
+	UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64, sync bool) (*model.CommitteeSettings, error)
 	// Delete removes a committee and all its associated data (secondary indices, settings)
-	Delete(ctx context.Context, uid string, revision uint64) error
+	Delete(ctx context.Context, uid string, revision uint64, sync bool) error
 }
 
 // CommitteeMemberDataWriter defines the interface for committee member write operations
 type CommitteeMemberDataWriter interface {
 	// CreateMember inserts a new committee member into the storage
-	CreateMember(ctx context.Context, member *model.CommitteeMember) (*model.CommitteeMember, error)
+	CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error)
 	// UpdateMember modifies an existing committee member in the storage
-	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, uid string, revision uint64) error
+	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options
@@ -291,11 +291,12 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 }
 
 // Execute orchestrates the committee creation process
-func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee) (*model.Committee, error) {
+func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
 
 	slog.DebugContext(ctx, "executing create committee use case",
 		"project_uid", committee.ProjectUID,
 		"name", committee.Name,
+		"sync", sync,
 	)
 
 	// Set committee identifiers and timestamps
@@ -414,14 +415,14 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		localMessage := message
 
 		messages = append(messages, func() error {
-			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage)
+			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage, sync)
 		})
 	}
 
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
+		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
 	})
 
 	// all messages are executed concurrently
@@ -441,13 +442,14 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 }
 
 // Update orchestrates the committee update process
-func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *model.Committee, revision uint64) (*model.Committee, error) {
+func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *model.Committee, revision uint64, sync bool) (*model.Committee, error) {
 
 	slog.DebugContext(ctx, "executing update committee use case",
 		"committee_uid", committee.CommitteeBase.UID,
 		"project_uid", committee.ProjectUID,
 		"name", committee.Name,
 		"revision", revision,
+		"sync", sync,
 	)
 
 	// For rollback purposes and cleanup
@@ -634,10 +636,10 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Publish both messages
 	messages := []func() error{
 		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer)
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
+			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -662,10 +664,11 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 }
 
 // UpdateSettings orchestrates the committee settings update process
-func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64) (*model.CommitteeSettings, error) {
+func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, revision uint64, sync bool) (*model.CommitteeSettings, error) {
 	slog.DebugContext(ctx, "executing update committee settings use case",
 		"committee_uid", settings.UID,
 		"revision", revision,
+		"sync", sync,
 	)
 
 	// Step 1: Retrieve existing settings from the repository to verify they exist
@@ -738,10 +741,10 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages := []func() error{
 		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer)
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage)
+			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -759,10 +762,11 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 }
 
 // Delete orchestrates the committee deletion process
-func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, revision uint64) error {
+func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, revision uint64, sync bool) error {
 	slog.DebugContext(ctx, "executing delete committee use case",
 		"committee_uid", uid,
 		"revision", revision,
+		"sync", sync,
 	)
 
 	// Step 1: Retrieve existing committee data to get all the information needed for cleanup
@@ -859,13 +863,13 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		localMessage := message
 
 		messages = append(messages, func() error {
-			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage)
+			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage, sync)
 		})
 	}
 
 	// Build access control deletion message
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.DeleteAllAccessCommitteeSubject, uid)
+		return uc.committeePublisher.Access(ctx, constants.DeleteAllAccessCommitteeSubject, uid, sync)
 	})
 
 	// Execute all messages concurrently

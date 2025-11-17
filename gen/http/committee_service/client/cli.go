@@ -11,6 +11,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"unicode/utf8"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -19,7 +20,7 @@ import (
 
 // BuildCreateCommitteePayload builds the payload for the committee-service
 // create-committee endpoint from CLI flags.
-func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, committeeServiceCreateCommitteeVersion string, committeeServiceCreateCommitteeBearerToken string) (*committeeservice.CreateCommitteePayload, error) {
+func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, committeeServiceCreateCommitteeVersion string, committeeServiceCreateCommitteeBearerToken string, committeeServiceCreateCommitteeXSync string) (*committeeservice.CreateCommitteePayload, error) {
 	var err error
 	var body CreateCommitteeRequestBody
 	{
@@ -76,6 +77,15 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 	{
 		if committeeServiceCreateCommitteeBearerToken != "" {
 			bearerToken = &committeeServiceCreateCommitteeBearerToken
+		}
+	}
+	var xSync bool
+	{
+		if committeeServiceCreateCommitteeXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceCreateCommitteeXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
 		}
 	}
 	v := &committeeservice.CreateCommitteePayload{
@@ -152,6 +162,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 	}
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v, nil
 }
@@ -196,7 +207,7 @@ func BuildGetCommitteeBasePayload(committeeServiceGetCommitteeBaseUID string, co
 
 // BuildUpdateCommitteeBasePayload builds the payload for the committee-service
 // update-committee-base endpoint from CLI flags.
-func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody string, committeeServiceUpdateCommitteeBaseUID string, committeeServiceUpdateCommitteeBaseVersion string, committeeServiceUpdateCommitteeBaseBearerToken string, committeeServiceUpdateCommitteeBaseIfMatch string) (*committeeservice.UpdateCommitteeBasePayload, error) {
+func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody string, committeeServiceUpdateCommitteeBaseUID string, committeeServiceUpdateCommitteeBaseVersion string, committeeServiceUpdateCommitteeBaseBearerToken string, committeeServiceUpdateCommitteeBaseIfMatch string, committeeServiceUpdateCommitteeBaseXSync string) (*committeeservice.UpdateCommitteeBasePayload, error) {
 	var err error
 	var body UpdateCommitteeBaseRequestBody
 	{
@@ -266,6 +277,15 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 			ifMatch = &committeeServiceUpdateCommitteeBaseIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceUpdateCommitteeBaseXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceUpdateCommitteeBaseXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.UpdateCommitteeBasePayload{
 		ProjectUID:      body.ProjectUID,
 		Name:            body.Name,
@@ -321,13 +341,14 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }
 
 // BuildDeleteCommitteePayload builds the payload for the committee-service
 // delete-committee endpoint from CLI flags.
-func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, committeeServiceDeleteCommitteeVersion string, committeeServiceDeleteCommitteeBearerToken string, committeeServiceDeleteCommitteeIfMatch string) (*committeeservice.DeleteCommitteePayload, error) {
+func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, committeeServiceDeleteCommitteeVersion string, committeeServiceDeleteCommitteeBearerToken string, committeeServiceDeleteCommitteeIfMatch string, committeeServiceDeleteCommitteeXSync string) (*committeeservice.DeleteCommitteePayload, error) {
 	var err error
 	var uid string
 	{
@@ -361,11 +382,21 @@ func BuildDeleteCommitteePayload(committeeServiceDeleteCommitteeUID string, comm
 			ifMatch = &committeeServiceDeleteCommitteeIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceDeleteCommitteeXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceDeleteCommitteeXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteePayload{}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }
@@ -410,7 +441,7 @@ func BuildGetCommitteeSettingsPayload(committeeServiceGetCommitteeSettingsUID st
 
 // BuildUpdateCommitteeSettingsPayload builds the payload for the
 // committee-service update-committee-settings endpoint from CLI flags.
-func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettingsBody string, committeeServiceUpdateCommitteeSettingsUID string, committeeServiceUpdateCommitteeSettingsVersion string, committeeServiceUpdateCommitteeSettingsBearerToken string, committeeServiceUpdateCommitteeSettingsIfMatch string) (*committeeservice.UpdateCommitteeSettingsPayload, error) {
+func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettingsBody string, committeeServiceUpdateCommitteeSettingsUID string, committeeServiceUpdateCommitteeSettingsVersion string, committeeServiceUpdateCommitteeSettingsBearerToken string, committeeServiceUpdateCommitteeSettingsIfMatch string, committeeServiceUpdateCommitteeSettingsXSync string) (*committeeservice.UpdateCommitteeSettingsPayload, error) {
 	var err error
 	var body UpdateCommitteeSettingsRequestBody
 	{
@@ -457,6 +488,15 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 			ifMatch = &committeeServiceUpdateCommitteeSettingsIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceUpdateCommitteeSettingsXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceUpdateCommitteeSettingsXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
 		BusinessEmailRequired: body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
@@ -478,13 +518,14 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }
 
 // BuildCreateCommitteeMemberPayload builds the payload for the
 // committee-service create-committee-member endpoint from CLI flags.
-func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string) (*committeeservice.CreateCommitteeMemberPayload, error) {
 	var err error
 	var body CreateCommitteeMemberRequestBody
 	{
@@ -589,6 +630,15 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			bearerToken = &committeeServiceCreateCommitteeMemberBearerToken
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceCreateCommitteeMemberXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceCreateCommitteeMemberXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:    body.Username,
 		Email:       body.Email,
@@ -666,6 +716,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v, nil
 }
@@ -717,7 +768,7 @@ func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string
 
 // BuildUpdateCommitteeMemberPayload builds the payload for the
 // committee-service update-committee-member endpoint from CLI flags.
-func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
+func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
 	var err error
 	var body UpdateCommitteeMemberRequestBody
 	{
@@ -836,6 +887,15 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			ifMatch = &committeeServiceUpdateCommitteeMemberIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceUpdateCommitteeMemberXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceUpdateCommitteeMemberXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:    body.Username,
 		Email:       body.Email,
@@ -915,13 +975,14 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }
 
 // BuildDeleteCommitteeMemberPayload builds the payload for the
 // committee-service delete-committee-member endpoint from CLI flags.
-func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
+func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string, committeeServiceDeleteCommitteeMemberXSync string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 	var err error
 	var uid string
 	{
@@ -961,12 +1022,22 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 			ifMatch = &committeeServiceDeleteCommitteeMemberIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceDeleteCommitteeMemberXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceDeleteCommitteeMemberXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }

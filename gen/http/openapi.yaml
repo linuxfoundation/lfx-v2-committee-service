@@ -32,6 +32,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-CommitteeRequestBody
                   in: body
                   required: true
@@ -167,6 +173,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Update-Committee-BaseRequestBody
                   in: body
                   required: true
@@ -245,6 +257,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -308,6 +326,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-Committee-MemberRequestBody
                   in: body
                   required: true
@@ -459,6 +483,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Update-Committee-MemberRequestBody
                   in: body
                   required: true
@@ -541,6 +571,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -665,6 +701,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Update-Committee-SettingsRequestBody
                   in: body
                   required: true
@@ -1065,7 +1107,7 @@ definitions:
             committee_category:
                 type: string
                 description: The category of the committee this member belongs to
-                example: technical-advisory-council
+                example: Board
                 maxLength: 100
             committee_name:
                 type: string
@@ -1214,7 +1256,7 @@ definitions:
         example:
             agency: GSA
             appointed_by: Community
-            committee_category: technical-advisory-council
+            committee_category: Board
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             country: United States

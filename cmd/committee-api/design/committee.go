@@ -30,6 +30,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
+			XSyncAttribute()
 
 			CommitteeBaseAttributes()
 
@@ -53,6 +54,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.POST("/committees")
 			dsl.Param("version:v")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -108,6 +110,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 
 			CommitteeUIDAttribute()
 			CommitteeBaseAttributes()
@@ -129,6 +132,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -147,6 +151,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 			CommitteeUIDAttribute()
 		})
 
@@ -162,6 +167,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -218,6 +224,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 
 			CommitteeUIDAttribute()
 			CommitteeSettingsAttributes()
@@ -242,6 +249,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -294,6 +302,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
+			XSyncAttribute()
 			CommitteeUIDAttribute()
 
 			CommitteeMemberCreateAttributes()
@@ -314,6 +323,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -378,6 +388,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
@@ -401,6 +412,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("member_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -420,6 +432,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
@@ -439,6 +452,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("member_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
