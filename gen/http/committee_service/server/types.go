@@ -334,6 +334,8 @@ type CreateCommitteeMemberResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// The name of the committee this member belongs to
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -396,6 +398,8 @@ type UpdateCommitteeMemberResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// The name of the committee this member belongs to
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -883,6 +887,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// The name of the committee this member belongs to
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 	// Primary email address
@@ -1187,20 +1193,21 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 // service.
 func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *CreateCommitteeMemberResponseBody {
 	body := &CreateCommitteeMemberResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		CommitteeName: res.CommitteeName,
-		Username:      res.Username,
-		Email:         res.Email,
-		FirstName:     res.FirstName,
-		LastName:      res.LastName,
-		JobTitle:      res.JobTitle,
-		AppointedBy:   res.AppointedBy,
-		Status:        res.Status,
-		Agency:        res.Agency,
-		Country:       res.Country,
-		CreatedAt:     res.CreatedAt,
-		UpdatedAt:     res.UpdatedAt,
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		Username:          res.Username,
+		Email:             res.Email,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		JobTitle:          res.JobTitle,
+		AppointedBy:       res.AppointedBy,
+		Status:            res.Status,
+		Agency:            res.Agency,
+		Country:           res.Country,
+		CreatedAt:         res.CreatedAt,
+		UpdatedAt:         res.UpdatedAt,
 	}
 	if res.Role != nil {
 		body.Role = &struct {
@@ -1273,20 +1280,21 @@ func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 // service.
 func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberResult) *GetCommitteeMemberResponseBody {
 	body := &GetCommitteeMemberResponseBody{
-		UID:           res.Member.UID,
-		CommitteeUID:  res.Member.CommitteeUID,
-		CommitteeName: res.Member.CommitteeName,
-		Username:      res.Member.Username,
-		Email:         res.Member.Email,
-		FirstName:     res.Member.FirstName,
-		LastName:      res.Member.LastName,
-		JobTitle:      res.Member.JobTitle,
-		AppointedBy:   res.Member.AppointedBy,
-		Status:        res.Member.Status,
-		Agency:        res.Member.Agency,
-		Country:       res.Member.Country,
-		CreatedAt:     res.Member.CreatedAt,
-		UpdatedAt:     res.Member.UpdatedAt,
+		UID:               res.Member.UID,
+		CommitteeUID:      res.Member.CommitteeUID,
+		CommitteeName:     res.Member.CommitteeName,
+		CommitteeCategory: res.Member.CommitteeCategory,
+		Username:          res.Member.Username,
+		Email:             res.Member.Email,
+		FirstName:         res.Member.FirstName,
+		LastName:          res.Member.LastName,
+		JobTitle:          res.Member.JobTitle,
+		AppointedBy:       res.Member.AppointedBy,
+		Status:            res.Member.Status,
+		Agency:            res.Member.Agency,
+		Country:           res.Member.Country,
+		CreatedAt:         res.Member.CreatedAt,
+		UpdatedAt:         res.Member.UpdatedAt,
 	}
 	if res.Member.Role != nil {
 		body.Role = &struct {
@@ -1359,20 +1367,21 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 // service.
 func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *UpdateCommitteeMemberResponseBody {
 	body := &UpdateCommitteeMemberResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		CommitteeName: res.CommitteeName,
-		Username:      res.Username,
-		Email:         res.Email,
-		FirstName:     res.FirstName,
-		LastName:      res.LastName,
-		JobTitle:      res.JobTitle,
-		AppointedBy:   res.AppointedBy,
-		Status:        res.Status,
-		Agency:        res.Agency,
-		Country:       res.Country,
-		CreatedAt:     res.CreatedAt,
-		UpdatedAt:     res.UpdatedAt,
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		Username:          res.Username,
+		Email:             res.Email,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		JobTitle:          res.JobTitle,
+		AppointedBy:       res.AppointedBy,
+		Status:            res.Status,
+		Agency:            res.Agency,
+		Country:           res.Country,
+		CreatedAt:         res.CreatedAt,
+		UpdatedAt:         res.UpdatedAt,
 	}
 	if res.Role != nil {
 		body.Role = &struct {
