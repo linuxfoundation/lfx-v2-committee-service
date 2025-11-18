@@ -1350,4 +1350,3 @@ func TestCommitteeWriterOrchestrator_DeleteMember_DoesNotDecrementBelowZero(t *t
 	require.NoError(t, err)
 	assert.Equal(t, 0, updatedCommittee.TotalMembers, "TotalMembers should not go below 0")
 }
-
