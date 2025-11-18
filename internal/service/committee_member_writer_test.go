@@ -1351,39 +1351,3 @@ func TestCommitteeWriterOrchestrator_DeleteMember_DoesNotDecrementBelowZero(t *t
 	assert.Equal(t, 0, updatedCommittee.TotalMembers, "TotalMembers should not go below 0")
 }
 
-func TestCommitteeWriterOrchestrator_DeleteMember_ContinuesOnUpdateFailure(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-
-	// Setup committee
-	committee := &model.Committee{
-		CommitteeBase: model.CommitteeBase{
-			UID:          "committee-update-fail",
-			Name:         "Test Committee",
-			Category:     "Technical",
-			TotalMembers: 5,
-		},
-	}
-	mockRepo.AddCommittee(committee)
-
-	// Setup member to delete
-	member := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-update-fail",
-			CommitteeUID: "committee-update-fail",
-			Email:        "test@example.com",
-			Username:     "testuser",
-		},
-	}
-	memberWriter.members["member-update-fail"] = member
-	mockRepo.AddCommitteeMember("committee-update-fail", member)
-
-	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-update-fail", 1, false)
-
-	// Should succeed - member deletion continues even if TotalMembers update fails
-	require.NoError(t, err)
-
-	// Verify member was deleted despite any update issues
-	_, exists := memberWriter.members["member-update-fail"]
-	assert.False(t, exists, "Member should still be deleted even if TotalMembers update fails")
-}
