@@ -379,13 +379,19 @@ func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.C
 	defer w.mock.mu.Unlock()
 
 	// Check if committee exists
-	if _, exists := w.mock.committees[committee.CommitteeBase.UID]; !exists {
+	existing, exists := w.mock.committees[committee.CommitteeBase.UID]
+	if !exists {
 		return errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", committee.CommitteeBase.UID))
 	}
 
+	// Only update the base, preserve existing settings
 	committee.CommitteeBase.UpdatedAt = time.Now()
-	w.mock.committees[committee.CommitteeBase.UID] = committee
-	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
+	updated := &model.Committee{
+		CommitteeBase:     committee.CommitteeBase,
+		CommitteeSettings: existing.CommitteeSettings, // Preserve settings
+	}
+	w.mock.committees[committee.CommitteeBase.UID] = updated
+	w.mock.committeeIndexKeys[updated.BuildIndexKey(ctx)] = updated
 
 	return nil
 }
