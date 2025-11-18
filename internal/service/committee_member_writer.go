@@ -210,7 +210,51 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"member_username", redaction.Redact(member.Username),
 	)
 
-	// Step 8: Add organization user engagement
+	// Step 8: Update committee TotalMembers count and publish to indexer
+	committee.TotalMembers++
+	errUpdateBase := uc.committeeWriter.UpdateBase(ctx, &model.Committee{CommitteeBase: *committee}, committeeRevision)
+	if errUpdateBase != nil {
+		slog.ErrorContext(ctx, "failed to update committee TotalMembers count",
+			"error", errUpdateBase,
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+		)
+		// Continue despite the error - member was successfully created
+		// This is a data consistency issue that can be fixed later
+	} else {
+		slog.DebugContext(ctx, "committee TotalMembers count incremented",
+			"committee_uid", member.CommitteeUID,
+			"total_members", committee.TotalMembers,
+		)
+
+		// Publish committee indexer message to update OpenSearch
+		committeeIndexerMsg := model.CommitteeIndexerMessage{
+			Action: model.ActionUpdated,
+			Tags:   (&model.Committee{CommitteeBase: *committee}).Tags(),
+		}
+		indexerMsg, errBuildIndexer := committeeIndexerMsg.Build(ctx, *committee)
+		if errBuildIndexer != nil {
+			slog.WarnContext(ctx, "failed to build committee indexer message after TotalMembers update",
+				"error", errBuildIndexer,
+				"committee_uid", member.CommitteeUID,
+			)
+		} else {
+			errPublishIndexer := uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false)
+			if errPublishIndexer != nil {
+				slog.WarnContext(ctx, "failed to publish committee indexer message after TotalMembers update",
+					"error", errPublishIndexer,
+					"committee_uid", member.CommitteeUID,
+				)
+			} else {
+				slog.DebugContext(ctx, "committee indexer message published after TotalMembers increment",
+					"committee_uid", member.CommitteeUID,
+					"total_members", committee.TotalMembers,
+				)
+			}
+		}
+	}
+
+	// Step 9: Add organization user engagement
 	if errEngagement := uc.addOrganizationUserEngagement(ctx, member.Organization.Name, member.Username); errEngagement != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to add organization user engagement",
@@ -222,7 +266,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		)
 	}
 
-	// Step 9: Publish indexer and access control messages
+	// Step 10: Publish indexer and access control messages
 	eventData := &model.CommitteeMemberMessageData{
 		Member: member,
 	}
@@ -579,12 +623,67 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 		"member_uid", uid,
 	)
 
-	// Step 4: Delete secondary indices
+	// Step 4: Update committee TotalMembers count and publish to indexer
+	committee, committeeRevision, errGetCommittee := uc.committeeReader.GetBase(ctx, existing.CommitteeUID)
+	if errGetCommittee != nil {
+		slog.ErrorContext(ctx, "failed to get committee for TotalMembers update",
+			"error", errGetCommittee,
+			"committee_uid", existing.CommitteeUID,
+			"member_uid", uid,
+		)
+		// Continue despite the error - member was successfully deleted
+	} else {
+		if committee.TotalMembers > 0 {
+			committee.TotalMembers--
+		}
+		errUpdateBase := uc.committeeWriter.UpdateBase(ctx, &model.Committee{CommitteeBase: *committee}, committeeRevision)
+		if errUpdateBase != nil {
+			slog.ErrorContext(ctx, "failed to update committee TotalMembers count",
+				"error", errUpdateBase,
+				"committee_uid", existing.CommitteeUID,
+				"member_uid", uid,
+			)
+			// Continue despite the error - this is a data consistency issue
+		} else {
+			slog.DebugContext(ctx, "committee TotalMembers count decremented",
+				"committee_uid", existing.CommitteeUID,
+				"total_members", committee.TotalMembers,
+			)
+
+			// Publish committee indexer message to update OpenSearch
+			committeeIndexerMsg := model.CommitteeIndexerMessage{
+				Action: model.ActionUpdated,
+				Tags:   (&model.Committee{CommitteeBase: *committee}).Tags(),
+			}
+			indexerMsg, errBuildIndexer := committeeIndexerMsg.Build(ctx, *committee)
+			if errBuildIndexer != nil {
+				slog.WarnContext(ctx, "failed to build committee indexer message after TotalMembers update",
+					"error", errBuildIndexer,
+					"committee_uid", existing.CommitteeUID,
+				)
+			} else {
+				errPublishIndexer := uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false)
+				if errPublishIndexer != nil {
+					slog.WarnContext(ctx, "failed to publish committee indexer message after TotalMembers update",
+						"error", errPublishIndexer,
+						"committee_uid", existing.CommitteeUID,
+					)
+				} else {
+					slog.DebugContext(ctx, "committee indexer message published after TotalMembers decrement",
+						"committee_uid", existing.CommitteeUID,
+						"total_members", committee.TotalMembers,
+					)
+				}
+			}
+		}
+	}
+
+	// Step 5: Delete secondary indices
 	// We use the deleteMemberKeys method which handles errors gracefully and logs them
 	// We don't abort here - secondary indices have a minor impact during deletion
 	uc.deleteMemberKeys(ctx, indicesToDelete, false)
 
-	// Step 5: Publish indexer message for member deletion
+	// Step 6: Publish indexer message for member deletion
 	deleteEventData := &model.CommitteeMemberMessageData{
 		Member: existing,
 	}

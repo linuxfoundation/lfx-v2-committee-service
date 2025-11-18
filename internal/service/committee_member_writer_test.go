@@ -1175,3 +1175,215 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	assert.Contains(t, err.Error(), "already exists")
 	assert.Nil(t, result)
 }
+
+func TestCommitteeWriterOrchestrator_CreateMember_IncrementsTotalMembers(t *testing.T) {
+	orchestrator, mockRepo, _ := setupMemberWriterTest()
+
+	// Setup committee with initial TotalMembers count
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "committee-123",
+			Name:         "Test Committee",
+			Category:     "Technical",
+			TotalMembers: 5, // Initial count
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-123",
+			BusinessEmailRequired: false,
+			CreatedAt:             time.Now(),
+			UpdatedAt:             time.Now(),
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "newmember@example.com",
+			Username:     "newmember",
+			FirstName:    "New",
+			LastName:     "Member",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Test Org",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.CreateMember(ctx, member, false)
+
+	// Should succeed
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify TotalMembers was incremented
+	updatedCommittee, _, err := mockRepo.GetBase(ctx, "committee-123")
+	require.NoError(t, err)
+	assert.Equal(t, 6, updatedCommittee.TotalMembers, "TotalMembers should be incremented from 5 to 6")
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_IncrementsTotalMembersFromZero(t *testing.T) {
+	orchestrator, mockRepo, _ := setupMemberWriterTest()
+
+	// Setup committee with zero members
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "committee-456",
+			Name:         "Empty Committee",
+			Category:     "Technical",
+			TotalMembers: 0, // Starting from zero
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID: "committee-456",
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-456",
+			Email:        "firstmember@example.com",
+			Username:     "firstmember",
+			Organization: model.CommitteeMemberOrganization{
+				Name: "Test Org",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.CreateMember(ctx, member, false)
+
+	// Should succeed
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify TotalMembers was incremented from 0 to 1
+	updatedCommittee, _, err := mockRepo.GetBase(ctx, "committee-456")
+	require.NoError(t, err)
+	assert.Equal(t, 1, updatedCommittee.TotalMembers, "TotalMembers should be incremented from 0 to 1")
+}
+
+func TestCommitteeWriterOrchestrator_DeleteMember_DecrementsTotalMembers(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee with members
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "committee-789",
+			Name:         "Committee With Members",
+			Category:     "Technical",
+			TotalMembers: 3, // Has 3 members
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup member to delete
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-to-delete",
+			CommitteeUID: "committee-789",
+			Email:        "delete@example.com",
+			Username:     "deleteuser",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+	memberWriter.members["member-to-delete"] = member
+	mockRepo.AddCommitteeMember("committee-789", member)
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-to-delete", 1, false)
+
+	// Should succeed
+	require.NoError(t, err)
+
+	// Verify TotalMembers was decremented
+	updatedCommittee, _, err := mockRepo.GetBase(ctx, "committee-789")
+	require.NoError(t, err)
+	assert.Equal(t, 2, updatedCommittee.TotalMembers, "TotalMembers should be decremented from 3 to 2")
+}
+
+func TestCommitteeWriterOrchestrator_DeleteMember_DoesNotDecrementBelowZero(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee with zero members (edge case - should not happen normally)
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "committee-zero",
+			Name:         "Committee With Zero Count",
+			Category:     "Technical",
+			TotalMembers: 0, // Already at zero
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup member to delete (inconsistent state for testing)
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-orphan",
+			CommitteeUID: "committee-zero",
+			Email:        "orphan@example.com",
+			Username:     "orphanuser",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+	memberWriter.members["member-orphan"] = member
+	mockRepo.AddCommitteeMember("committee-zero", member)
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-orphan", 1, false)
+
+	// Should succeed
+	require.NoError(t, err)
+
+	// Verify TotalMembers stayed at 0 (did not go negative)
+	updatedCommittee, _, err := mockRepo.GetBase(ctx, "committee-zero")
+	require.NoError(t, err)
+	assert.Equal(t, 0, updatedCommittee.TotalMembers, "TotalMembers should not go below 0")
+}
+
+func TestCommitteeWriterOrchestrator_DeleteMember_ContinuesOnUpdateFailure(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Setup committee
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "committee-update-fail",
+			Name:         "Test Committee",
+			Category:     "Technical",
+			TotalMembers: 5,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Setup member to delete
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-update-fail",
+			CommitteeUID: "committee-update-fail",
+			Email:        "test@example.com",
+			Username:     "testuser",
+		},
+	}
+	memberWriter.members["member-update-fail"] = member
+	mockRepo.AddCommitteeMember("committee-update-fail", member)
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-update-fail", 1, false)
+
+	// Should succeed - member deletion continues even if TotalMembers update fails
+	require.NoError(t, err)
+
+	// Verify member was deleted despite any update issues
+	_, exists := memberWriter.members["member-update-fail"]
+	assert.False(t, exists, "Member should still be deleted even if TotalMembers update fails")
+}
