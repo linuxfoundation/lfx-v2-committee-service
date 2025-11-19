@@ -42,6 +42,14 @@ const (
 	// DeleteAllAccessCommitteeSubject is the  subject for the committee access control deletion.
 	// The subject is of the form: lfx.delete_all_access.committee
 	DeleteAllAccessCommitteeSubject = "lfx.delete_all_access.committee"
+
+	// PutMemberCommitteeSubject is the subject for the committee member access control updates.
+	// The subject is of the form: lfx.put_member.committee
+	PutMemberCommitteeSubject = "lfx.put_member.committee"
+
+	// RemoveMemberCommitteeSubject is the subject for the committee member access control deletion.
+	// The subject is of the form: lfx.remove_member.committee
+	RemoveMemberCommitteeSubject = "lfx.remove_member.committee"
 )
 
 // Event subjects emitted by the committee service for general consumption by any service
