@@ -663,6 +663,29 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	return nil
 }
 
+// committeeMemberStub represents the minimal data needed for FGA member access control
+type committeeMemberStub struct {
+	// Username is the username (i.e. LFID) of the member. This is the identity of the user object in FGA.
+	Username string `json:"username"`
+	// CommitteeUID is the committee ID for the committee the member belongs to.
+	CommitteeUID string `json:"committee_uid"`
+}
+
+// buildMemberAccessControlMessage builds an access control message for a committee member
+func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember) *committeeMemberStub {
+	message := &committeeMemberStub{
+		Username:     member.Username,
+		CommitteeUID: member.CommitteeUID,
+	}
+
+	slog.DebugContext(ctx, "building member access control message",
+		"username", redaction.Redact(member.Username),
+		"committee_uid", member.CommitteeUID,
+	)
+
+	return message
+}
+
 // publishMemberMessages publishes indexer and access control messages for committee member operations
 func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData, sync bool) error {
 	slog.DebugContext(ctx, "publishing member messages",
@@ -719,6 +742,18 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		return errs.NewUnexpected("failed to build member event message", errBuildEventMessage)
 	}
 
+	// Build access control message for the member
+	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member)
+
+	// Determine the access control subject based on action
+	var accessSubject string
+	switch action {
+	case model.ActionCreated, model.ActionUpdated:
+		accessSubject = constants.PutMemberCommitteeSubject
+	case model.ActionDeleted:
+		accessSubject = constants.RemoveMemberCommitteeSubject
+	}
+
 	// Publish messages concurrently
 	messages := []func() error{
 		func() error {
@@ -727,8 +762,18 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		func() error {
 			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild, false)
 		},
-		// TODO: https://linuxfoundation.atlassian.net/browse/LFXV2-332
-		// Evaluate if we need to publish access control messages for members
+		func() error {
+			// Only publish access message if username is present
+			// Without a username, there's no user identity to grant access to in FGA
+			if data.Member.Username == "" {
+				slog.DebugContext(ctx, "skipping access message for member without username",
+					"member_uid", data.Member.UID,
+					"action", action,
+				)
+				return nil
+			}
+			return uc.committeePublisher.Access(ctx, accessSubject, accessControlMessage, sync)
+		},
 	}
 
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
