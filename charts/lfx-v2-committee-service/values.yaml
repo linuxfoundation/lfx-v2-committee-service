@@ -1,6 +1,9 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 ---
+# replicaCount is the number of replicas for the deployment
+replicaCount: 3
+
 # image is the configuration for the container images
 image:
   # repository is the container image repository
@@ -9,6 +12,17 @@ image:
   tag: ""
   # pullPolicy is the image pull policy
   pullPolicy: IfNotPresent
+
+# resources is the configuration for container resource requests and limits
+resources:
+  # limits is the maximum amount of resources allowed
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  # requests is the minimum amount of resources required
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
 # traefik is the configuration for Traefik Gateway API routing
 traefik:
