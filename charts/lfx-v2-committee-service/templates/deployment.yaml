@@ -7,7 +7,7 @@ metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: {{ .Chart.Name }}
@@ -54,3 +54,5 @@ spec:
               port: web
             failureThreshold: 30
             periodSeconds: 1
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
