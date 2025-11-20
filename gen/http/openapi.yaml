@@ -860,18 +860,6 @@ definitions:
                 type: string
                 description: The name of the SSO group - read-only
                 example: lfx-committee-group
-            total_members:
-                type: integer
-                description: The total number of members in this committee
-                example: 15
-                format: int64
-                minimum: 0
-            total_voting_repos:
-                type: integer
-                description: The total number of repositories with voting permissions for this committee
-                example: 3
-                format: int64
-                minimum: 0
             uid:
                 type: string
                 description: Committee UID -- v2 uid, not related to v1 id directly
@@ -899,8 +887,6 @@ definitions:
             requires_review: true
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
-            total_members: 15
-            total_voting_repos: 3
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
     CommitteeFullWithReadonlyAttributes:
@@ -1014,18 +1000,6 @@ definitions:
                 type: string
                 description: The name of the SSO group - read-only
                 example: lfx-committee-group
-            total_members:
-                type: integer
-                description: The total number of members in this committee
-                example: 15
-                format: int64
-                minimum: 0
-            total_voting_repos:
-                type: integer
-                description: The total number of repositories with voting permissions for this committee
-                example: 3
-                format: int64
-                minimum: 0
             uid:
                 type: string
                 description: Committee UID -- v2 uid, not related to v1 id directly
@@ -1066,8 +1040,6 @@ definitions:
             requires_review: true
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
-            total_members: 15
-            total_voting_repos: 3
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
             writers:

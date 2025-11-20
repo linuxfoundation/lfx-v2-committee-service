@@ -67,9 +67,6 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly
 	ProjectNameAttribute()
 	SSOGroupNameAttribute()
 
-	TotalMembersAttribute()
-	TotalVotingReposAttribute()
-
 })
 
 var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
@@ -80,9 +77,6 @@ var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 	CommitteeBaseAttributes()
 
 	SSOGroupNameAttribute()
-
-	TotalMembersAttribute()
-	TotalVotingReposAttribute()
 
 	// Include settings attributes for complete representation
 	CommitteeSettingsAttributes()
@@ -274,22 +268,6 @@ func ParentCommitteeUIDAttribute() {
 	dsl.Attribute("parent_uid", dsl.String, "The UID of the parent committee -- v2 uid, not related to v1 id directly, should be empty if there is none", func() {
 		dsl.Format(dsl.FormatUUID)
 		dsl.Example("90b147f2-7cdd-157a-a2f4-9d4a567123fc")
-	})
-}
-
-// TotalMembersAttribute is the DSL attribute for total members count.
-func TotalMembersAttribute() {
-	dsl.Attribute("total_members", dsl.Int, "The total number of members in this committee", func() {
-		dsl.Minimum(0)
-		dsl.Example(15)
-	})
-}
-
-// TotalVotingReposAttribute is the DSL attribute for total voting repositories count.
-func TotalVotingReposAttribute() {
-	dsl.Attribute("total_voting_repos", dsl.Int, "The total number of repositories with voting permissions for this committee", func() {
-		dsl.Minimum(0)
-		dsl.Example(3)
 	})
 }
 

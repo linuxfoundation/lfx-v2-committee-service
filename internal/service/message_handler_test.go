@@ -74,12 +74,10 @@ func TestMessageHandlerOrchestratorHandleCommitteeGetAttribute(t *testing.T) {
 			Calendar: model.Calendar{
 				Public: true,
 			},
-			DisplayName:      "Test Display Name",
-			ParentUID:        messageHandlerStringPtr("parent-committee-uid"),
-			TotalMembers:     5,
-			TotalVotingRepos: 3,
-			CreatedAt:        time.Now().Add(-24 * time.Hour),
-			UpdatedAt:        time.Now(),
+			DisplayName: "Test Display Name",
+			ParentUID:   messageHandlerStringPtr("parent-committee-uid"),
+			CreatedAt:   time.Now().Add(-24 * time.Hour),
+			UpdatedAt:   time.Now(),
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
@@ -259,20 +257,6 @@ func TestMessageHandlerOrchestratorHandleCommitteeGetAttribute(t *testing.T) {
 			},
 		},
 		{
-			name: "non-string attribute error - integer field",
-			setupMock: func() {
-				mockRepo.ClearAll()
-				mockRepo.AddCommittee(testCommittee)
-			},
-			messageData:   []byte(testCommitteeUID),
-			attribute:     "total_members",
-			expectedError: true,
-			errorType:     errs.Validation{},
-			validateResponse: func(t *testing.T, response []byte) {
-				assert.Nil(t, response)
-			},
-		},
-		{
 			name: "non-string attribute error - struct field",
 			setupMock: func() {
 				mockRepo.ClearAll()
@@ -425,21 +409,19 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 	testCommitteeUID := uuid.New().String()
 	testCommittee := &model.Committee{
 		CommitteeBase: model.CommitteeBase{
-			UID:              testCommitteeUID,
-			ProjectUID:       "integration-test-project",
-			ProjectName:      "Integration Test Project",
-			Name:             "Integration Test Committee",
-			Category:         "governance",
-			Description:      "Committee for integration testing",
-			EnableVoting:     true,
-			SSOGroupEnabled:  true,
-			SSOGroupName:     "integration-test-sso-group",
-			RequiresReview:   false,
-			Public:           true,
-			TotalMembers:     10,
-			TotalVotingRepos: 5,
-			CreatedAt:        time.Now().Add(-48 * time.Hour),
-			UpdatedAt:        time.Now().Add(-1 * time.Hour),
+			UID:             testCommitteeUID,
+			ProjectUID:      "integration-test-project",
+			ProjectName:     "Integration Test Project",
+			Name:            "Integration Test Committee",
+			Category:        "governance",
+			Description:     "Committee for integration testing",
+			EnableVoting:    true,
+			SSOGroupEnabled: true,
+			SSOGroupName:    "integration-test-sso-group",
+			RequiresReview:  false,
+			Public:          true,
+			CreatedAt:       time.Now().Add(-48 * time.Hour),
+			UpdatedAt:       time.Now().Add(-1 * time.Hour),
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,

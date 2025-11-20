@@ -28,26 +28,24 @@ type Committee struct {
 
 // CommitteeBase represents the base committee attributes without settings
 type CommitteeBase struct {
-	UID              string    `json:"uid"`
-	ProjectUID       string    `json:"project_uid"`
-	ProjectName      string    `json:"project_name,omitempty"`
-	ProjectSlug      string    `json:"project_slug,omitempty"`
-	Name             string    `json:"name"`
-	Category         string    `json:"category"`
-	Description      string    `json:"description,omitempty"`
-	Website          *string   `json:"website,omitempty"`
-	EnableVoting     bool      `json:"enable_voting"`
-	SSOGroupEnabled  bool      `json:"sso_group_enabled"`
-	SSOGroupName     string    `json:"sso_group_name,omitempty"`
-	RequiresReview   bool      `json:"requires_review"`
-	Public           bool      `json:"public"`
-	Calendar         Calendar  `json:"calendar,omitempty"`
-	DisplayName      string    `json:"display_name,omitempty"`
-	ParentUID        *string   `json:"parent_uid,omitempty"`
-	TotalMembers     int       `json:"total_members"`
-	TotalVotingRepos int       `json:"total_voting_repos"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	UID             string    `json:"uid"`
+	ProjectUID      string    `json:"project_uid"`
+	ProjectName     string    `json:"project_name,omitempty"`
+	ProjectSlug     string    `json:"project_slug,omitempty"`
+	Name            string    `json:"name"`
+	Category        string    `json:"category"`
+	Description     string    `json:"description,omitempty"`
+	Website         *string   `json:"website,omitempty"`
+	EnableVoting    bool      `json:"enable_voting"`
+	SSOGroupEnabled bool      `json:"sso_group_enabled"`
+	SSOGroupName    string    `json:"sso_group_name,omitempty"`
+	RequiresReview  bool      `json:"requires_review"`
+	Public          bool      `json:"public"`
+	Calendar        Calendar  `json:"calendar,omitempty"`
+	DisplayName     string    `json:"display_name,omitempty"`
+	ParentUID       *string   `json:"parent_uid,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Calendar represents committee calendar settings

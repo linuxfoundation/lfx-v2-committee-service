@@ -102,10 +102,6 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	ProjectName *string
 	// The name of the SSO group - read-only
 	SsoGroupName *string
-	// The total number of members in this committee
-	TotalMembers *int
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int
 }
 
 // CommitteeFullWithReadonlyAttributes is the result type of the
@@ -144,10 +140,6 @@ type CommitteeFullWithReadonlyAttributes struct {
 	ParentUID *string
 	// The name of the SSO group - read-only
 	SsoGroupName *string
-	// The total number of members in this committee
-	TotalMembers *int
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format

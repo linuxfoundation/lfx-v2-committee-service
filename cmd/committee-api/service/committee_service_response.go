@@ -154,21 +154,19 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 
 func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:              &response.CommitteeBase.UID,
-		ProjectUID:       &response.ProjectUID,
-		Name:             &response.Name,
-		Category:         &response.Category,
-		Description:      &response.Description,
-		Website:          response.Website,
-		EnableVoting:     response.EnableVoting,
-		SsoGroupEnabled:  response.SSOGroupEnabled,
-		RequiresReview:   response.RequiresReview,
-		Public:           response.Public,
-		DisplayName:      &response.DisplayName,
-		ParentUID:        response.ParentUID,
-		SsoGroupName:     &response.SSOGroupName,
-		TotalMembers:     &response.TotalMembers,
-		TotalVotingRepos: &response.TotalVotingRepos,
+		UID:             &response.CommitteeBase.UID,
+		ProjectUID:      &response.ProjectUID,
+		Name:            &response.Name,
+		Category:        &response.Category,
+		Description:     &response.Description,
+		Website:         response.Website,
+		EnableVoting:    response.EnableVoting,
+		SsoGroupEnabled: response.SSOGroupEnabled,
+		RequiresReview:  response.RequiresReview,
+		Public:          response.Public,
+		DisplayName:     &response.DisplayName,
+		ParentUID:       response.ParentUID,
+		SsoGroupName:    &response.SSOGroupName,
 	}
 
 	// Handle Calendar mapping
@@ -193,22 +191,20 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 // convertBaseToResponse converts domain CommitteeBase to GOA response type
 func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) *committeeservice.CommitteeBaseWithReadonlyAttributes {
 	result := &committeeservice.CommitteeBaseWithReadonlyAttributes{
-		UID:              &base.UID,
-		ProjectUID:       &base.ProjectUID,
-		Name:             &base.Name,
-		ProjectName:      &base.ProjectName,
-		Category:         &base.Category,
-		Description:      &base.Description,
-		Website:          base.Website,
-		EnableVoting:     base.EnableVoting,
-		SsoGroupEnabled:  base.SSOGroupEnabled,
-		RequiresReview:   base.RequiresReview,
-		Public:           base.Public,
-		DisplayName:      &base.DisplayName,
-		ParentUID:        base.ParentUID,
-		SsoGroupName:     &base.SSOGroupName,
-		TotalMembers:     &base.TotalMembers,
-		TotalVotingRepos: &base.TotalVotingRepos,
+		UID:             &base.UID,
+		ProjectUID:      &base.ProjectUID,
+		Name:            &base.Name,
+		ProjectName:     &base.ProjectName,
+		Category:        &base.Category,
+		Description:     &base.Description,
+		Website:         base.Website,
+		EnableVoting:    base.EnableVoting,
+		SsoGroupEnabled: base.SSOGroupEnabled,
+		RequiresReview:  base.RequiresReview,
+		Public:          base.Public,
+		DisplayName:     &base.DisplayName,
+		ParentUID:       base.ParentUID,
+		SsoGroupName:    &base.SSOGroupName,
 	}
 
 	// Handle Calendar mapping

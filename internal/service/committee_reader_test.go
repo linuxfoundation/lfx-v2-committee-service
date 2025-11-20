@@ -25,20 +25,18 @@ func TestCommitteeReaderOrchestratorGetBase(t *testing.T) {
 	testCommitteeUID := uuid.New().String()
 	testCommittee := &model.Committee{
 		CommitteeBase: model.CommitteeBase{
-			UID:              testCommitteeUID,
-			ProjectUID:       "test-project-uid",
-			ProjectName:      "Test Project",
-			Name:             "Test Committee",
-			Category:         "technical",
-			Description:      "Test committee description",
-			EnableVoting:     true,
-			SSOGroupEnabled:  false,
-			RequiresReview:   true,
-			Public:           false,
-			TotalMembers:     5,
-			TotalVotingRepos: 3,
-			CreatedAt:        time.Now().Add(-24 * time.Hour),
-			UpdatedAt:        time.Now(),
+			UID:             testCommitteeUID,
+			ProjectUID:      "test-project-uid",
+			ProjectName:     "Test Project",
+			Name:            "Test Committee",
+			Category:        "technical",
+			Description:     "Test committee description",
+			EnableVoting:    true,
+			SSOGroupEnabled: false,
+			RequiresReview:  true,
+			Public:          false,
+			CreatedAt:       time.Now().Add(-24 * time.Hour),
+			UpdatedAt:       time.Now(),
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
@@ -79,8 +77,6 @@ func TestCommitteeReaderOrchestratorGetBase(t *testing.T) {
 				assert.False(t, base.SSOGroupEnabled)
 				assert.True(t, base.RequiresReview)
 				assert.False(t, base.Public)
-				assert.Equal(t, 5, base.TotalMembers)
-				assert.Equal(t, 3, base.TotalVotingRepos)
 				assert.NotZero(t, base.CreatedAt)
 				assert.NotZero(t, base.UpdatedAt)
 				assert.Equal(t, uint64(1), revision) // Mock returns revision 1
@@ -326,21 +322,19 @@ func TestCommitteeReaderOrchestratorIntegration(t *testing.T) {
 	testCommitteeUID := uuid.New().String()
 	testCommittee := &model.Committee{
 		CommitteeBase: model.CommitteeBase{
-			UID:              testCommitteeUID,
-			ProjectUID:       "integration-test-project",
-			ProjectName:      "Integration Test Project",
-			Name:             "Integration Test Committee",
-			Category:         "governance",
-			Description:      "Committee for integration testing",
-			EnableVoting:     true,
-			SSOGroupEnabled:  true,
-			SSOGroupName:     "integration-test-sso-group",
-			RequiresReview:   false,
-			Public:           true,
-			TotalMembers:     10,
-			TotalVotingRepos: 5,
-			CreatedAt:        time.Now().Add(-48 * time.Hour),
-			UpdatedAt:        time.Now().Add(-1 * time.Hour),
+			UID:             testCommitteeUID,
+			ProjectUID:      "integration-test-project",
+			ProjectName:     "Integration Test Project",
+			Name:            "Integration Test Committee",
+			Category:        "governance",
+			Description:     "Committee for integration testing",
+			EnableVoting:    true,
+			SSOGroupEnabled: true,
+			SSOGroupName:    "integration-test-sso-group",
+			RequiresReview:  false,
+			Public:          true,
+			CreatedAt:       time.Now().Add(-48 * time.Hour),
+			UpdatedAt:       time.Now().Add(-1 * time.Hour),
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
@@ -389,8 +383,6 @@ func TestCommitteeReaderOrchestratorIntegration(t *testing.T) {
 		assert.Equal(t, "integration-test-sso-group", base.SSOGroupName)
 		assert.False(t, base.RequiresReview)
 		assert.True(t, base.Public)
-		assert.Equal(t, 10, base.TotalMembers)
-		assert.Equal(t, 5, base.TotalVotingRepos)
 
 		// Validate complete settings data
 		assert.False(t, settings.BusinessEmailRequired)
@@ -426,12 +418,10 @@ func TestCommitteeReaderOrchestratorGetBaseAttributeValue(t *testing.T) {
 			Calendar: model.Calendar{
 				Public: true,
 			},
-			DisplayName:      "Test Display Name",
-			ParentUID:        readerStringPtr("parent-committee-uid"),
-			TotalMembers:     5,
-			TotalVotingRepos: 3,
-			CreatedAt:        time.Now().Add(-24 * time.Hour),
-			UpdatedAt:        time.Now(),
+			DisplayName: "Test Display Name",
+			ParentUID:   readerStringPtr("parent-committee-uid"),
+			CreatedAt:   time.Now().Add(-24 * time.Hour),
+			UpdatedAt:   time.Now(),
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
@@ -502,19 +492,6 @@ func TestCommitteeReaderOrchestratorGetBaseAttributeValue(t *testing.T) {
 			expectedError: false,
 			validateValue: func(t *testing.T, value any) {
 				assert.Equal(t, true, value)
-			},
-		},
-		{
-			name: "successful retrieval of total_members integer attribute",
-			setupMock: func() {
-				mockRepo.ClearAll()
-				mockRepo.AddCommittee(testCommittee)
-			},
-			committeeUID:  testCommitteeUID,
-			attributeName: "total_members",
-			expectedError: false,
-			validateValue: func(t *testing.T, value any) {
-				assert.Equal(t, 5, value)
 			},
 		},
 		{

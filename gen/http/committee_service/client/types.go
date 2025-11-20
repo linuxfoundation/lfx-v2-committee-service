@@ -240,10 +240,6 @@ type CreateCommitteeResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -298,10 +294,6 @@ type UpdateCommitteeBaseResponseBody struct {
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // GetCommitteeSettingsResponseBody is the type of the "committee-service"
@@ -855,10 +847,6 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // CommitteeSettingsWithReadonlyAttributesResponseBody is used to define fields
@@ -1265,19 +1253,17 @@ func NewUpdateCommitteeMemberRequestBody(p *committeeservice.UpdateCommitteeMemb
 // "Created" response.
 func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCommitteeResponseBody) *committeeservice.CommitteeFullWithReadonlyAttributes {
 	v := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:              body.UID,
-		ProjectUID:       body.ProjectUID,
-		Name:             body.Name,
-		Category:         body.Category,
-		Description:      body.Description,
-		Website:          body.Website,
-		DisplayName:      body.DisplayName,
-		ParentUID:        body.ParentUID,
-		SsoGroupName:     body.SsoGroupName,
-		TotalMembers:     body.TotalMembers,
-		TotalVotingRepos: body.TotalVotingRepos,
-		LastReviewedAt:   body.LastReviewedAt,
-		LastReviewedBy:   body.LastReviewedBy,
+		UID:            body.UID,
+		ProjectUID:     body.ProjectUID,
+		Name:           body.Name,
+		Category:       body.Category,
+		Description:    body.Description,
+		Website:        body.Website,
+		DisplayName:    body.DisplayName,
+		ParentUID:      body.ParentUID,
+		SsoGroupName:   body.SsoGroupName,
+		LastReviewedAt: body.LastReviewedAt,
+		LastReviewedBy: body.LastReviewedBy,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -1391,18 +1377,16 @@ func NewCreateCommitteeServiceUnavailable(body *CreateCommitteeServiceUnavailabl
 // "get-committee-base" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *string) *committeeservice.GetCommitteeBaseResult {
 	v := &committeeservice.CommitteeBaseWithReadonlyAttributes{
-		UID:              body.UID,
-		ProjectUID:       body.ProjectUID,
-		Name:             body.Name,
-		Category:         body.Category,
-		Description:      body.Description,
-		Website:          body.Website,
-		DisplayName:      body.DisplayName,
-		ParentUID:        body.ParentUID,
-		ProjectName:      body.ProjectName,
-		SsoGroupName:     body.SsoGroupName,
-		TotalMembers:     body.TotalMembers,
-		TotalVotingRepos: body.TotalVotingRepos,
+		UID:          body.UID,
+		ProjectUID:   body.ProjectUID,
+		Name:         body.Name,
+		Category:     body.Category,
+		Description:  body.Description,
+		Website:      body.Website,
+		DisplayName:  body.DisplayName,
+		ParentUID:    body.ParentUID,
+		ProjectName:  body.ProjectName,
+		SsoGroupName: body.SsoGroupName,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -1483,18 +1467,16 @@ func NewGetCommitteeBaseServiceUnavailable(body *GetCommitteeBaseServiceUnavaila
 // HTTP "OK" response.
 func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCommitteeBaseResponseBody) *committeeservice.CommitteeBaseWithReadonlyAttributes {
 	v := &committeeservice.CommitteeBaseWithReadonlyAttributes{
-		UID:              body.UID,
-		ProjectUID:       body.ProjectUID,
-		Name:             body.Name,
-		Category:         body.Category,
-		Description:      body.Description,
-		Website:          body.Website,
-		DisplayName:      body.DisplayName,
-		ParentUID:        body.ParentUID,
-		ProjectName:      body.ProjectName,
-		SsoGroupName:     body.SsoGroupName,
-		TotalMembers:     body.TotalMembers,
-		TotalVotingRepos: body.TotalVotingRepos,
+		UID:          body.UID,
+		ProjectUID:   body.ProjectUID,
+		Name:         body.Name,
+		Category:     body.Category,
+		Description:  body.Description,
+		Website:      body.Website,
+		DisplayName:  body.DisplayName,
+		ParentUID:    body.ParentUID,
+		ProjectName:  body.ProjectName,
+		SsoGroupName: body.SsoGroupName,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -2254,16 +2236,6 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
-	if body.TotalMembers != nil {
-		if *body.TotalMembers < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
-		}
-	}
-	if body.TotalVotingRepos != nil {
-		if *body.TotalVotingRepos < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
-		}
-	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -2313,16 +2285,6 @@ func ValidateGetCommitteeBaseResponseBody(body *GetCommitteeBaseResponseBody) (e
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
 		}
 	}
-	if body.TotalMembers != nil {
-		if *body.TotalMembers < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
-		}
-	}
-	if body.TotalVotingRepos != nil {
-		if *body.TotalVotingRepos < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
-		}
-	}
 	return
 }
 
@@ -2367,16 +2329,6 @@ func ValidateUpdateCommitteeBaseResponseBody(body *UpdateCommitteeBaseResponseBo
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
-		}
-	}
-	if body.TotalMembers != nil {
-		if *body.TotalMembers < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
-		}
-	}
-	if body.TotalVotingRepos != nil {
-		if *body.TotalVotingRepos < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
 		}
 	}
 	return
@@ -3205,16 +3157,6 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
-		}
-	}
-	if body.TotalMembers != nil {
-		if *body.TotalMembers < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
-		}
-	}
-	if body.TotalVotingRepos != nil {
-		if *body.TotalVotingRepos < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
 		}
 	}
 	return

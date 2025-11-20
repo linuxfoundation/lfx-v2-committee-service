@@ -240,10 +240,6 @@ type CreateCommitteeResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -298,10 +294,6 @@ type UpdateCommitteeBaseResponseBody struct {
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // GetCommitteeSettingsResponseBody is the type of the "committee-service"
@@ -855,10 +847,6 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
-	// The total number of members in this committee
-	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
-	// The total number of repositories with voting permissions for this committee
-	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 }
 
 // CommitteeSettingsWithReadonlyAttributesResponseBody is used to define fields
@@ -955,8 +943,6 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		DisplayName:           res.DisplayName,
 		ParentUID:             res.ParentUID,
 		SsoGroupName:          res.SsoGroupName,
-		TotalMembers:          res.TotalMembers,
-		TotalVotingRepos:      res.TotalVotingRepos,
 		BusinessEmailRequired: res.BusinessEmailRequired,
 		LastReviewedAt:        res.LastReviewedAt,
 		LastReviewedBy:        res.LastReviewedBy,
@@ -1025,22 +1011,20 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 // service.
 func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResult) *GetCommitteeBaseResponseBody {
 	body := &GetCommitteeBaseResponseBody{
-		UID:              res.CommitteeBase.UID,
-		ProjectUID:       res.CommitteeBase.ProjectUID,
-		Name:             res.CommitteeBase.Name,
-		Category:         res.CommitteeBase.Category,
-		Description:      res.CommitteeBase.Description,
-		Website:          res.CommitteeBase.Website,
-		EnableVoting:     res.CommitteeBase.EnableVoting,
-		SsoGroupEnabled:  res.CommitteeBase.SsoGroupEnabled,
-		RequiresReview:   res.CommitteeBase.RequiresReview,
-		Public:           res.CommitteeBase.Public,
-		DisplayName:      res.CommitteeBase.DisplayName,
-		ParentUID:        res.CommitteeBase.ParentUID,
-		ProjectName:      res.CommitteeBase.ProjectName,
-		SsoGroupName:     res.CommitteeBase.SsoGroupName,
-		TotalMembers:     res.CommitteeBase.TotalMembers,
-		TotalVotingRepos: res.CommitteeBase.TotalVotingRepos,
+		UID:             res.CommitteeBase.UID,
+		ProjectUID:      res.CommitteeBase.ProjectUID,
+		Name:            res.CommitteeBase.Name,
+		Category:        res.CommitteeBase.Category,
+		Description:     res.CommitteeBase.Description,
+		Website:         res.CommitteeBase.Website,
+		EnableVoting:    res.CommitteeBase.EnableVoting,
+		SsoGroupEnabled: res.CommitteeBase.SsoGroupEnabled,
+		RequiresReview:  res.CommitteeBase.RequiresReview,
+		Public:          res.CommitteeBase.Public,
+		DisplayName:     res.CommitteeBase.DisplayName,
+		ParentUID:       res.CommitteeBase.ParentUID,
+		ProjectName:     res.CommitteeBase.ProjectName,
+		SsoGroupName:    res.CommitteeBase.SsoGroupName,
 	}
 	{
 		var zero bool
@@ -1088,22 +1072,20 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 // service.
 func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithReadonlyAttributes) *UpdateCommitteeBaseResponseBody {
 	body := &UpdateCommitteeBaseResponseBody{
-		UID:              res.UID,
-		ProjectUID:       res.ProjectUID,
-		Name:             res.Name,
-		Category:         res.Category,
-		Description:      res.Description,
-		Website:          res.Website,
-		EnableVoting:     res.EnableVoting,
-		SsoGroupEnabled:  res.SsoGroupEnabled,
-		RequiresReview:   res.RequiresReview,
-		Public:           res.Public,
-		DisplayName:      res.DisplayName,
-		ParentUID:        res.ParentUID,
-		ProjectName:      res.ProjectName,
-		SsoGroupName:     res.SsoGroupName,
-		TotalMembers:     res.TotalMembers,
-		TotalVotingRepos: res.TotalVotingRepos,
+		UID:             res.UID,
+		ProjectUID:      res.ProjectUID,
+		Name:            res.Name,
+		Category:        res.Category,
+		Description:     res.Description,
+		Website:         res.Website,
+		EnableVoting:    res.EnableVoting,
+		SsoGroupEnabled: res.SsoGroupEnabled,
+		RequiresReview:  res.RequiresReview,
+		Public:          res.Public,
+		DisplayName:     res.DisplayName,
+		ParentUID:       res.ParentUID,
+		ProjectName:     res.ProjectName,
+		SsoGroupName:    res.SsoGroupName,
 	}
 	{
 		var zero bool

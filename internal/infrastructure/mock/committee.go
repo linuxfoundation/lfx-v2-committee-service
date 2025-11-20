@@ -59,12 +59,10 @@ func NewMockRepository() *MockRepository {
 				Calendar: model.Calendar{
 					Public: true,
 				},
-				DisplayName:      "TAC",
-				ParentUID:        nil,
-				TotalMembers:     5,
-				TotalVotingRepos: 3,
-				CreatedAt:        now.Add(-24 * time.Hour),
-				UpdatedAt:        now,
+				DisplayName: "TAC",
+				ParentUID:   nil,
+				CreatedAt:   now.Add(-24 * time.Hour),
+				UpdatedAt:   now,
 			},
 			CommitteeSettings: &model.CommitteeSettings{
 				UID:                   "committee-1",
@@ -102,11 +100,9 @@ func NewMockRepository() *MockRepository {
 				Calendar: model.Calendar{
 					Public: false,
 				},
-				DisplayName:      "Security",
-				TotalMembers:     3,
-				TotalVotingRepos: 1,
-				CreatedAt:        now.Add(-12 * time.Hour),
-				UpdatedAt:        now,
+				DisplayName: "Security",
+				CreatedAt:   now.Add(-12 * time.Hour),
+				UpdatedAt:   now,
 			},
 			CommitteeSettings: &model.CommitteeSettings{
 				UID:                   "committee-2",
