@@ -59,6 +59,7 @@ type CommitteeMemberVotingInfo struct {
 
 // Organization represents organization information for the committee member
 type CommitteeMemberOrganization struct {
+	ID      string `json:"id,omitempty"`
 	Name    string `json:"name"`
 	Website string `json:"website,omitempty"`
 }
@@ -129,6 +130,22 @@ func (cm *CommitteeMember) Tags() []string {
 
 	if cm.Voting.Status != "" {
 		tag := fmt.Sprintf("voting_status:%s", cm.Voting.Status)
+		tags = append(tags, tag)
+	}
+
+	// Add organization information as tags
+	if cm.Organization.ID != "" {
+		tag := fmt.Sprintf("organization_id:%s", cm.Organization.ID)
+		tags = append(tags, tag)
+	}
+
+	if cm.Organization.Name != "" {
+		tag := fmt.Sprintf("organization_name:%s", cm.Organization.Name)
+		tags = append(tags, tag)
+	}
+
+	if cm.Organization.Website != "" {
+		tag := fmt.Sprintf("organization_website:%s", cm.Organization.Website)
 		tags = append(tags, tag)
 	}
 

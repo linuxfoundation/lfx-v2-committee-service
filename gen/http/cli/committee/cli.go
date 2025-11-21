@@ -502,6 +502,7 @@ Example:
       "job_title": "Chief Technology Officer",
       "last_name": "Doe",
       "organization": {
+         "id": "org-123456",
          "name": "The Linux Foundation",
          "website": "https://linuxfoundation.org"
       },
@@ -557,6 +558,7 @@ Example:
       "job_title": "Chief Technology Officer",
       "last_name": "Doe",
       "organization": {
+         "id": "org-123456",
          "name": "The Linux Foundation",
          "website": "https://linuxfoundation.org"
       },
