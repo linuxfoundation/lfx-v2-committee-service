@@ -270,6 +270,53 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				"email:test@example.com",
 			},
 		},
+		{
+			name: "member with organization information",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					UID:          "member-123",
+					CommitteeUID: "committee-456",
+					Email:        "test@example.com",
+					Organization: CommitteeMemberOrganization{
+						ID:      "org-789",
+						Name:    "The Linux Foundation",
+						Website: "https://linuxfoundation.org",
+					},
+				},
+			},
+			expected: []string{
+				"member-123",
+				"committee_member_uid:member-123",
+				"committee_uid:committee-456",
+				"email:test@example.com",
+				"organization_id:org-789",
+				"organization_name:The Linux Foundation",
+				"organization_website:https://linuxfoundation.org",
+			},
+		},
+		{
+			name: "member with partial organization information",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					UID:          "member-123",
+					CommitteeUID: "committee-456",
+					Email:        "test@example.com",
+					Organization: CommitteeMemberOrganization{
+						ID:   "org-789",
+						Name: "The Linux Foundation",
+						// Missing Website
+					},
+				},
+			},
+			expected: []string{
+				"member-123",
+				"committee_member_uid:member-123",
+				"committee_uid:committee-456",
+				"email:test@example.com",
+				"organization_id:org-789",
+				"organization_name:The Linux Foundation",
+			},
+		},
 	}
 
 	for _, tt := range tests {

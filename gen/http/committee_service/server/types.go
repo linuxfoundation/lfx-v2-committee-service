@@ -149,6 +149,8 @@ type CreateCommitteeMemberRequestBody struct {
 	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
 		// Organization name
 		Name *string `form:"name" json:"name" xml:"name"`
 		// Organization website URL
@@ -197,6 +199,8 @@ type UpdateCommitteeMemberRequestBody struct {
 	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
 		// Organization name
 		Name *string `form:"name" json:"name" xml:"name"`
 		// Organization website URL
@@ -374,6 +378,8 @@ type CreateCommitteeMemberResponseBody struct {
 	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
 		// Organization name
 		Name *string `form:"name" json:"name" xml:"name"`
 		// Organization website URL
@@ -438,6 +444,8 @@ type UpdateCommitteeMemberResponseBody struct {
 	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
 		// Organization name
 		Name *string `form:"name" json:"name" xml:"name"`
 		// Organization website URL
@@ -927,6 +935,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
 		// Organization name
 		Name *string `form:"name" json:"name" xml:"name"`
 		// Organization website URL
@@ -1263,11 +1273,14 @@ func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 	}
 	if res.Organization != nil {
 		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
 			// Organization name
 			Name *string `form:"name" json:"name" xml:"name"`
 			// Organization website URL
 			Website *string `form:"website" json:"website" xml:"website"`
 		}{
+			ID:      res.Organization.ID,
 			Name:    res.Organization.Name,
 			Website: res.Organization.Website,
 		}
@@ -1350,11 +1363,14 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 	}
 	if res.Member.Organization != nil {
 		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
 			// Organization name
 			Name *string `form:"name" json:"name" xml:"name"`
 			// Organization website URL
 			Website *string `form:"website" json:"website" xml:"website"`
 		}{
+			ID:      res.Member.Organization.ID,
 			Name:    res.Member.Organization.Name,
 			Website: res.Member.Organization.Website,
 		}
@@ -1437,11 +1453,14 @@ func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 	}
 	if res.Organization != nil {
 		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
 			// Organization name
 			Name *string `form:"name" json:"name" xml:"name"`
 			// Organization website URL
 			Website *string `form:"website" json:"website" xml:"website"`
 		}{
+			ID:      res.Organization.ID,
 			Name:    res.Organization.Name,
 			Website: res.Organization.Website,
 		}
@@ -2168,11 +2187,14 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	}
 	if body.Organization != nil {
 		v.Organization = &struct {
+			// Organization ID
+			ID *string
 			// Organization name
 			Name *string
 			// Organization website URL
 			Website *string
 		}{
+			ID:      body.Organization.ID,
 			Name:    body.Organization.Name,
 			Website: body.Organization.Website,
 		}
@@ -2261,11 +2283,14 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 	}
 	if body.Organization != nil {
 		v.Organization = &struct {
+			// Organization ID
+			ID *string
 			// Organization name
 			Name *string
 			// Organization website URL
 			Website *string
 		}{
+			ID:      body.Organization.ID,
 			Name:    body.Organization.Name,
 			Website: body.Organization.Website,
 		}

@@ -157,6 +157,9 @@ When committee members are created or updated, the following tags are automatica
 | Username | `username:<value>` | `username:govofficial4` | Find members by username |
 | Email | `email:<value>` | `email:gac010@example.com` | Find members by email |
 | Voting Status | `voting_status:<value>` | `voting_status:Voting Rep` | Find members with specific voting status |
+| Organization ID | `organization_id:<value>` | `organization_id:org-789` | Find members by organization ID |
+| Organization Name | `organization_name:<value>` | `organization_name:The Linux Foundation` | Find members by organization name |
+| Organization Website | `organization_website:<value>` | `organization_website:linuxfoundation.org` | Find members by organization website |
 
 #### How Tags Are Used
 
