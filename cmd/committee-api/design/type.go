@@ -157,8 +157,9 @@ func CategoryAttribute() {
 			"Other",
 			"Product Security",
 			"Special Interest Group",
+			"Technical Advisory Committee",
 			"Technical Mailing List",
-			"Technical Oversight Committee/Technical Advisory Committee",
+			"Technical Oversight Committee",
 			"Technical Steering Committee",
 			"Working Group",
 		)
