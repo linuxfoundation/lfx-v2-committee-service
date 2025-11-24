@@ -475,15 +475,16 @@ func TestConvertDomainToFullResponse(t *testing.T) {
 				CommitteeSettings: nil,
 			},
 			expected: &committeeservice.CommitteeFullWithReadonlyAttributes{
-				UID:              stringPtr("committee-456"),
-				ProjectUID:       stringPtr("project-456"),
-				Name:             stringPtr("Minimal Committee"),
-				Category:         stringPtr("technical"),
-				Description:      stringPtr("Minimal description"),
-				DisplayName:      stringPtr(""),
-				SsoGroupName:     stringPtr(""),
-				TotalMembers:     intPtr(0),
-				TotalVotingRepos: intPtr(0),
+				UID:         stringPtr("committee-456"),
+				ProjectUID:  stringPtr("project-456"),
+				Name:        stringPtr("Minimal Committee"),
+				Category:    stringPtr("technical"),
+				Description: stringPtr("Minimal description"),
+				// Optional fields with empty values should be nil
+				DisplayName:      nil,
+				SsoGroupName:     nil,
+				TotalMembers:     nil,
+				TotalVotingRepos: nil,
 				Calendar: &struct {
 					Public bool
 				}{
@@ -923,42 +924,19 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-456"),
 				CommitteeUID: stringPtr("committee-456"),
-				Username:     stringPtr(""),
 				Email:        stringPtr("minimal@example.com"),
-				FirstName:    stringPtr(""),
-				LastName:     stringPtr(""),
-				JobTitle:     stringPtr(""),
 				AppointedBy:  "chair",
 				Status:       "pending",
-				Agency:       stringPtr(""),
-				Country:      stringPtr(""),
-				Role: &struct {
-					Name      string
-					StartDate *string
-					EndDate   *string
-				}{
-					Name:      "",
-					StartDate: stringPtr(""),
-					EndDate:   stringPtr(""),
-				},
-				Voting: &struct {
-					Status    string
-					StartDate *string
-					EndDate   *string
-				}{
-					Status:    "",
-					StartDate: stringPtr(""),
-					EndDate:   stringPtr(""),
-				},
-				Organization: &struct {
-					ID      *string
-					Name    *string
-					Website *string
-				}{
-					ID:      stringPtr(""),
-					Name:    stringPtr(""),
-					Website: stringPtr(""),
-				},
+				// Optional fields with empty values should be nil
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				Agency:       nil,
+				Country:      nil,
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
 			},
 		},
 		{
@@ -977,42 +955,19 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-789"),
 				CommitteeUID: stringPtr("committee-789"),
-				Username:     stringPtr(""),
 				Email:        stringPtr("timestamps@example.com"),
-				FirstName:    stringPtr(""),
-				LastName:     stringPtr(""),
-				JobTitle:     stringPtr(""),
 				AppointedBy:  "chair",
 				Status:       "active",
-				Agency:       stringPtr(""),
-				Country:      stringPtr(""),
-				Role: &struct {
-					Name      string
-					StartDate *string
-					EndDate   *string
-				}{
-					Name:      "",
-					StartDate: stringPtr(""),
-					EndDate:   stringPtr(""),
-				},
-				Voting: &struct {
-					Status    string
-					StartDate *string
-					EndDate   *string
-				}{
-					Status:    "",
-					StartDate: stringPtr(""),
-					EndDate:   stringPtr(""),
-				},
-				Organization: &struct {
-					ID      *string
-					Name    *string
-					Website *string
-				}{
-					ID:      stringPtr(""),
-					Name:    stringPtr(""),
-					Website: stringPtr(""),
-				},
+				// Optional fields with empty values should be nil
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				Agency:       nil,
+				Country:      nil,
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
 				// CreatedAt and UpdatedAt should be nil when timestamps are zero
 				CreatedAt: nil,
 				UpdatedAt: nil,
@@ -1041,15 +996,16 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-partial"),
 				CommitteeUID: stringPtr("committee-partial"),
-				Username:     stringPtr(""),
 				Email:        stringPtr("partial@example.com"),
-				FirstName:    stringPtr(""),
-				LastName:     stringPtr(""),
-				JobTitle:     stringPtr(""),
 				AppointedBy:  "chair",
 				Status:       "active",
-				Agency:       stringPtr(""),
-				Country:      stringPtr(""),
+				// Optional fields with empty values should be nil
+				Username:  nil,
+				FirstName: nil,
+				LastName:  nil,
+				JobTitle:  nil,
+				Agency:    nil,
+				Country:   nil,
 				Role: &struct {
 					Name      string
 					StartDate *string
@@ -1057,7 +1013,7 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 				}{
 					Name:      "contributor",
 					StartDate: stringPtr("2024-01-01"),
-					EndDate:   stringPtr(""),
+					EndDate:   nil, // Empty dates should be nil
 				},
 				Voting: &struct {
 					Status    string
@@ -1065,18 +1021,10 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 					EndDate   *string
 				}{
 					Status:    "eligible",
-					StartDate: stringPtr(""),
-					EndDate:   stringPtr(""),
+					StartDate: nil, // Empty dates should be nil
+					EndDate:   nil,
 				},
-				Organization: &struct {
-					ID      *string
-					Name    *string
-					Website *string
-				}{
-					ID:      stringPtr(""),
-					Name:    stringPtr(""),
-					Website: stringPtr(""),
-				},
+				Organization: nil, // Empty organization should be nil
 			},
 		},
 	}
