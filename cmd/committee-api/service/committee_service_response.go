@@ -153,22 +153,42 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 }
 
 func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
+	if response == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
-		UID:              &response.CommitteeBase.UID,
-		ProjectUID:       &response.ProjectUID,
-		Name:             &response.Name,
-		Category:         &response.Category,
-		Description:      &response.Description,
-		Website:          response.Website,
-		EnableVoting:     response.EnableVoting,
-		SsoGroupEnabled:  response.SSOGroupEnabled,
-		RequiresReview:   response.RequiresReview,
-		Public:           response.Public,
-		DisplayName:      &response.DisplayName,
-		ParentUID:        response.ParentUID,
-		SsoGroupName:     &response.SSOGroupName,
-		TotalMembers:     &response.TotalMembers,
-		TotalVotingRepos: &response.TotalVotingRepos,
+		UID:             &response.CommitteeBase.UID,
+		ProjectUID:      &response.ProjectUID,
+		Name:            &response.Name,
+		Category:        &response.Category,
+		EnableVoting:    response.EnableVoting,
+		SsoGroupEnabled: response.SSOGroupEnabled,
+		RequiresReview:  response.RequiresReview,
+		Public:          response.Public,
+	}
+
+	// Only set optional fields if they have values
+	if response.Description != "" {
+		result.Description = &response.Description
+	}
+	if response.Website != nil && *response.Website != "" {
+		result.Website = response.Website
+	}
+	if response.DisplayName != "" {
+		result.DisplayName = &response.DisplayName
+	}
+	if response.ParentUID != nil && *response.ParentUID != "" {
+		result.ParentUID = response.ParentUID
+	}
+	if response.SSOGroupName != "" {
+		result.SsoGroupName = &response.SSOGroupName
+	}
+	if response.TotalMembers > 0 {
+		result.TotalMembers = &response.TotalMembers
+	}
+	if response.TotalVotingRepos > 0 {
+		result.TotalVotingRepos = &response.TotalVotingRepos
 	}
 
 	// Handle Calendar mapping
@@ -181,10 +201,18 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	// Include settings data if available
 	if response.CommitteeSettings != nil {
 		result.BusinessEmailRequired = response.BusinessEmailRequired
-		result.LastReviewedAt = response.LastReviewedAt
-		result.LastReviewedBy = response.LastReviewedBy
-		result.Writers = response.Writers
-		result.Auditors = response.Auditors
+		if response.LastReviewedAt != nil && *response.LastReviewedAt != "" {
+			result.LastReviewedAt = response.LastReviewedAt
+		}
+		if response.LastReviewedBy != nil && *response.LastReviewedBy != "" {
+			result.LastReviewedBy = response.LastReviewedBy
+		}
+		if len(response.Writers) > 0 {
+			result.Writers = response.Writers
+		}
+		if len(response.Auditors) > 0 {
+			result.Auditors = response.Auditors
+		}
 	}
 
 	return result
@@ -192,23 +220,45 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 
 // convertBaseToResponse converts domain CommitteeBase to GOA response type
 func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) *committeeservice.CommitteeBaseWithReadonlyAttributes {
+	if base == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeBaseWithReadonlyAttributes{
-		UID:              &base.UID,
-		ProjectUID:       &base.ProjectUID,
-		Name:             &base.Name,
-		ProjectName:      &base.ProjectName,
-		Category:         &base.Category,
-		Description:      &base.Description,
-		Website:          base.Website,
-		EnableVoting:     base.EnableVoting,
-		SsoGroupEnabled:  base.SSOGroupEnabled,
-		RequiresReview:   base.RequiresReview,
-		Public:           base.Public,
-		DisplayName:      &base.DisplayName,
-		ParentUID:        base.ParentUID,
-		SsoGroupName:     &base.SSOGroupName,
-		TotalMembers:     &base.TotalMembers,
-		TotalVotingRepos: &base.TotalVotingRepos,
+		UID:             &base.UID,
+		ProjectUID:      &base.ProjectUID,
+		Name:            &base.Name,
+		Category:        &base.Category,
+		EnableVoting:    base.EnableVoting,
+		SsoGroupEnabled: base.SSOGroupEnabled,
+		RequiresReview:  base.RequiresReview,
+		Public:          base.Public,
+	}
+
+	// Only set optional fields if they have values
+	if base.ProjectName != "" {
+		result.ProjectName = &base.ProjectName
+	}
+	if base.Description != "" {
+		result.Description = &base.Description
+	}
+	if base.Website != nil && *base.Website != "" {
+		result.Website = base.Website
+	}
+	if base.DisplayName != "" {
+		result.DisplayName = &base.DisplayName
+	}
+	if base.ParentUID != nil && *base.ParentUID != "" {
+		result.ParentUID = base.ParentUID
+	}
+	if base.SSOGroupName != "" {
+		result.SsoGroupName = &base.SSOGroupName
+	}
+	if base.TotalMembers > 0 {
+		result.TotalMembers = &base.TotalMembers
+	}
+	if base.TotalVotingRepos > 0 {
+		result.TotalVotingRepos = &base.TotalVotingRepos
 	}
 
 	// Handle Calendar mapping
@@ -223,11 +273,21 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 
 // convertSettingsToResponse converts domain CommitteeSettings to GOA response type
 func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.CommitteeSettings) *committeeservice.CommitteeSettingsWithReadonlyAttributes {
+	if settings == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:                   &settings.UID,
 		BusinessEmailRequired: settings.BusinessEmailRequired,
-		LastReviewedAt:        settings.LastReviewedAt,
-		LastReviewedBy:        settings.LastReviewedBy,
+	}
+
+	// Only set optional fields if they have values
+	if settings.LastReviewedAt != nil && *settings.LastReviewedAt != "" {
+		result.LastReviewedAt = settings.LastReviewedAt
+	}
+	if settings.LastReviewedBy != nil && *settings.LastReviewedBy != "" {
+		result.LastReviewedBy = settings.LastReviewedBy
 	}
 
 	// Convert timestamps to strings if they exist
@@ -430,58 +490,90 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 		CommitteeUID: &member.CommitteeUID,
 		UID:          &member.UID,
-		Username:     &member.Username,
 		Email:        &member.Email,
-		FirstName:    &member.FirstName,
-		LastName:     &member.LastName,
-		JobTitle:     &member.JobTitle,
 		AppointedBy:  member.AppointedBy,
 		Status:       member.Status,
-		Agency:       &member.Agency,
-		Country:      &member.Country,
 	}
 
-	// Only set CommitteeName if it's not empty
+	// Only set optional fields if they have values
+	if member.Username != "" {
+		result.Username = &member.Username
+	}
+	if member.FirstName != "" {
+		result.FirstName = &member.FirstName
+	}
+	if member.LastName != "" {
+		result.LastName = &member.LastName
+	}
+	if member.JobTitle != "" {
+		result.JobTitle = &member.JobTitle
+	}
+	if member.Agency != "" {
+		result.Agency = &member.Agency
+	}
+	if member.Country != "" {
+		result.Country = &member.Country
+	}
 	if member.CommitteeName != "" {
 		result.CommitteeName = &member.CommitteeName
 	}
-
-	// Only set CommitteeCategory if it's not empty
 	if member.CommitteeCategory != "" {
 		result.CommitteeCategory = &member.CommitteeCategory
 	}
 
-	// Handle Role mapping
-	result.Role = &struct {
-		Name      string
-		StartDate *string
-		EndDate   *string
-	}{
-		Name:      member.Role.Name,
-		StartDate: &member.Role.StartDate,
-		EndDate:   &member.Role.EndDate,
+	// Handle Role mapping - only include if role has meaningful data
+	if member.Role.Name != "" {
+		role := &struct {
+			Name      string
+			StartDate *string
+			EndDate   *string
+		}{
+			Name: member.Role.Name,
+		}
+		if member.Role.StartDate != "" {
+			role.StartDate = &member.Role.StartDate
+		}
+		if member.Role.EndDate != "" {
+			role.EndDate = &member.Role.EndDate
+		}
+		result.Role = role
 	}
 
-	// Handle Voting mapping
-	result.Voting = &struct {
-		Status    string
-		StartDate *string
-		EndDate   *string
-	}{
-		Status:    member.Voting.Status,
-		StartDate: &member.Voting.StartDate,
-		EndDate:   &member.Voting.EndDate,
+	// Handle Voting mapping - only include if voting has meaningful data
+	if member.Voting.Status != "" {
+		voting := &struct {
+			Status    string
+			StartDate *string
+			EndDate   *string
+		}{
+			Status: member.Voting.Status,
+		}
+		if member.Voting.StartDate != "" {
+			voting.StartDate = &member.Voting.StartDate
+		}
+		if member.Voting.EndDate != "" {
+			voting.EndDate = &member.Voting.EndDate
+		}
+		result.Voting = voting
 	}
 
-	// Handle Organization mapping
-	result.Organization = &struct {
-		ID      *string
-		Name    *string
-		Website *string
-	}{
-		ID:      &member.Organization.ID,
-		Name:    &member.Organization.Name,
-		Website: &member.Organization.Website,
+	// Handle Organization mapping - only include if organization has meaningful data
+	if member.Organization.ID != "" || member.Organization.Name != "" || member.Organization.Website != "" {
+		org := &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{}
+		if member.Organization.ID != "" {
+			org.ID = &member.Organization.ID
+		}
+		if member.Organization.Name != "" {
+			org.Name = &member.Organization.Name
+		}
+		if member.Organization.Website != "" {
+			org.Website = &member.Organization.Website
+		}
+		result.Organization = org
 	}
 
 	// Convert timestamps to strings if they exist
