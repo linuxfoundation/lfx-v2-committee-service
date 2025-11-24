@@ -378,6 +378,9 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 
 	// Handle Organization if present
 	if p.Organization != nil {
+		if p.Organization.ID != nil {
+			member.Organization.ID = *p.Organization.ID
+		}
 		if p.Organization.Name != nil {
 			member.Organization.Name = *p.Organization.Name
 		}
@@ -464,6 +467,9 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 
 	// Handle Organization if present
 	if p.Organization != nil {
+		if p.Organization.ID != nil {
+			member.Organization.ID = *p.Organization.ID
+		}
 		if p.Organization.Name != nil {
 			member.Organization.Name = *p.Organization.Name
 		}
@@ -552,11 +558,15 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 
 	// Handle Organization mapping - only include if organization has meaningful data
-	if member.Organization.Name != "" || member.Organization.Website != "" {
+	if member.Organization.ID != "" || member.Organization.Name != "" || member.Organization.Website != "" {
 		org := &struct {
+			ID      *string
 			Name    *string
 			Website *string
 		}{}
+		if member.Organization.ID != "" {
+			org.ID = &member.Organization.ID
+		}
 		if member.Organization.Name != "" {
 			org.Name = &member.Organization.Name
 		}

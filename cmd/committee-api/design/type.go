@@ -435,6 +435,7 @@ func CommitteeMemberUpdateAttributes() {
 func OrganizationInfoAttributes() {
 	dsl.Attribute("organization", func() {
 		dsl.Description("Organization information for the committee member")
+		OrganizationIDAttribute()
 		OrganizationNameAttribute()
 		OrganizationWebsiteAttribute()
 	})
@@ -676,6 +677,13 @@ func OrganizationWebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "Organization website URL", func() {
 		dsl.Format(dsl.FormatURI)
 		dsl.Example("https://linuxfoundation.org")
+	})
+}
+
+// OrganizationIDAttribute is the DSL attribute for organization ID.
+func OrganizationIDAttribute() {
+	dsl.Attribute("id", dsl.String, "Organization ID", func() {
+		dsl.Example("org-123456")
 	})
 }
 

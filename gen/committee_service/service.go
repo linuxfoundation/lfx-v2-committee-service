@@ -209,6 +209,8 @@ type CommitteeMemberFullWithReadonlyAttributes struct {
 	Country *string
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string
 		// Organization name
 		Name *string
 		// Organization website URL
@@ -287,6 +289,8 @@ type CreateCommitteeMemberPayload struct {
 	Country *string
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string
 		// Organization name
 		Name *string
 		// Organization website URL
@@ -537,6 +541,8 @@ type UpdateCommitteeMemberPayload struct {
 	Country *string
 	// Organization information for the committee member
 	Organization *struct {
+		// Organization ID
+		ID *string
 		// Organization name
 		Name *string
 		// Organization website URL

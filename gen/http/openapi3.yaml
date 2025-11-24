@@ -511,6 +511,7 @@ paths:
                             job_title: Chief Technology Officer
                             last_name: Doe
                             organization:
+                                id: org-123456
                                 name: The Linux Foundation
                                 website: https://linuxfoundation.org
                             role:
@@ -543,6 +544,7 @@ paths:
                                 job_title: Chief Technology Officer
                                 last_name: Doe
                                 organization:
+                                    id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
                                 role:
@@ -770,6 +772,7 @@ paths:
                                 job_title: Chief Technology Officer
                                 last_name: Doe
                                 organization:
+                                    id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
                                 role:
@@ -891,6 +894,7 @@ paths:
                             job_title: Chief Technology Officer
                             last_name: Doe
                             organization:
+                                id: org-123456
                                 name: The Linux Foundation
                                 website: https://linuxfoundation.org
                             role:
@@ -923,6 +927,7 @@ paths:
                                 job_title: Chief Technology Officer
                                 last_name: Doe
                                 organization:
+                                    id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
                                 role:
@@ -1800,6 +1805,10 @@ components:
                 organization:
                     type: object
                     properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
                         name:
                             type: string
                             description: Organization name
@@ -1812,6 +1821,7 @@ components:
                             format: uri
                     description: Organization information for the committee member
                     example:
+                        id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
                 role:
@@ -1901,6 +1911,7 @@ components:
                 job_title: Chief Technology Officer
                 last_name: Doe
                 organization:
+                    id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
                 role:
@@ -1971,6 +1982,10 @@ components:
                 organization:
                     type: object
                     properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
                         name:
                             type: string
                             description: Organization name
@@ -1983,6 +1998,7 @@ components:
                             format: uri
                     description: Organization information for the committee member
                     example:
+                        id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
                 role:
@@ -2072,6 +2088,7 @@ components:
                 job_title: Chief Technology Officer
                 last_name: Doe
                 organization:
+                    id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
                 role:
@@ -2162,6 +2179,10 @@ components:
                 organization:
                     type: object
                     properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
                         name:
                             type: string
                             description: Organization name
@@ -2174,6 +2195,7 @@ components:
                             format: uri
                     description: Organization information for the committee member
                     example:
+                        id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
                 role:
@@ -2277,6 +2299,7 @@ components:
                 job_title: Chief Technology Officer
                 last_name: Doe
                 organization:
+                    id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
                 role:
@@ -2422,6 +2445,10 @@ components:
                 organization:
                     type: object
                     properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
                         name:
                             type: string
                             description: Organization name
@@ -2434,6 +2461,7 @@ components:
                             format: uri
                     description: Organization information for the committee member
                     example:
+                        id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
                 role:
@@ -2522,6 +2550,7 @@ components:
                 job_title: Chief Technology Officer
                 last_name: Doe
                 organization:
+                    id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
                 role:

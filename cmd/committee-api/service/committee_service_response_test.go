@@ -665,9 +665,11 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 				Agency:  stringPtr("Test Agency"),
 				Country: stringPtr("USA"),
 				Organization: &struct {
+					ID      *string
 					Name    *string
 					Website *string
 				}{
+					ID:      stringPtr("abc"),
 					Name:    stringPtr("Test Organization"),
 					Website: stringPtr("https://test-org.com"),
 				},
@@ -695,6 +697,7 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 					Agency:  "Test Agency",
 					Country: "USA",
 					Organization: model.CommitteeMemberOrganization{
+						ID:      "abc",
 						Name:    "Test Organization",
 						Website: "https://test-org.com",
 					},
@@ -783,6 +786,7 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 				AppointedBy: "chair",
 				Status:      "active",
 				Organization: &struct {
+					ID      *string
 					Name    *string
 					Website *string
 				}{
@@ -854,6 +858,7 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 					Agency:  "Test Agency",
 					Country: "USA",
 					Organization: model.CommitteeMemberOrganization{
+						ID:      "org-123",
 						Name:    "Test Organization",
 						Website: "https://test-org.com",
 					},
@@ -893,9 +898,11 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 					EndDate:   stringPtr("2024-12-31"),
 				},
 				Organization: &struct {
+					ID      *string
 					Name    *string
 					Website *string
 				}{
+					ID:      stringPtr("org-123"),
 					Name:    stringPtr("Test Organization"),
 					Website: stringPtr("https://test-org.com"),
 				},
@@ -1026,7 +1033,6 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &committeeServicesrvc{}
 			result := svc.convertMemberDomainToFullResponse(tt.member)
-
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1071,9 +1077,11 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				Agency:  stringPtr("Test Agency"),
 				Country: stringPtr("US"),
 				Organization: &struct {
+					ID      *string
 					Name    *string
 					Website *string
 				}{
+					ID:      stringPtr("org-123"),
 					Name:    stringPtr("Test Org"),
 					Website: stringPtr("https://testorg.com"),
 				},
@@ -1102,6 +1110,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 					Agency:  "Test Agency",
 					Country: "US",
 					Organization: model.CommitteeMemberOrganization{
+						ID:      "org-123",
 						Name:    "Test Org",
 						Website: "https://testorg.com",
 					},
@@ -1169,9 +1178,11 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				AppointedBy: "admin",
 				Status:      "active",
 				Organization: &struct {
+					ID      *string
 					Name    *string
 					Website *string
 				}{
+					ID:      stringPtr("org-123"),
 					Name:    stringPtr("Partial Org"),
 					Website: nil,
 				},
@@ -1184,6 +1195,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 					AppointedBy:  "admin",
 					Status:       "active",
 					Organization: model.CommitteeMemberOrganization{
+						ID:   "org-123",
 						Name: "Partial Org",
 					},
 				},
