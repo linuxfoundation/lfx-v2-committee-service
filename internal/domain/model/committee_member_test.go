@@ -291,6 +291,7 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				"email:test@example.com",
 				"organization_id:org-789",
 				"organization_name:The Linux Foundation",
+				"organization_website:https://linuxfoundation.org",
 			},
 		},
 		{
