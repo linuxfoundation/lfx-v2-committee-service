@@ -153,6 +153,10 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 }
 
 func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Committee) *committeeservice.CommitteeFullWithReadonlyAttributes {
+	if response == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeFullWithReadonlyAttributes{
 		UID:             &response.CommitteeBase.UID,
 		ProjectUID:      &response.ProjectUID,
@@ -216,6 +220,10 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 
 // convertBaseToResponse converts domain CommitteeBase to GOA response type
 func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) *committeeservice.CommitteeBaseWithReadonlyAttributes {
+	if base == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeBaseWithReadonlyAttributes{
 		UID:             &base.UID,
 		ProjectUID:      &base.ProjectUID,
@@ -265,6 +273,10 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 
 // convertSettingsToResponse converts domain CommitteeSettings to GOA response type
 func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.CommitteeSettings) *committeeservice.CommitteeSettingsWithReadonlyAttributes {
+	if settings == nil {
+		return nil
+	}
+
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:                   &settings.UID,
 		BusinessEmailRequired: settings.BusinessEmailRequired,
