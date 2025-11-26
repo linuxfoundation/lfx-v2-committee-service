@@ -160,7 +160,28 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		}
 	}
 
-	// Step 4: Validate username exists
+	// Step 4: Lookup username by email if username is not provided
+	if member.Username == "" && member.Email != "" {
+		slog.DebugContext(ctx, "username not provided, attempting lookup by email",
+			"email", redaction.RedactEmail(member.Email),
+		)
+		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
+		if errLookup != nil {
+			slog.WarnContext(ctx, "failed to lookup username by email",
+				"error", errLookup,
+				"email", redaction.RedactEmail(member.Email),
+			)
+			// Continue without username - it's an optional field
+		} else if sub != "" {
+			member.Username = sub
+			slog.DebugContext(ctx, "username set from email lookup",
+				"email", redaction.RedactEmail(member.Email),
+				"username", redaction.Redact(member.Username),
+			)
+		}
+	}
+
+	// Step 5: Validate username exists
 	if errUsername := uc.validateUsernameExists(ctx, member.Username); errUsername != nil {
 		slog.ErrorContext(ctx, "username validation failed",
 			"error", errUsername,
@@ -169,7 +190,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errUsername
 	}
 
-	// Step 5: Validate organization exists (external service call)
+	// Step 6: Validate organization exists (external service call)
 	if errOrganization := uc.validateOrganizationExists(ctx, member.Organization.Name); errOrganization != nil {
 		slog.ErrorContext(ctx, "organization validation failed",
 			"error", errOrganization,
@@ -178,7 +199,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errOrganization
 	}
 
-	// Step 6: Check if member already exists in committee
+	// Step 7: Check if member already exists in committee
 	key, errMemberExists := uc.committeeWriter.UniqueMember(ctx, member)
 	if errMemberExists != nil {
 		slog.WarnContext(ctx, "member already exists in committee",
@@ -190,7 +211,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 	keys = append(keys, key)
 
-	// Step 7: Create the member record with rollback support
+	// Step 8: Create the member record with rollback support
 	errCreate := uc.committeeWriter.CreateMember(ctx, member)
 	if errCreate != nil {
 		slog.ErrorContext(ctx, "failed to create committee member",
@@ -210,7 +231,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"member_username", redaction.Redact(member.Username),
 	)
 
-	// Step 8: Add organization user engagement
+	// Step 9: Add organization user engagement
 	if errEngagement := uc.addOrganizationUserEngagement(ctx, member.Organization.Name, member.Username); errEngagement != nil {
 		// Log the error but don't fail the member creation
 		slog.WarnContext(ctx, "failed to add organization user engagement",
@@ -222,7 +243,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		)
 	}
 
-	// Step 9: Publish indexer and access control messages
+	// Step 10: Publish indexer and access control messages
 	eventData := &model.CommitteeMemberMessageData{
 		Member: member,
 	}
@@ -408,6 +429,27 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		// Mark old lookup key for cleanup
 		oldLookupKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
 		staleKeys = append(staleKeys, oldLookupKey)
+	}
+
+	// Lookup username by email if username is not provided
+	if member.Username == "" && member.Email != "" {
+		slog.DebugContext(ctx, "username not provided in update, attempting lookup by email",
+			"email", redaction.RedactEmail(member.Email),
+		)
+		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
+		if errLookup != nil {
+			slog.WarnContext(ctx, "failed to lookup username by email during update",
+				"error", errLookup,
+				"email", redaction.RedactEmail(member.Email),
+			)
+			// Continue without username - it's an optional field
+		} else if sub != "" {
+			member.Username = sub
+			slog.DebugContext(ctx, "username set from email lookup during update",
+				"email", redaction.RedactEmail(member.Email),
+				"username", redaction.Redact(member.Username),
+			)
+		}
 	}
 
 	// Step 5: Handle username changes - validate username exists
@@ -661,6 +703,32 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	// This should add the user engagement record to track committee participation
 
 	return nil
+}
+
+// lookupSubByEmail looks up a user's sub (username) by their email address
+func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, email string) (string, error) {
+	if uc.userReader == nil {
+		slog.DebugContext(ctx, "user reader not configured, skipping sub lookup",
+			"email", redaction.RedactEmail(email),
+		)
+		return "", nil
+	}
+
+	slog.DebugContext(ctx, "looking up user sub by email",
+		"email", redaction.RedactEmail(email),
+	)
+
+	sub, err := uc.userReader.SubByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+
+	slog.DebugContext(ctx, "successfully looked up user sub by email",
+		"email", redaction.RedactEmail(email),
+		"sub", redaction.Redact(sub),
+	)
+
+	return sub, nil
 }
 
 // committeeMemberStub represents the minimal data needed for FGA member access control

@@ -79,12 +79,20 @@ func WithCommitteePublisher(publisher port.CommitteePublisher) committeeWriterOr
 	}
 }
 
+// WithUserReader sets the user reader
+func WithUserReader(reader port.UserReader) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.userReader = reader
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	projectRetriever   port.ProjectReader
 	committeeReader    port.CommitteeReader
 	committeeWriter    port.CommitteeWriter
 	committeePublisher port.CommitteePublisher
+	userReader         port.UserReader
 }
 
 // deleteKeys removes keys by getting their revision and deleting them

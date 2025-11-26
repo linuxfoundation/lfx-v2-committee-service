@@ -19,9 +19,14 @@ const (
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"
+
 	// ProjectGetSlugSubject is the subject for the project get slug.
 	// The subject is of the form: lfx.projects-api.get_slug
 	ProjectGetSlugSubject = "lfx.projects-api.get_slug"
+
+	// AuthEmailToSubLookupSubject is the subject for the email to sub lookup.
+	// The subject is of the form: lfx.auth-service.email_to_sub
+	AuthEmailToSubLookupSubject = "lfx.auth-service.email_to_sub"
 
 	// IndexCommitteeSubject is the subject for the committee index.
 	// The subject is of the form: lfx.index.committee

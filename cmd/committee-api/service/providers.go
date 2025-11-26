@@ -22,9 +22,10 @@ import (
 )
 
 var (
-	natsStorage   port.CommitteeReaderWriter
-	natsMessaging port.ProjectReader
-	natsPublisher port.CommitteePublisher
+	natsStorage    port.CommitteeReaderWriter
+	natsMessaging  port.ProjectReader
+	natsUserReader port.UserReader
+	natsPublisher  port.CommitteePublisher
 
 	// expose the NATS client for direct access in subscriptions
 	natsClient *nats.NATSClient
@@ -81,6 +82,7 @@ func natsInit(ctx context.Context) {
 		natsClient = client
 		natsStorage = nats.NewStorage(client)
 		natsMessaging = nats.NewMessageRequest(client)
+		natsUserReader = nats.NewUserRequest(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
@@ -188,6 +190,37 @@ func ProjectRetrieverImpl(ctx context.Context) port.ProjectReader {
 	}
 
 	return projectReader
+}
+
+// UserReaderImpl initializes the user reader implementation based on the repository source
+func UserReaderImpl(ctx context.Context) port.UserReader {
+	var userReader port.UserReader
+
+	// Repository implementation configuration
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock user reader")
+		// For mock, we can return nil since the orchestrator handles nil gracefully
+		userReader = nil
+
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS user reader")
+		natsInit(ctx)
+		if natsUserReader == nil {
+			log.Fatalf("failed to initialize NATS user reader")
+		}
+		userReader = natsUserReader
+
+	default:
+		log.Fatalf("unsupported user reader implementation: %s", repoSource)
+	}
+
+	return userReader
 }
 
 // AuthServiceImpl initializes the authentication service implementation

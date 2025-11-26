@@ -10,6 +10,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
 type messageRequest struct {
@@ -41,7 +42,28 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
+func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
+	data := []byte(email)
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToSubLookupSubject, data)
+	if err != nil {
+		return "", err
+	}
+
+	sub := string(msg.Data)
+	if sub == "" {
+		return "", errors.NewNotFound(fmt.Sprintf("user sub not found for email: %s", redaction.RedactEmail(email)))
+	}
+
+	return sub, nil
+}
+
 func NewMessageRequest(client *NATSClient) port.ProjectReader {
+	return &messageRequest{
+		client: client,
+	}
+}
+
+func NewUserRequest(client *NATSClient) port.UserReader {
 	return &messageRequest{
 		client: client,
 	}
