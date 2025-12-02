@@ -172,11 +172,9 @@ func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 					t.Errorf("CheckError() error message = %q, want %q\nDescription: %s",
 						err.Error(), tt.wantErrMsg, tt.description)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("CheckError() error = %v, want nil\nDescription: %s",
-						err, tt.description)
-				}
+			} else if err != nil {
+				t.Errorf("CheckError() error = %v, want nil\nDescription: %s",
+					err, tt.description)
 			}
 		})
 	}
