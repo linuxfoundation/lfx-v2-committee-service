@@ -43,18 +43,25 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 }
 
 func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
+
 	data := []byte(email)
 	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToSubLookupSubject, data)
 	if err != nil {
 		return "", err
 	}
 
-	sub := string(msg.Data)
-	if sub == "" {
+	response := string(msg.Data)
+	if response == "" {
 		return "", errors.NewNotFound(fmt.Sprintf("user sub not found for email: %s", redaction.RedactEmail(email)))
 	}
 
-	return sub, nil
+	// handling errors if exists
+	var errorMessage ErrorMessageNATSResponse
+	if err := errorMessage.CheckError(response); err != nil {
+		return "", err
+	}
+
+	return response, nil
 }
 
 func NewMessageRequest(client *NATSClient) port.ProjectReader {
