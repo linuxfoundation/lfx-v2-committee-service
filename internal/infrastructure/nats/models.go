@@ -4,7 +4,11 @@
 package nats
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // Config represents NATS configuration
@@ -31,3 +35,22 @@ type AccessCheckNATSRequest struct {
 
 // AccessCheckNATSResponse represents a NATS response for access checking
 type AccessCheckNATSResponse map[string]string
+
+// ErrorMessageNATSResponse represents a NATS response for error message
+type ErrorMessageNATSResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+}
+
+// CheckError parses a JSON message and returns an error if the operation was unsuccessful.
+func (e ErrorMessageNATSResponse) CheckError(message string) error {
+	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal == nil {
+		if !e.Success {
+			if strings.Contains(e.Error, "not found") {
+				return errors.NewNotFound(e.Error)
+			}
+			return errors.NewUnexpected(e.Error)
+		}
+	}
+	return nil
+}
