@@ -42,7 +42,7 @@ type ErrorMessageNATSResponse struct {
 	Error   string `json:"error"`
 }
 
-// CheckError checks if the message contains an error
+// CheckError parses a JSON message and returns an error if the operation was unsuccessful.
 func (e ErrorMessageNATSResponse) CheckError(message string) error {
 	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal == nil {
 		if !e.Success {
