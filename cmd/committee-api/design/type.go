@@ -44,6 +44,7 @@ func CommitteeSettingsAttributes() {
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()
+	ShowMeetingAttendeesAttribute()
 }
 
 // CommitteeFull is the DSL type for a committee full.
@@ -706,6 +707,13 @@ func MemberVisibilityAttribute() {
 		dsl.Enum("hidden", "basic_profile")
 		dsl.Default("hidden")
 		dsl.Example("hidden")
+	})
+}
+
+func ShowMeetingAttendeesAttribute() {
+	dsl.Attribute("show_meeting_attendees", dsl.Boolean, "Determines the default show_meeting_attendees setting on meetings this committee is connected to", func() {
+		dsl.Default(false)
+		dsl.Example(false)
 	})
 }
 

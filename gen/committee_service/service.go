@@ -157,6 +157,9 @@ type CommitteeFullWithReadonlyAttributes struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee
@@ -241,6 +244,9 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -356,6 +362,9 @@ type CreateCommitteePayload struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee
@@ -588,6 +597,9 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee

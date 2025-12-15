@@ -56,6 +56,9 @@ type CreateCommitteeRequestBody struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -108,6 +111,9 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -267,6 +273,9 @@ type CreateCommitteeResponseBody struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -339,6 +348,9 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -903,6 +915,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the visibility level of members profiles to other members of the
 	// same committee.
 	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
+	// Determines the default show_meeting_attendees setting on meetings this
+	// committee is connected to
+	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -992,6 +1007,7 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
+		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 	}
 	{
 		var zero bool
@@ -1041,6 +1057,12 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		var zero string
 		if body.MemberVisibility == zero {
 			body.MemberVisibility = "hidden"
+		}
+	}
+	{
+		var zero bool
+		if body.ShowMeetingAttendees == zero {
+			body.ShowMeetingAttendees = false
 		}
 	}
 	if p.Writers != nil {
@@ -1125,11 +1147,18 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
+		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 	}
 	{
 		var zero string
 		if body.MemberVisibility == zero {
 			body.MemberVisibility = "hidden"
+		}
+	}
+	{
+		var zero bool
+		if body.ShowMeetingAttendees == zero {
+			body.ShowMeetingAttendees = false
 		}
 	}
 	if p.Writers != nil {
@@ -1354,6 +1383,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
+	if body.ShowMeetingAttendees != nil {
+		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -1383,6 +1415,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
+	}
+	if body.ShowMeetingAttendees == nil {
+		v.ShowMeetingAttendees = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]string, len(body.Writers))
@@ -1715,11 +1750,17 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
+	if body.ShowMeetingAttendees != nil {
+		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
+	}
+	if body.ShowMeetingAttendees == nil {
+		v.ShowMeetingAttendees = false
 	}
 	res := &committeeservice.GetCommitteeSettingsResult{
 		CommitteeSettings: v,
@@ -1776,11 +1817,17 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
+	if body.ShowMeetingAttendees != nil {
+		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
+	}
+	if body.ShowMeetingAttendees == nil {
+		v.ShowMeetingAttendees = false
 	}
 
 	return v

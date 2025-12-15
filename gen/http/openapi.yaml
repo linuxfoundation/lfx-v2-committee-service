@@ -1015,6 +1015,11 @@ definitions:
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -1075,6 +1080,7 @@ definitions:
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
             requires_review: true
+            show_meeting_attendees: false
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
             total_members: 15
@@ -1601,6 +1607,11 @@ definitions:
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -1640,6 +1651,7 @@ definitions:
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
             requires_review: true
+            show_meeting_attendees: false
             sso_group_enabled: true
             website: https://committee.example.org
             writers:
@@ -1988,6 +2000,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             writers:
                 type: array
                 items:
@@ -2005,6 +2022,7 @@ definitions:
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
+            show_meeting_attendees: false
             writers:
                 - manager_user_id1
                 - manager_user_id2
@@ -2041,6 +2059,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             uid:
                 type: string
                 description: Committee UID -- v2 uid, not related to v1 id directly
@@ -2058,6 +2081,7 @@ definitions:
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
+            show_meeting_attendees: false
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"
     ConflictError:
