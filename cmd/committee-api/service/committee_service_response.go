@@ -340,6 +340,11 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 		member.JobTitle = *p.JobTitle
 	}
 
+	// Handle LinkedinProfile with nil check
+	if p.LinkedinProfile != nil {
+		member.LinkedInProfile = *p.LinkedinProfile
+	}
+
 	// Handle Role if present
 	if p.Role != nil {
 		member.Role = model.CommitteeMemberRole{
@@ -429,6 +434,11 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		member.JobTitle = *p.JobTitle
 	}
 
+	// Handle LinkedinProfile with nil check
+	if p.LinkedinProfile != nil {
+		member.LinkedInProfile = *p.LinkedinProfile
+	}
+
 	// Handle Role if present
 	if p.Role != nil {
 		member.Role = model.CommitteeMemberRole{
@@ -507,6 +517,9 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 	if member.JobTitle != "" {
 		result.JobTitle = &member.JobTitle
+	}
+	if member.LinkedInProfile != "" {
+		result.LinkedinProfile = &member.LinkedInProfile
 	}
 	if member.Agency != "" {
 		result.Agency = &member.Agency

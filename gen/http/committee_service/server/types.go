@@ -121,6 +121,8 @@ type CreateCommitteeMemberRequestBody struct {
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -171,6 +173,8 @@ type UpdateCommitteeMemberRequestBody struct {
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -350,6 +354,8 @@ type CreateCommitteeMemberResponseBody struct {
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -416,6 +422,8 @@ type UpdateCommitteeMemberResponseBody struct {
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -907,6 +915,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -1212,6 +1222,7 @@ func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 		FirstName:         res.FirstName,
 		LastName:          res.LastName,
 		JobTitle:          res.JobTitle,
+		LinkedinProfile:   res.LinkedinProfile,
 		AppointedBy:       res.AppointedBy,
 		Status:            res.Status,
 		Agency:            res.Agency,
@@ -1302,6 +1313,7 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 		FirstName:         res.Member.FirstName,
 		LastName:          res.Member.LastName,
 		JobTitle:          res.Member.JobTitle,
+		LinkedinProfile:   res.Member.LinkedinProfile,
 		AppointedBy:       res.Member.AppointedBy,
 		Status:            res.Member.Status,
 		Agency:            res.Member.Agency,
@@ -1392,6 +1404,7 @@ func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 		FirstName:         res.FirstName,
 		LastName:          res.LastName,
 		JobTitle:          res.JobTitle,
+		LinkedinProfile:   res.LinkedinProfile,
 		AppointedBy:       res.AppointedBy,
 		Status:            res.Status,
 		Agency:            res.Agency,
@@ -2127,13 +2140,14 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 // create-committee-member endpoint payload.
 func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteeMemberPayload {
 	v := &committeeservice.CreateCommitteeMemberPayload{
-		Username:  body.Username,
-		Email:     *body.Email,
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		JobTitle:  body.JobTitle,
-		Agency:    body.Agency,
-		Country:   body.Country,
+		Username:        body.Username,
+		Email:           *body.Email,
+		FirstName:       body.FirstName,
+		LastName:        body.LastName,
+		JobTitle:        body.JobTitle,
+		LinkedinProfile: body.LinkedinProfile,
+		Agency:          body.Agency,
+		Country:         body.Country,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2223,13 +2237,14 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 // update-committee-member endpoint payload.
 func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
-		Username:  body.Username,
-		Email:     *body.Email,
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		JobTitle:  body.JobTitle,
-		Agency:    body.Agency,
-		Country:   body.Country,
+		Username:        body.Username,
+		Email:           *body.Email,
+		FirstName:       body.FirstName,
+		LastName:        body.LastName,
+		JobTitle:        body.JobTitle,
+		LinkedinProfile: body.LinkedinProfile,
+		Agency:          body.Agency,
+		Country:         body.Country,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2457,6 +2472,12 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
 		}
 	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
 	if body.Role != nil {
 		if body.Role.Name != nil {
 			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Counsel" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
@@ -2544,6 +2565,12 @@ func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequest
 		if utf8.RuneCountInString(*body.JobTitle) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
 		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
 	}
 	if body.Role != nil {
 		if body.Role.Name != nil {

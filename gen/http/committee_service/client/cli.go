@@ -531,7 +531,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeMemberBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
 		}
 		if body.Username != nil {
 			if utf8.RuneCountInString(*body.Username) > 100 {
@@ -553,6 +553,12 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			if utf8.RuneCountInString(*body.JobTitle) > 200 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
 			}
+		}
+		if body.LinkedinProfile != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+		}
+		if body.LinkedinProfile != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
 		}
 		if body.Role != nil {
 			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
@@ -640,15 +646,16 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 		}
 	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
-		Username:    body.Username,
-		Email:       body.Email,
-		FirstName:   body.FirstName,
-		LastName:    body.LastName,
-		JobTitle:    body.JobTitle,
-		AppointedBy: body.AppointedBy,
-		Status:      body.Status,
-		Agency:      body.Agency,
-		Country:     body.Country,
+		Username:        body.Username,
+		Email:           body.Email,
+		FirstName:       body.FirstName,
+		LastName:        body.LastName,
+		JobTitle:        body.JobTitle,
+		LinkedinProfile: body.LinkedinProfile,
+		AppointedBy:     body.AppointedBy,
+		Status:          body.Status,
+		Agency:          body.Agency,
+		Country:         body.Country,
 	}
 	if body.Role != nil {
 		v.Role = &struct {
@@ -777,7 +784,7 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 	{
 		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeMemberBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"agency\": \"GSA\",\n      \"appointed_by\": \"Community\",\n      \"country\": \"United States\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }'")
 		}
 		if body.Username != nil {
 			if utf8.RuneCountInString(*body.Username) > 100 {
@@ -799,6 +806,12 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			if utf8.RuneCountInString(*body.JobTitle) > 200 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
 			}
+		}
+		if body.LinkedinProfile != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+		}
+		if body.LinkedinProfile != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
 		}
 		if body.Role != nil {
 			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
@@ -900,15 +913,16 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 		}
 	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
-		Username:    body.Username,
-		Email:       body.Email,
-		FirstName:   body.FirstName,
-		LastName:    body.LastName,
-		JobTitle:    body.JobTitle,
-		AppointedBy: body.AppointedBy,
-		Status:      body.Status,
-		Agency:      body.Agency,
-		Country:     body.Country,
+		Username:        body.Username,
+		Email:           body.Email,
+		FirstName:       body.FirstName,
+		LastName:        body.LastName,
+		JobTitle:        body.JobTitle,
+		LinkedinProfile: body.LinkedinProfile,
+		AppointedBy:     body.AppointedBy,
+		Status:          body.Status,
+		Agency:          body.Agency,
+		Country:         body.Country,
 	}
 	if body.Role != nil {
 		v.Role = &struct {
