@@ -53,8 +53,8 @@ type CreateCommitteeRequestBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -108,8 +108,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -270,8 +270,8 @@ type CreateCommitteeResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -345,8 +345,8 @@ type UpdateCommitteeSettingsResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -912,8 +912,8 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to

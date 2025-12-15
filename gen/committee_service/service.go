@@ -154,8 +154,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -241,8 +241,8 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -359,8 +359,8 @@ type CreateCommitteePayload struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
@@ -594,8 +594,8 @@ type UpdateCommitteeSettingsPayload struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
-	// Determines the visibility level of members profiles to other members of the
-	// same committee.
+	// Dertermines the visibility level of members profiles to other members of the
+	// same committee
 	MemberVisibility string
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to

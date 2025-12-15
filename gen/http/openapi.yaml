@@ -984,7 +984,7 @@ definitions:
                 example: user_id_12345
             member_visibility:
                 type: string
-                description: Determines the visibility level of members profiles to other members of the same committee.
+                description: Dertermines the visibility level of members profiles to other members of the same committee
                 default: hidden
                 example: hidden
                 enum:
@@ -1576,7 +1576,7 @@ definitions:
                 example: user_id_12345
             member_visibility:
                 type: string
-                description: Determines the visibility level of members profiles to other members of the same committee.
+                description: Dertermines the visibility level of members profiles to other members of the same committee
                 default: hidden
                 example: hidden
                 enum:
@@ -1994,7 +1994,7 @@ definitions:
                 example: user_id_12345
             member_visibility:
                 type: string
-                description: Determines the visibility level of members profiles to other members of the same committee.
+                description: Dertermines the visibility level of members profiles to other members of the same committee
                 default: hidden
                 example: hidden
                 enum:
@@ -2053,7 +2053,7 @@ definitions:
                 example: user_id_12345
             member_visibility:
                 type: string
-                description: Determines the visibility level of members profiles to other members of the same committee.
+                description: Dertermines the visibility level of members profiles to other members of the same committee
                 default: hidden
                 example: hidden
                 enum:

@@ -702,8 +702,7 @@ func OrganizationIDAttribute() {
 
 // MemberVisibilityAttribute is the DSL attribute for the member visibility setting
 func MemberVisibilityAttribute() {
-	dsl.Attribute("member_visibility", func() {
-		dsl.Description("Determines the visibility level of members profiles to other members of the same committee.")
+	dsl.Attribute("member_visibility", dsl.String, "Dertermines the visibility level of members profiles to other members of the same committee", func() {
 		dsl.Enum("hidden", "basic_profile")
 		dsl.Default("hidden")
 		dsl.Example("hidden")
