@@ -154,6 +154,9 @@ type CommitteeFullWithReadonlyAttributes struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee
@@ -235,6 +238,9 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -347,6 +353,9 @@ type CreateCommitteePayload struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee
@@ -576,6 +585,9 @@ type UpdateCommitteeSettingsPayload struct {
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string
 	// Manager user IDs who can edit/modify this committee
 	Writers []string
 	// Auditor user IDs who can audit this committee

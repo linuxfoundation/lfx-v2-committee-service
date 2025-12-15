@@ -53,6 +53,9 @@ type CreateCommitteeRequestBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -102,6 +105,9 @@ type UpdateCommitteeSettingsRequestBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility *string `form:"member_visibility,omitempty" json:"member_visibility,omitempty" xml:"member_visibility,omitempty"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -258,6 +264,9 @@ type CreateCommitteeResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// Manager user IDs who can edit/modify this committee
 	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Auditor user IDs who can audit this committee
@@ -327,6 +336,9 @@ type UpdateCommitteeSettingsResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -888,6 +900,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
 	LastReviewedBy *string `form:"last_reviewed_by,omitempty" json:"last_reviewed_by,omitempty" xml:"last_reviewed_by,omitempty"`
+	// Determines the visibility level of members profiles to other members of the
+	// same committee.
+	MemberVisibility string `form:"member_visibility" json:"member_visibility" xml:"member_visibility"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -980,6 +995,7 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		BusinessEmailRequired: res.BusinessEmailRequired,
 		LastReviewedAt:        res.LastReviewedAt,
 		LastReviewedBy:        res.LastReviewedBy,
+		MemberVisibility:      res.MemberVisibility,
 	}
 	{
 		var zero bool
@@ -1023,6 +1039,12 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		var zero bool
 		if body.BusinessEmailRequired == zero {
 			body.BusinessEmailRequired = false
+		}
+	}
+	{
+		var zero string
+		if body.MemberVisibility == zero {
+			body.MemberVisibility = "hidden"
 		}
 	}
 	if res.Writers != nil {
@@ -1175,6 +1197,7 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 		BusinessEmailRequired: res.CommitteeSettings.BusinessEmailRequired,
 		LastReviewedAt:        res.CommitteeSettings.LastReviewedAt,
 		LastReviewedBy:        res.CommitteeSettings.LastReviewedBy,
+		MemberVisibility:      res.CommitteeSettings.MemberVisibility,
 		CreatedAt:             res.CommitteeSettings.CreatedAt,
 		UpdatedAt:             res.CommitteeSettings.UpdatedAt,
 	}
@@ -1182,6 +1205,12 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 		var zero bool
 		if body.BusinessEmailRequired == zero {
 			body.BusinessEmailRequired = false
+		}
+	}
+	{
+		var zero string
+		if body.MemberVisibility == zero {
+			body.MemberVisibility = "hidden"
 		}
 	}
 	return body
@@ -1196,6 +1225,7 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		BusinessEmailRequired: res.BusinessEmailRequired,
 		LastReviewedAt:        res.LastReviewedAt,
 		LastReviewedBy:        res.LastReviewedBy,
+		MemberVisibility:      res.MemberVisibility,
 		CreatedAt:             res.CreatedAt,
 		UpdatedAt:             res.UpdatedAt,
 	}
@@ -1203,6 +1233,12 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		var zero bool
 		if body.BusinessEmailRequired == zero {
 			body.BusinessEmailRequired = false
+		}
+	}
+	{
+		var zero string
+		if body.MemberVisibility == zero {
+			body.MemberVisibility = "hidden"
 		}
 	}
 	return body
@@ -1969,6 +2005,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	if body.BusinessEmailRequired != nil {
 		v.BusinessEmailRequired = *body.BusinessEmailRequired
 	}
+	if body.MemberVisibility != nil {
+		v.MemberVisibility = *body.MemberVisibility
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -1995,6 +2034,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
+	}
+	if body.MemberVisibility == nil {
+		v.MemberVisibility = "hidden"
 	}
 	if body.Writers != nil {
 		v.Writers = make([]string, len(body.Writers))
@@ -2114,6 +2156,12 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 		BusinessEmailRequired: *body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
+	}
+	if body.MemberVisibility != nil {
+		v.MemberVisibility = *body.MemberVisibility
+	}
+	if body.MemberVisibility == nil {
+		v.MemberVisibility = "hidden"
 	}
 	if body.Writers != nil {
 		v.Writers = make([]string, len(body.Writers))
@@ -2381,6 +2429,11 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
+	if body.MemberVisibility != nil {
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
 	return
 }
 
@@ -2439,6 +2492,11 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
+	}
+	if body.MemberVisibility != nil {
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
 	}
 	return
 }

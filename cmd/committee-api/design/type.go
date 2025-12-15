@@ -43,6 +43,7 @@ func CommitteeSettingsAttributes() {
 	BusinessEmailRequiredAttribute()
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
+	MemberVisibilityAttribute()
 }
 
 // CommitteeFull is the DSL type for a committee full.
@@ -695,6 +696,16 @@ func OrganizationWebsiteAttribute() {
 func OrganizationIDAttribute() {
 	dsl.Attribute("id", dsl.String, "Organization ID", func() {
 		dsl.Example("org-123456")
+	})
+}
+
+// MemberVisibilityAttribute is the DSL attribute for the member visibility setting
+func MemberVisibilityAttribute() {
+	dsl.Attribute("member_visibility", func() {
+		dsl.Description("Determines the visibility level of members profiles to other members of the same committee.")
+		dsl.Enum("hidden", "basic_profile")
+		dsl.Default("hidden")
+		dsl.Example("hidden")
 	})
 }
 
