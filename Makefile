@@ -20,6 +20,7 @@ HELM_NAMESPACE=lfx
 GO_VERSION := 1.24.5
 GOOS := linux
 GOARCH := amd64
+GOA_VERSION := v3.22.6
 
 # Linting
 GOLANGCI_LINT_VERSION := v2.2.2
@@ -44,7 +45,7 @@ setup: ## Setup development environment
 .PHONY: deps
 deps: ## Install dependencies
 	@echo "Installing dependencies..."
-	go install goa.design/goa/v3/cmd/goa@latest
+	go install goa.design/goa/v3/cmd/goa@$(GOA_VERSION)
 
 .PHONY: apigen
 apigen: deps #@ Generate API code using Goa

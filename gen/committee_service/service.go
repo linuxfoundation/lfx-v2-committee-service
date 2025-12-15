@@ -181,6 +181,8 @@ type CommitteeMemberFullWithReadonlyAttributes struct {
 	LastName *string
 	// Job title at organization
 	JobTitle *string
+	// LinkedIn profile URL
+	LinkedinProfile *string
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -261,6 +263,8 @@ type CreateCommitteeMemberPayload struct {
 	LastName *string
 	// Job title at organization
 	JobTitle *string
+	// LinkedIn profile URL
+	LinkedinProfile *string
 	// Committee role information
 	Role *struct {
 		// Committee role name
@@ -513,6 +517,8 @@ type UpdateCommitteeMemberPayload struct {
 	LastName *string
 	// Job title at organization
 	JobTitle *string
+	// LinkedIn profile URL
+	LinkedinProfile *string
 	// Committee role information
 	Role *struct {
 		// Committee role name

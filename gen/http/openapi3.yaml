@@ -510,6 +510,7 @@ paths:
                             first_name: John
                             job_title: Chief Technology Officer
                             last_name: Doe
+                            linkedin_profile: https://www.linkedin.com/in/johndoe
                             organization:
                                 id: org-123456
                                 name: The Linux Foundation
@@ -543,6 +544,7 @@ paths:
                                 first_name: John
                                 job_title: Chief Technology Officer
                                 last_name: Doe
+                                linkedin_profile: https://www.linkedin.com/in/johndoe
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -771,6 +773,7 @@ paths:
                                 first_name: John
                                 job_title: Chief Technology Officer
                                 last_name: Doe
+                                linkedin_profile: https://www.linkedin.com/in/johndoe
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -893,6 +896,7 @@ paths:
                             first_name: John
                             job_title: Chief Technology Officer
                             last_name: Doe
+                            linkedin_profile: https://www.linkedin.com/in/johndoe
                             organization:
                                 id: org-123456
                                 name: The Linux Foundation
@@ -926,6 +930,7 @@ paths:
                                 first_name: John
                                 job_title: Chief Technology Officer
                                 last_name: Doe
+                                linkedin_profile: https://www.linkedin.com/in/johndoe
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -1806,6 +1811,12 @@ components:
                     description: Last name
                     example: Doe
                     maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/johndoe
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
                     type: object
                     properties:
@@ -1914,6 +1925,7 @@ components:
                 first_name: John
                 job_title: Chief Technology Officer
                 last_name: Doe
+                linkedin_profile: https://www.linkedin.com/in/johndoe
                 organization:
                     id: org-123456
                     name: The Linux Foundation
@@ -1983,6 +1995,12 @@ components:
                     description: Last name
                     example: Doe
                     maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/johndoe
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
                     type: object
                     properties:
@@ -2091,6 +2109,7 @@ components:
                 first_name: John
                 job_title: Chief Technology Officer
                 last_name: Doe
+                linkedin_profile: https://www.linkedin.com/in/johndoe
                 organization:
                     id: org-123456
                     name: The Linux Foundation
@@ -2180,6 +2199,12 @@ components:
                     description: Last name
                     example: Doe
                     maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/johndoe
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
                     type: object
                     properties:
@@ -2302,6 +2327,7 @@ components:
                 first_name: John
                 job_title: Chief Technology Officer
                 last_name: Doe
+                linkedin_profile: https://www.linkedin.com/in/johndoe
                 organization:
                     id: org-123456
                     name: The Linux Foundation
@@ -2446,6 +2472,12 @@ components:
                     description: Last name
                     example: Doe
                     maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/johndoe
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
                     type: object
                     properties:
@@ -2553,6 +2585,7 @@ components:
                 first_name: John
                 job_title: Chief Technology Officer
                 last_name: Doe
+                linkedin_profile: https://www.linkedin.com/in/johndoe
                 organization:
                     id: org-123456
                     name: The Linux Foundation

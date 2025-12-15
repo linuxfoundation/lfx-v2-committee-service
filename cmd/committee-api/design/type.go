@@ -393,6 +393,7 @@ func CommitteeMemberBaseAttributes() {
 	FirstNameAttribute()
 	LastNameAttribute()
 	JobTitleAttribute()
+	LinkedInProfileAttribute()
 	RoleInfoAttributes()
 	AppointedByAttribute()
 	StatusAttribute()
@@ -541,6 +542,15 @@ func JobTitleAttribute() {
 	dsl.Attribute("job_title", dsl.String, "Job title at organization", func() {
 		dsl.MaxLength(200)
 		dsl.Example("Chief Technology Officer")
+	})
+}
+
+// LinkedInProfileAttribute is the DSL attribute for LinkedIn profile URL.
+func LinkedInProfileAttribute() {
+	dsl.Attribute("linkedin_profile", dsl.String, "LinkedIn profile URL", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(`^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$`)
+		dsl.Example("https://www.linkedin.com/in/johndoe")
 	})
 }
 

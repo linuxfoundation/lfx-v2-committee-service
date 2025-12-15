@@ -1212,6 +1212,281 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 	}
 }
 
+func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name: "member with valid LinkedIn profile URL",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "john@example.com",
+				Username:        stringPtr("johndoe"),
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/johndoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "john@example.com",
+					Username:        "johndoe",
+					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with LinkedIn profile URL without https",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "jane@example.com",
+				Username:        stringPtr("janedoe"),
+				LinkedinProfile: stringPtr("linkedin.com/in/janedoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "jane@example.com",
+					Username:        "janedoe",
+					LinkedInProfile: "linkedin.com/in/janedoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with LinkedIn profile URL with country subdomain",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "bob@example.com",
+				Username:        stringPtr("bobsmith"),
+				LinkedinProfile: stringPtr("https://uk.linkedin.com/in/bobsmith"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "bob@example.com",
+					Username:        "bobsmith",
+					LinkedInProfile: "https://uk.linkedin.com/in/bobsmith",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member without LinkedIn profile (nil)",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "nolinkedin@example.com",
+				Username:        stringPtr("nolinkedin"),
+				LinkedinProfile: nil,
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "nolinkedin@example.com",
+					Username:        "nolinkedin",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with empty LinkedIn profile string",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "emptylinkedin@example.com",
+				Username:        stringPtr("emptylinkedin"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "emptylinkedin@example.com",
+					Username:        "emptylinkedin",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberPayloadToDomain(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
+	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		member   *model.CommitteeMember
+		expected *committeeservice.CommitteeMemberFullWithReadonlyAttributes
+	}{
+		{
+			name: "member with LinkedIn profile",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-123",
+					Username:        "johndoe",
+					Email:           "john@example.com",
+					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+					CommitteeUID:    "committee-123",
+					CreatedAt:       createdAt,
+					UpdatedAt:       updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:             stringPtr("member-123"),
+				CommitteeUID:    stringPtr("committee-123"),
+				Username:        stringPtr("johndoe"),
+				Email:           stringPtr("john@example.com"),
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/johndoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+				CreatedAt:       stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt:       stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "member without LinkedIn profile (empty string)",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-456",
+					Email:           "nolinkedin@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+					CommitteeUID:    "committee-456",
+					CreatedAt:       createdAt,
+					UpdatedAt:       updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:             stringPtr("member-456"),
+				CommitteeUID:    stringPtr("committee-456"),
+				Email:           stringPtr("nolinkedin@example.com"),
+				LinkedinProfile: nil, // Empty string should result in nil
+				AppointedBy:     "chair",
+				Status:          "active",
+				CreatedAt:       stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt:       stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberDomainToFullResponse(tt.member)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name: "update with LinkedIn profile",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           "test@example.com",
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/testuser"),
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-456",
+					CommitteeUID:    "committee-123",
+					Email:           "test@example.com",
+					LinkedInProfile: "https://www.linkedin.com/in/testuser",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "update without LinkedIn profile",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-789",
+				Email:           "nolinkedin@example.com",
+				LinkedinProfile: nil,
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-789",
+					CommitteeUID:    "committee-123",
+					Email:           "nolinkedin@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "update clearing LinkedIn profile with empty string",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-999",
+				Email:           "clear@example.com",
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-999",
+					CommitteeUID:    "committee-123",
+					Email:           "clear@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateMember(tt.payload)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // Helper functions for creating pointers to primitives
 func stringPtr(s string) *string {
 	return &s
