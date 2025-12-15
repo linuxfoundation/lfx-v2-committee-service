@@ -33,8 +33,6 @@ type CommitteeMemberBase struct {
 	AppointedBy       string                      `json:"appointed_by"`
 	Status            string                      `json:"status"`
 	Voting            CommitteeMemberVotingInfo   `json:"voting"`
-	Agency            string                      `json:"agency,omitempty"`
-	Country           string                      `json:"country,omitempty"`
 	Organization      CommitteeMemberOrganization `json:"organization"`
 	CommitteeUID      string                      `json:"committee_uid"`
 	CommitteeName     string                      `json:"committee_name"`
@@ -167,11 +165,6 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 		return err
 	}
 
-	// Validate committee-specific requirements
-	if err := cm.validateCategory(committee); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -179,33 +172,6 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 func (cm *CommitteeMember) validateRequiredFields() error {
 	if cm.Email == "" {
 		return errs.NewValidation("email is required")
-	}
-
-	return nil
-}
-
-// validateCategory validates the committee member against the committee's category
-func (cm *CommitteeMember) validateCategory(committee *Committee) error {
-	// Government Advisory Council specific validation
-	if committee.IsGovernmentAdvisoryCouncil() {
-		missingFields := []string{}
-		if cm.Agency == "" {
-			missingFields = append(missingFields, "agency")
-		}
-
-		if cm.Country == "" {
-			missingFields = append(missingFields, "country")
-		}
-
-		if len(missingFields) > 0 {
-			return errs.NewValidation("missing required fields for Government Advisory Council members: " + strings.Join(missingFields, ", "))
-		}
-
-		return nil
-	}
-
-	if cm.Agency != "" || cm.Country != "" {
-		return errs.NewValidation("agency and country should not be set for non-Government Advisory Council members")
 	}
 
 	return nil

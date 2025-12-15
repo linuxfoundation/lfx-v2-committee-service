@@ -503,9 +503,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
                         example:
-                            agency: GSA
                             appointed_by: Community
-                            country: United States
                             email: user@example.com
                             first_name: John
                             job_title: Chief Technology Officer
@@ -532,12 +530,10 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
                             example:
-                                agency: GSA
                                 appointed_by: Community
                                 committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                country: United States
                                 created_at: "2023-01-15T10:30:00Z"
                                 email: user@example.com
                                 first_name: John
@@ -760,12 +756,10 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
                             example:
-                                agency: GSA
                                 appointed_by: Community
                                 committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                country: United States
                                 created_at: "2023-01-15T10:30:00Z"
                                 email: user@example.com
                                 first_name: John
@@ -886,9 +880,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
                         example:
-                            agency: GSA
                             appointed_by: Community
-                            country: United States
                             email: user@example.com
                             first_name: John
                             job_title: Chief Technology Officer
@@ -915,12 +907,10 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
                             example:
-                                agency: GSA
                                 appointed_by: Community
                                 committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                country: United States
                                 created_at: "2023-01-15T10:30:00Z"
                                 email: user@example.com
                                 first_name: John
@@ -1754,11 +1744,6 @@ components:
         CommitteeMemberBase:
             type: object
             properties:
-                agency:
-                    type: string
-                    description: Government agency (for GAC members)
-                    example: GSA
-                    maxLength: 100
                 appointed_by:
                     type: string
                     description: How the member was appointed
@@ -1781,11 +1766,6 @@ components:
                         - Vote of Silver Member Class
                         - Vote of Strategic Membership Class
                         - None
-                country:
-                    type: string
-                    description: Country (for GAC members)
-                    example: United States
-                    maxLength: 100
                 email:
                     type: string
                     description: Primary email address
@@ -1907,9 +1887,7 @@ components:
                         status: Voting Rep
             description: A base representation of committee members.
             example:
-                agency: GSA
                 appointed_by: Community
-                country: United States
                 email: user@example.com
                 first_name: John
                 job_title: Chief Technology Officer
@@ -1931,11 +1909,6 @@ components:
         CommitteeMemberFull:
             type: object
             properties:
-                agency:
-                    type: string
-                    description: Government agency (for GAC members)
-                    example: GSA
-                    maxLength: 100
                 appointed_by:
                     type: string
                     description: How the member was appointed
@@ -1958,11 +1931,6 @@ components:
                         - Vote of Silver Member Class
                         - Vote of Strategic Membership Class
                         - None
-                country:
-                    type: string
-                    description: Country (for GAC members)
-                    example: United States
-                    maxLength: 100
                 email:
                     type: string
                     description: Primary email address
@@ -2084,9 +2052,7 @@ components:
                         status: Voting Rep
             description: A complete representation of committee members with all attributes.
             example:
-                agency: GSA
                 appointed_by: Community
-                country: United States
                 email: user@example.com
                 first_name: John
                 job_title: Chief Technology Officer
@@ -2108,11 +2074,6 @@ components:
         CommitteeMemberFullWithReadonlyAttributes:
             type: object
             properties:
-                agency:
-                    type: string
-                    description: Government agency (for GAC members)
-                    example: GSA
-                    maxLength: 100
                 appointed_by:
                     type: string
                     description: How the member was appointed
@@ -2150,11 +2111,6 @@ components:
                     description: Committee UID -- v2 uid, not related to v1 id directly
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
-                country:
-                    type: string
-                    description: Country (for GAC members)
-                    example: United States
-                    maxLength: 100
                 created_at:
                     type: string
                     description: The timestamp when the resource was created (read-only)
@@ -2291,12 +2247,10 @@ components:
                         status: Voting Rep
             description: A complete representation of committee members with readonly attributes.
             example:
-                agency: GSA
                 appointed_by: Community
                 committee_category: Board
                 committee_name: Technical Steering Committee
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                country: United States
                 created_at: "2023-01-15T10:30:00Z"
                 email: user@example.com
                 first_name: John
@@ -2394,11 +2348,6 @@ components:
         CreateCommitteeMemberRequestBody:
             type: object
             properties:
-                agency:
-                    type: string
-                    description: Government agency (for GAC members)
-                    example: GSA
-                    maxLength: 100
                 appointed_by:
                     type: string
                     description: How the member was appointed
@@ -2421,11 +2370,6 @@ components:
                         - Vote of Silver Member Class
                         - Vote of Strategic Membership Class
                         - None
-                country:
-                    type: string
-                    description: Country (for GAC members)
-                    example: United States
-                    maxLength: 100
                 email:
                     type: string
                     description: Primary email address
@@ -2546,9 +2490,7 @@ components:
                         start_date: "2023-01-01"
                         status: Voting Rep
             example:
-                agency: GSA
                 appointed_by: Community
-                country: United States
                 email: user@example.com
                 first_name: John
                 job_title: Chief Technology Officer

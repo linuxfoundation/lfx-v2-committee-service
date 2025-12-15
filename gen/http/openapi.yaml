@@ -1079,11 +1079,6 @@ definitions:
         title: CommitteeMemberFullWithReadonlyAttributes
         type: object
         properties:
-            agency:
-                type: string
-                description: Government agency (for GAC members)
-                example: GSA
-                maxLength: 100
             appointed_by:
                 type: string
                 description: How the member was appointed
@@ -1121,11 +1116,6 @@ definitions:
                 description: Committee UID -- v2 uid, not related to v1 id directly
                 example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 format: uuid
-            country:
-                type: string
-                description: Country (for GAC members)
-                example: United States
-                maxLength: 100
             created_at:
                 type: string
                 description: The timestamp when the resource was created (read-only)
@@ -1261,12 +1251,10 @@ definitions:
                     start_date: "2023-01-01"
                     status: Voting Rep
         example:
-            agency: GSA
             appointed_by: Community
             committee_category: Board
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            country: United States
             created_at: "2023-01-15T10:30:00Z"
             email: user@example.com
             first_name: John
@@ -1292,11 +1280,6 @@ definitions:
         title: CommitteeServiceCreateCommitteeMemberRequestBody
         type: object
         properties:
-            agency:
-                type: string
-                description: Government agency (for GAC members)
-                example: GSA
-                maxLength: 100
             appointed_by:
                 type: string
                 description: How the member was appointed
@@ -1319,11 +1302,6 @@ definitions:
                     - Vote of Silver Member Class
                     - Vote of Strategic Membership Class
                     - None
-            country:
-                type: string
-                description: Country (for GAC members)
-                example: United States
-                maxLength: 100
             email:
                 type: string
                 description: Primary email address
@@ -1444,9 +1422,7 @@ definitions:
                     start_date: "2023-01-01"
                     status: Voting Rep
         example:
-            agency: GSA
             appointed_by: Community
-            country: United States
             email: user@example.com
             first_name: John
             job_title: Chief Technology Officer
@@ -1739,11 +1715,6 @@ definitions:
         title: CommitteeServiceUpdateCommitteeMemberRequestBody
         type: object
         properties:
-            agency:
-                type: string
-                description: Government agency (for GAC members)
-                example: GSA
-                maxLength: 100
             appointed_by:
                 type: string
                 description: How the member was appointed
@@ -1766,11 +1737,6 @@ definitions:
                     - Vote of Silver Member Class
                     - Vote of Strategic Membership Class
                     - None
-            country:
-                type: string
-                description: Country (for GAC members)
-                example: United States
-                maxLength: 100
             email:
                 type: string
                 description: Primary email address
@@ -1891,9 +1857,7 @@ definitions:
                     start_date: "2023-01-01"
                     status: Voting Rep
         example:
-            agency: GSA
             appointed_by: Community
-            country: United States
             email: user@example.com
             first_name: John
             job_title: Chief Technology Officer

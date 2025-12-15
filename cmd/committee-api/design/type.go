@@ -397,8 +397,6 @@ func CommitteeMemberBaseAttributes() {
 	AppointedByAttribute()
 	StatusAttribute()
 	VotingInfoAttributes()
-	AgencyAttribute()
-	CountryAttribute()
 	OrganizationInfoAttributes()
 }
 
@@ -644,22 +642,6 @@ func VotingEndDateAttribute() {
 	dsl.Attribute("end_date", dsl.String, "Voting end date", func() {
 		dsl.Format(dsl.FormatDate)
 		dsl.Example("2024-12-31")
-	})
-}
-
-// AgencyAttribute is the DSL attribute for government agency.
-func AgencyAttribute() {
-	dsl.Attribute("agency", dsl.String, "Government agency (for GAC members)", func() {
-		dsl.MaxLength(100)
-		dsl.Example("GSA")
-	})
-}
-
-// CountryAttribute is the DSL attribute for country.
-func CountryAttribute() {
-	dsl.Attribute("country", dsl.String, "Country (for GAC members)", func() {
-		dsl.MaxLength(100)
-		dsl.Example("United States")
 	})
 }
 

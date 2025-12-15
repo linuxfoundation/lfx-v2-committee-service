@@ -366,16 +366,6 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 		}
 	}
 
-	// Handle Agency with nil check (for GAC members)
-	if p.Agency != nil {
-		member.Agency = *p.Agency
-	}
-
-	// Handle Country with nil check (for GAC members)
-	if p.Country != nil {
-		member.Country = *p.Country
-	}
-
 	// Handle Organization if present
 	if p.Organization != nil {
 		if p.Organization.ID != nil {
@@ -455,16 +445,6 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		}
 	}
 
-	// Handle Agency with nil check (for GAC members)
-	if p.Agency != nil {
-		member.Agency = *p.Agency
-	}
-
-	// Handle Country with nil check (for GAC members)
-	if p.Country != nil {
-		member.Country = *p.Country
-	}
-
 	// Handle Organization if present
 	if p.Organization != nil {
 		if p.Organization.ID != nil {
@@ -507,12 +487,6 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 	if member.JobTitle != "" {
 		result.JobTitle = &member.JobTitle
-	}
-	if member.Agency != "" {
-		result.Agency = &member.Agency
-	}
-	if member.Country != "" {
-		result.Country = &member.Country
 	}
 	if member.CommitteeName != "" {
 		result.CommitteeName = &member.CommitteeName

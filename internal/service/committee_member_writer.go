@@ -142,8 +142,6 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 			"committee_category", committee.Category,
 			"member_email", redaction.RedactEmail(member.Email),
 			"member_username", redaction.Redact(member.Username),
-			"has_agency", member.Agency != "",
-			"has_country", member.Country != "",
 		)
 		return nil, errValidation
 	}
@@ -365,8 +363,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			"committee_category", committee.Category,
 			"member_email", redaction.RedactEmail(member.Email),
 			"member_username", redaction.Redact(member.Username),
-			"has_agency", member.Agency != "",
-			"has_country", member.Country != "",
 		)
 		return nil, errValidation
 	}

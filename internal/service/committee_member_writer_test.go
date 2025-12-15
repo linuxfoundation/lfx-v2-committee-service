@@ -262,82 +262,6 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			expectedError: "committee not found",
 		},
 		{
-			name: "GAC member validation - missing agency",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				committee := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:      "gac-committee",
-						Name:     "Government Advisory Council",
-						Category: "Government Advisory Council",
-					},
-				}
-				mockRepo.AddCommittee(committee)
-			},
-			member: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					CommitteeUID: "gac-committee",
-					Email:        "test@example.com",
-					Country:      "USA",
-					// Missing Agency
-				},
-			},
-			expectError:   true,
-			expectedError: "missing required fields for Government Advisory Council members: agency",
-		},
-		{
-			name: "GAC member validation - missing country",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				committee := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:      "gac-committee",
-						Name:     "Government Advisory Council",
-						Category: "Government Advisory Council",
-					},
-				}
-				mockRepo.AddCommittee(committee)
-			},
-			member: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					CommitteeUID: "gac-committee",
-					Email:        "test@example.com",
-					Agency:       "GSA",
-					// Missing Country
-				},
-			},
-			expectError:   true,
-			expectedError: "missing required fields for Government Advisory Council members: country",
-		},
-		{
-			name: "valid GAC member",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				committee := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:      "gac-committee",
-						Name:     "Government Advisory Council",
-						Category: "Government Advisory Council",
-					},
-				}
-				mockRepo.AddCommittee(committee)
-			},
-			member: &model.CommitteeMember{
-				CommitteeMemberBase: model.CommitteeMemberBase{
-					CommitteeUID: "gac-committee",
-					Email:        "test@example.com",
-					Agency:       "GSA",
-					Country:      "USA",
-					Username:     "testuser",
-					Organization: model.CommitteeMemberOrganization{
-						Name: "Government Agency",
-					},
-				},
-			},
-			expectError: false,
-			validateResult: func(t *testing.T, member *model.CommitteeMember) {
-				assert.Equal(t, "GSA", member.Agency)
-				assert.Equal(t, "USA", member.Country)
-			},
-		},
-		{
 			name: "duplicate member in same committee",
 			setupMock: func(mockRepo *mock.MockRepository) {
 				committee := &model.Committee{
@@ -1069,54 +993,6 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "new@corporate.com", result.Email)
-}
-
-func TestCommitteeWriterOrchestrator_UpdateMember_ValidationFailure(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-
-	// Setup GAC committee that requires agency and country
-	committee := &model.Committee{
-		CommitteeBase: model.CommitteeBase{
-			UID:      "gac-committee",
-			Name:     "Government Advisory Committee",
-			Category: "Government Advisory Council",
-		},
-	}
-	mockRepo.AddCommittee(committee)
-
-	// Setup existing member
-	existingMember := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-gac-validation",
-			CommitteeUID: "gac-committee",
-			Email:        "test@gov.com",
-			Agency:       "Test Agency",
-			Country:      "US",
-		},
-	}
-	// Add member to mock repository (this is what the orchestrator will read from)
-	mockRepo.AddCommitteeMember("gac-committee", existingMember)
-	// Also add to the member writer for storage operations
-	memberWriter.members["member-gac-validation"] = existingMember
-	memberWriter.customRevisions["member-gac-validation"] = 1
-
-	// Create updated member without required GAC fields
-	updatedMember := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-gac-validation",
-			CommitteeUID: "gac-committee",
-			Email:        "updated@gov.com",
-			// Missing Agency and Country - should fail validation
-		},
-	}
-
-	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
-
-	// Should fail validation
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing required fields")
-	assert.Nil(t, result)
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.T) {

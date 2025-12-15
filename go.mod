@@ -13,7 +13,7 @@ require (
 	github.com/nats-io/nats.go v1.47.0
 	github.com/stretchr/testify v1.11.1
 	goa.design/clue v1.2.3
-	goa.design/goa/v3 v3.22.6
+	goa.design/goa/v3 v3.23.3
 	golang.org/x/sync v0.18.0
 )
 
@@ -41,7 +41,7 @@ require (
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
 	google.golang.org/grpc v1.77.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
