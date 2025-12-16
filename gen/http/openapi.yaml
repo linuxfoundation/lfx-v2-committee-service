@@ -982,6 +982,14 @@ definitions:
                 type: string
                 description: The user ID who last reviewed this committee
                 example: user_id_12345
+            member_visibility:
+                type: string
+                description: Dertermines the visibility level of members profiles to other members of the same committee
+                default: hidden
+                example: hidden
+                enum:
+                    - hidden
+                    - basic_profile
             name:
                 type: string
                 description: The name of the committee
@@ -1007,6 +1015,11 @@ definitions:
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -1061,11 +1074,13 @@ definitions:
             enable_voting: true
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
+            member_visibility: hidden
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
             requires_review: true
+            show_meeting_attendees: false
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
             total_members: 15
@@ -1141,6 +1156,12 @@ definitions:
                 description: Last name
                 example: Doe
                 maxLength: 100
+            linkedin_profile:
+                type: string
+                description: LinkedIn profile URL
+                example: https://www.linkedin.com/in/johndoe
+                format: uri
+                pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
             organization:
                 type: object
                 properties:
@@ -1260,6 +1281,7 @@ definitions:
             first_name: John
             job_title: Chief Technology Officer
             last_name: Doe
+            linkedin_profile: https://www.linkedin.com/in/johndoe
             organization:
                 id: org-123456
                 name: The Linux Foundation
@@ -1322,6 +1344,12 @@ definitions:
                 description: Last name
                 example: Doe
                 maxLength: 100
+            linkedin_profile:
+                type: string
+                description: LinkedIn profile URL
+                example: https://www.linkedin.com/in/johndoe
+                format: uri
+                pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
             organization:
                 type: object
                 properties:
@@ -1427,6 +1455,7 @@ definitions:
             first_name: John
             job_title: Chief Technology Officer
             last_name: Doe
+            linkedin_profile: https://www.linkedin.com/in/johndoe
             organization:
                 id: org-123456
                 name: The Linux Foundation
@@ -1521,6 +1550,14 @@ definitions:
                 type: string
                 description: The user ID who last reviewed this committee
                 example: user_id_12345
+            member_visibility:
+                type: string
+                description: Dertermines the visibility level of members profiles to other members of the same committee
+                default: hidden
+                example: hidden
+                enum:
+                    - hidden
+                    - basic_profile
             name:
                 type: string
                 description: The name of the committee
@@ -1546,6 +1583,11 @@ definitions:
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -1579,11 +1621,13 @@ definitions:
             enable_voting: true
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
+            member_visibility: hidden
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
             requires_review: true
+            show_meeting_attendees: false
             sso_group_enabled: true
             website: https://committee.example.org
             writers:
@@ -1757,6 +1801,12 @@ definitions:
                 description: Last name
                 example: Doe
                 maxLength: 100
+            linkedin_profile:
+                type: string
+                description: LinkedIn profile URL
+                example: https://www.linkedin.com/in/johndoe
+                format: uri
+                pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
             organization:
                 type: object
                 properties:
@@ -1862,6 +1912,7 @@ definitions:
             first_name: John
             job_title: Chief Technology Officer
             last_name: Doe
+            linkedin_profile: https://www.linkedin.com/in/johndoe
             organization:
                 id: org-123456
                 name: The Linux Foundation
@@ -1905,6 +1956,19 @@ definitions:
                 type: string
                 description: The user ID who last reviewed this committee
                 example: user_id_12345
+            member_visibility:
+                type: string
+                description: Dertermines the visibility level of members profiles to other members of the same committee
+                default: hidden
+                example: hidden
+                enum:
+                    - hidden
+                    - basic_profile
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             writers:
                 type: array
                 items:
@@ -1921,6 +1985,8 @@ definitions:
             business_email_required: false
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
+            member_visibility: hidden
+            show_meeting_attendees: false
             writers:
                 - manager_user_id1
                 - manager_user_id2
@@ -1949,6 +2015,19 @@ definitions:
                 type: string
                 description: The user ID who last reviewed this committee
                 example: user_id_12345
+            member_visibility:
+                type: string
+                description: Dertermines the visibility level of members profiles to other members of the same committee
+                default: hidden
+                example: hidden
+                enum:
+                    - hidden
+                    - basic_profile
+            show_meeting_attendees:
+                type: boolean
+                description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
+                default: false
+                example: false
             uid:
                 type: string
                 description: Committee UID -- v2 uid, not related to v1 id directly
@@ -1965,6 +2044,8 @@ definitions:
             created_at: "2023-01-15T10:30:00Z"
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
+            member_visibility: hidden
+            show_meeting_attendees: false
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"
     ConflictError:

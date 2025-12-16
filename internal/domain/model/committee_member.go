@@ -29,6 +29,7 @@ type CommitteeMemberBase struct {
 	FirstName         string                      `json:"first_name"`
 	LastName          string                      `json:"last_name"`
 	JobTitle          string                      `json:"job_title,omitempty"`
+	LinkedInProfile   string                      `json:"linkedin_profile,omitempty"`
 	Role              CommitteeMemberRole         `json:"role"`
 	AppointedBy       string                      `json:"appointed_by"`
 	Status            string                      `json:"status"`

@@ -13,7 +13,7 @@ require (
 	github.com/nats-io/nats.go v1.47.0
 	github.com/stretchr/testify v1.11.1
 	goa.design/clue v1.2.3
-	goa.design/goa/v3 v3.23.3
+	goa.design/goa/v3 v3.22.6
 	golang.org/x/sync v0.18.0
 )
 

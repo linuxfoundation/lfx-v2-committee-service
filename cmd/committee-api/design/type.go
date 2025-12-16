@@ -43,6 +43,8 @@ func CommitteeSettingsAttributes() {
 	BusinessEmailRequiredAttribute()
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
+	MemberVisibilityAttribute()
+	ShowMeetingAttendeesAttribute()
 }
 
 // CommitteeFull is the DSL type for a committee full.
@@ -393,6 +395,7 @@ func CommitteeMemberBaseAttributes() {
 	FirstNameAttribute()
 	LastNameAttribute()
 	JobTitleAttribute()
+	LinkedInProfileAttribute()
 	RoleInfoAttributes()
 	AppointedByAttribute()
 	StatusAttribute()
@@ -542,6 +545,15 @@ func JobTitleAttribute() {
 	})
 }
 
+// LinkedInProfileAttribute is the DSL attribute for LinkedIn profile URL.
+func LinkedInProfileAttribute() {
+	dsl.Attribute("linkedin_profile", dsl.String, "LinkedIn profile URL", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(`^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$`)
+		dsl.Example("https://www.linkedin.com/in/johndoe")
+	})
+}
+
 // RoleNameAttribute is the DSL attribute for committee role name.
 func RoleNameAttribute() {
 	dsl.Attribute("name", dsl.String, "Committee role name", func() {
@@ -667,6 +679,22 @@ func OrganizationWebsiteAttribute() {
 func OrganizationIDAttribute() {
 	dsl.Attribute("id", dsl.String, "Organization ID", func() {
 		dsl.Example("org-123456")
+	})
+}
+
+// MemberVisibilityAttribute is the DSL attribute for the member visibility setting
+func MemberVisibilityAttribute() {
+	dsl.Attribute("member_visibility", dsl.String, "Dertermines the visibility level of members profiles to other members of the same committee", func() {
+		dsl.Enum("hidden", "basic_profile")
+		dsl.Default("hidden")
+		dsl.Example("hidden")
+	})
+}
+
+func ShowMeetingAttendeesAttribute() {
+	dsl.Attribute("show_meeting_attendees", dsl.Boolean, "Determines the default show_meeting_attendees setting on meetings this committee is connected to", func() {
+		dsl.Default(false)
+		dsl.Example(false)
 	})
 }
 
