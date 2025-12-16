@@ -157,10 +157,6 @@ type CreateCommitteeMemberRequestBody struct {
 		// Voting end date
 		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
 	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
-	// Government agency (for GAC members)
-	Agency *string `form:"agency,omitempty" json:"agency,omitempty" xml:"agency,omitempty"`
-	// Country (for GAC members)
-	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
 		// Organization ID
@@ -209,10 +205,6 @@ type UpdateCommitteeMemberRequestBody struct {
 		// Voting end date
 		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
 	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
-	// Government agency (for GAC members)
-	Agency *string `form:"agency,omitempty" json:"agency,omitempty" xml:"agency,omitempty"`
-	// Country (for GAC members)
-	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
 		// Organization ID
@@ -402,10 +394,6 @@ type CreateCommitteeMemberResponseBody struct {
 		// Voting end date
 		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
 	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
-	// Government agency (for GAC members)
-	Agency *string `form:"agency,omitempty" json:"agency,omitempty" xml:"agency,omitempty"`
-	// Country (for GAC members)
-	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
 		// Organization ID
@@ -470,10 +458,6 @@ type UpdateCommitteeMemberResponseBody struct {
 		// Voting end date
 		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
 	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
-	// Government agency (for GAC members)
-	Agency *string `form:"agency,omitempty" json:"agency,omitempty" xml:"agency,omitempty"`
-	// Country (for GAC members)
-	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
 		// Organization ID
@@ -969,10 +953,6 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 		// Voting end date
 		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
 	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
-	// Government agency (for GAC members)
-	Agency *string `form:"agency,omitempty" json:"agency,omitempty" xml:"agency,omitempty"`
-	// Country (for GAC members)
-	Country *string `form:"country,omitempty" json:"country,omitempty" xml:"country,omitempty"`
 	// Organization information for the committee member
 	Organization *struct {
 		// Organization ID
@@ -1297,8 +1277,6 @@ func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 		LinkedinProfile:   res.LinkedinProfile,
 		AppointedBy:       res.AppointedBy,
 		Status:            res.Status,
-		Agency:            res.Agency,
-		Country:           res.Country,
 		CreatedAt:         res.CreatedAt,
 		UpdatedAt:         res.UpdatedAt,
 	}
@@ -1388,8 +1366,6 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 		LinkedinProfile:   res.Member.LinkedinProfile,
 		AppointedBy:       res.Member.AppointedBy,
 		Status:            res.Member.Status,
-		Agency:            res.Member.Agency,
-		Country:           res.Member.Country,
 		CreatedAt:         res.Member.CreatedAt,
 		UpdatedAt:         res.Member.UpdatedAt,
 	}
@@ -1479,8 +1455,6 @@ func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 		LinkedinProfile:   res.LinkedinProfile,
 		AppointedBy:       res.AppointedBy,
 		Status:            res.Status,
-		Agency:            res.Agency,
-		Country:           res.Country,
 		CreatedAt:         res.CreatedAt,
 		UpdatedAt:         res.UpdatedAt,
 	}
@@ -2242,8 +2216,6 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 		LastName:        body.LastName,
 		JobTitle:        body.JobTitle,
 		LinkedinProfile: body.LinkedinProfile,
-		Agency:          body.Agency,
-		Country:         body.Country,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2339,8 +2311,6 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 		LastName:        body.LastName,
 		JobTitle:        body.JobTitle,
 		LinkedinProfile: body.LinkedinProfile,
-		Agency:          body.Agency,
-		Country:         body.Country,
 	}
 	if body.AppointedBy != nil {
 		v.AppointedBy = *body.AppointedBy
@@ -2620,16 +2590,6 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
 		}
 	}
-	if body.Agency != nil {
-		if utf8.RuneCountInString(*body.Agency) > 100 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.agency", *body.Agency, utf8.RuneCountInString(*body.Agency), 100, false))
-		}
-	}
-	if body.Country != nil {
-		if utf8.RuneCountInString(*body.Country) > 100 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.country", *body.Country, utf8.RuneCountInString(*body.Country), 100, false))
-		}
-	}
 	if body.Organization != nil {
 		if body.Organization.Name != nil {
 			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
@@ -2712,16 +2672,6 @@ func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequest
 		}
 		if body.Voting.EndDate != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
-		}
-	}
-	if body.Agency != nil {
-		if utf8.RuneCountInString(*body.Agency) > 100 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.agency", *body.Agency, utf8.RuneCountInString(*body.Agency), 100, false))
-		}
-	}
-	if body.Country != nil {
-		if utf8.RuneCountInString(*body.Country) > 100 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.country", *body.Country, utf8.RuneCountInString(*body.Country), 100, false))
 		}
 	}
 	if body.Organization != nil {
