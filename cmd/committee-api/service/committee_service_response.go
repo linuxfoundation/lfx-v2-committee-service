@@ -73,6 +73,8 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               p.Writers,
 		Auditors:              p.Auditors,
+		ShowMeetingAttendees:  p.ShowMeetingAttendees,
+		MemberVisibility:      p.MemberVisibility,
 	}
 
 	// Handle LastReviewedAt - GOA validates format via Pattern constraint
@@ -147,6 +149,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               p.Writers,
 		Auditors:              p.Auditors,
+		ShowMeetingAttendees:  p.ShowMeetingAttendees,
+		MemberVisibility:      p.MemberVisibility,
 	}
 
 	return settings
@@ -213,6 +217,9 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		if len(response.Auditors) > 0 {
 			result.Auditors = response.Auditors
 		}
+
+		result.ShowMeetingAttendees = response.ShowMeetingAttendees
+		result.MemberVisibility = response.MemberVisibility
 	}
 
 	return result
@@ -280,6 +287,8 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:                   &settings.UID,
 		BusinessEmailRequired: settings.BusinessEmailRequired,
+		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
+		MemberVisibility:      settings.MemberVisibility,
 	}
 
 	// Only set optional fields if they have values
