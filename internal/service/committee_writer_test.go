@@ -516,6 +516,13 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				References: map[string]string{
 					"project": "project-1",
 				},
+				Policy: []model.CommitteePolicyAccessMessage{
+					{
+						Name:     "visibility_policy",
+						Relation: "hides_basic_profile",
+						Value:    "hidden",
+					},
+				},
 			},
 		},
 		{
@@ -542,6 +549,13 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				References: map[string]string{
 					"project": "project-2",
 				},
+				Policy: []model.CommitteePolicyAccessMessage{
+					{
+						Name:     "visibility_policy",
+						Relation: "hides_basic_profile",
+						Value:    "hidden",
+					},
+				},
 			},
 		},
 		{
@@ -562,6 +576,13 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Relations:  map[string][]string{},
 				References: map[string]string{
 					"project": "project-3",
+				},
+				Policy: []model.CommitteePolicyAccessMessage{
+					{
+						Name:     "visibility_policy",
+						Relation: "hides_basic_profile",
+						Value:    "hidden",
+					},
 				},
 			},
 		},

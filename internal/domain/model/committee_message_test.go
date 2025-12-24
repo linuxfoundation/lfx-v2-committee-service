@@ -343,3 +343,169 @@ func TestCommitteeIndexerMessage_Build_DeleteAction_RawUID(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteePolicyAccessMessage_SetVisibilityPolicy(t *testing.T) {
+	tests := []struct {
+		name             string
+		value            string
+		expectedName     string
+		expectedRelation string
+		expectedValue    string
+		shouldSetPolicy  bool
+	}{
+		{
+			name:             "Set policy with basic_profile value",
+			value:            PolicyVisibilityAllowsBasicProfile,
+			expectedName:     PolicyVisibilityName,
+			expectedRelation: "allows_basic_profile",
+			expectedValue:    PolicyVisibilityAllowsBasicProfile,
+			shouldSetPolicy:  true,
+		},
+		{
+			name:             "Set policy with hidden value",
+			value:            PolicyVisibilityHidesProfile,
+			expectedName:     PolicyVisibilityName,
+			expectedRelation: "hides_basic_profile",
+			expectedValue:    PolicyVisibilityHidesProfile,
+			shouldSetPolicy:  true,
+		},
+		{
+			name:             "Invalid policy value should not set fields",
+			value:            "invalid_policy",
+			expectedName:     "",
+			expectedRelation: "",
+			expectedValue:    "",
+			shouldSetPolicy:  false,
+		},
+		{
+			name:             "Empty string should not set fields",
+			value:            "",
+			expectedName:     "",
+			expectedRelation: "",
+			expectedValue:    "",
+			shouldSetPolicy:  false,
+		},
+		{
+			name:             "Random string should not set fields",
+			value:            "some_random_value",
+			expectedName:     "",
+			expectedRelation: "",
+			expectedValue:    "",
+			shouldSetPolicy:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			policy := &CommitteePolicyAccessMessage{}
+
+			// Act
+			policy.SetVisibilityPolicy(tt.value)
+
+			// Assert
+			if tt.shouldSetPolicy {
+				assert.Equal(t, tt.expectedName, policy.Name, "Name should match expected value")
+				assert.Equal(t, tt.expectedRelation, policy.Relation, "Relation should match expected value")
+				assert.Equal(t, tt.expectedValue, policy.Value, "Value should match expected value")
+			} else {
+				assert.Empty(t, policy.Name, "Name should remain empty for invalid values")
+				assert.Empty(t, policy.Relation, "Relation should remain empty for invalid values")
+				assert.Empty(t, policy.Value, "Value should remain empty for invalid values")
+			}
+		})
+	}
+}
+
+func TestCommitteePolicyAccessMessage_SetVisibilityPolicy_Overwrite(t *testing.T) {
+	t.Run("Overwrite existing policy with new valid value", func(t *testing.T) {
+		// Arrange
+		policy := &CommitteePolicyAccessMessage{
+			Name:     "old_policy",
+			Relation: "old_relation",
+			Value:    "old_value",
+		}
+
+		// Act - Set to basic_profile
+		policy.SetVisibilityPolicy(PolicyVisibilityAllowsBasicProfile)
+
+		// Assert
+		assert.Equal(t, PolicyVisibilityName, policy.Name)
+		assert.Equal(t, "allows_basic_profile", policy.Relation)
+		assert.Equal(t, PolicyVisibilityAllowsBasicProfile, policy.Value)
+
+		// Act - Set to hidden
+		policy.SetVisibilityPolicy(PolicyVisibilityHidesProfile)
+
+		// Assert
+		assert.Equal(t, PolicyVisibilityName, policy.Name)
+		assert.Equal(t, "hides_basic_profile", policy.Relation)
+		assert.Equal(t, PolicyVisibilityHidesProfile, policy.Value)
+	})
+
+	t.Run("Attempt to overwrite with invalid value should keep previous valid value", func(t *testing.T) {
+		// Arrange
+		policy := &CommitteePolicyAccessMessage{
+			Name:     PolicyVisibilityName,
+			Relation: "allows_basic_profile",
+			Value:    PolicyVisibilityAllowsBasicProfile,
+		}
+
+		// Act - Try to set invalid value
+		policy.SetVisibilityPolicy("invalid_value")
+
+		// Assert - Should keep previous values
+		assert.Equal(t, PolicyVisibilityName, policy.Name)
+		assert.Equal(t, "allows_basic_profile", policy.Relation)
+		assert.Equal(t, PolicyVisibilityAllowsBasicProfile, policy.Value)
+	})
+}
+
+func TestCommitteePolicyAccessMessage_SetVisibilityPolicy_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		description string
+	}{
+		{
+			name:        "Case sensitivity - uppercase should not match",
+			value:       "BASIC_PROFILE",
+			description: "Policy values are case-sensitive",
+		},
+		{
+			name:        "Case sensitivity - mixed case should not match",
+			value:       "Basic_Profile",
+			description: "Policy values are case-sensitive",
+		},
+		{
+			name:        "Whitespace - should not match with leading space",
+			value:       " basic_profile",
+			description: "No trimming is performed",
+		},
+		{
+			name:        "Whitespace - should not match with trailing space",
+			value:       "basic_profile ",
+			description: "No trimming is performed",
+		},
+		{
+			name:        "Similar but wrong value",
+			value:       "basic_profile_visible",
+			description: "Must be exact match",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			policy := &CommitteePolicyAccessMessage{}
+
+			// Act
+			policy.SetVisibilityPolicy(tt.value)
+
+			// Assert - None of these should set the policy
+			assert.Empty(t, policy.Name, tt.description)
+			assert.Empty(t, policy.Relation, tt.description)
+			assert.Empty(t, policy.Value, tt.description)
+		})
+	}
+}

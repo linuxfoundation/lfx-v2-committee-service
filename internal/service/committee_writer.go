@@ -238,6 +238,17 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		message.Relations[constants.RelationAuditor] = committee.Auditors
 	}
 
+	// visibility policy
+	// default - hidden
+	visibilityPolicy := model.CommitteePolicyAccessMessage{}
+	visibilityPolicy.SetVisibilityPolicy(model.PolicyVisibilityHidesProfile)
+	if committee.CommitteeSettings != nil && committee.MemberVisibility != "" {
+		// if exist, it overrides default
+		visibilityPolicy.SetVisibilityPolicy(committee.MemberVisibility)
+	}
+	// Set all policies
+	message.Policy = []model.CommitteePolicyAccessMessage{visibilityPolicy}
+
 	slog.DebugContext(ctx, "building access control message",
 		"message", message,
 	)
