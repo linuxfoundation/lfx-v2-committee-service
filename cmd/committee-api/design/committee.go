@@ -349,7 +349,7 @@ var _ = dsl.Service("committee-service", func() {
 		})
 
 		dsl.Result(func() {
-			dsl.Attribute("member", CommitteeMemberFullWithReadonlyAttributes)
+			dsl.Attribute("member", CommitteeMemberBasicWithReadonlyAttributes)
 			ETagAttribute()
 			dsl.Required("member")
 		})

@@ -572,7 +572,6 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 			}
 		}
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
 		if body.FirstName != nil {
 			if utf8.RuneCountInString(*body.FirstName) > 100 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -632,6 +631,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 			}
 		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
 		if err != nil {
 			return nil, err
 		}
@@ -671,13 +671,13 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
-		Email:           body.Email,
 		FirstName:       body.FirstName,
 		LastName:        body.LastName,
 		JobTitle:        body.JobTitle,
 		LinkedinProfile: body.LinkedinProfile,
 		AppointedBy:     body.AppointedBy,
 		Status:          body.Status,
+		Email:           body.Email,
 	}
 	if body.Role != nil {
 		v.Role = &struct {
@@ -813,7 +813,6 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 			}
 		}
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
 		if body.FirstName != nil {
 			if utf8.RuneCountInString(*body.FirstName) > 100 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -873,6 +872,7 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 			}
 		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
 		if err != nil {
 			return nil, err
 		}
@@ -926,13 +926,13 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
-		Email:           body.Email,
 		FirstName:       body.FirstName,
 		LastName:        body.LastName,
 		JobTitle:        body.JobTitle,
 		LinkedinProfile: body.LinkedinProfile,
 		AppointedBy:     body.AppointedBy,
 		Status:          body.Status,
+		Email:           body.Email,
 	}
 	if body.Role != nil {
 		v.Role = &struct {

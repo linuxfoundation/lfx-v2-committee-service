@@ -760,14 +760,13 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                                $ref: '#/components/schemas/CommitteeMemberBasicWithReadonlyAttributes'
                             example:
                                 appointed_by: Community
                                 committee_category: Board
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                email: user@example.com
                                 first_name: John
                                 job_title: Chief Technology Officer
                                 last_name: Doe
@@ -1811,11 +1810,6 @@ components:
                         - Vote of Silver Member Class
                         - Vote of Strategic Membership Class
                         - None
-                email:
-                    type: string
-                    description: Primary email address
-                    example: user@example.com
-                    format: email
                 first_name:
                     type: string
                     description: First name
@@ -1939,7 +1933,6 @@ components:
             description: A base representation of committee members.
             example:
                 appointed_by: Community
-                email: user@example.com
                 first_name: John
                 job_title: Chief Technology Officer
                 last_name: Doe
@@ -1953,6 +1946,208 @@ components:
                     name: Chair
                     start_date: "2023-01-01"
                 status: Active
+                username: user123
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+        CommitteeMemberBasicWithReadonlyAttributes:
+            type: object
+            properties:
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                committee_category:
+                    type: string
+                    description: The category of the committee this member belongs to
+                    example: Board
+                    maxLength: 100
+                committee_name:
+                    type: string
+                    description: The name of the committee this member belongs to
+                    example: Technical Steering Committee
+                    maxLength: 100
+                committee_uid:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                first_name:
+                    type: string
+                    description: First name
+                    example: John
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Doe
+                    maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/johndoe
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Counsel
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                uid:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                updated_at:
+                    type: string
+                    description: The timestamp when the resource was last updated (read-only)
+                    example: "2023-06-20T14:45:30Z"
+                    format: date-time
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: user123
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            description: A basic representation of committee members with readonly attributes.
+            example:
+                appointed_by: Community
+                committee_category: Board
+                committee_name: Technical Steering Committee
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                first_name: John
+                job_title: Chief Technology Officer
+                last_name: Doe
+                linkedin_profile: https://www.linkedin.com/in/johndoe
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                updated_at: "2023-06-20T14:45:30Z"
                 username: user123
                 voting:
                     end_date: "2024-12-31"
@@ -2338,6 +2533,17 @@ components:
                     end_date: "2024-12-31"
                     start_date: "2023-01-01"
                     status: Voting Rep
+        CommitteeMemberSensitive:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+            description: Sensitive information of a committee member.
+            example:
+                email: user@example.com
         CommitteeSettings:
             type: object
             properties:

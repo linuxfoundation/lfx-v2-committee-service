@@ -251,7 +251,8 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	}
 
 	// Convert domain model to GOA response
-	result := s.convertMemberDomainToFullResponse(committeeMember)
+	// Only basic info, no sensitive data
+	result := s.convertMemberDomainBasicResponse(committeeMember)
 
 	// Create result with ETag (using revision from NATS)
 	revisionStr := fmt.Sprintf("%d", revision)

@@ -384,14 +384,18 @@ func AuditorsAttribute() {
 // CommitteeMemberBase is the DSL type for a committee member base.
 var CommitteeMemberBase = dsl.Type("committee-member-base", func() {
 	dsl.Description("A base representation of committee members.")
-
 	CommitteeMemberBaseAttributes()
+})
+
+// CommitteeMemberSensitive is the DSL type for a committee member sensitive information.
+var CommitteeMemberSensitive = dsl.Type("committee-member-sensitive", func() {
+	dsl.Description("Sensitive information of a committee member.")
+	CommitteeMemberSensitiveAttributes()
 })
 
 // CommitteeMemberBaseAttributes defines the base attributes for a committee member.
 func CommitteeMemberBaseAttributes() {
 	UsernameAttribute()
-	EmailAttribute()
 	FirstNameAttribute()
 	LastNameAttribute()
 	JobTitleAttribute()
@@ -403,11 +407,30 @@ func CommitteeMemberBaseAttributes() {
 	OrganizationInfoAttributes()
 }
 
+// CommitteeMemberSensitiveAttributes defines the sensitive attributes for a committee member.
+func CommitteeMemberSensitiveAttributes() {
+	EmailAttribute()
+}
+
 // CommitteeMemberFull is the DSL type for a complete committee member.
 var CommitteeMemberFull = dsl.Type("committee-member-full", func() {
 	dsl.Description("A complete representation of committee members with all attributes.")
 
 	CommitteeMemberBaseAttributes()
+	CommitteeMemberSensitiveAttributes()
+})
+
+// CommitteeMemberBasicWithReadonlyAttributes is the DSL type for a basic committee member with readonly attributes.
+var CommitteeMemberBasicWithReadonlyAttributes = dsl.Type("committee-member-basic-with-readonly-attributes", func() {
+	dsl.Description("A basic representation of committee members with readonly attributes.")
+
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
+	CommitteeMemberBaseAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
 })
 
 // CommitteeMemberFullWithReadonlyAttributes is the DSL type for a complete committee member with readonly attributes.
@@ -419,6 +442,7 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	CommitteeNameMemberAttribute()
 	CommitteeCategoryMemberAttribute()
 	CommitteeMemberBaseAttributes()
+	CommitteeMemberSensitiveAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
@@ -426,11 +450,13 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
 func CommitteeMemberCreateAttributes() {
 	CommitteeMemberBaseAttributes()
+	CommitteeMemberSensitiveAttributes()
 }
 
 // CommitteeMemberUpdateAttributes defines attributes for updating a committee member.
 func CommitteeMemberUpdateAttributes() {
 	CommitteeMemberBaseAttributes()
+	CommitteeMemberSensitiveAttributes()
 }
 
 // Organization Information Attributes

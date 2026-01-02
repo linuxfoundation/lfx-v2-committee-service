@@ -321,11 +321,13 @@ func TestUpdateCommitteeMember(t *testing.T) {
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
 						Username:     "testuser",
-						Email:        "test@example.com",
 						FirstName:    "John",
 						LastName:     "Doe",
 						AppointedBy:  "admin",
 						Status:       "active",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
 					},
 				}
 				mock.updateMemberErr = nil

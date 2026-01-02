@@ -18,14 +18,17 @@ import (
 
 // CommitteeMember represents the complete committee member business entity
 type CommitteeMember struct {
+	// CommitteeMemberBase represents the basic profile information
 	CommitteeMemberBase
+	// CommitteeMemberSensitive represents sensitive profile information with
+	// embedded sensitive information - uid is duplicated here for storing sensitive info separately
+	CommitteeMemberSensitive
 }
 
 // CommitteeMemberBase represents the base committee member attributes
 type CommitteeMemberBase struct {
 	UID               string                      `json:"uid"`
 	Username          string                      `json:"username"`
-	Email             string                      `json:"email"`
 	FirstName         string                      `json:"first_name"`
 	LastName          string                      `json:"last_name"`
 	JobTitle          string                      `json:"job_title,omitempty"`
@@ -40,6 +43,11 @@ type CommitteeMemberBase struct {
 	CommitteeCategory string                      `json:"committee_category"`
 	CreatedAt         time.Time                   `json:"created_at"`
 	UpdatedAt         time.Time                   `json:"updated_at"`
+}
+
+// CommitteeMemberSensitive represents sensitive committee member information
+type CommitteeMemberSensitive struct {
+	Email string `json:"email"`
 }
 
 // Role represents committee role information

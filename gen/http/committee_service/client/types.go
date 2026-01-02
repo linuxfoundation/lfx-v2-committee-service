@@ -125,8 +125,6 @@ type UpdateCommitteeSettingsRequestBody struct {
 type CreateCommitteeMemberRequestBody struct {
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email string `form:"email" json:"email" xml:"email"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -166,6 +164,8 @@ type CreateCommitteeMemberRequestBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// Primary email address
+	Email string `form:"email" json:"email" xml:"email"`
 }
 
 // UpdateCommitteeMemberRequestBody is the type of the "committee-service"
@@ -173,8 +173,6 @@ type CreateCommitteeMemberRequestBody struct {
 type UpdateCommitteeMemberRequestBody struct {
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email string `form:"email" json:"email" xml:"email"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -214,6 +212,8 @@ type UpdateCommitteeMemberRequestBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// Primary email address
+	Email string `form:"email" json:"email" xml:"email"`
 }
 
 // CreateCommitteeResponseBody is the type of the "committee-service" service
@@ -362,8 +362,6 @@ type CreateCommitteeMemberResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -403,6 +401,8 @@ type CreateCommitteeMemberResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -411,7 +411,7 @@ type CreateCommitteeMemberResponseBody struct {
 
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
 // service "get-committee-member" endpoint HTTP response body.
-type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
+type GetCommitteeMemberResponseBody CommitteeMemberBasicWithReadonlyAttributesResponseBody
 
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
@@ -426,8 +426,6 @@ type UpdateCommitteeMemberResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -467,6 +465,8 @@ type UpdateCommitteeMemberResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -908,9 +908,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// CommitteeMemberFullWithReadonlyAttributesResponseBody is used to define
+// CommitteeMemberBasicWithReadonlyAttributesResponseBody is used to define
 // fields on response body types.
-type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
+type CommitteeMemberBasicWithReadonlyAttributesResponseBody struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -921,8 +921,6 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -1162,13 +1160,13 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 func NewCreateCommitteeMemberRequestBody(p *committeeservice.CreateCommitteeMemberPayload) *CreateCommitteeMemberRequestBody {
 	body := &CreateCommitteeMemberRequestBody{
 		Username:        p.Username,
-		Email:           p.Email,
 		FirstName:       p.FirstName,
 		LastName:        p.LastName,
 		JobTitle:        p.JobTitle,
 		LinkedinProfile: p.LinkedinProfile,
 		AppointedBy:     p.AppointedBy,
 		Status:          p.Status,
+		Email:           p.Email,
 	}
 	if p.Role != nil {
 		body.Role = &struct {
@@ -1245,13 +1243,13 @@ func NewCreateCommitteeMemberRequestBody(p *committeeservice.CreateCommitteeMemb
 func NewUpdateCommitteeMemberRequestBody(p *committeeservice.UpdateCommitteeMemberPayload) *UpdateCommitteeMemberRequestBody {
 	body := &UpdateCommitteeMemberRequestBody{
 		Username:        p.Username,
-		Email:           p.Email,
 		FirstName:       p.FirstName,
 		LastName:        p.LastName,
 		JobTitle:        p.JobTitle,
 		LinkedinProfile: p.LinkedinProfile,
 		AppointedBy:     p.AppointedBy,
 		Status:          p.Status,
+		Email:           p.Email,
 	}
 	if p.Role != nil {
 		body.Role = &struct {
@@ -1879,11 +1877,11 @@ func NewCreateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesCreated(bo
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
 		LinkedinProfile:   body.LinkedinProfile,
+		Email:             body.Email,
 		CreatedAt:         body.CreatedAt,
 		UpdatedAt:         body.UpdatedAt,
 	}
@@ -2008,13 +2006,12 @@ func NewCreateCommitteeMemberServiceUnavailable(body *CreateCommitteeMemberServi
 // NewGetCommitteeMemberResultOK builds a "committee-service" service
 // "get-committee-member" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeMemberResultOK(body *GetCommitteeMemberResponseBody, etag *string) *committeeservice.GetCommitteeMemberResult {
-	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+	v := &committeeservice.CommitteeMemberBasicWithReadonlyAttributes{
 		UID:               body.UID,
 		CommitteeUID:      body.CommitteeUID,
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -2144,11 +2141,11 @@ func NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK(body *U
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
 		LinkedinProfile:   body.LinkedinProfile,
+		Email:             body.Email,
 		CreatedAt:         body.CreatedAt,
 		UpdatedAt:         body.UpdatedAt,
 	}
@@ -2561,9 +2558,6 @@ func ValidateCreateCommitteeMemberResponseBody(body *CreateCommitteeMemberRespon
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
 	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
-	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -2631,6 +2625,9 @@ func ValidateCreateCommitteeMemberResponseBody(body *CreateCommitteeMemberRespon
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
@@ -2663,9 +2660,6 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -2767,9 +2761,6 @@ func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberRespon
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
 	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
-	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -2836,6 +2827,9 @@ func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberRespon
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
@@ -3351,10 +3345,10 @@ func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *Committee
 	return
 }
 
-// ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody runs the
+// ValidateCommitteeMemberBasicWithReadonlyAttributesResponseBody runs the
 // validations defined on
-// committee-member-full-with-readonly-attributesResponseBody
-func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *CommitteeMemberFullWithReadonlyAttributesResponseBody) (err error) {
+// committee-member-basic-with-readonly-attributesResponseBody
+func ValidateCommitteeMemberBasicWithReadonlyAttributesResponseBody(body *CommitteeMemberBasicWithReadonlyAttributesResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
@@ -3375,9 +3369,6 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {

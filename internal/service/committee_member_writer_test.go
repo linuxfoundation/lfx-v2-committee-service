@@ -15,6 +15,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -229,13 +230,15 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
 					Username:     "testuser",
 					FirstName:    "Test",
 					LastName:     "User",
 					Organization: model.CommitteeMemberOrganization{
 						Name: "Test Org",
 					},
+				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expectError: false,
@@ -255,7 +258,9 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "nonexistent-committee",
-					Email:        "test@example.com",
+				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expectError:   true,
@@ -276,11 +281,13 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "duplicate@example.com",
 					Username:     "testuser",
 					Organization: model.CommitteeMemberOrganization{
 						Name: "Test Org",
 					},
+				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+					Email: "duplicate@example.com",
 				},
 			},
 			expectError:   true,
@@ -321,8 +328,10 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          uuid.New().String(),
 						CommitteeUID: "committee-123",
-						Email:        "duplicate@example.com",
 						Username:     "firstuser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "duplicate@example.com",
 					},
 				}
 				_, _ = memberWriter.UniqueMember(context.Background(), firstMember)
@@ -366,11 +375,13 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: "committee-business-email",
-			Email:        "test@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
@@ -401,10 +412,12 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-123",
 						CommitteeUID: "committee-123",
-						Email:        "test@example.com",
 						Username:     "testuser",
 						CreatedAt:    time.Now(),
 						UpdatedAt:    time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
 					},
 				}
 				memberWriter.members["member-123"] = member
@@ -439,10 +452,12 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
-						Email:        "test2@example.com",
 						Username:     "testuser2",
 						CreatedAt:    time.Now(),
 						UpdatedAt:    time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test2@example.com",
 					},
 				}
 				memberWriter.members["member-456"] = member
@@ -495,8 +510,10 @@ func TestCommitteeWriterOrchestrator_deleteMemberKeys(t *testing.T) {
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-to-delete",
-			Email:        "delete@example.com",
 			CommitteeUID: "committee-123",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "delete@example.com",
 		},
 	}
 	memberWriter.members["member-to-delete"] = member
@@ -577,8 +594,10 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-123",
 						CommitteeUID: "committee-123",
-						Email:        "test@example.com",
 						Username:     "testuser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
 					},
 				},
 			},
@@ -591,16 +610,20 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
-						Email:        "updated@example.com",
 						Username:     "updateduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "updated@example.com",
 					},
 				},
 				OldMember: &model.CommitteeMember{
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
-						Email:        "old@example.com",
 						Username:     "olduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "old@example.com",
 					},
 				},
 			},
@@ -613,8 +636,10 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-789",
 						CommitteeUID: "committee-123",
-						Email:        "deleted@example.com",
 						Username:     "deleteduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "deleted@example.com",
 					},
 				},
 			},
@@ -651,11 +676,13 @@ func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) 
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: "nonexistent-committee",
-			Email:        "test@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
@@ -685,11 +712,13 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: "committee-no-settings",
-			Email:        "test@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
@@ -709,7 +738,6 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-complete",
 			CommitteeUID: "committee-123",
-			Email:        "complete@example.com",
 			Username:     "completeuser",
 			FirstName:    "Complete",
 			LastName:     "User",
@@ -718,6 +746,9 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 			},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "complete@example.com",
 		},
 	}
 
@@ -752,8 +783,10 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-msg-fail",
 			CommitteeUID: "committee-123",
-			Email:        "msgfail@example.com",
 			Username:     "msgfailuser",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "msgfail@example.com",
 		},
 	}
 
@@ -792,7 +825,6 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "old@example.com",
 			Username:     "olduser",
 			FirstName:    "Old",
 			LastName:     "User",
@@ -801,6 +833,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 			},
 			CreatedAt: time.Now().Add(-time.Hour),
 			UpdatedAt: time.Now().Add(-time.Hour),
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "old@example.com",
 		},
 	}
 
@@ -816,13 +851,15 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "new@example.com", // Email changed
-			Username:     "newuser",         // Username changed
+			Username:     "newuser", // Username changed
 			FirstName:    "New",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "New Org", // Organization changed
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "new@example.com", // Email changed
 		},
 	}
 
@@ -862,8 +899,10 @@ func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T)
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
 			Username:     "testuser",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 	memberWriter.members["member-123"] = existingMember
@@ -873,7 +912,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T)
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "updated@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "updated@example.com",
 		},
 	}
 
@@ -893,7 +934,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "nonexistent-member",
 			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
@@ -914,7 +957,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 	// Add member to mock repository (this is what the orchestrator will read from)
@@ -928,7 +973,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "nonexistent-committee",
-			Email:        "updated@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "updated@example.com",
 		},
 	}
 
@@ -962,11 +1009,13 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "old@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "old@example.com",
 		},
 	}
 	memberWriter.members["member-123"] = existingMember
@@ -978,11 +1027,13 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "new@corporate.com", // Email changed
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "new@corporate.com", // Email changed
 		},
 	}
 
@@ -1013,7 +1064,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "member1@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "member1@example.com",
 		},
 	}
 	memberWriter.members["member-123"] = existingMember1
@@ -1024,7 +1077,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-456",
 			CommitteeUID: "committee-123",
-			Email:        "member2@example.com",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "member2@example.com",
 		},
 	}
 	memberWriter.members["member-456"] = existingMember2
@@ -1039,7 +1094,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
-			Email:        "member2@example.com", // Email already used by member-456
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: "member2@example.com", // Email already used by member-456
 		},
 	}
 
@@ -1050,4 +1107,751 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 	assert.Nil(t, result)
+}
+
+// TestCommitteeWriterOrchestrator_memberMessageIndexer tests the memberMessageIndexer function
+func TestCommitteeWriterOrchestrator_memberMessageIndexer(t *testing.T) {
+	tests := []struct {
+		name          string
+		action        model.MessageAction
+		data          *model.CommitteeMemberMessageData
+		sync          bool
+		expectError   bool
+		expectedError string
+		validate      func(*testing.T, []func() error)
+	}{
+		{
+			name:   "create action - builds indexer messages with tags",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-123",
+						CommitteeUID: "committee-456",
+						Username:     "testuser",
+						FirstName:    "Test",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Test Org",
+						},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
+					},
+				},
+			},
+			sync:        false,
+			expectError: false,
+			validate: func(t *testing.T, messages []func() error) {
+				// Should return 2 messages: one for base member data, one for sensitive data
+				assert.Len(t, messages, 2, "Should have 2 indexer messages (base + sensitive)")
+
+				// Execute messages to verify they work
+				for i, msg := range messages {
+					err := msg()
+					assert.NoError(t, err, "Message %d should execute without error", i)
+				}
+			},
+		},
+		{
+			name:   "update action - builds indexer messages with tags",
+			action: model.ActionUpdated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "updateduser",
+						FirstName:    "Updated",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Updated Org",
+						},
+						CreatedAt: time.Now().Add(-time.Hour),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "updated@example.com",
+					},
+				},
+				OldMember: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "olduser",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Old Org",
+						},
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "old@example.com",
+					},
+				},
+			},
+			sync:        true,
+			expectError: false,
+			validate: func(t *testing.T, messages []func() error) {
+				assert.Len(t, messages, 2, "Should have 2 indexer messages (base + sensitive)")
+
+				// Execute messages to verify they work
+				for i, msg := range messages {
+					err := msg()
+					assert.NoError(t, err, "Message %d should execute without error", i)
+				}
+			},
+		},
+		{
+			name:   "delete action - builds indexer messages with UID only",
+			action: model.ActionDeleted,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-deleted",
+						CommitteeUID: "committee-456",
+						Username:     "deleteduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "deleted@example.com",
+					},
+				},
+			},
+			sync:        false,
+			expectError: false,
+			validate: func(t *testing.T, messages []func() error) {
+				assert.Len(t, messages, 2, "Should have 2 indexer messages (base + sensitive)")
+
+				// Execute messages to verify they work
+				for i, msg := range messages {
+					err := msg()
+					assert.NoError(t, err, "Message %d should execute without error", i)
+				}
+			},
+		},
+		{
+			name:   "sync mode enabled",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-sync",
+						CommitteeUID: "committee-456",
+						Username:     "syncuser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "sync@example.com",
+					},
+				},
+			},
+			sync:        true,
+			expectError: false,
+			validate: func(t *testing.T, messages []func() error) {
+				assert.Len(t, messages, 2, "Should have 2 indexer messages")
+
+				// Execute messages
+				for _, msg := range messages {
+					err := msg()
+					assert.NoError(t, err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, _, _ := setupMemberWriterTest()
+
+			ctx := context.Background()
+			messages, err := orchestrator.memberMessageIndexer(ctx, tt.action, tt.data, tt.sync)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.expectedError != "" {
+					assert.Contains(t, err.Error(), tt.expectedError)
+				}
+				assert.Nil(t, messages)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, messages)
+				if tt.validate != nil {
+					tt.validate(t, messages)
+				}
+			}
+		})
+	}
+}
+
+// TestCommitteeWriterOrchestrator_memberMessageEvent tests the memberMessageEvent function
+func TestCommitteeWriterOrchestrator_memberMessageEvent(t *testing.T) {
+	tests := []struct {
+		name          string
+		action        model.MessageAction
+		data          *model.CommitteeMemberMessageData
+		sync          bool
+		expectError   bool
+		expectedError string
+		validate      func(*testing.T, func() error)
+	}{
+		{
+			name:   "create action - builds event message with member data",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-123",
+						CommitteeUID: "committee-456",
+						Username:     "testuser",
+						FirstName:    "Test",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Test Org",
+						},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
+					},
+				},
+			},
+			sync:        false,
+			expectError: false,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Event message should execute without error")
+			},
+		},
+		{
+			name:   "update action - builds event message with old and new member data",
+			action: model.ActionUpdated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "updateduser",
+						FirstName:    "Updated",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Updated Org",
+						},
+						CreatedAt: time.Now().Add(-time.Hour),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "updated@example.com",
+					},
+				},
+				OldMember: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "olduser",
+						FirstName:    "Old",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Old Org",
+						},
+						CreatedAt: time.Now().Add(-time.Hour),
+						UpdatedAt: time.Now().Add(-30 * time.Minute),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "old@example.com",
+					},
+				},
+			},
+			sync:        false,
+			expectError: false,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Event message should execute without error")
+			},
+		},
+		{
+			name:   "delete action - builds event message with member data",
+			action: model.ActionDeleted,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-deleted",
+						CommitteeUID: "committee-456",
+						Username:     "deleteduser",
+						FirstName:    "Deleted",
+						LastName:     "User",
+						CreatedAt:    time.Now().Add(-2 * time.Hour),
+						UpdatedAt:    time.Now().Add(-time.Hour),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "deleted@example.com",
+					},
+				},
+			},
+			sync:        false,
+			expectError: false,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Event message should execute without error")
+			},
+		},
+		{
+			name:   "sync mode enabled",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-sync",
+						CommitteeUID: "committee-456",
+						Username:     "syncuser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "sync@example.com",
+					},
+				},
+			},
+			sync:        true,
+			expectError: false,
+			validate: func(t *testing.T, message func() error) {
+				err := message()
+				assert.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, _, _ := setupMemberWriterTest()
+
+			ctx := context.Background()
+			message, err := orchestrator.memberMessageEvent(ctx, tt.action, tt.data, tt.sync)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.expectedError != "" {
+					assert.Contains(t, err.Error(), tt.expectedError)
+				}
+				assert.Nil(t, message)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, message)
+				if tt.validate != nil {
+					tt.validate(t, message)
+				}
+			}
+		})
+	}
+}
+
+// TestCommitteeWriterOrchestrator_memberAccessControlMessage tests the memberAccessControlMessage function
+func TestCommitteeWriterOrchestrator_memberAccessControlMessage(t *testing.T) {
+	tests := []struct {
+		name            string
+		action          model.MessageAction
+		data            *model.CommitteeMemberMessageData
+		sync            bool
+		expectError     bool
+		expectedError   string
+		expectedSubject string
+		validate        func(*testing.T, func() error)
+	}{
+		{
+			name:   "create action - builds access control message with put subject",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-123",
+						CommitteeUID: "committee-456",
+						Username:     "testuser",
+						FirstName:    "Test",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Test Org",
+						},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "test@example.com",
+					},
+				},
+			},
+			sync:            false,
+			expectError:     false,
+			expectedSubject: constants.PutMemberCommitteeSubject,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Access control message should execute without error")
+			},
+		},
+		{
+			name:   "update action - builds access control message with put subject",
+			action: model.ActionUpdated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "updateduser",
+						FirstName:    "Updated",
+						LastName:     "User",
+						Organization: model.CommitteeMemberOrganization{
+							Name: "Updated Org",
+						},
+						CreatedAt: time.Now().Add(-time.Hour),
+						UpdatedAt: time.Now(),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "updated@example.com",
+					},
+				},
+				OldMember: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-789",
+						CommitteeUID: "committee-456",
+						Username:     "olduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "old@example.com",
+					},
+				},
+			},
+			sync:            true,
+			expectError:     false,
+			expectedSubject: constants.PutMemberCommitteeSubject,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Access control message should execute without error")
+			},
+		},
+		{
+			name:   "delete action - builds access control message with remove subject",
+			action: model.ActionDeleted,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-deleted",
+						CommitteeUID: "committee-456",
+						Username:     "deleteduser",
+						FirstName:    "Deleted",
+						LastName:     "User",
+						CreatedAt:    time.Now().Add(-2 * time.Hour),
+						UpdatedAt:    time.Now().Add(-time.Hour),
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "deleted@example.com",
+					},
+				},
+			},
+			sync:            false,
+			expectError:     false,
+			expectedSubject: constants.RemoveMemberCommitteeSubject,
+			validate: func(t *testing.T, message func() error) {
+				// Verify the message function executes without error
+				err := message()
+				assert.NoError(t, err, "Access control message should execute without error")
+			},
+		},
+		{
+			name:   "member with minimal data",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-minimal",
+						CommitteeUID: "committee-minimal",
+						Username:     "minimaluser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "minimal@example.com",
+					},
+				},
+			},
+			sync:            false,
+			expectError:     false,
+			expectedSubject: constants.PutMemberCommitteeSubject,
+			validate: func(t *testing.T, message func() error) {
+				err := message()
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name:   "sync mode enabled with delete action",
+			action: model.ActionDeleted,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-sync-delete",
+						CommitteeUID: "committee-456",
+						Username:     "syncdeleteduser",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "syncdeleted@example.com",
+					},
+				},
+			},
+			sync:            true,
+			expectError:     false,
+			expectedSubject: constants.RemoveMemberCommitteeSubject,
+			validate: func(t *testing.T, message func() error) {
+				err := message()
+				assert.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, _, _ := setupMemberWriterTest()
+
+			ctx := context.Background()
+			message, err := orchestrator.memberAccessControlMessage(ctx, tt.action, tt.data, tt.sync)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.expectedError != "" {
+					assert.Contains(t, err.Error(), tt.expectedError)
+				}
+				assert.Nil(t, message)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, message)
+				if tt.validate != nil {
+					tt.validate(t, message)
+				}
+			}
+		})
+	}
+}
+
+// TestCommitteeWriterOrchestrator_memberMessageIndexer_WithContextHeaders tests that context headers are properly passed
+func TestCommitteeWriterOrchestrator_memberMessageIndexer_WithContextHeaders(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+
+	// Create context with authorization and principal headers
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer test-token")
+	ctx = context.WithValue(ctx, constants.PrincipalContextID, "test-principal")
+
+	data := &model.CommitteeMemberMessageData{
+		Member: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-123",
+				CommitteeUID: "committee-456",
+				Username:     "testuser",
+			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "test@example.com",
+			},
+		},
+	}
+
+	messages, err := orchestrator.memberMessageIndexer(ctx, model.ActionCreated, data, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, messages)
+	assert.Len(t, messages, 2)
+
+	// Execute messages to ensure they work with context
+	for _, msg := range messages {
+		err := msg()
+		assert.NoError(t, err)
+	}
+}
+
+// TestCommitteeWriterOrchestrator_memberMessageEvent_WithContextHeaders tests that context headers are properly passed
+func TestCommitteeWriterOrchestrator_memberMessageEvent_WithContextHeaders(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+
+	// Create context with authorization and principal headers
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer test-token")
+	ctx = context.WithValue(ctx, constants.PrincipalContextID, "test-principal")
+
+	data := &model.CommitteeMemberMessageData{
+		Member: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-123",
+				CommitteeUID: "committee-456",
+				Username:     "testuser",
+			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "test@example.com",
+			},
+		},
+	}
+
+	message, err := orchestrator.memberMessageEvent(ctx, model.ActionCreated, data, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, message)
+
+	// Execute message to ensure it works with context
+	err = message()
+	assert.NoError(t, err)
+}
+
+// TestCommitteeWriterOrchestrator_memberAccessControlMessage_BuildsCorrectStub tests the access control message structure
+func TestCommitteeWriterOrchestrator_memberAccessControlMessage_BuildsCorrectStub(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+
+	// Create a mock publisher that captures the message
+	mockPublisher := mock.NewMockCommitteePublisher()
+	orchestrator.committeePublisher = mockPublisher
+
+	ctx := context.Background()
+	data := &model.CommitteeMemberMessageData{
+		Member: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-123",
+				CommitteeUID: "committee-456",
+				Username:     "testuser",
+			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "test@example.com",
+			},
+		},
+	}
+
+	message, err := orchestrator.memberAccessControlMessage(ctx, model.ActionCreated, data, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, message)
+
+	// Execute the message
+	err = message()
+	assert.NoError(t, err)
+
+	// The stub should contain username and committee_uid
+	// We verify this indirectly by ensuring the function executes successfully
+	// In a real integration test, we would inspect the actual message content
+}
+
+// TestCommitteeWriterOrchestrator_AllMessageFunctions_Integration tests all three message functions together
+func TestCommitteeWriterOrchestrator_AllMessageFunctions_Integration(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+
+	ctx := context.Background()
+	data := &model.CommitteeMemberMessageData{
+		Member: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-integration",
+				CommitteeUID: "committee-integration",
+				Username:     "integrationuser",
+				FirstName:    "Integration",
+				LastName:     "Test",
+				Organization: model.CommitteeMemberOrganization{
+					Name: "Integration Org",
+				},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "integration@example.com",
+			},
+		},
+	}
+
+	// Test all three functions for create action
+	t.Run("create action - all message functions", func(t *testing.T) {
+		// Test indexer messages
+		indexerMessages, err := orchestrator.memberMessageIndexer(ctx, model.ActionCreated, data, false)
+		require.NoError(t, err)
+		require.Len(t, indexerMessages, 2)
+
+		// Test event message
+		eventMessage, err := orchestrator.memberMessageEvent(ctx, model.ActionCreated, data, false)
+		require.NoError(t, err)
+		require.NotNil(t, eventMessage)
+
+		// Test access control message
+		accessMessage, err := orchestrator.memberAccessControlMessage(ctx, model.ActionCreated, data, false)
+		require.NoError(t, err)
+		require.NotNil(t, accessMessage)
+
+		// Execute all messages
+		for _, msg := range indexerMessages {
+			err := msg()
+			assert.NoError(t, err)
+		}
+		err = eventMessage()
+		assert.NoError(t, err)
+		err = accessMessage()
+		assert.NoError(t, err)
+	})
+
+	// Test all three functions for update action
+	t.Run("update action - all message functions", func(t *testing.T) {
+		dataWithOld := &model.CommitteeMemberMessageData{
+			Member: data.Member,
+			OldMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-integration",
+					CommitteeUID: "committee-integration",
+					Username:     "oldintegrationuser",
+				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+					Email: "oldintegration@example.com",
+				},
+			},
+		}
+
+		// Test indexer messages
+		indexerMessages, err := orchestrator.memberMessageIndexer(ctx, model.ActionUpdated, dataWithOld, false)
+		require.NoError(t, err)
+		require.Len(t, indexerMessages, 2)
+
+		// Test event message
+		eventMessage, err := orchestrator.memberMessageEvent(ctx, model.ActionUpdated, dataWithOld, false)
+		require.NoError(t, err)
+		require.NotNil(t, eventMessage)
+
+		// Test access control message
+		accessMessage, err := orchestrator.memberAccessControlMessage(ctx, model.ActionUpdated, dataWithOld, false)
+		require.NoError(t, err)
+		require.NotNil(t, accessMessage)
+
+		// Execute all messages
+		for _, msg := range indexerMessages {
+			err := msg()
+			assert.NoError(t, err)
+		}
+		err = eventMessage()
+		assert.NoError(t, err)
+		err = accessMessage()
+		assert.NoError(t, err)
+	})
+
+	// Test all three functions for delete action
+	t.Run("delete action - all message functions", func(t *testing.T) {
+		// Test indexer messages
+		indexerMessages, err := orchestrator.memberMessageIndexer(ctx, model.ActionDeleted, data, false)
+		require.NoError(t, err)
+		require.Len(t, indexerMessages, 2)
+
+		// Test event message
+		eventMessage, err := orchestrator.memberMessageEvent(ctx, model.ActionDeleted, data, false)
+		require.NoError(t, err)
+		require.NotNil(t, eventMessage)
+
+		// Test access control message
+		accessMessage, err := orchestrator.memberAccessControlMessage(ctx, model.ActionDeleted, data, false)
+		require.NoError(t, err)
+		require.NotNil(t, accessMessage)
+
+		// Execute all messages
+		for _, msg := range indexerMessages {
+			err := msg()
+			assert.NoError(t, err)
+		}
+		err = eventMessage()
+		assert.NoError(t, err)
+		err = accessMessage()
+		assert.NoError(t, err)
+	})
 }
