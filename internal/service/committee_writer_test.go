@@ -516,6 +516,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				References: map[string]string{
 					"project": "project-1",
 				},
+				Self: []string{},
 			},
 		},
 		{
@@ -542,6 +543,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				References: map[string]string{
 					"project": "project-2",
 				},
+				Self: []string{},
 			},
 		},
 		{
@@ -563,6 +565,63 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				References: map[string]string{
 					"project": "project-3",
 				},
+				Self: []string{},
+			},
+		},
+		{
+			name: "committee with basic_profile member visibility",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-4",
+					ProjectUID: "project-4",
+					Public:     false,
+					ParentUID:  nil,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					MemberVisibility: "basic_profile",
+					Writers:          []string{"writer@example.com"},
+					Auditors:         []string{"auditor@example.com"},
+				},
+			},
+			expected: &model.CommitteeAccessMessage{
+				UID:        "committee-4",
+				ObjectType: "committee",
+				Public:     false,
+				Relations: map[string][]string{
+					"writer":  {"writer@example.com"},
+					"auditor": {"auditor@example.com"},
+				},
+				References: map[string]string{
+					"project": "project-4",
+				},
+				Self: []string{"self_for_member_basic_profile_access"},
+			},
+		},
+		{
+			name: "committee with non-basic_profile member visibility",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-5",
+					ProjectUID: "project-5",
+					Public:     true,
+					ParentUID:  nil,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					MemberVisibility: "full_profile",
+					Writers:          []string{"writer@example.com"},
+				},
+			},
+			expected: &model.CommitteeAccessMessage{
+				UID:        "committee-5",
+				ObjectType: "committee",
+				Public:     true,
+				Relations: map[string][]string{
+					"writer": {"writer@example.com"},
+				},
+				References: map[string]string{
+					"project": "project-5",
+				},
+				Self: []string{},
 			},
 		},
 	}

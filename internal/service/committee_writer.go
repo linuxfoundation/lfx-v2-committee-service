@@ -228,6 +228,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 			// project is required in the flow
 			constants.RelationProject: committee.ProjectUID,
 		},
+		Self: []string{},
 	}
 
 	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
@@ -236,6 +237,10 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 
 	if committee.CommitteeSettings != nil && len(committee.Auditors) > 0 {
 		message.Relations[constants.RelationAuditor] = committee.Auditors
+	}
+
+	if committee.CommitteeSettings != nil && committee.IsMemberVisibilityBasicProfile() {
+		message.Self = append(message.Self, constants.RelationSelfForMemberBasicProfileAccess)
 	}
 
 	slog.DebugContext(ctx, "building access control message",

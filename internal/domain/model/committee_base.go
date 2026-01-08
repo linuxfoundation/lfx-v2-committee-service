@@ -18,6 +18,8 @@ import (
 
 const (
 	categoryGovernmentAdvisoryCouncil = "Government Advisory Council"
+
+	memberVisibilityBasicProfileSetting = "basic_profile"
 )
 
 // Committee represents the core committee business entity
@@ -154,4 +156,13 @@ func (c *Committee) Tags() []string {
 // IsGovernmentAdvisoryCouncil returns true if the committee is a Government Advisory Council
 func (c *Committee) IsGovernmentAdvisoryCouncil() bool {
 	return c.Category == categoryGovernmentAdvisoryCouncil
+}
+
+// IsMemberVisibilityBasicProfile returns true if the committee's member visibility setting is "basic_profile"
+func (c *Committee) IsMemberVisibilityBasicProfile() bool {
+	if c.CommitteeSettings == nil {
+		return false
+	}
+
+	return c.MemberVisibility == memberVisibilityBasicProfileSetting
 }

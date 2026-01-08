@@ -12,4 +12,6 @@ const (
 	RelationWriter = "writer"
 	// RelationAuditor is the relation name for the auditor of an object.
 	RelationAuditor = "auditor"
+	// RelationSelfForMemberBasicProfileAccess is the relation name for committee members to access basic profile info.
+	RelationSelfForMemberBasicProfileAccess = "self_for_member_basic_profile_access"
 )

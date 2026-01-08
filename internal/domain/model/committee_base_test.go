@@ -590,3 +590,66 @@ func BenchmarkCommitteeTags_Parallel(b *testing.B) {
 		}
 	})
 }
+
+func TestCommitteeIsMemberVisibilityBasicProfile(t *testing.T) {
+	tests := []struct {
+		name      string
+		committee Committee
+		expected  bool
+	}{
+		{
+			name: "returns true when member visibility is basic_profile",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{},
+				CommitteeSettings: &CommitteeSettings{
+					MemberVisibility: "basic_profile",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "returns false when member visibility is full_profile",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{},
+				CommitteeSettings: &CommitteeSettings{
+					MemberVisibility: "full_profile",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "returns false when member visibility is empty string",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{},
+				CommitteeSettings: &CommitteeSettings{
+					MemberVisibility: "",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "returns false when member visibility is other value",
+			committee: Committee{
+				CommitteeBase: CommitteeBase{},
+				CommitteeSettings: &CommitteeSettings{
+					MemberVisibility: "private",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "returns false when CommitteeSettings is nil",
+			committee: Committee{
+				CommitteeBase:     CommitteeBase{},
+				CommitteeSettings: nil,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.committee.IsMemberVisibilityBasicProfile())
+		})
+	}
+}

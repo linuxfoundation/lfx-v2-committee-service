@@ -245,7 +245,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: viewer
+              relation: basic_profile_viewer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
