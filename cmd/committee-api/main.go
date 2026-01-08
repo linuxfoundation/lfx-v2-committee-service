@@ -20,6 +20,7 @@ import (
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 
 	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"goa.design/clue/debug"
 )
@@ -52,6 +53,20 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
+
+	// Set up OpenTelemetry SDK.
+	otelConfig := utils.OTelConfigFromEnv()
+	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
+	if err != nil {
+		slog.ErrorContext(ctx, "error setting up OpenTelemetry SDK", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
+			slog.ErrorContext(ctx, "error shutting down OpenTelemetry SDK", "error", shutdownErr)
+		}
+	}()
+
 	slog.InfoContext(ctx, "Starting query service",
 		"bind", *bind,
 		"http-port", *port,
