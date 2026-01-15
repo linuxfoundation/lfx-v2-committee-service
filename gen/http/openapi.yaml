@@ -614,6 +614,75 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/members/{member_uid}/contact:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-member-contact committee-service
+            description: Get contact information for a specific committee member (auditor access)
+            operationId: committee-service#get-committee-member-contact
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeServiceGetCommitteeMemberContactResponseBody'
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            type: string
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/settings:
         get:
             tags:
@@ -1293,6 +1362,42 @@ definitions:
                 end_date: "2024-12-31"
                 start_date: "2023-01-01"
                 status: Voting Rep
+    CommitteeMemberContactWithReadonlyAttributes:
+        title: CommitteeMemberContactWithReadonlyAttributes
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID -- v2 uid, not related to v1 id directly
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            created_at:
+                type: string
+                description: The timestamp when the resource was created (read-only)
+                example: "2023-01-15T10:30:00Z"
+                format: date-time
+            email:
+                type: string
+                description: Primary email address
+                example: user@example.com
+                format: email
+            uid:
+                type: string
+                description: Committee member UID -- v2 uid, not related to v1 id directly
+                example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                format: uuid
+            updated_at:
+                type: string
+                description: The timestamp when the resource was last updated (read-only)
+                example: "2023-06-20T14:45:30Z"
+                format: date-time
+        description: Contact information for a committee member, accessible by auditors.
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            created_at: "2023-01-15T10:30:00Z"
+            email: user@example.com
+            uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            updated_at: "2023-06-20T14:45:30Z"
     CommitteeMemberFullWithReadonlyAttributes:
         title: CommitteeMemberFullWithReadonlyAttributes
         type: object
@@ -1843,6 +1948,9 @@ definitions:
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
+    CommitteeServiceGetCommitteeMemberContactResponseBody:
+        title: CommitteeServiceGetCommitteeMemberContactResponseBody
+        $ref: '#/definitions/CommitteeMemberContactWithReadonlyAttributes'
     CommitteeServiceGetCommitteeMemberResponseBody:
         title: CommitteeServiceGetCommitteeMemberResponseBody
         $ref: '#/definitions/CommitteeMemberBasicWithReadonlyAttributes'

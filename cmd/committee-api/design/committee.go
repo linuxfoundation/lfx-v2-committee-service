@@ -376,6 +376,49 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// GET - Get committee member contact information
+	dsl.Method("get-committee-member-contact", func() {
+		dsl.Description("Get contact information for a specific committee member (auditor access)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			MemberUIDAttribute()
+
+			dsl.Required("version", "uid", "member_uid")
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("contact", CommitteeMemberContactWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("contact")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Member not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/members/{member_uid}/contact")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("contact")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// PUT - Replace committee member (complete resource replacement)
 	// This endpoint follows PUT semantics: it replaces the entire member resource.
 	// All required fields must be provided, even if unchanged.

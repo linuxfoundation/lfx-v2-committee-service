@@ -1467,6 +1467,167 @@ func DecodeGetCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decod
 	}
 }
 
+// BuildGetCommitteeMemberContactRequest instantiates a HTTP request object
+// with method and path set to call the "committee-service" service
+// "get-committee-member-contact" endpoint
+func (c *Client) BuildGetCommitteeMemberContactRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		memberUID string
+	)
+	{
+		p, ok := v.(*committeeservice.GetCommitteeMemberContactPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "get-committee-member-contact", "*committeeservice.GetCommitteeMemberContactPayload", v)
+		}
+		uid = p.UID
+		memberUID = p.MemberUID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetCommitteeMemberContactCommitteeServicePath(uid, memberUID)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-committee-member-contact", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGetCommitteeMemberContactRequest returns an encoder for requests sent
+// to the committee-service get-committee-member-contact server.
+func EncodeGetCommitteeMemberContactRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GetCommitteeMemberContactPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "get-committee-member-contact", "*committeeservice.GetCommitteeMemberContactPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeGetCommitteeMemberContactResponse returns a decoder for responses
+// returned by the committee-service get-committee-member-contact endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeGetCommitteeMemberContactResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGetCommitteeMemberContactResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetCommitteeMemberContactResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member-contact", err)
+			}
+			err = ValidateGetCommitteeMemberContactResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member-contact", err)
+			}
+			var (
+				etag *string
+			)
+			etagRaw := resp.Header.Get("Etag")
+			if etagRaw != "" {
+				etag = &etagRaw
+			}
+			res := NewGetCommitteeMemberContactResultOK(&body, etag)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body GetCommitteeMemberContactBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member-contact", err)
+			}
+			err = ValidateGetCommitteeMemberContactBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member-contact", err)
+			}
+			return nil, NewGetCommitteeMemberContactBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body GetCommitteeMemberContactInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member-contact", err)
+			}
+			err = ValidateGetCommitteeMemberContactInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member-contact", err)
+			}
+			return nil, NewGetCommitteeMemberContactInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body GetCommitteeMemberContactNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member-contact", err)
+			}
+			err = ValidateGetCommitteeMemberContactNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member-contact", err)
+			}
+			return nil, NewGetCommitteeMemberContactNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GetCommitteeMemberContactServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-member-contact", err)
+			}
+			err = ValidateGetCommitteeMemberContactServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-member-contact", err)
+			}
+			return nil, NewGetCommitteeMemberContactServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-committee-member-contact", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // BuildUpdateCommitteeMemberRequest instantiates a HTTP request object with
 // method and path set to call the "committee-service" service
 // "update-committee-member" endpoint

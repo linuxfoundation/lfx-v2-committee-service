@@ -16,36 +16,38 @@ import (
 
 // Client is the "committee-service" service client.
 type Client struct {
-	CreateCommitteeEndpoint         goa.Endpoint
-	GetCommitteeBaseEndpoint        goa.Endpoint
-	UpdateCommitteeBaseEndpoint     goa.Endpoint
-	DeleteCommitteeEndpoint         goa.Endpoint
-	GetCommitteeSettingsEndpoint    goa.Endpoint
-	UpdateCommitteeSettingsEndpoint goa.Endpoint
-	ReadyzEndpoint                  goa.Endpoint
-	LivezEndpoint                   goa.Endpoint
-	CreateCommitteeMemberEndpoint   goa.Endpoint
-	GetCommitteeMemberEndpoint      goa.Endpoint
-	UpdateCommitteeMemberEndpoint   goa.Endpoint
-	DeleteCommitteeMemberEndpoint   goa.Endpoint
+	CreateCommitteeEndpoint           goa.Endpoint
+	GetCommitteeBaseEndpoint          goa.Endpoint
+	UpdateCommitteeBaseEndpoint       goa.Endpoint
+	DeleteCommitteeEndpoint           goa.Endpoint
+	GetCommitteeSettingsEndpoint      goa.Endpoint
+	UpdateCommitteeSettingsEndpoint   goa.Endpoint
+	ReadyzEndpoint                    goa.Endpoint
+	LivezEndpoint                     goa.Endpoint
+	CreateCommitteeMemberEndpoint     goa.Endpoint
+	GetCommitteeMemberEndpoint        goa.Endpoint
+	GetCommitteeMemberContactEndpoint goa.Endpoint
+	UpdateCommitteeMemberEndpoint     goa.Endpoint
+	DeleteCommitteeMemberEndpoint     goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getCommitteeMemberContact, updateCommitteeMember, deleteCommitteeMember goa.Endpoint) *Client {
 	return &Client{
-		CreateCommitteeEndpoint:         createCommittee,
-		GetCommitteeBaseEndpoint:        getCommitteeBase,
-		UpdateCommitteeBaseEndpoint:     updateCommitteeBase,
-		DeleteCommitteeEndpoint:         deleteCommittee,
-		GetCommitteeSettingsEndpoint:    getCommitteeSettings,
-		UpdateCommitteeSettingsEndpoint: updateCommitteeSettings,
-		ReadyzEndpoint:                  readyz,
-		LivezEndpoint:                   livez,
-		CreateCommitteeMemberEndpoint:   createCommitteeMember,
-		GetCommitteeMemberEndpoint:      getCommitteeMember,
-		UpdateCommitteeMemberEndpoint:   updateCommitteeMember,
-		DeleteCommitteeMemberEndpoint:   deleteCommitteeMember,
+		CreateCommitteeEndpoint:           createCommittee,
+		GetCommitteeBaseEndpoint:          getCommitteeBase,
+		UpdateCommitteeBaseEndpoint:       updateCommitteeBase,
+		DeleteCommitteeEndpoint:           deleteCommittee,
+		GetCommitteeSettingsEndpoint:      getCommitteeSettings,
+		UpdateCommitteeSettingsEndpoint:   updateCommitteeSettings,
+		ReadyzEndpoint:                    readyz,
+		LivezEndpoint:                     livez,
+		CreateCommitteeMemberEndpoint:     createCommitteeMember,
+		GetCommitteeMemberEndpoint:        getCommitteeMember,
+		GetCommitteeMemberContactEndpoint: getCommitteeMemberContact,
+		UpdateCommitteeMemberEndpoint:     updateCommitteeMember,
+		DeleteCommitteeMemberEndpoint:     deleteCommitteeMember,
 	}
 }
 
@@ -205,6 +207,23 @@ func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPa
 		return
 	}
 	return ires.(*GetCommitteeMemberResult), nil
+}
+
+// GetCommitteeMemberContact calls the "get-committee-member-contact" endpoint
+// of the "committee-service" service.
+// GetCommitteeMemberContact may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Member not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeMemberContact(ctx context.Context, p *GetCommitteeMemberContactPayload) (res *GetCommitteeMemberContactResult, err error) {
+	var ires any
+	ires, err = c.GetCommitteeMemberContactEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GetCommitteeMemberContactResult), nil
 }
 
 // UpdateCommitteeMember calls the "update-committee-member" endpoint of the

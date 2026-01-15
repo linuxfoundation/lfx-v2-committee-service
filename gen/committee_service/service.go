@@ -36,6 +36,8 @@ type Service interface {
 	CreateCommitteeMember(context.Context, *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Get a specific committee member by UID
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
+	// Get contact information for a specific committee member (auditor access)
+	GetCommitteeMemberContact(context.Context, *GetCommitteeMemberContactPayload) (res *GetCommitteeMemberContactResult, err error)
 	// Replace an existing committee member (requires complete resource)
 	UpdateCommitteeMember(context.Context, *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Remove a member from a committee
@@ -62,7 +64,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [12]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member"}
+var MethodNames = [13]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-committee-member-contact", "update-committee-member", "delete-committee-member"}
 
 // CommitteeBaseWithReadonlyAttributes is the result type of the
 // committee-service service update-committee-base method.
@@ -217,6 +219,20 @@ type CommitteeMemberBasicWithReadonlyAttributes struct {
 		// Organization website URL
 		Website *string
 	}
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string
+}
+
+// Contact information for a committee member, accessible by auditors.
+type CommitteeMemberContactWithReadonlyAttributes struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string
+	// Primary email address
+	Email *string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -469,6 +485,27 @@ type GetCommitteeBasePayload struct {
 // get-committee-base method.
 type GetCommitteeBaseResult struct {
 	CommitteeBase *CommitteeBaseWithReadonlyAttributes
+	// ETag header value
+	Etag *string
+}
+
+// GetCommitteeMemberContactPayload is the payload type of the
+// committee-service service get-committee-member-contact method.
+type GetCommitteeMemberContactPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	MemberUID string
+}
+
+// GetCommitteeMemberContactResult is the result type of the committee-service
+// service get-committee-member-contact method.
+type GetCommitteeMemberContactResult struct {
+	Contact *CommitteeMemberContactWithReadonlyAttributes
 	// ETag header value
 	Etag *string
 }

@@ -413,6 +413,10 @@ type CreateCommitteeMemberResponseBody struct {
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberBasicWithReadonlyAttributesResponseBody
 
+// GetCommitteeMemberContactResponseBody is the type of the "committee-service"
+// service "get-committee-member-contact" endpoint HTTP response body.
+type GetCommitteeMemberContactResponseBody CommitteeMemberContactWithReadonlyAttributesResponseBody
+
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
 type UpdateCommitteeMemberResponseBody struct {
@@ -761,6 +765,38 @@ type GetCommitteeMemberServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// GetCommitteeMemberContactBadRequestResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "BadRequest" error.
+type GetCommitteeMemberContactBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCommitteeMemberContactInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCommitteeMemberContactInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCommitteeMemberContactNotFoundResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCommitteeMemberContactNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCommitteeMemberContactServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCommitteeMemberContactServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // UpdateCommitteeMemberBadRequestResponseBody is the type of the
 // "committee-service" service "update-committee-member" endpoint HTTP response
 // body for the "BadRequest" error.
@@ -960,6 +996,21 @@ type CommitteeMemberBasicWithReadonlyAttributesResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeMemberContactWithReadonlyAttributesResponseBody is used to define
+// fields on response body types.
+type CommitteeMemberContactWithReadonlyAttributesResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1435,6 +1486,20 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 	return body
 }
 
+// NewGetCommitteeMemberContactResponseBody builds the HTTP response body from
+// the result of the "get-committee-member-contact" endpoint of the
+// "committee-service" service.
+func NewGetCommitteeMemberContactResponseBody(res *committeeservice.GetCommitteeMemberContactResult) *GetCommitteeMemberContactResponseBody {
+	body := &GetCommitteeMemberContactResponseBody{
+		UID:          res.Contact.UID,
+		CommitteeUID: res.Contact.CommitteeUID,
+		Email:        res.Contact.Email,
+		CreatedAt:    res.Contact.CreatedAt,
+		UpdatedAt:    res.Contact.UpdatedAt,
+	}
+	return body
+}
+
 // NewUpdateCommitteeMemberResponseBody builds the HTTP response body from the
 // result of the "update-committee-member" endpoint of the "committee-service"
 // service.
@@ -1883,6 +1948,46 @@ func NewGetCommitteeMemberServiceUnavailableResponseBody(res *committeeservice.S
 	return body
 }
 
+// NewGetCommitteeMemberContactBadRequestResponseBody builds the HTTP response
+// body from the result of the "get-committee-member-contact" endpoint of the
+// "committee-service" service.
+func NewGetCommitteeMemberContactBadRequestResponseBody(res *committeeservice.BadRequestError) *GetCommitteeMemberContactBadRequestResponseBody {
+	body := &GetCommitteeMemberContactBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCommitteeMemberContactInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "get-committee-member-contact" endpoint
+// of the "committee-service" service.
+func NewGetCommitteeMemberContactInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetCommitteeMemberContactInternalServerErrorResponseBody {
+	body := &GetCommitteeMemberContactInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCommitteeMemberContactNotFoundResponseBody builds the HTTP response
+// body from the result of the "get-committee-member-contact" endpoint of the
+// "committee-service" service.
+func NewGetCommitteeMemberContactNotFoundResponseBody(res *committeeservice.NotFoundError) *GetCommitteeMemberContactNotFoundResponseBody {
+	body := &GetCommitteeMemberContactNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCommitteeMemberContactServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "get-committee-member-contact" endpoint
+// of the "committee-service" service.
+func NewGetCommitteeMemberContactServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetCommitteeMemberContactServiceUnavailableResponseBody {
+	body := &GetCommitteeMemberContactServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewUpdateCommitteeMemberBadRequestResponseBody builds the HTTP response body
 // from the result of the "update-committee-member" endpoint of the
 // "committee-service" service.
@@ -2290,6 +2395,18 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 // get-committee-member endpoint payload.
 func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string) *committeeservice.GetCommitteeMemberPayload {
 	v := &committeeservice.GetCommitteeMemberPayload{}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewGetCommitteeMemberContactPayload builds a committee-service service
+// get-committee-member-contact endpoint payload.
+func NewGetCommitteeMemberContactPayload(uid string, memberUID string, version string, bearerToken *string) *committeeservice.GetCommitteeMemberContactPayload {
+	v := &committeeservice.GetCommitteeMemberContactPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
 	v.Version = version

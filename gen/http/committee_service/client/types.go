@@ -413,6 +413,10 @@ type CreateCommitteeMemberResponseBody struct {
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberBasicWithReadonlyAttributesResponseBody
 
+// GetCommitteeMemberContactResponseBody is the type of the "committee-service"
+// service "get-committee-member-contact" endpoint HTTP response body.
+type GetCommitteeMemberContactResponseBody CommitteeMemberContactWithReadonlyAttributesResponseBody
+
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
 type UpdateCommitteeMemberResponseBody struct {
@@ -761,6 +765,38 @@ type GetCommitteeMemberServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// GetCommitteeMemberContactBadRequestResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "BadRequest" error.
+type GetCommitteeMemberContactBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCommitteeMemberContactInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactNotFoundResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCommitteeMemberContactNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCommitteeMemberContactServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // UpdateCommitteeMemberBadRequestResponseBody is the type of the
 // "committee-service" service "update-committee-member" endpoint HTTP response
 // body for the "BadRequest" error.
@@ -960,6 +996,21 @@ type CommitteeMemberBasicWithReadonlyAttributesResponseBody struct {
 		// Organization website URL
 		Website *string `form:"website" json:"website" xml:"website"`
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeMemberContactWithReadonlyAttributesResponseBody is used to define
+// fields on response body types.
+type CommitteeMemberContactWithReadonlyAttributesResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2131,6 +2182,64 @@ func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnav
 	return v
 }
 
+// NewGetCommitteeMemberContactResultOK builds a "committee-service" service
+// "get-committee-member-contact" endpoint result from a HTTP "OK" response.
+func NewGetCommitteeMemberContactResultOK(body *GetCommitteeMemberContactResponseBody, etag *string) *committeeservice.GetCommitteeMemberContactResult {
+	v := &committeeservice.CommitteeMemberContactWithReadonlyAttributes{
+		UID:          body.UID,
+		CommitteeUID: body.CommitteeUID,
+		Email:        body.Email,
+		CreatedAt:    body.CreatedAt,
+		UpdatedAt:    body.UpdatedAt,
+	}
+	res := &committeeservice.GetCommitteeMemberContactResult{
+		Contact: v,
+	}
+	res.Etag = etag
+
+	return res
+}
+
+// NewGetCommitteeMemberContactBadRequest builds a committee-service service
+// get-committee-member-contact endpoint BadRequest error.
+func NewGetCommitteeMemberContactBadRequest(body *GetCommitteeMemberContactBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactInternalServerError builds a committee-service
+// service get-committee-member-contact endpoint InternalServerError error.
+func NewGetCommitteeMemberContactInternalServerError(body *GetCommitteeMemberContactInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactNotFound builds a committee-service service
+// get-committee-member-contact endpoint NotFound error.
+func NewGetCommitteeMemberContactNotFound(body *GetCommitteeMemberContactNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactServiceUnavailable builds a committee-service
+// service get-committee-member-contact endpoint ServiceUnavailable error.
+func NewGetCommitteeMemberContactServiceUnavailable(body *GetCommitteeMemberContactServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK builds a
 // "committee-service" service "update-committee-member" endpoint result from a
 // HTTP "OK" response.
@@ -2737,6 +2846,27 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 	return
 }
 
+// ValidateGetCommitteeMemberContactResponseBody runs the validations defined
+// on Get-Committee-Member-ContactResponseBody
+func ValidateGetCommitteeMemberContactResponseBody(body *GetCommitteeMemberContactResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateUpdateCommitteeMemberResponseBody runs the validations defined on
 // Update-Committee-MemberResponseBody
 func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberResponseBody) (err error) {
@@ -3171,6 +3301,44 @@ func ValidateGetCommitteeMemberServiceUnavailableResponseBody(body *GetCommittee
 	return
 }
 
+// ValidateGetCommitteeMemberContactBadRequestResponseBody runs the validations
+// defined on get-committee-member-contact_BadRequest_response_body
+func ValidateGetCommitteeMemberContactBadRequestResponseBody(body *GetCommitteeMemberContactBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactInternalServerErrorResponseBody runs the
+// validations defined on
+// get-committee-member-contact_InternalServerError_response_body
+func ValidateGetCommitteeMemberContactInternalServerErrorResponseBody(body *GetCommitteeMemberContactInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactNotFoundResponseBody runs the validations
+// defined on get-committee-member-contact_NotFound_response_body
+func ValidateGetCommitteeMemberContactNotFoundResponseBody(body *GetCommitteeMemberContactNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactServiceUnavailableResponseBody runs the
+// validations defined on
+// get-committee-member-contact_ServiceUnavailable_response_body
+func ValidateGetCommitteeMemberContactServiceUnavailableResponseBody(body *GetCommitteeMemberContactServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateUpdateCommitteeMemberBadRequestResponseBody runs the validations
 // defined on update-committee-member_BadRequest_response_body
 func ValidateUpdateCommitteeMemberBadRequestResponseBody(body *UpdateCommitteeMemberBadRequestResponseBody) (err error) {
@@ -3436,6 +3604,28 @@ func ValidateCommitteeMemberBasicWithReadonlyAttributesResponseBody(body *Commit
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeMemberContactWithReadonlyAttributesResponseBody runs the
+// validations defined on
+// committee-member-contact-with-readonly-attributesResponseBody
+func ValidateCommitteeMemberContactWithReadonlyAttributesResponseBody(body *CommitteeMemberContactWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))

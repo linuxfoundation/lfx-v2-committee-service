@@ -447,6 +447,17 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	UpdatedAtAttribute()
 })
 
+// CommitteeMemberContactWithReadonlyAttributes is the DSL type for committee member contact information with readonly attributes.
+var CommitteeMemberContactWithReadonlyAttributes = dsl.Type("committee-member-contact-with-readonly-attributes", func() {
+	dsl.Description("Contact information for a committee member, accessible by auditors.")
+
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeMemberSensitiveAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
 func CommitteeMemberCreateAttributes() {
 	CommitteeMemberBaseAttributes()

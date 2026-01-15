@@ -264,6 +264,34 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	return res, nil
 }
 
+// GetCommitteeMemberContact retrieves contact information for a specific committee member
+func (s *committeeServicesrvc) GetCommitteeMemberContact(ctx context.Context, p *committeeservice.GetCommitteeMemberContactPayload) (res *committeeservice.GetCommitteeMemberContactResult, err error) {
+
+	slog.DebugContext(ctx, "committeeMemberService.get-committee-member-contact",
+		"committee_uid", p.UID,
+		"member_uid", p.MemberUID,
+	)
+
+	// Execute use case
+	committeeMember, revision, err := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Convert domain model to GOA response
+	// Only contact info (email)
+	result := s.convertMemberDomainToContactResponse(committeeMember)
+
+	// Create result with ETag (using revision from NATS)
+	revisionStr := fmt.Sprintf("%d", revision)
+	res = &committeeservice.GetCommitteeMemberContactResult{
+		Contact: result,
+		Etag:    &revisionStr,
+	}
+
+	return res, nil
+}
+
 // UpdateCommitteeMember updates an existing committee member
 func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *committeeservice.UpdateCommitteeMemberPayload) (res *committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
 

@@ -590,6 +590,32 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	return result
 }
 
+// convertMemberDomainToContactResponse converts domain CommitteeMember to contact info response type
+func (s *committeeServicesrvc) convertMemberDomainToContactResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberContactWithReadonlyAttributes {
+	if member == nil {
+		return nil
+	}
+
+	result := &committeeservice.CommitteeMemberContactWithReadonlyAttributes{
+		UID:          &member.UID,
+		CommitteeUID: &member.CommitteeUID,
+		Email:        &member.Email,
+	}
+
+	// Add timestamps if available
+	if !member.CreatedAt.IsZero() {
+		createdAt := member.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+
+	if !member.UpdatedAt.IsZero() {
+		updatedAt := member.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.UpdatedAt = &updatedAt
+	}
+
+	return result
+}
+
 // convertMemberDomainBasicResponse converts domain CommitteeMember to GOA basic response type
 func (s *committeeServicesrvc) convertMemberDomainBasicResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberBasicWithReadonlyAttributes {
 	if member == nil {

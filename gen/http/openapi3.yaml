@@ -982,6 +982,101 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/members/{member_uid}/contact:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-member-contact committee-service
+            description: Get contact information for a specific committee member (auditor access)
+            operationId: committee-service#get-committee-member-contact
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                  example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            responses:
+                "200":
+                    description: OK response.
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            schema:
+                                type: string
+                                description: ETag header value
+                                example: "123"
+                            example: "123"
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberContactWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                email: user@example.com
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Member not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/settings:
         get:
             tags:
@@ -2153,6 +2248,41 @@ components:
                     end_date: "2024-12-31"
                     start_date: "2023-01-01"
                     status: Voting Rep
+        CommitteeMemberContactWithReadonlyAttributes:
+            type: object
+            properties:
+                committee_uid:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                email:
+                    type: string
+                    description: Primary email address
+                    example: user@example.com
+                    format: email
+                uid:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                updated_at:
+                    type: string
+                    description: The timestamp when the resource was last updated (read-only)
+                    example: "2023-06-20T14:45:30Z"
+                    format: date-time
+            description: Contact information for a committee member, accessible by auditors.
+            example:
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                email: user@example.com
+                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                updated_at: "2023-06-20T14:45:30Z"
         CommitteeMemberFull:
             type: object
             properties:
