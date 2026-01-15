@@ -757,29 +757,129 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	)
 
 	// Build indexer message for the member
-	indexerMessage := model.CommitteeIndexerMessage{
-		Action: action,
-	}
-
-	// Customize the indexer message based on the action
-	switch action {
-	case model.ActionCreated, model.ActionUpdated:
-		// Add tags for create/update operations (when we have the full member data)
-		indexerMessage.Tags = data.Member.Tags()
-		indexerMessage.Data = data.Member
-	case model.ActionDeleted:
-		// Indexer message only expects the UID for deleted operations
-		indexerMessage.Data = data.Member.UID
-	}
-
-	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
-	if errBuildIndexerMessage != nil {
-		slog.ErrorContext(ctx, "failed to build member indexer message",
-			"error", errBuildIndexerMessage,
+	indexerMessages, errIndexer := uc.memberMessageIndexer(ctx, action, data, sync)
+	if errIndexer != nil {
+		slog.ErrorContext(ctx, "failed to build member indexer messages",
+			"error", errIndexer,
 			"action", action,
 		)
-		return errs.NewUnexpected("failed to build member indexer message", errBuildIndexerMessage)
+		return errIndexer
 	}
+
+	// Build event message for the member
+	eventMessage, errEvent := uc.memberMessageEvent(ctx, action, data, sync)
+	if errEvent != nil {
+		slog.ErrorContext(ctx, "failed to build member event message",
+			"error", errEvent,
+			"action", action,
+		)
+		return errEvent
+	}
+
+	// Build access control message for the member
+	accessControlMessage, errAccessControl := uc.memberAccessControlMessage(ctx, action, data, sync)
+	if errAccessControl != nil {
+		slog.ErrorContext(ctx, "failed to build member access control message",
+			"error", errAccessControl,
+			"action", action,
+		)
+		return errAccessControl
+	}
+
+	// Publish messages concurrently
+	messages := make([]func() error, 0, 4)
+	messages = append(messages, indexerMessages...)
+	messages = append(messages, eventMessage)
+	messages = append(messages, accessControlMessage)
+
+	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
+	if errPublishingMessage != nil {
+		slog.ErrorContext(ctx, "failed to publish member messages",
+			"error", errPublishingMessage,
+			"action", action,
+		)
+		return errPublishingMessage
+	}
+
+	return nil
+}
+
+func (uc *committeeWriterOrchestrator) memberMessageIndexer(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData, sync bool) ([]func() error, error) {
+
+	slog.DebugContext(ctx, "building member indexer messages",
+		"action", action,
+	)
+
+	var committeeIndexerMessages []func() error
+
+	// helper function to build indexer message
+	setIndexerMessage := func(action model.MessageAction, memberData any) (*model.CommitteeIndexerMessage, error) {
+
+		indexerMessage := model.CommitteeIndexerMessage{
+			Action: action,
+		}
+
+		// Customize the indexer message based on the action
+		switch action {
+		case model.ActionCreated, model.ActionUpdated:
+			// Add tags for create/update operations (when we have the full member data)
+			indexerMessage.Tags = data.Member.Tags()
+			indexerMessage.Data = memberData
+		case model.ActionDeleted:
+			// Indexer message only expects the UID for deleted operations
+			indexerMessage.Data = data.Member.UID
+		}
+
+		indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
+		if errBuildIndexerMessage != nil {
+			slog.ErrorContext(ctx, "failed to build member indexer message",
+				"error", errBuildIndexerMessage,
+				"action", action,
+			)
+			return nil, errs.NewUnexpected("failed to build member indexer message", errBuildIndexerMessage)
+		}
+		return indexerMessageBuild, nil
+	}
+
+	// Basic Member Data
+	committeeIndexerMessageBase, errSetIndexerMessageBase := setIndexerMessage(action, data.Member.CommitteeMemberBase)
+	if errSetIndexerMessageBase != nil {
+		return nil, errSetIndexerMessageBase
+	}
+	committeeIndexerMessages = append(committeeIndexerMessages,
+		func() error {
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, committeeIndexerMessageBase, sync)
+		},
+	)
+
+	// Sensitive Member Data
+	committeeIndexerMessageSensitiveData := struct {
+		model.CommitteeMemberSensitive
+		UID          string `json:"uid"`
+		CommitteeUID string `json:"committee_uid"`
+	}{
+		CommitteeMemberSensitive: data.Member.CommitteeMemberSensitive,
+		UID:                      data.Member.UID,
+		CommitteeUID:             data.Member.CommitteeUID,
+	}
+	committeeIndexerMessageSensitive, errSetIndexerMessageSensitive := setIndexerMessage(action, committeeIndexerMessageSensitiveData)
+	if errSetIndexerMessageSensitive != nil {
+		return nil, errSetIndexerMessageSensitive
+	}
+	committeeIndexerMessages = append(committeeIndexerMessages,
+		func() error {
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSensitiveSubject, committeeIndexerMessageSensitive, sync)
+		},
+	)
+
+	return committeeIndexerMessages, nil
+}
+
+func (uc *committeeWriterOrchestrator) memberMessageEvent(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData, sync bool) (func() error, error) {
+
+	slog.DebugContext(ctx, "building member event message",
+		"action", action,
+	)
 
 	// Build event message for the member
 	var eventInput any
@@ -803,11 +903,20 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			"error", errBuildEventMessage,
 			"action", action,
 		)
-		return errs.NewUnexpected("failed to build member event message", errBuildEventMessage)
+		return nil, errs.NewUnexpected("failed to build member event message", errBuildEventMessage)
 	}
 
-	// Build access control message for the member
-	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member)
+	return func() error {
+		return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild, false)
+	}, nil
+
+}
+
+func (uc *committeeWriterOrchestrator) memberAccessControlMessage(ctx context.Context, action model.MessageAction, data *model.CommitteeMemberMessageData, sync bool) (func() error, error) {
+
+	slog.DebugContext(ctx, "building member access control message",
+		"action", action,
+	)
 
 	// Determine the access control subject based on action
 	var accessSubject string
@@ -818,36 +927,10 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		accessSubject = constants.RemoveMemberCommitteeSubject
 	}
 
-	// Publish messages concurrently
-	messages := []func() error{
-		func() error {
-			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, indexerMessageBuild, sync)
-		},
-		func() error {
-			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild, false)
-		},
-		func() error {
-			// Only publish access message if username is present
-			// Without a username, there's no user identity to grant access to in FGA
-			if data.Member.Username == "" {
-				slog.DebugContext(ctx, "skipping access message for member without username",
-					"member_uid", data.Member.UID,
-					"action", action,
-				)
-				return nil
-			}
-			return uc.committeePublisher.Access(ctx, accessSubject, accessControlMessage, sync)
-		},
-	}
+	// Build access control message for the member
+	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member)
 
-	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
-	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish member messages",
-			"error", errPublishingMessage,
-			"action", action,
-		)
-		return errPublishingMessage
-	}
-
-	return nil
+	return func() error {
+		return uc.committeePublisher.Access(ctx, accessSubject, accessControlMessage, sync)
+	}, nil
 }

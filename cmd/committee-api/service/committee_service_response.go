@@ -323,9 +323,11 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: p.Email,
 		},
 	}
 
@@ -407,9 +409,11 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          p.MemberUID, // Member UID is required for updates
 			CommitteeUID: p.UID,       // Committee UID from path parameter
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: p.Email,
 		},
 	}
 
@@ -490,6 +494,138 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 		CommitteeUID: &member.CommitteeUID,
 		UID:          &member.UID,
 		Email:        &member.Email,
+		AppointedBy:  member.AppointedBy,
+		Status:       member.Status,
+	}
+
+	// Only set optional fields if they have values
+	if member.Username != "" {
+		result.Username = &member.Username
+	}
+	if member.FirstName != "" {
+		result.FirstName = &member.FirstName
+	}
+	if member.LastName != "" {
+		result.LastName = &member.LastName
+	}
+	if member.JobTitle != "" {
+		result.JobTitle = &member.JobTitle
+	}
+	if member.LinkedInProfile != "" {
+		result.LinkedinProfile = &member.LinkedInProfile
+	}
+	if member.CommitteeName != "" {
+		result.CommitteeName = &member.CommitteeName
+	}
+	if member.CommitteeCategory != "" {
+		result.CommitteeCategory = &member.CommitteeCategory
+	}
+
+	// Handle Role mapping - only include if role has meaningful data
+	if member.Role.Name != "" {
+		role := &struct {
+			Name      string
+			StartDate *string
+			EndDate   *string
+		}{
+			Name: member.Role.Name,
+		}
+		if member.Role.StartDate != "" {
+			role.StartDate = &member.Role.StartDate
+		}
+		if member.Role.EndDate != "" {
+			role.EndDate = &member.Role.EndDate
+		}
+		result.Role = role
+	}
+
+	// Handle Voting mapping - only include if voting has meaningful data
+	if member.Voting.Status != "" {
+		voting := &struct {
+			Status    string
+			StartDate *string
+			EndDate   *string
+		}{
+			Status: member.Voting.Status,
+		}
+		if member.Voting.StartDate != "" {
+			voting.StartDate = &member.Voting.StartDate
+		}
+		if member.Voting.EndDate != "" {
+			voting.EndDate = &member.Voting.EndDate
+		}
+		result.Voting = voting
+	}
+
+	// Handle Organization mapping - only include if organization has meaningful data
+	if member.Organization.ID != "" || member.Organization.Name != "" || member.Organization.Website != "" {
+		org := &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{}
+		if member.Organization.ID != "" {
+			org.ID = &member.Organization.ID
+		}
+		if member.Organization.Name != "" {
+			org.Name = &member.Organization.Name
+		}
+		if member.Organization.Website != "" {
+			org.Website = &member.Organization.Website
+		}
+		result.Organization = org
+	}
+
+	// Convert timestamps to strings if they exist
+	if !member.CreatedAt.IsZero() {
+		createdAt := member.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+
+	if !member.UpdatedAt.IsZero() {
+		updatedAt := member.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.UpdatedAt = &updatedAt
+	}
+
+	return result
+}
+
+// convertMemberDomainToContactResponse converts domain CommitteeMember to contact info response type
+func (s *committeeServicesrvc) convertMemberDomainToContactResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberContactWithReadonlyAttributes {
+	if member == nil {
+		return nil
+	}
+
+	result := &committeeservice.CommitteeMemberContactWithReadonlyAttributes{
+		UID:          &member.UID,
+		CommitteeUID: &member.CommitteeUID,
+		Email:        &member.Email,
+	}
+
+	// Add timestamps if available
+	if !member.CreatedAt.IsZero() {
+		createdAt := member.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+
+	if !member.UpdatedAt.IsZero() {
+		updatedAt := member.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.UpdatedAt = &updatedAt
+	}
+
+	return result
+}
+
+// convertMemberDomainBasicResponse converts domain CommitteeMember to GOA basic response type
+func (s *committeeServicesrvc) convertMemberDomainBasicResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberBasicWithReadonlyAttributes {
+	if member == nil {
+		return nil
+	}
+
+	memberUID := member.UID
+	result := &committeeservice.CommitteeMemberBasicWithReadonlyAttributes{
+		CommitteeUID: &member.CommitteeUID,
+		UID:          &memberUID,
 		AppointedBy:  member.AppointedBy,
 		Status:       member.Status,
 	}

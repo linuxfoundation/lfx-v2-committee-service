@@ -44,11 +44,13 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "nil committee",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email:    "test@example.com",
 					Username: "testuser",
 					Organization: CommitteeMemberOrganization{
 						Name: "Test Org",
 					},
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			committee:     nil,
@@ -122,7 +124,9 @@ func TestCommitteeMember_Tags(t *testing.T) {
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
 					Username:     "testuser",
-					Email:        "test@example.com",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -140,10 +144,12 @@ func TestCommitteeMember_Tags(t *testing.T) {
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
 					Username:     "testuser",
-					Email:        "test@example.com",
 					Voting: CommitteeMemberVotingInfo{
 						Status: "Voting Rep",
 					},
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -161,8 +167,10 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					// Missing Username, and Voting.Status
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -178,7 +186,9 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -194,12 +204,14 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					Organization: CommitteeMemberOrganization{
 						ID:      "org-789",
 						Name:    "The Linux Foundation",
 						Website: "https://linuxfoundation.org",
 					},
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -218,12 +230,14 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					Organization: CommitteeMemberOrganization{
 						ID:   "org-789",
 						Name: "The Linux Foundation",
 						// Missing Website
 					},
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			expected: []string{
@@ -261,7 +275,9 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			// SHA-256 of "committee-123|test@example.com"
@@ -272,7 +288,9 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "test@example.com",
 				},
 			},
 			// Should produce different hash than above
@@ -283,7 +301,9 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "different@example.com",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "different@example.com",
 				},
 			},
 			// Should produce different hash than first test
@@ -294,7 +314,9 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "",
-					Email:        "",
+				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{
+					Email: "",
 				},
 			},
 			// SHA-256 of "|"
@@ -333,21 +355,27 @@ func TestCommitteeMember_BuildIndexKey_Uniqueness(t *testing.T) {
 	member1 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
+		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
 	member2 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-456",
-			Email:        "test@example.com",
+		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{
+			Email: "test@example.com",
 		},
 	}
 
 	member3 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-123",
-			Email:        "different@example.com",
+		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{
+			Email: "different@example.com",
 		},
 	}
 

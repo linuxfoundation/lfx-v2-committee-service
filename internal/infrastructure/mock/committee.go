@@ -130,7 +130,6 @@ func NewMockRepository() *MockRepository {
 				UID:          "member-1",
 				CommitteeUID: "committee-1",
 				Username:     "john.doe",
-				Email:        "john.doe@example.com",
 				FirstName:    "John",
 				LastName:     "Doe",
 				JobTitle:     "Senior Developer",
@@ -153,13 +152,15 @@ func NewMockRepository() *MockRepository {
 				CreatedAt: now.Add(-24 * time.Hour),
 				UpdatedAt: now,
 			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "john.doe@example.com",
+			},
 		}
 
 		sampleMember2 := &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				UID:       "member-2",
 				Username:  "jane.smith",
-				Email:     "jane.smith@example.com",
 				FirstName: "Jane",
 				LastName:  "Smith",
 				JobTitle:  "Security Engineer",
@@ -179,6 +180,9 @@ func NewMockRepository() *MockRepository {
 				},
 				CreatedAt: now.Add(-12 * time.Hour),
 				UpdatedAt: now,
+			},
+			CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+				Email: "jane.smith@example.com",
 			},
 		}
 

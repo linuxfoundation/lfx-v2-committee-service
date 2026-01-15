@@ -17,18 +17,19 @@ import (
 
 // Endpoints wraps the "committee-service" service endpoints.
 type Endpoints struct {
-	CreateCommittee         goa.Endpoint
-	GetCommitteeBase        goa.Endpoint
-	UpdateCommitteeBase     goa.Endpoint
-	DeleteCommittee         goa.Endpoint
-	GetCommitteeSettings    goa.Endpoint
-	UpdateCommitteeSettings goa.Endpoint
-	Readyz                  goa.Endpoint
-	Livez                   goa.Endpoint
-	CreateCommitteeMember   goa.Endpoint
-	GetCommitteeMember      goa.Endpoint
-	UpdateCommitteeMember   goa.Endpoint
-	DeleteCommitteeMember   goa.Endpoint
+	CreateCommittee           goa.Endpoint
+	GetCommitteeBase          goa.Endpoint
+	UpdateCommitteeBase       goa.Endpoint
+	DeleteCommittee           goa.Endpoint
+	GetCommitteeSettings      goa.Endpoint
+	UpdateCommitteeSettings   goa.Endpoint
+	Readyz                    goa.Endpoint
+	Livez                     goa.Endpoint
+	CreateCommitteeMember     goa.Endpoint
+	GetCommitteeMember        goa.Endpoint
+	GetCommitteeMemberContact goa.Endpoint
+	UpdateCommitteeMember     goa.Endpoint
+	DeleteCommitteeMember     goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "committee-service" service with
@@ -37,18 +38,19 @@ func NewEndpoints(s Service) *Endpoints {
 	// Casting service to Auther interface
 	a := s.(Auther)
 	return &Endpoints{
-		CreateCommittee:         NewCreateCommitteeEndpoint(s, a.JWTAuth),
-		GetCommitteeBase:        NewGetCommitteeBaseEndpoint(s, a.JWTAuth),
-		UpdateCommitteeBase:     NewUpdateCommitteeBaseEndpoint(s, a.JWTAuth),
-		DeleteCommittee:         NewDeleteCommitteeEndpoint(s, a.JWTAuth),
-		GetCommitteeSettings:    NewGetCommitteeSettingsEndpoint(s, a.JWTAuth),
-		UpdateCommitteeSettings: NewUpdateCommitteeSettingsEndpoint(s, a.JWTAuth),
-		Readyz:                  NewReadyzEndpoint(s),
-		Livez:                   NewLivezEndpoint(s),
-		CreateCommitteeMember:   NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
-		GetCommitteeMember:      NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
-		UpdateCommitteeMember:   NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
-		DeleteCommitteeMember:   NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
+		CreateCommittee:           NewCreateCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeBase:          NewGetCommitteeBaseEndpoint(s, a.JWTAuth),
+		UpdateCommitteeBase:       NewUpdateCommitteeBaseEndpoint(s, a.JWTAuth),
+		DeleteCommittee:           NewDeleteCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeSettings:      NewGetCommitteeSettingsEndpoint(s, a.JWTAuth),
+		UpdateCommitteeSettings:   NewUpdateCommitteeSettingsEndpoint(s, a.JWTAuth),
+		Readyz:                    NewReadyzEndpoint(s),
+		Livez:                     NewLivezEndpoint(s),
+		CreateCommitteeMember:     NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetCommitteeMember:        NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetCommitteeMemberContact: NewGetCommitteeMemberContactEndpoint(s, a.JWTAuth),
+		UpdateCommitteeMember:     NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
+		DeleteCommitteeMember:     NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -65,6 +67,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Livez = m(e.Livez)
 	e.CreateCommitteeMember = m(e.CreateCommitteeMember)
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
+	e.GetCommitteeMemberContact = m(e.GetCommitteeMemberContact)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
 	e.DeleteCommitteeMember = m(e.DeleteCommitteeMember)
 }
@@ -266,6 +269,29 @@ func NewGetCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc) go
 			return nil, err
 		}
 		return s.GetCommitteeMember(ctx, p)
+	}
+}
+
+// NewGetCommitteeMemberContactEndpoint returns an endpoint function that calls
+// the method "get-committee-member-contact" of service "committee-service".
+func NewGetCommitteeMemberContactEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCommitteeMemberContactPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCommitteeMemberContact(ctx, p)
 	}
 }
 
