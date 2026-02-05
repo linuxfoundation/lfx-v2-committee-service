@@ -11,6 +11,17 @@ import (
 // TestOTelConfigFromEnv_Defaults verifies that OTelConfigFromEnv returns
 // sensible default values when no environment variables are set.
 func TestOTelConfigFromEnv_Defaults(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "")
+	t.Setenv("OTEL_SERVICE_VERSION", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "")
+	t.Setenv("OTEL_TRACES_EXPORTER", "")
+	t.Setenv("OTEL_TRACES_SAMPLE_RATIO", "")
+	t.Setenv("OTEL_METRICS_EXPORTER", "")
+	t.Setenv("OTEL_LOGS_EXPORTER", "")
+	t.Setenv("OTEL_PROPAGATORS", "")
+
 	cfg := OTelConfigFromEnv()
 
 	if cfg.ServiceName != "lfx-v2-committee-service" {

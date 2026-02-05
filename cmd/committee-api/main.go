@@ -82,7 +82,7 @@ func main() {
 		}
 	}()
 
-	slog.InfoContext(ctx, "Starting query service",
+	slog.InfoContext(ctx, "Starting committee service",
 		"bind", *bind,
 		"http-port", *port,
 		"graceful-shutdown-seconds", gracefulShutdownSeconds,
