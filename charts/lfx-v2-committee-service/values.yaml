@@ -159,7 +159,7 @@ app:
     # (default: "lfx-v2-committee-service")
     serviceName: ""
     # serviceVersion is the service version for OpenTelemetry resource identification
-    # (default: "1.0.0")
+    # (default: build-time Version variable)
     serviceVersion: ""
     # protocol specifies the OTLP protocol: "grpc" or "http"
     # (default: "grpc")
