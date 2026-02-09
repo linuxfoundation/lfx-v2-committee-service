@@ -20,8 +20,16 @@ import (
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 
 	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"goa.design/clue/debug"
+)
+
+// Build-time variables set via ldflags
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 const (
@@ -52,7 +60,29 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	slog.InfoContext(ctx, "Starting query service",
+
+	// Set up OpenTelemetry SDK.
+	// Command-line/environment OTEL_SERVICE_VERSION takes precedence over
+	// the build-time Version variable.
+	otelConfig := utils.OTelConfigFromEnv()
+	if otelConfig.ServiceVersion == "" {
+		otelConfig.ServiceVersion = Version
+	}
+	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
+	if err != nil {
+		slog.ErrorContext(ctx, "error setting up OpenTelemetry SDK", "error", err)
+		os.Exit(1)
+	}
+	// Handle shutdown properly so nothing leaks.
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownSeconds*time.Second)
+		defer cancel()
+		if shutdownErr := otelShutdown(ctx); shutdownErr != nil {
+			slog.ErrorContext(ctx, "error shutting down OpenTelemetry SDK", "error", shutdownErr)
+		}
+	}()
+
+	slog.InfoContext(ctx, "Starting committee service",
 		"bind", *bind,
 		"http-port", *port,
 		"graceful-shutdown-seconds", gracefulShutdownSeconds,

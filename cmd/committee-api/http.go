@@ -15,6 +15,7 @@ import (
 	committeeservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/middleware"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"goa.design/clue/debug"
 	goahttp "goa.design/goa/v3/http"
 )
@@ -77,6 +78,8 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 		// Log query and response bodies if debug logs are enabled.
 		handler = debug.HTTP()(handler)
 	}
+	// Wrap the handler with OpenTelemetry instrumentation
+	handler = otelhttp.NewHandler(handler, "committee-service")
 
 	// Start HTTP server using default configuration, change the code to
 	// configure the server as required by your service.
