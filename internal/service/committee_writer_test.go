@@ -434,26 +434,44 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 
 func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 	testCases := []struct {
-		name          string
-		committee     any
-		tags          []string
-		expectedError bool
+		name           string
+		action         model.MessageAction
+		committee      any
+		tags           []string
+		expectedError  bool
+		expectedAction model.MessageAction
 	}{
 		{
-			name: "successful indexer message build",
+			name:   "successful indexer message build with created action",
+			action: model.ActionCreated,
 			committee: &model.CommitteeBase{
 				UID:        "test-committee",
 				ProjectUID: "test-project",
 				Name:       "Test Committee",
 			},
-			tags:          []string{"project_uid:test-project"},
-			expectedError: false,
+			tags:           []string{"project_uid:test-project"},
+			expectedError:  false,
+			expectedAction: model.ActionCreated,
 		},
 		{
-			name:          "build with nil committee",
-			committee:     nil,
-			tags:          []string{"tag1", "tag2"},
-			expectedError: false, // The Build method doesn't validate nil input, it just creates a message with nil data
+			name:   "successful indexer message build with updated action",
+			action: model.ActionUpdated,
+			committee: &model.CommitteeBase{
+				UID:        "test-committee",
+				ProjectUID: "test-project",
+				Name:       "Test Committee",
+			},
+			tags:           []string{"project_uid:test-project"},
+			expectedError:  false,
+			expectedAction: model.ActionUpdated,
+		},
+		{
+			name:           "build with nil committee",
+			action:         model.ActionCreated,
+			committee:      nil,
+			tags:           []string{"tag1", "tag2"},
+			expectedError:  false, // The Build method doesn't validate nil input, it just creates a message with nil data
+			expectedAction: model.ActionCreated,
 		},
 	}
 
@@ -464,7 +482,7 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 			ctx := context.Background()
 
 			// Execute
-			result, err := orchestrator.buildIndexerMessage(ctx, tc.committee, tc.tags)
+			result, err := orchestrator.buildIndexerMessage(ctx, tc.action, tc.committee, tc.tags)
 
 			// Validate
 			if tc.expectedError {
@@ -473,7 +491,7 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, model.ActionCreated, result.Action)
+				assert.Equal(t, tc.expectedAction, result.Action)
 				assert.Equal(t, tc.tags, result.Tags)
 
 				// For nil committee case, validate that data is nil
