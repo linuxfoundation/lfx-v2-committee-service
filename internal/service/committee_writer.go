@@ -198,10 +198,10 @@ func (uc *committeeWriterOrchestrator) checkReserveSSOName(ctx context.Context, 
 
 }
 
-func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
+func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, action model.MessageAction, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
 
 	indexerMessage := model.CommitteeIndexerMessage{
-		Action: model.ActionCreated,
+		Action: action,
 		Tags:   tags,
 	}
 
@@ -414,7 +414,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		constants.IndexCommitteeSubject:         committee.CommitteeBase,
 		constants.IndexCommitteeSettingsSubject: committee.CommitteeSettings,
 	} {
-		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, data, committee.Tags())
+		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionCreated, data, committee.Tags())
 		if errBuildIndexerMessage != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 		}
@@ -614,7 +614,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 7: Publish messages
 
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, committee.CommitteeBase, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, committee.CommitteeBase, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,
@@ -737,7 +737,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, settings, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, settings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
