@@ -33,6 +33,17 @@ type Server struct {
 	GetCommitteeMember      http.Handler
 	UpdateCommitteeMember   http.Handler
 	DeleteCommitteeMember   http.Handler
+	ListInvites             http.Handler
+	CreateInvite            http.Handler
+	RevokeInvite            http.Handler
+	AcceptInvite            http.Handler
+	DeclineInvite           http.Handler
+	ListApplications        http.Handler
+	SubmitApplication       http.Handler
+	ApproveApplication      http.Handler
+	RejectApplication       http.Handler
+	JoinCommittee           http.Handler
+	LeaveCommittee          http.Handler
 	GenHTTPOpenapiJSON      http.Handler
 	GenHTTPOpenapiYaml      http.Handler
 	GenHTTPOpenapi3JSON     http.Handler
@@ -98,6 +109,17 @@ func New(
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
 			{"UpdateCommitteeMember", "PUT", "/committees/{uid}/members/{member_uid}"},
 			{"DeleteCommitteeMember", "DELETE", "/committees/{uid}/members/{member_uid}"},
+			{"ListInvites", "GET", "/committees/{uid}/invites"},
+			{"CreateInvite", "POST", "/committees/{uid}/invites"},
+			{"RevokeInvite", "DELETE", "/committees/{uid}/invites/{invite_uid}"},
+			{"AcceptInvite", "POST", "/committees/{uid}/invites/{invite_uid}/accept"},
+			{"DeclineInvite", "POST", "/committees/{uid}/invites/{invite_uid}/decline"},
+			{"ListApplications", "GET", "/committees/{uid}/applications"},
+			{"SubmitApplication", "POST", "/committees/{uid}/applications"},
+			{"ApproveApplication", "POST", "/committees/{uid}/applications/{application_uid}/approve"},
+			{"RejectApplication", "POST", "/committees/{uid}/applications/{application_uid}/reject"},
+			{"JoinCommittee", "POST", "/committees/{uid}/join"},
+			{"LeaveCommittee", "DELETE", "/committees/{uid}/leave"},
 			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
 			{"Serve gen/http/openapi.yaml", "GET", "/_committees/openapi.yaml"},
 			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
@@ -115,6 +137,17 @@ func New(
 		GetCommitteeMember:      NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		UpdateCommitteeMember:   NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeMember:   NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		ListInvites:             NewListInvitesHandler(e.ListInvites, mux, decoder, encoder, errhandler, formatter),
+		CreateInvite:            NewCreateInviteHandler(e.CreateInvite, mux, decoder, encoder, errhandler, formatter),
+		RevokeInvite:            NewRevokeInviteHandler(e.RevokeInvite, mux, decoder, encoder, errhandler, formatter),
+		AcceptInvite:            NewAcceptInviteHandler(e.AcceptInvite, mux, decoder, encoder, errhandler, formatter),
+		DeclineInvite:           NewDeclineInviteHandler(e.DeclineInvite, mux, decoder, encoder, errhandler, formatter),
+		ListApplications:        NewListApplicationsHandler(e.ListApplications, mux, decoder, encoder, errhandler, formatter),
+		SubmitApplication:       NewSubmitApplicationHandler(e.SubmitApplication, mux, decoder, encoder, errhandler, formatter),
+		ApproveApplication:      NewApproveApplicationHandler(e.ApproveApplication, mux, decoder, encoder, errhandler, formatter),
+		RejectApplication:       NewRejectApplicationHandler(e.RejectApplication, mux, decoder, encoder, errhandler, formatter),
+		JoinCommittee:           NewJoinCommitteeHandler(e.JoinCommittee, mux, decoder, encoder, errhandler, formatter),
+		LeaveCommittee:          NewLeaveCommitteeHandler(e.LeaveCommittee, mux, decoder, encoder, errhandler, formatter),
 		GenHTTPOpenapiJSON:      http.FileServer(fileSystemGenHTTPOpenapiJSON),
 		GenHTTPOpenapiYaml:      http.FileServer(fileSystemGenHTTPOpenapiYaml),
 		GenHTTPOpenapi3JSON:     http.FileServer(fileSystemGenHTTPOpenapi3JSON),
@@ -139,6 +172,17 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.GetCommitteeMember = m(s.GetCommitteeMember)
 	s.UpdateCommitteeMember = m(s.UpdateCommitteeMember)
 	s.DeleteCommitteeMember = m(s.DeleteCommitteeMember)
+	s.ListInvites = m(s.ListInvites)
+	s.CreateInvite = m(s.CreateInvite)
+	s.RevokeInvite = m(s.RevokeInvite)
+	s.AcceptInvite = m(s.AcceptInvite)
+	s.DeclineInvite = m(s.DeclineInvite)
+	s.ListApplications = m(s.ListApplications)
+	s.SubmitApplication = m(s.SubmitApplication)
+	s.ApproveApplication = m(s.ApproveApplication)
+	s.RejectApplication = m(s.RejectApplication)
+	s.JoinCommittee = m(s.JoinCommittee)
+	s.LeaveCommittee = m(s.LeaveCommittee)
 }
 
 // MethodNames returns the methods served.
@@ -158,6 +202,17 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
 	MountUpdateCommitteeMemberHandler(mux, h.UpdateCommitteeMember)
 	MountDeleteCommitteeMemberHandler(mux, h.DeleteCommitteeMember)
+	MountListInvitesHandler(mux, h.ListInvites)
+	MountCreateInviteHandler(mux, h.CreateInvite)
+	MountRevokeInviteHandler(mux, h.RevokeInvite)
+	MountAcceptInviteHandler(mux, h.AcceptInvite)
+	MountDeclineInviteHandler(mux, h.DeclineInvite)
+	MountListApplicationsHandler(mux, h.ListApplications)
+	MountSubmitApplicationHandler(mux, h.SubmitApplication)
+	MountApproveApplicationHandler(mux, h.ApproveApplication)
+	MountRejectApplicationHandler(mux, h.RejectApplication)
+	MountJoinCommitteeHandler(mux, h.JoinCommittee)
+	MountLeaveCommitteeHandler(mux, h.LeaveCommittee)
 	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
 	MountGenHTTPOpenapiYaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiYaml))
 	MountGenHTTPOpenapi3JSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3JSON))
@@ -778,6 +833,593 @@ func NewDeleteCommitteeMemberHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "delete-committee-member")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountListInvitesHandler configures the mux to serve the "committee-service"
+// service "list-invites" endpoint.
+func MountListInvitesHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/{uid}/invites", f)
+}
+
+// NewListInvitesHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "list-invites" endpoint.
+func NewListInvitesHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeListInvitesRequest(mux, decoder)
+		encodeResponse = EncodeListInvitesResponse(encoder)
+		encodeError    = EncodeListInvitesError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "list-invites")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountCreateInviteHandler configures the mux to serve the "committee-service"
+// service "create-invite" endpoint.
+func MountCreateInviteHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/invites", f)
+}
+
+// NewCreateInviteHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "create-invite" endpoint.
+func NewCreateInviteHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeCreateInviteRequest(mux, decoder)
+		encodeResponse = EncodeCreateInviteResponse(encoder)
+		encodeError    = EncodeCreateInviteError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "create-invite")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountRevokeInviteHandler configures the mux to serve the "committee-service"
+// service "revoke-invite" endpoint.
+func MountRevokeInviteHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("DELETE", "/committees/{uid}/invites/{invite_uid}", f)
+}
+
+// NewRevokeInviteHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "revoke-invite" endpoint.
+func NewRevokeInviteHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeRevokeInviteRequest(mux, decoder)
+		encodeResponse = EncodeRevokeInviteResponse(encoder)
+		encodeError    = EncodeRevokeInviteError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "revoke-invite")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountAcceptInviteHandler configures the mux to serve the "committee-service"
+// service "accept-invite" endpoint.
+func MountAcceptInviteHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/invites/{invite_uid}/accept", f)
+}
+
+// NewAcceptInviteHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "accept-invite" endpoint.
+func NewAcceptInviteHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeAcceptInviteRequest(mux, decoder)
+		encodeResponse = EncodeAcceptInviteResponse(encoder)
+		encodeError    = EncodeAcceptInviteError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "accept-invite")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountDeclineInviteHandler configures the mux to serve the
+// "committee-service" service "decline-invite" endpoint.
+func MountDeclineInviteHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/invites/{invite_uid}/decline", f)
+}
+
+// NewDeclineInviteHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "decline-invite" endpoint.
+func NewDeclineInviteHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeDeclineInviteRequest(mux, decoder)
+		encodeResponse = EncodeDeclineInviteResponse(encoder)
+		encodeError    = EncodeDeclineInviteError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "decline-invite")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountListApplicationsHandler configures the mux to serve the
+// "committee-service" service "list-applications" endpoint.
+func MountListApplicationsHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/{uid}/applications", f)
+}
+
+// NewListApplicationsHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "list-applications"
+// endpoint.
+func NewListApplicationsHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeListApplicationsRequest(mux, decoder)
+		encodeResponse = EncodeListApplicationsResponse(encoder)
+		encodeError    = EncodeListApplicationsError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "list-applications")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountSubmitApplicationHandler configures the mux to serve the
+// "committee-service" service "submit-application" endpoint.
+func MountSubmitApplicationHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/applications", f)
+}
+
+// NewSubmitApplicationHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "submit-application"
+// endpoint.
+func NewSubmitApplicationHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeSubmitApplicationRequest(mux, decoder)
+		encodeResponse = EncodeSubmitApplicationResponse(encoder)
+		encodeError    = EncodeSubmitApplicationError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "submit-application")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountApproveApplicationHandler configures the mux to serve the
+// "committee-service" service "approve-application" endpoint.
+func MountApproveApplicationHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/applications/{application_uid}/approve", f)
+}
+
+// NewApproveApplicationHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "approve-application"
+// endpoint.
+func NewApproveApplicationHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeApproveApplicationRequest(mux, decoder)
+		encodeResponse = EncodeApproveApplicationResponse(encoder)
+		encodeError    = EncodeApproveApplicationError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "approve-application")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountRejectApplicationHandler configures the mux to serve the
+// "committee-service" service "reject-application" endpoint.
+func MountRejectApplicationHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/applications/{application_uid}/reject", f)
+}
+
+// NewRejectApplicationHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "reject-application"
+// endpoint.
+func NewRejectApplicationHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeRejectApplicationRequest(mux, decoder)
+		encodeResponse = EncodeRejectApplicationResponse(encoder)
+		encodeError    = EncodeRejectApplicationError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "reject-application")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountJoinCommitteeHandler configures the mux to serve the
+// "committee-service" service "join-committee" endpoint.
+func MountJoinCommitteeHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/join", f)
+}
+
+// NewJoinCommitteeHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "join-committee" endpoint.
+func NewJoinCommitteeHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeJoinCommitteeRequest(mux, decoder)
+		encodeResponse = EncodeJoinCommitteeResponse(encoder)
+		encodeError    = EncodeJoinCommitteeError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "join-committee")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountLeaveCommitteeHandler configures the mux to serve the
+// "committee-service" service "leave-committee" endpoint.
+func MountLeaveCommitteeHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("DELETE", "/committees/{uid}/leave", f)
+}
+
+// NewLeaveCommitteeHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "leave-committee" endpoint.
+func NewLeaveCommitteeHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeLeaveCommitteeRequest(mux, decoder)
+		encodeResponse = EncodeLeaveCommitteeResponse(encoder)
+		encodeError    = EncodeLeaveCommitteeError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "leave-committee")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

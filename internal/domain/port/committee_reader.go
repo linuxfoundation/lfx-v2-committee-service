@@ -14,6 +14,8 @@ type CommitteeReader interface {
 	CommitteeBaseReader
 	CommitteeSettingsReader
 	CommitteeMemberReader
+	CommitteeInviteReader
+	CommitteeApplicationReader
 }
 
 // CommitteeBaseReader handles committee base data reading operations
