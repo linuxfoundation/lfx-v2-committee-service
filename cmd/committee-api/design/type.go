@@ -22,6 +22,8 @@ func CommitteeBaseAttributes() {
 	CategoryAttribute()
 	DescriptionAttribute()
 	WebsiteAttribute()
+	MailingListAttribute()
+	ChatChannelAttribute()
 	EnableVotingAttribute()
 	SSOGroupEnabledAttribute()
 	RequiresReviewAttribute()
@@ -41,6 +43,7 @@ var CommitteeSettings = dsl.Type("committee-settings", func() {
 // CommitteeSettingsAttributes is the DSL attributes for a committee settings.
 func CommitteeSettingsAttributes() {
 	BusinessEmailRequiredAttribute()
+	JoinModeAttribute()
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()
@@ -698,6 +701,105 @@ func ShowMeetingAttendeesAttribute() {
 	})
 }
 
+// JoinModeAttribute is the DSL attribute for committee join mode.
+func JoinModeAttribute() {
+	dsl.Attribute("join_mode", dsl.String, "How new members can join this committee", func() {
+		dsl.Enum("open", "invite_only", "application")
+		dsl.Default("invite_only")
+		dsl.Example("open")
+	})
+}
+
+// MailingListAttribute is the DSL attribute for committee mailing list email.
+func MailingListAttribute() {
+	dsl.Attribute("mailing_list", dsl.String, "The mailing list email address for the committee", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("tsc@lists.example.org")
+	})
+}
+
+// ChatChannelAttribute is the DSL attribute for committee chat channel.
+func ChatChannelAttribute() {
+	dsl.Attribute("chat_channel", dsl.String, "The chat channel URL or identifier for the committee", func() {
+		dsl.MaxLength(500)
+		dsl.Example("https://slack.example.org/channels/tsc")
+	})
+}
+
+// InviteUIDAttribute is the DSL attribute for invite UID in URL paths.
+func InviteUIDAttribute() {
+	dsl.Attribute("invite_uid", dsl.String, "Committee invite UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// ApplicationUIDAttribute is the DSL attribute for application UID in URL paths.
+func ApplicationUIDAttribute() {
+	dsl.Attribute("application_uid", dsl.String, "Committee application UID", func() {
+		dsl.Example("b2c3d4e5-f6a7-8901-bcde-f12345678901")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeInviteWithReadonlyAttributes is the DSL type for a committee invite with readonly attributes.
+var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-readonly-attributes", func() {
+	dsl.Description("A representation of a committee invite with readonly attributes.")
+
+	dsl.Attribute("uid", dsl.String, "Invite UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("invitee_email", dsl.String, "Email of the invited person", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("invitee@example.com")
+	})
+	dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
+		dsl.Example("None")
+	})
+	dsl.Attribute("status", dsl.String, "Invite status", func() {
+		dsl.Enum("pending", "accepted", "declined", "revoked")
+		dsl.Default("pending")
+		dsl.Example("pending")
+	})
+	CreatedAtAttribute()
+})
+
+// CommitteeApplicationWithReadonlyAttributes is the DSL type for a committee application with readonly attributes.
+var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application-with-readonly-attributes", func() {
+	dsl.Description("A representation of a committee application with readonly attributes.")
+
+	dsl.Attribute("uid", dsl.String, "Application UID", func() {
+		dsl.Example("b2c3d4e5-f6a7-8901-bcde-f12345678901")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("applicant_uid", dsl.String, "Applicant user UID", func() {
+		dsl.Example("user-uid-12345")
+	})
+	dsl.Attribute("message", dsl.String, "Application message from the applicant", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("I would like to join the TSC to contribute my expertise.")
+	})
+	dsl.Attribute("status", dsl.String, "Application status", func() {
+		dsl.Enum("pending", "approved", "rejected")
+		dsl.Default("pending")
+		dsl.Example("pending")
+	})
+	dsl.Attribute("reviewer_notes", dsl.String, "Notes from the reviewer", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Approved based on contribution history.")
+	})
+	CreatedAtAttribute()
+})
+
 // Errors
 // BadRequestError is the DSL type for a bad request error.
 var BadRequestError = dsl.Type("bad-request-error", func() {
@@ -719,6 +821,14 @@ var NotFoundError = dsl.Type("not-found-error", func() {
 var ConflictError = dsl.Type("conflict-error", func() {
 	dsl.Attribute("message", dsl.String, "Error message", func() {
 		dsl.Example("The resource already exists.")
+	})
+	dsl.Required("message")
+})
+
+// ForbiddenError is the DSL type for a forbidden error.
+var ForbiddenError = dsl.Type("forbidden-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("You do not have permission to perform this action.")
 	})
 	dsl.Required("message")
 })

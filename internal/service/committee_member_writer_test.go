@@ -149,6 +149,38 @@ func (w *TestMockCommitteeMemberWriter) SetMemberRevision(uid string, revision u
 	w.customRevisions[uid] = revision
 }
 
+// Implement CommitteeInviteWriter interface
+func (w *TestMockCommitteeMemberWriter) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.CreateInvite(ctx, invite)
+}
+
+func (w *TestMockCommitteeMemberWriter) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.UpdateInvite(ctx, invite, revision)
+}
+
+func (w *TestMockCommitteeMemberWriter) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.UniqueInvite(ctx, invite)
+}
+
+// Implement CommitteeApplicationWriter interface
+func (w *TestMockCommitteeMemberWriter) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.CreateApplication(ctx, application)
+}
+
+func (w *TestMockCommitteeMemberWriter) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.UpdateApplication(ctx, application, revision)
+}
+
+func (w *TestMockCommitteeMemberWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.UniqueApplication(ctx, application)
+}
+
 func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository, *TestMockCommitteeMemberWriter) {
 	mockRepo := mock.NewMockRepository()
 	memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
@@ -194,6 +226,24 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 
 func (r *TestMockCommitteeReader) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
+}
+
+// Implement CommitteeInviteReader interface
+func (r *TestMockCommitteeReader) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
+	return nil, 0, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error) {
+	return []*model.CommitteeInvite{}, nil
+}
+
+// Implement CommitteeApplicationReader interface
+func (r *TestMockCommitteeReader) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	return nil, 0, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error) {
+	return []*model.CommitteeApplication{}, nil
 }
 
 func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {

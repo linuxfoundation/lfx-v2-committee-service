@@ -64,6 +64,50 @@ type Client struct {
 	// delete-committee-member endpoint.
 	DeleteCommitteeMemberDoer goahttp.Doer
 
+	// ListInvites Doer is the HTTP client used to make requests to the
+	// list-invites endpoint.
+	ListInvitesDoer goahttp.Doer
+
+	// CreateInvite Doer is the HTTP client used to make requests to the
+	// create-invite endpoint.
+	CreateInviteDoer goahttp.Doer
+
+	// RevokeInvite Doer is the HTTP client used to make requests to the
+	// revoke-invite endpoint.
+	RevokeInviteDoer goahttp.Doer
+
+	// AcceptInvite Doer is the HTTP client used to make requests to the
+	// accept-invite endpoint.
+	AcceptInviteDoer goahttp.Doer
+
+	// DeclineInvite Doer is the HTTP client used to make requests to the
+	// decline-invite endpoint.
+	DeclineInviteDoer goahttp.Doer
+
+	// ListApplications Doer is the HTTP client used to make requests to the
+	// list-applications endpoint.
+	ListApplicationsDoer goahttp.Doer
+
+	// SubmitApplication Doer is the HTTP client used to make requests to the
+	// submit-application endpoint.
+	SubmitApplicationDoer goahttp.Doer
+
+	// ApproveApplication Doer is the HTTP client used to make requests to the
+	// approve-application endpoint.
+	ApproveApplicationDoer goahttp.Doer
+
+	// RejectApplication Doer is the HTTP client used to make requests to the
+	// reject-application endpoint.
+	RejectApplicationDoer goahttp.Doer
+
+	// JoinCommittee Doer is the HTTP client used to make requests to the
+	// join-committee endpoint.
+	JoinCommitteeDoer goahttp.Doer
+
+	// LeaveCommittee Doer is the HTTP client used to make requests to the
+	// leave-committee endpoint.
+	LeaveCommitteeDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -97,6 +141,17 @@ func NewClient(
 		GetCommitteeMemberDoer:      doer,
 		UpdateCommitteeMemberDoer:   doer,
 		DeleteCommitteeMemberDoer:   doer,
+		ListInvitesDoer:             doer,
+		CreateInviteDoer:            doer,
+		RevokeInviteDoer:            doer,
+		AcceptInviteDoer:            doer,
+		DeclineInviteDoer:           doer,
+		ListApplicationsDoer:        doer,
+		SubmitApplicationDoer:       doer,
+		ApproveApplicationDoer:      doer,
+		RejectApplicationDoer:       doer,
+		JoinCommitteeDoer:           doer,
+		LeaveCommitteeDoer:          doer,
 		RestoreResponseBody:         restoreBody,
 		scheme:                      scheme,
 		host:                        host,
@@ -378,6 +433,270 @@ func (c *Client) DeleteCommitteeMember() goa.Endpoint {
 		resp, err := c.DeleteCommitteeMemberDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ListInvites returns an endpoint that makes HTTP requests to the
+// committee-service service list-invites server.
+func (c *Client) ListInvites() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeListInvitesRequest(c.encoder)
+		decodeResponse = DecodeListInvitesResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildListInvitesRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ListInvitesDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "list-invites", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// CreateInvite returns an endpoint that makes HTTP requests to the
+// committee-service service create-invite server.
+func (c *Client) CreateInvite() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeCreateInviteRequest(c.encoder)
+		decodeResponse = DecodeCreateInviteResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildCreateInviteRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.CreateInviteDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "create-invite", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// RevokeInvite returns an endpoint that makes HTTP requests to the
+// committee-service service revoke-invite server.
+func (c *Client) RevokeInvite() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeRevokeInviteRequest(c.encoder)
+		decodeResponse = DecodeRevokeInviteResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildRevokeInviteRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.RevokeInviteDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "revoke-invite", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// AcceptInvite returns an endpoint that makes HTTP requests to the
+// committee-service service accept-invite server.
+func (c *Client) AcceptInvite() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeAcceptInviteRequest(c.encoder)
+		decodeResponse = DecodeAcceptInviteResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildAcceptInviteRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.AcceptInviteDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "accept-invite", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// DeclineInvite returns an endpoint that makes HTTP requests to the
+// committee-service service decline-invite server.
+func (c *Client) DeclineInvite() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeDeclineInviteRequest(c.encoder)
+		decodeResponse = DecodeDeclineInviteResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildDeclineInviteRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.DeclineInviteDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "decline-invite", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ListApplications returns an endpoint that makes HTTP requests to the
+// committee-service service list-applications server.
+func (c *Client) ListApplications() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeListApplicationsRequest(c.encoder)
+		decodeResponse = DecodeListApplicationsResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildListApplicationsRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ListApplicationsDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "list-applications", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// SubmitApplication returns an endpoint that makes HTTP requests to the
+// committee-service service submit-application server.
+func (c *Client) SubmitApplication() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeSubmitApplicationRequest(c.encoder)
+		decodeResponse = DecodeSubmitApplicationResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildSubmitApplicationRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.SubmitApplicationDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "submit-application", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ApproveApplication returns an endpoint that makes HTTP requests to the
+// committee-service service approve-application server.
+func (c *Client) ApproveApplication() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeApproveApplicationRequest(c.encoder)
+		decodeResponse = DecodeApproveApplicationResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildApproveApplicationRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ApproveApplicationDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "approve-application", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// RejectApplication returns an endpoint that makes HTTP requests to the
+// committee-service service reject-application server.
+func (c *Client) RejectApplication() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeRejectApplicationRequest(c.encoder)
+		decodeResponse = DecodeRejectApplicationResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildRejectApplicationRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.RejectApplicationDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "reject-application", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// JoinCommittee returns an endpoint that makes HTTP requests to the
+// committee-service service join-committee server.
+func (c *Client) JoinCommittee() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeJoinCommitteeRequest(c.encoder)
+		decodeResponse = DecodeJoinCommitteeResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildJoinCommitteeRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.JoinCommitteeDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "join-committee", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// LeaveCommittee returns an endpoint that makes HTTP requests to the
+// committee-service service leave-committee server.
+func (c *Client) LeaveCommittee() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeLeaveCommitteeRequest(c.encoder)
+		decodeResponse = DecodeLeaveCommitteeResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildLeaveCommitteeRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.LeaveCommitteeDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "leave-committee", err)
 		}
 		return decodeResponse(resp)
 	}

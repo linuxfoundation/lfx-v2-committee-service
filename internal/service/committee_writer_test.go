@@ -146,6 +146,38 @@ func (w *TestMockCommitteeWriter) UniqueMember(ctx context.Context, member *mode
 	return mockWriter.UniqueMember(ctx, member)
 }
 
+// Implement CommitteeInviteWriter interface
+func (w *TestMockCommitteeWriter) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.CreateInvite(ctx, invite)
+}
+
+func (w *TestMockCommitteeWriter) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UpdateInvite(ctx, invite, revision)
+}
+
+func (w *TestMockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UniqueInvite(ctx, invite)
+}
+
+// Implement CommitteeApplicationWriter interface
+func (w *TestMockCommitteeWriter) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.CreateApplication(ctx, application)
+}
+
+func (w *TestMockCommitteeWriter) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UpdateApplication(ctx, application, revision)
+}
+
+func (w *TestMockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UniqueApplication(ctx, application)
+}
+
 func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 	testCases := []struct {
 		name           string
