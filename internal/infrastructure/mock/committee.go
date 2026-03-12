@@ -431,6 +431,7 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision u
 
 // UniqueNameProject verifies if a committee with the same name and project exists
 // Returns conflict error if found (for uniqueness checking)
+// Returns (key, nil) when the name/project combination is unique (matches NATS storage behavior)
 func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 	nameProjectKey := committee.BuildIndexKey(ctx)
 	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by name project key", "name_project_key", nameProjectKey)
@@ -444,8 +445,8 @@ func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *
 		return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with name project key %s already exists", nameProjectKey))
 	}
 
-	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("committee with name project key %s not found", nameProjectKey))
+	// Return nil error when unique (matches NATS KV Create behavior)
+	return nameProjectKey, nil
 }
 
 // UniqueSSOGroupName verifies if a committee with the same SSO group name exists
@@ -463,8 +464,9 @@ func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee 
 		}
 	}
 
-	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("committee with SSO group name %s not found", committee.SSOGroupName))
+	// Return nil error when unique (matches NATS KV Create behavior)
+	ssoKey := "sso:" + committee.SSOGroupName
+	return ssoKey, nil
 }
 
 // ================== CommitteeSettingsWriter implementation ==================
@@ -749,7 +751,7 @@ func (w *MockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.Co
 	if existing, exists := w.mock.inviteIndexKeys[indexKey]; exists {
 		return existing.UID, errors.NewConflict("invite already exists")
 	}
-	return "", errors.NewNotFound("invite not found")
+	return indexKey, nil
 }
 
 // ================== CommitteeApplicationWriter implementation ==================
@@ -800,7 +802,7 @@ func (w *MockCommitteeWriter) UniqueApplication(ctx context.Context, application
 	if existing, exists := w.mock.applicationIndexKeys[indexKey]; exists {
 		return existing.UID, errors.NewConflict("application already exists")
 	}
-	return "", errors.NewNotFound("application not found")
+	return indexKey, nil
 }
 
 // MockProjectRetriever implements ProjectRetriever interface
