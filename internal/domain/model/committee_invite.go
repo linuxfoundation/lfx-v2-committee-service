@@ -75,7 +75,9 @@ func (ci *CommitteeInvite) Tags() []string {
 	}
 
 	if ci.InviteeEmail != "" {
-		tag := fmt.Sprintf("invitee_email:%s", ci.InviteeEmail)
+		// Use SHA-256 hash instead of plain-text email to prevent PII exposure in tags
+		emailHash := sha256.Sum256([]byte(strings.TrimSpace(strings.ToLower(ci.InviteeEmail))))
+		tag := fmt.Sprintf("invitee_email:%s", hex.EncodeToString(emailHash[:]))
 		tags = append(tags, tag)
 	}
 

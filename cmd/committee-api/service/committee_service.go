@@ -400,6 +400,14 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 		return wrapError(ctx, err)
 	}
 
+	if invite.CommitteeUID != p.UID {
+		return wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	if invite.Status != "pending" {
+		return wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
 	invite.Status = "revoked"
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return wrapError(ctx, err)
@@ -418,6 +426,10 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	invite, rev, err := s.storage.GetInvite(ctx, p.InviteUID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
 	if invite.Status != "pending" {
@@ -442,6 +454,10 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	invite, rev, err := s.storage.GetInvite(ctx, p.InviteUID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
 	if invite.Status != "pending" {
@@ -525,6 +541,10 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		return nil, wrapError(ctx, err)
 	}
 
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
 	if application.Status != "pending" {
 		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
 	}
@@ -551,6 +571,10 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	application, rev, err := s.storage.GetApplication(ctx, p.ApplicationUID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
 	}
 
 	if application.Status != "pending" {
@@ -640,7 +664,8 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 		return wrapError(ctx, err)
 	}
 
-	if err := s.storage.DeleteMember(ctx, memberToRemove.UID, rev); err != nil {
+	// Use orchestrator (not direct storage) to ensure event publishing and cleanup
+	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, false); err != nil {
 		return wrapError(ctx, err)
 	}
 
