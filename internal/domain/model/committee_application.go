@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
 // CommitteeApplication represents a committee application business entity
@@ -43,7 +45,7 @@ func (ca *CommitteeApplication) BuildIndexKey(ctx context.Context) string {
 
 	slog.DebugContext(ctx, "application index key built",
 		"committee_uid", ca.CommitteeUID,
-		"applicant_uid", ca.ApplicantUID,
+		"applicant_uid", redaction.Redact(ca.ApplicantUID),
 		"key", key,
 	)
 

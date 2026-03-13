@@ -75,7 +75,8 @@ func (ci *CommitteeInvite) Tags() []string {
 	}
 
 	if ci.InviteeEmail != "" {
-		tag := fmt.Sprintf("invitee_email:%s", ci.InviteeEmail)
+		email := strings.TrimSpace(strings.ToLower(ci.InviteeEmail))
+		tag := fmt.Sprintf("invitee_email:%s", email)
 		tags = append(tags, tag)
 	}
 

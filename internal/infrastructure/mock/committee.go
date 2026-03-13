@@ -748,8 +748,8 @@ func (w *MockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.Co
 	defer w.mock.mu.RUnlock()
 
 	indexKey := invite.BuildIndexKey(ctx)
-	if existing, exists := w.mock.inviteIndexKeys[indexKey]; exists {
-		return existing.UID, errors.NewConflict("invite already exists")
+	if _, exists := w.mock.inviteIndexKeys[indexKey]; exists {
+		return indexKey, errors.NewConflict("invite already exists")
 	}
 	return indexKey, nil
 }
@@ -799,8 +799,8 @@ func (w *MockCommitteeWriter) UniqueApplication(ctx context.Context, application
 	defer w.mock.mu.RUnlock()
 
 	indexKey := application.BuildIndexKey(ctx)
-	if existing, exists := w.mock.applicationIndexKeys[indexKey]; exists {
-		return existing.UID, errors.NewConflict("application already exists")
+	if _, exists := w.mock.applicationIndexKeys[indexKey]; exists {
+		return indexKey, errors.NewConflict("application already exists")
 	}
 	return indexKey, nil
 }
@@ -1011,6 +1011,35 @@ func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, even
 // NewMockCommitteePublisher creates a mock committee publisher
 func NewMockCommitteePublisher() port.CommitteePublisher {
 	return &MockCommitteePublisher{}
+}
+
+// GetSettingsPtr returns the settings pointer for a committee so tests can mutate it directly.
+// Returns nil if no settings exist for the given committee UID.
+func (m *MockRepository) GetSettingsPtr(committeeUID string) *model.CommitteeSettings {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.committeeSettings[committeeUID]
+}
+
+// AddCommitteeInvite adds a committee invite to the mock data (useful for testing)
+func (m *MockRepository) AddCommitteeInvite(invite *model.CommitteeInvite) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.committeeInvites[invite.UID] = invite
+	m.inviteIndexKeys[invite.BuildIndexKey(context.Background())] = invite
+	m.inviteRevisions[invite.UID] = 1
+}
+
+// AddCommitteeApplication adds a committee application to the mock data (useful for testing)
+func (m *MockRepository) AddCommitteeApplication(application *model.CommitteeApplication) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.committeeApplications[application.UID] = application
+	m.applicationIndexKeys[application.BuildIndexKey(context.Background())] = application
+	m.applicationRevisions[application.UID] = 1
 }
 
 // stringPtr is a helper function to create string pointers

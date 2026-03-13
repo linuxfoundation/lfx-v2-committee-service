@@ -427,6 +427,12 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
+	// Enforce invite ownership: only the invitee can accept their own invite
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if !strings.EqualFold(principal, invite.InviteeEmail) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
+	}
+
 	if invite.Status != "pending" {
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
@@ -455,6 +461,12 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 
 	if invite.CommitteeUID != p.UID {
 		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	// Enforce invite ownership: only the invitee can decline their own invite
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if !strings.EqualFold(principal, invite.InviteeEmail) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
 	if invite.Status != "pending" {
@@ -493,14 +505,29 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		return nil, wrapError(ctx, errors.NewForbidden("committee does not accept applications"))
 	}
 
-	// Get principal from context for applicant UID — redact in logs (PII)
+	// Get principal from context — in the Heimdall OIDC flow, the principal
+	// is the user's email address from the identity provider.
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	}
+
+	// Validate that the principal is an email address, not a bare UID/sub
+	if !strings.Contains(principal, "@") {
+		slog.ErrorContext(ctx, "committeeService.submit-application: principal is not an email",
+			"principal_redacted", redaction.Redact(principal),
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	}
 
 	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
 		"committee_uid", p.UID,
-		"applicant_uid_redacted", redaction.Redact(principal),
+		"applicant_email_redacted", redaction.RedactEmail(principal),
 	)
 
+	// ApplicantUID stores the applicant's email (the Heimdall principal).
+	// In the OIDC flow, the principal IS the email address.
 	application := &model.CommitteeApplication{
 		UID:          uuid.New().String(),
 		CommitteeUID: p.UID,
