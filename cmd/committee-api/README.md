@@ -42,6 +42,7 @@ In addition to HTTP endpoints, this service provides NATS messaging capabilities
 ### Usage Examples
 
 #### Get Committee Name
+
 ```bash
 # Send request with committee UID as message data
 nats request lfx.committee-api.get_name "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
@@ -49,6 +50,7 @@ nats request lfx.committee-api.get_name "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
 ```
 
 #### List Committee Members
+
 ```bash
 # Send request with committee UID as message data
 nats request lfx.committee-api.list_members "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
@@ -58,10 +60,12 @@ nats request lfx.committee-api.list_members "061a110a-7c38-4cd3-bfcf-fc8511a37f3
 ### Error Handling
 
 NATS message responses follow this format:
+
 - **Success**: Direct data response (string for name, JSON for members)
 - **Error**: JSON object with error message: `{"error": "error description"}`
 
 Common error scenarios:
+
 - Invalid UUID format: `{"error": "invalid UUID format"}`
 - Committee not found: `{"error": "committee with UID <uid> not found"}`
 - Committee has no members: `[]` (empty array for list_members)
@@ -70,12 +74,11 @@ Common error scenarios:
 
 ```bash
 ├── design/                         # Goa design files
-│   ├── committee.go                # Goa committee service specification
-│   └── type.go                     # Goa data types and models
+│   ├── committee_svc.go            # Service and endpoint definitions
+│   └── ...                         # Type files for each entity
 ├── service/                        # Service implementation (presentation layer)
-│   ├── committee_service.go        # Committee and member service implementation
-│   ├── error.go                    # Error handling utilities
-│   └── providers.go                # Dependency injection providers
+│   ├── committee_service.go        # HTTP handler implementations
+│   └── ...                         # Response mappers, validators, error handling
 ├── main.go                         # Application startup and dependency injection
 ├── http.go                         # HTTP server setup and configuration
 └── README.md                       # This documentation
@@ -167,7 +170,7 @@ Tags serve multiple important purposes in the LFX system:
 
 1. **Indexed Search**: Tags are indexed in OpenSearch, enabling fast lookups and text searches across committees and members
 
-2. **Relationship Navigation**: 
+2. **Relationship Navigation**:
    - Parent-child committee relationships can be traversed using the parent_uid tags
    - Committee-project relationships can be traversed using the project_uid tags
    - Committee-member relationships can be traversed using the committee_uid tags
@@ -321,6 +324,7 @@ The service relies on some resources and external services being spun up prior t
     # Note: replace the hostname with the host from ./charts/lfx-v2-committee-service/ingressroute.yaml
     curl http://lfx-api.k8s.orb.local/livez
     ```
+
 ### Authorization with OpenFGA
 
 When deployed via Kubernetes, the committee service uses OpenFGA for fine-grained authorization control. The authorization is handled by Heimdall middleware before requests reach the service.
@@ -348,7 +352,7 @@ For local development without OpenFGA:
 
 Note: follow the [Development Workflow](#4-development-workflow) section on how to run the service code
 
-1. **Update design files**: Edit the committee design file in `design/committee.go` to include specification of the new endpoint with all of its supported parameters, responses, and errors, etc.
+1. **Update design files**: Edit the committee design file in `design/committee_svc.go` to include specification of the new endpoint with all of its supported parameters, responses, and errors, etc.
 2. **Regenerate code**: Run `make apigen` after design changes to generate the new Goa interfaces and types
 3. **Implement code**: Implement the new endpoint in `service/` following the existing patterns. Add the necessary business logic to the use case layer in `internal/service/` if needed. Include comprehensive tests for the new endpoint.
 4. **Update heimdall ruleset**: Ensure that `/charts/lfx-v2-committee-service/templates/ruleset.yaml` has the route and method for the endpoint set so that authentication is configured when deployed. If the endpoint modifies data (PUT, DELETE, PATCH), consider adding OpenFGA authorization checks in the ruleset for proper access control
