@@ -62,6 +62,7 @@ var CommitteeFull = dsl.Type("committee-full", func() {
 	AuditorsAttribute()
 })
 
+// CommitteeBaseWithReadonlyAttributes is the DSL type for a committee base with readonly attributes such as UID, project name, and aggregate counts.
 var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly-attributes", func() {
 	dsl.Description("A base representation of LFX committees with readonly attributes.")
 
@@ -77,6 +78,7 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly
 
 })
 
+// CommitteeFullWithReadonlyAttributes is the DSL type for a complete committee representation combining base, settings, and readonly attributes.
 var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
 	dsl.Description("A complete representation of LFX committees with base, settings and readonly attributes.")
 
@@ -97,6 +99,7 @@ var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 
 })
 
+// CommitteeSettingsWithReadonlyAttributes is the DSL type for committee settings with readonly attributes such as timestamps.
 var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-readonly-attributes", func() {
 	dsl.Description("A representation of LF Committee settings with readonly attributes.")
 
@@ -694,6 +697,7 @@ func MemberVisibilityAttribute() {
 	})
 }
 
+// ShowMeetingAttendeesAttribute is the DSL attribute for the default meeting attendees visibility setting.
 func ShowMeetingAttendeesAttribute() {
 	dsl.Attribute("show_meeting_attendees", dsl.Boolean, "Determines the default show_meeting_attendees setting on meetings this committee is connected to", func() {
 		dsl.Default(false)

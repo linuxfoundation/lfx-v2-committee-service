@@ -23,6 +23,7 @@ type storage struct {
 	client *NATSClient
 }
 
+// Create persists a new committee and its optional settings in the NATS JetStream KV store.
 func (s *storage) Create(ctx context.Context, committee *model.Committee) error {
 
 	if committee == nil {
@@ -66,6 +67,9 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 	return nil
 }
 
+// UniqueNameProject enforces a uniqueness constraint on the committee name within a project
+// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
+// if a committee with the same name already exists for the project.
 func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
@@ -79,6 +83,9 @@ func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Commit
 	return uniqueKey, nil
 }
 
+// UniqueSSOGroupName enforces a uniqueness constraint on the committee's SSO group name
+// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
+// if a committee with the same SSO group name already exists.
 func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
 
 	ssoGroupKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, committee.SSOGroupName)
@@ -118,6 +125,7 @@ func (s *storage) get(ctx context.Context, bucket, uid string, model any, onlyRe
 
 }
 
+// GetBase retrieves a committee's base data and its current revision from the KV store by UID.
 func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
 	committee := &model.CommitteeBase{}
@@ -133,10 +141,12 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 	return committee, rev, nil
 }
 
+// GetRevision retrieves only the current revision number for a committee without unmarshaling its data.
 func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
 	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{}, true)
 }
 
+// GetSettings retrieves a committee's settings and its current revision from the KV store by committee UID.
 func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
 	settings := &model.CommitteeSettings{}
@@ -152,6 +162,7 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 	return settings, rev, nil
 }
 
+// UpdateBase updates a committee's base data in the KV store using optimistic locking via the provided revision.
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
 
 	// Marshal the committee base data
@@ -178,6 +189,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 	return nil
 }
 
+// UpdateSetting updates a committee's settings in the KV store using optimistic locking via the provided revision.
 func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 
 	// Marshal the committee settings data
@@ -204,6 +216,8 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 	return nil
 }
 
+// Delete removes a committee's base data and associated settings from the KV store.
+// It uses optimistic locking for the base record and silently ignores missing settings.
 func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error {
 
 	// Delete committee base
@@ -656,10 +670,12 @@ func (s *storage) UniqueApplication(ctx context.Context, application *model.Comm
 	return uniqueKey, nil
 }
 
+// IsReady checks whether the underlying NATS client connection is healthy and ready to serve requests.
 func (s *storage) IsReady(ctx context.Context) error {
 	return s.client.IsReady(ctx)
 }
 
+// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
 func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
 	return &storage{
 		client: client,

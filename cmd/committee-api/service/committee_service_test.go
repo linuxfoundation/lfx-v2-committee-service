@@ -1246,12 +1246,12 @@ func TestJoinCommittee(t *testing.T) {
 
 func TestLeaveCommittee(t *testing.T) {
 	tests := []struct {
-		name           string
-		principal      string
-		seedMember     bool
-		seedMemberUID  string
-		expectError    bool
-		errContains    string
+		name          string
+		principal     string
+		seedMember    bool
+		seedMemberUID string
+		expectError   bool
+		errContains   string
 	}{
 		{
 			name:          "successful leave",
