@@ -18,6 +18,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 
 	"goa.design/goa/v3/security"
 )
@@ -759,14 +760,35 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
+// IndexingConfig is required because there is no server-side enricher for committee_invite.
 func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
-	indexerMessage := model.CommitteeIndexerMessage{Action: action}
+	tags := invite.Tags()
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             invite.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", invite.CommitteeUID)},
+		SortName:             invite.InviteeEmail,
+		NameAndAliases:       []string{invite.InviteeEmail},
+		Fulltext:             invite.InviteeEmail,
+		Tags:                 tags,
+	}
 
 	var data any
 	if action == model.ActionDeleted {
 		data = invite.UID
 	} else {
+		public := false
+		indexingConfig.Public = &public
 		data = invite
+	}
+
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action:         action,
+		Tags:           tags,
+		IndexingConfig: indexingConfig,
 	}
 
 	built, err := indexerMessage.Build(ctx, data)
@@ -790,14 +812,33 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 
 // publishApplicationIndexerMessage publishes an indexer message for application operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
+// IndexingConfig is required because there is no server-side enricher for committee_application.
 func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
-	indexerMessage := model.CommitteeIndexerMessage{Action: action}
+	tags := application.Tags()
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             application.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", application.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", application.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", application.CommitteeUID)},
+		Fulltext:             application.Message,
+		Tags:                 tags,
+	}
 
 	var data any
 	if action == model.ActionDeleted {
 		data = application.UID
 	} else {
+		public := false
+		indexingConfig.Public = &public
 		data = application
+	}
+
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action:         action,
+		Tags:           tags,
+		IndexingConfig: indexingConfig,
 	}
 
 	built, err := indexerMessage.Build(ctx, data)
