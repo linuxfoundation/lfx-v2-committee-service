@@ -19,7 +19,6 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	goahttp "goa.design/goa/v3/http"
-	goa "goa.design/goa/v3/pkg"
 )
 
 // BuildCreateCommitteeRequest instantiates a HTTP request object with method
@@ -1813,23 +1812,25 @@ func DecodeDeleteCommitteeMemberResponse(decoder func(*http.Response) goahttp.De
 	}
 }
 
-// BuildListInvitesRequest instantiates a HTTP request object with method and
-// path set to call the "committee-service" service "list-invites" endpoint
-func (c *Client) BuildListInvitesRequest(ctx context.Context, v any) (*http.Request, error) {
+// BuildGetInviteRequest instantiates a HTTP request object with method and
+// path set to call the "committee-service" service "get-invite" endpoint
+func (c *Client) BuildGetInviteRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		uid string
+		uid       string
+		inviteUID string
 	)
 	{
-		p, ok := v.(*committeeservice.ListInvitesPayload)
+		p, ok := v.(*committeeservice.GetInvitePayload)
 		if !ok {
-			return nil, goahttp.ErrInvalidType("committee-service", "list-invites", "*committeeservice.ListInvitesPayload", v)
+			return nil, goahttp.ErrInvalidType("committee-service", "get-invite", "*committeeservice.GetInvitePayload", v)
 		}
 		uid = p.UID
+		inviteUID = p.InviteUID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ListInvitesCommitteeServicePath(uid)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetInviteCommitteeServicePath(uid, inviteUID)}
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return nil, goahttp.ErrInvalidURL("committee-service", "list-invites", u.String(), err)
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-invite", u.String(), err)
 	}
 	if ctx != nil {
 		req = req.WithContext(ctx)
@@ -1838,13 +1839,13 @@ func (c *Client) BuildListInvitesRequest(ctx context.Context, v any) (*http.Requ
 	return req, nil
 }
 
-// EncodeListInvitesRequest returns an encoder for requests sent to the
-// committee-service list-invites server.
-func EncodeListInvitesRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+// EncodeGetInviteRequest returns an encoder for requests sent to the
+// committee-service get-invite server.
+func EncodeGetInviteRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
 	return func(req *http.Request, v any) error {
-		p, ok := v.(*committeeservice.ListInvitesPayload)
+		p, ok := v.(*committeeservice.GetInvitePayload)
 		if !ok {
-			return goahttp.ErrInvalidType("committee-service", "list-invites", "*committeeservice.ListInvitesPayload", v)
+			return goahttp.ErrInvalidType("committee-service", "get-invite", "*committeeservice.GetInvitePayload", v)
 		}
 		if p.BearerToken != nil {
 			head := *p.BearerToken
@@ -1861,15 +1862,15 @@ func EncodeListInvitesRequest(encoder func(*http.Request) goahttp.Encoder) func(
 	}
 }
 
-// DecodeListInvitesResponse returns a decoder for responses returned by the
-// committee-service list-invites endpoint. restoreBody controls whether the
+// DecodeGetInviteResponse returns a decoder for responses returned by the
+// committee-service get-invite endpoint. restoreBody controls whether the
 // response body should be restored after having been read.
-// DecodeListInvitesResponse may return the following errors:
+// DecodeGetInviteResponse may return the following errors:
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
 //   - error: internal error
-func DecodeListInvitesResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+func DecodeGetInviteResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
 	return func(resp *http.Response) (any, error) {
 		if restoreBody {
 			b, err := io.ReadAll(resp.Body)
@@ -1886,70 +1887,64 @@ func DecodeListInvitesResponse(decoder func(*http.Response) goahttp.Decoder, res
 		switch resp.StatusCode {
 		case http.StatusOK:
 			var (
-				body ListInvitesResponseBody
+				body GetInviteResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-invite", err)
 			}
-			for _, e := range body {
-				if e != nil {
-					if err2 := ValidateCommitteeInviteWithReadonlyAttributesResponse(e); err2 != nil {
-						err = goa.MergeErrors(err, err2)
-					}
-				}
-			}
+			err = ValidateGetInviteResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-invite", err)
 			}
-			res := NewListInvitesCommitteeInviteWithReadonlyAttributesOK(body)
+			res := NewGetInviteCommitteeInviteWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusInternalServerError:
 			var (
-				body ListInvitesInternalServerErrorResponseBody
+				body GetInviteInternalServerErrorResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-invite", err)
 			}
-			err = ValidateListInvitesInternalServerErrorResponseBody(&body)
+			err = ValidateGetInviteInternalServerErrorResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-invite", err)
 			}
-			return nil, NewListInvitesInternalServerError(&body)
+			return nil, NewGetInviteInternalServerError(&body)
 		case http.StatusNotFound:
 			var (
-				body ListInvitesNotFoundResponseBody
+				body GetInviteNotFoundResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-invite", err)
 			}
-			err = ValidateListInvitesNotFoundResponseBody(&body)
+			err = ValidateGetInviteNotFoundResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-invite", err)
 			}
-			return nil, NewListInvitesNotFound(&body)
+			return nil, NewGetInviteNotFound(&body)
 		case http.StatusServiceUnavailable:
 			var (
-				body ListInvitesServiceUnavailableResponseBody
+				body GetInviteServiceUnavailableResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-invite", err)
 			}
-			err = ValidateListInvitesServiceUnavailableResponseBody(&body)
+			err = ValidateGetInviteServiceUnavailableResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-invites", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-invite", err)
 			}
-			return nil, NewListInvitesServiceUnavailable(&body)
+			return nil, NewGetInviteServiceUnavailable(&body)
 		default:
 			body, _ := io.ReadAll(resp.Body)
-			return nil, goahttp.ErrInvalidResponse("committee-service", "list-invites", resp.StatusCode, string(body))
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-invite", resp.StatusCode, string(body))
 		}
 	}
 }
@@ -2601,24 +2596,26 @@ func DecodeDeclineInviteResponse(decoder func(*http.Response) goahttp.Decoder, r
 	}
 }
 
-// BuildListApplicationsRequest instantiates a HTTP request object with method
-// and path set to call the "committee-service" service "list-applications"
+// BuildGetApplicationRequest instantiates a HTTP request object with method
+// and path set to call the "committee-service" service "get-application"
 // endpoint
-func (c *Client) BuildListApplicationsRequest(ctx context.Context, v any) (*http.Request, error) {
+func (c *Client) BuildGetApplicationRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		uid string
+		uid            string
+		applicationUID string
 	)
 	{
-		p, ok := v.(*committeeservice.ListApplicationsPayload)
+		p, ok := v.(*committeeservice.GetApplicationPayload)
 		if !ok {
-			return nil, goahttp.ErrInvalidType("committee-service", "list-applications", "*committeeservice.ListApplicationsPayload", v)
+			return nil, goahttp.ErrInvalidType("committee-service", "get-application", "*committeeservice.GetApplicationPayload", v)
 		}
 		uid = p.UID
+		applicationUID = p.ApplicationUID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ListApplicationsCommitteeServicePath(uid)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetApplicationCommitteeServicePath(uid, applicationUID)}
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return nil, goahttp.ErrInvalidURL("committee-service", "list-applications", u.String(), err)
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-application", u.String(), err)
 	}
 	if ctx != nil {
 		req = req.WithContext(ctx)
@@ -2627,13 +2624,13 @@ func (c *Client) BuildListApplicationsRequest(ctx context.Context, v any) (*http
 	return req, nil
 }
 
-// EncodeListApplicationsRequest returns an encoder for requests sent to the
-// committee-service list-applications server.
-func EncodeListApplicationsRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+// EncodeGetApplicationRequest returns an encoder for requests sent to the
+// committee-service get-application server.
+func EncodeGetApplicationRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
 	return func(req *http.Request, v any) error {
-		p, ok := v.(*committeeservice.ListApplicationsPayload)
+		p, ok := v.(*committeeservice.GetApplicationPayload)
 		if !ok {
-			return goahttp.ErrInvalidType("committee-service", "list-applications", "*committeeservice.ListApplicationsPayload", v)
+			return goahttp.ErrInvalidType("committee-service", "get-application", "*committeeservice.GetApplicationPayload", v)
 		}
 		if p.BearerToken != nil {
 			head := *p.BearerToken
@@ -2650,15 +2647,15 @@ func EncodeListApplicationsRequest(encoder func(*http.Request) goahttp.Encoder) 
 	}
 }
 
-// DecodeListApplicationsResponse returns a decoder for responses returned by
-// the committee-service list-applications endpoint. restoreBody controls
-// whether the response body should be restored after having been read.
-// DecodeListApplicationsResponse may return the following errors:
+// DecodeGetApplicationResponse returns a decoder for responses returned by the
+// committee-service get-application endpoint. restoreBody controls whether the
+// response body should be restored after having been read.
+// DecodeGetApplicationResponse may return the following errors:
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
 //   - error: internal error
-func DecodeListApplicationsResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+func DecodeGetApplicationResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
 	return func(resp *http.Response) (any, error) {
 		if restoreBody {
 			b, err := io.ReadAll(resp.Body)
@@ -2675,70 +2672,64 @@ func DecodeListApplicationsResponse(decoder func(*http.Response) goahttp.Decoder
 		switch resp.StatusCode {
 		case http.StatusOK:
 			var (
-				body ListApplicationsResponseBody
+				body GetApplicationResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-application", err)
 			}
-			for _, e := range body {
-				if e != nil {
-					if err2 := ValidateCommitteeApplicationWithReadonlyAttributesResponse(e); err2 != nil {
-						err = goa.MergeErrors(err, err2)
-					}
-				}
-			}
+			err = ValidateGetApplicationResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-application", err)
 			}
-			res := NewListApplicationsCommitteeApplicationWithReadonlyAttributesOK(body)
+			res := NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusInternalServerError:
 			var (
-				body ListApplicationsInternalServerErrorResponseBody
+				body GetApplicationInternalServerErrorResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-application", err)
 			}
-			err = ValidateListApplicationsInternalServerErrorResponseBody(&body)
+			err = ValidateGetApplicationInternalServerErrorResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-application", err)
 			}
-			return nil, NewListApplicationsInternalServerError(&body)
+			return nil, NewGetApplicationInternalServerError(&body)
 		case http.StatusNotFound:
 			var (
-				body ListApplicationsNotFoundResponseBody
+				body GetApplicationNotFoundResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-application", err)
 			}
-			err = ValidateListApplicationsNotFoundResponseBody(&body)
+			err = ValidateGetApplicationNotFoundResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-application", err)
 			}
-			return nil, NewListApplicationsNotFound(&body)
+			return nil, NewGetApplicationNotFound(&body)
 		case http.StatusServiceUnavailable:
 			var (
-				body ListApplicationsServiceUnavailableResponseBody
+				body GetApplicationServiceUnavailableResponseBody
 				err  error
 			)
 			err = decoder(resp).Decode(&body)
 			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrDecodingError("committee-service", "get-application", err)
 			}
-			err = ValidateListApplicationsServiceUnavailableResponseBody(&body)
+			err = ValidateGetApplicationServiceUnavailableResponseBody(&body)
 			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-applications", err)
+				return nil, goahttp.ErrValidationError("committee-service", "get-application", err)
 			}
-			return nil, NewListApplicationsServiceUnavailable(&body)
+			return nil, NewGetApplicationServiceUnavailable(&body)
 		default:
 			body, _ := io.ReadAll(resp.Body)
-			return nil, goahttp.ErrInvalidResponse("committee-service", "list-applications", resp.StatusCode, string(body))
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-application", resp.StatusCode, string(body))
 		}
 	}
 }
@@ -3603,49 +3594,4 @@ func DecodeLeaveCommitteeResponse(decoder func(*http.Response) goahttp.Decoder, 
 			return nil, goahttp.ErrInvalidResponse("committee-service", "leave-committee", resp.StatusCode, string(body))
 		}
 	}
-}
-
-// unmarshalCommitteeInviteWithReadonlyAttributesResponseToCommitteeserviceCommitteeInviteWithReadonlyAttributes
-// builds a value of type
-// *committeeservice.CommitteeInviteWithReadonlyAttributes from a value of type
-// *CommitteeInviteWithReadonlyAttributesResponse.
-func unmarshalCommitteeInviteWithReadonlyAttributesResponseToCommitteeserviceCommitteeInviteWithReadonlyAttributes(v *CommitteeInviteWithReadonlyAttributesResponse) *committeeservice.CommitteeInviteWithReadonlyAttributes {
-	res := &committeeservice.CommitteeInviteWithReadonlyAttributes{
-		UID:          v.UID,
-		CommitteeUID: v.CommitteeUID,
-		InviteeEmail: v.InviteeEmail,
-		Role:         v.Role,
-		CreatedAt:    v.CreatedAt,
-	}
-	if v.Status != nil {
-		res.Status = *v.Status
-	}
-	if v.Status == nil {
-		res.Status = "pending"
-	}
-
-	return res
-}
-
-// unmarshalCommitteeApplicationWithReadonlyAttributesResponseToCommitteeserviceCommitteeApplicationWithReadonlyAttributes
-// builds a value of type
-// *committeeservice.CommitteeApplicationWithReadonlyAttributes from a value of
-// type *CommitteeApplicationWithReadonlyAttributesResponse.
-func unmarshalCommitteeApplicationWithReadonlyAttributesResponseToCommitteeserviceCommitteeApplicationWithReadonlyAttributes(v *CommitteeApplicationWithReadonlyAttributesResponse) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
-	res := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		ApplicantUID:  v.ApplicantUID,
-		Message:       v.Message,
-		ReviewerNotes: v.ReviewerNotes,
-		CreatedAt:     v.CreatedAt,
-	}
-	if v.Status != nil {
-		res.Status = *v.Status
-	}
-	if v.Status == nil {
-		res.Status = "pending"
-	}
-
-	return res
 }

@@ -337,13 +337,13 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
-    - id: "rule:lfx:lfx-v2-committee-service:committee_invites:list"
+    - id: "rule:lfx:lfx-v2-committee-service:committee_invites:get"
       allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
         routes:
-          - path: /committees/:uid/invites
+          - path: /committees/:uid/invites/:invite_uid
       execute:
         - authenticator: oidc
         - authenticator: anonymous_authenticator
@@ -354,7 +354,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: writer
+              relation: viewer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
@@ -404,15 +404,9 @@ spec:
         {{- if .Values.app.use_oidc_contextualizer }}
         - contextualizer: oidc_contextualizer
         {{- end }}
-        {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          config:
-            values:
-              relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else }}
+        # Self-action: any authenticated user can accept their own invite.
+        # Ownership is enforced in the service layer (principal == invitee_email).
         - authorizer: allow_all
-        {{- end }}
         - finalizer: create_jwt
           config:
             values:
@@ -431,28 +425,22 @@ spec:
         {{- if .Values.app.use_oidc_contextualizer }}
         - contextualizer: oidc_contextualizer
         {{- end }}
-        {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          config:
-            values:
-              relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else }}
+        # Self-action: any authenticated user can decline their own invite.
+        # Ownership is enforced in the service layer (principal == invitee_email).
         - authorizer: allow_all
-        {{- end }}
         - finalizer: create_jwt
           config:
             values:
               aud: {{ .Values.app.audience }}
 
     # Application endpoints
-    - id: "rule:lfx:lfx-v2-committee-service:committee_applications:list"
+    - id: "rule:lfx:lfx-v2-committee-service:committee_applications:get"
       allow_encoded_slashes: 'off'
       match:
         methods:
           - GET
         routes:
-          - path: /committees/:uid/applications
+          - path: /committees/:uid/applications/:application_uid
       execute:
         - authenticator: oidc
         - authenticator: anonymous_authenticator
@@ -463,7 +451,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: writer
+              relation: viewer
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
@@ -486,15 +474,9 @@ spec:
         {{- if .Values.app.use_oidc_contextualizer }}
         - contextualizer: oidc_contextualizer
         {{- end }}
-        {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          config:
-            values:
-              relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else }}
+        # Self-action: any authenticated user can submit an application.
+        # Applicant identity is resolved from the principal in the service layer.
         - authorizer: allow_all
-        {{- end }}
         - finalizer: create_jwt
           config:
             values:
@@ -568,15 +550,9 @@ spec:
         {{- if .Values.app.use_oidc_contextualizer }}
         - contextualizer: oidc_contextualizer
         {{- end }}
-        {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          config:
-            values:
-              relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else }}
+        # Self-action: any authenticated user can join an open committee.
+        # join_mode validation is enforced in the service layer.
         - authorizer: allow_all
-        {{- end }}
         - finalizer: create_jwt
           config:
             values:
@@ -595,15 +571,9 @@ spec:
         {{- if .Values.app.use_oidc_contextualizer }}
         - contextualizer: oidc_contextualizer
         {{- end }}
-        {{- if .Values.openfga.enabled }}
-        - authorizer: openfga_check
-          config:
-            values:
-              relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
-        {{- else }}
+        # Self-action: any authenticated member can leave a committee.
+        # Membership check is enforced in the service layer.
         - authorizer: allow_all
-        {{- end }}
         - finalizer: create_jwt
           config:
             values:

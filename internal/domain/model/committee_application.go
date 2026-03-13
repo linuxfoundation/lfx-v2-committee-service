@@ -76,7 +76,8 @@ func (ca *CommitteeApplication) Tags() []string {
 	}
 
 	if ca.ApplicantUID != "" {
-		tag := fmt.Sprintf("applicant_uid:%s", ca.ApplicantUID)
+		applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantUID))
+		tag := fmt.Sprintf("applicant_uid:%s", applicant)
 		tags = append(tags, tag)
 	}
 

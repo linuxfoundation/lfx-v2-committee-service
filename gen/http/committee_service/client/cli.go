@@ -1112,21 +1112,29 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 	return v, nil
 }
 
-// BuildListInvitesPayload builds the payload for the committee-service
-// list-invites endpoint from CLI flags.
-func BuildListInvitesPayload(committeeServiceListInvitesUID string, committeeServiceListInvitesVersion string, committeeServiceListInvitesBearerToken string) (*committeeservice.ListInvitesPayload, error) {
+// BuildGetInvitePayload builds the payload for the committee-service
+// get-invite endpoint from CLI flags.
+func BuildGetInvitePayload(committeeServiceGetInviteUID string, committeeServiceGetInviteInviteUID string, committeeServiceGetInviteVersion string, committeeServiceGetInviteBearerToken string) (*committeeservice.GetInvitePayload, error) {
 	var err error
 	var uid string
 	{
-		uid = committeeServiceListInvitesUID
+		uid = committeeServiceGetInviteUID
 		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var inviteUID string
+	{
+		inviteUID = committeeServiceGetInviteInviteUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("invite_uid", inviteUID, goa.FormatUUID))
 		if err != nil {
 			return nil, err
 		}
 	}
 	var version string
 	{
-		version = committeeServiceListInvitesVersion
+		version = committeeServiceGetInviteVersion
 		if !(version == "1") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
 		}
@@ -1136,12 +1144,13 @@ func BuildListInvitesPayload(committeeServiceListInvitesUID string, committeeSer
 	}
 	var bearerToken *string
 	{
-		if committeeServiceListInvitesBearerToken != "" {
-			bearerToken = &committeeServiceListInvitesBearerToken
+		if committeeServiceGetInviteBearerToken != "" {
+			bearerToken = &committeeServiceGetInviteBearerToken
 		}
 	}
-	v := &committeeservice.ListInvitesPayload{}
+	v := &committeeservice.GetInvitePayload{}
 	v.UID = uid
+	v.InviteUID = inviteUID
 	v.Version = version
 	v.BearerToken = bearerToken
 
@@ -1343,21 +1352,29 @@ func BuildDeclineInvitePayload(committeeServiceDeclineInviteUID string, committe
 	return v, nil
 }
 
-// BuildListApplicationsPayload builds the payload for the committee-service
-// list-applications endpoint from CLI flags.
-func BuildListApplicationsPayload(committeeServiceListApplicationsUID string, committeeServiceListApplicationsVersion string, committeeServiceListApplicationsBearerToken string) (*committeeservice.ListApplicationsPayload, error) {
+// BuildGetApplicationPayload builds the payload for the committee-service
+// get-application endpoint from CLI flags.
+func BuildGetApplicationPayload(committeeServiceGetApplicationUID string, committeeServiceGetApplicationApplicationUID string, committeeServiceGetApplicationVersion string, committeeServiceGetApplicationBearerToken string) (*committeeservice.GetApplicationPayload, error) {
 	var err error
 	var uid string
 	{
-		uid = committeeServiceListApplicationsUID
+		uid = committeeServiceGetApplicationUID
 		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var applicationUID string
+	{
+		applicationUID = committeeServiceGetApplicationApplicationUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("application_uid", applicationUID, goa.FormatUUID))
 		if err != nil {
 			return nil, err
 		}
 	}
 	var version string
 	{
-		version = committeeServiceListApplicationsVersion
+		version = committeeServiceGetApplicationVersion
 		if !(version == "1") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
 		}
@@ -1367,12 +1384,13 @@ func BuildListApplicationsPayload(committeeServiceListApplicationsUID string, co
 	}
 	var bearerToken *string
 	{
-		if committeeServiceListApplicationsBearerToken != "" {
-			bearerToken = &committeeServiceListApplicationsBearerToken
+		if committeeServiceGetApplicationBearerToken != "" {
+			bearerToken = &committeeServiceGetApplicationBearerToken
 		}
 	}
-	v := &committeeservice.ListApplicationsPayload{}
+	v := &committeeservice.GetApplicationPayload{}
 	v.UID = uid
+	v.ApplicationUID = applicationUID
 	v.Version = version
 	v.BearerToken = bearerToken
 

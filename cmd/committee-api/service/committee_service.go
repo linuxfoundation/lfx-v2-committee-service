@@ -336,10 +336,23 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	return nil
 }
 
-// ListInvites lists all invites for a committee
-func (s *committeeServicesrvc) ListInvites(_ context.Context, _ *committeeservice.ListInvitesPayload) ([]*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
-	// Deprecated: this endpoint is scheduled for removal. Use the query/indexer service instead.
-	return nil, wrapError(context.Background(), errors.NewNotFound("list invites endpoint has been removed; use the indexer query service"))
+// GetInvite retrieves a single invite by UID
+func (s *committeeServicesrvc) GetInvite(ctx context.Context, p *committeeservice.GetInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.get-invite",
+		"committee_uid", p.UID,
+		"invite_uid", p.InviteUID,
+	)
+
+	invite, _, err := s.storage.GetInvite(ctx, p.InviteUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	return s.convertInviteDomainToResponse(invite), nil
 }
 
 // CreateInvite creates a new invite for a committee
@@ -483,10 +496,23 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
-// ListApplications lists all applications for a committee
-func (s *committeeServicesrvc) ListApplications(_ context.Context, _ *committeeservice.ListApplicationsPayload) ([]*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
-	// Deprecated: this endpoint is scheduled for removal. Use the query/indexer service instead.
-	return nil, wrapError(context.Background(), errors.NewNotFound("list applications endpoint has been removed; use the indexer query service"))
+// GetApplication retrieves a single application by UID
+func (s *committeeServicesrvc) GetApplication(ctx context.Context, p *committeeservice.GetApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.get-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, _, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	return s.convertApplicationDomainToResponse(application), nil
 }
 
 // SubmitApplication submits an application to join a committee

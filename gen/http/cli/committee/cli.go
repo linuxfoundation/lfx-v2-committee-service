@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|list-invites|create-invite|revoke-invite|accept-invite|decline-invite|list-applications|submit-application|approve-application|reject-application|join-committee|leave-committee)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee)",
 	}
 }
 
@@ -119,10 +119,11 @@ func ParseEndpoint(
 		committeeServiceDeleteCommitteeMemberIfMatchFlag     = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
 		committeeServiceDeleteCommitteeMemberXSyncFlag       = committeeServiceDeleteCommitteeMemberFlags.String("x-sync", "", "")
 
-		committeeServiceListInvitesFlags           = flag.NewFlagSet("list-invites", flag.ExitOnError)
-		committeeServiceListInvitesUIDFlag         = committeeServiceListInvitesFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
-		committeeServiceListInvitesVersionFlag     = committeeServiceListInvitesFlags.String("version", "REQUIRED", "")
-		committeeServiceListInvitesBearerTokenFlag = committeeServiceListInvitesFlags.String("bearer-token", "", "")
+		committeeServiceGetInviteFlags           = flag.NewFlagSet("get-invite", flag.ExitOnError)
+		committeeServiceGetInviteUIDFlag         = committeeServiceGetInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetInviteInviteUIDFlag   = committeeServiceGetInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
+		committeeServiceGetInviteVersionFlag     = committeeServiceGetInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceGetInviteBearerTokenFlag = committeeServiceGetInviteFlags.String("bearer-token", "", "")
 
 		committeeServiceCreateInviteFlags           = flag.NewFlagSet("create-invite", flag.ExitOnError)
 		committeeServiceCreateInviteBodyFlag        = committeeServiceCreateInviteFlags.String("body", "REQUIRED", "")
@@ -149,10 +150,11 @@ func ParseEndpoint(
 		committeeServiceDeclineInviteVersionFlag     = committeeServiceDeclineInviteFlags.String("version", "REQUIRED", "")
 		committeeServiceDeclineInviteBearerTokenFlag = committeeServiceDeclineInviteFlags.String("bearer-token", "", "")
 
-		committeeServiceListApplicationsFlags           = flag.NewFlagSet("list-applications", flag.ExitOnError)
-		committeeServiceListApplicationsUIDFlag         = committeeServiceListApplicationsFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
-		committeeServiceListApplicationsVersionFlag     = committeeServiceListApplicationsFlags.String("version", "REQUIRED", "")
-		committeeServiceListApplicationsBearerTokenFlag = committeeServiceListApplicationsFlags.String("bearer-token", "", "")
+		committeeServiceGetApplicationFlags              = flag.NewFlagSet("get-application", flag.ExitOnError)
+		committeeServiceGetApplicationUIDFlag            = committeeServiceGetApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetApplicationApplicationUIDFlag = committeeServiceGetApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceGetApplicationVersionFlag        = committeeServiceGetApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceGetApplicationBearerTokenFlag    = committeeServiceGetApplicationFlags.String("bearer-token", "", "")
 
 		committeeServiceSubmitApplicationFlags           = flag.NewFlagSet("submit-application", flag.ExitOnError)
 		committeeServiceSubmitApplicationBodyFlag        = committeeServiceSubmitApplicationFlags.String("body", "REQUIRED", "")
@@ -200,12 +202,12 @@ func ParseEndpoint(
 	committeeServiceGetCommitteeMemberFlags.Usage = committeeServiceGetCommitteeMemberUsage
 	committeeServiceUpdateCommitteeMemberFlags.Usage = committeeServiceUpdateCommitteeMemberUsage
 	committeeServiceDeleteCommitteeMemberFlags.Usage = committeeServiceDeleteCommitteeMemberUsage
-	committeeServiceListInvitesFlags.Usage = committeeServiceListInvitesUsage
+	committeeServiceGetInviteFlags.Usage = committeeServiceGetInviteUsage
 	committeeServiceCreateInviteFlags.Usage = committeeServiceCreateInviteUsage
 	committeeServiceRevokeInviteFlags.Usage = committeeServiceRevokeInviteUsage
 	committeeServiceAcceptInviteFlags.Usage = committeeServiceAcceptInviteUsage
 	committeeServiceDeclineInviteFlags.Usage = committeeServiceDeclineInviteUsage
-	committeeServiceListApplicationsFlags.Usage = committeeServiceListApplicationsUsage
+	committeeServiceGetApplicationFlags.Usage = committeeServiceGetApplicationUsage
 	committeeServiceSubmitApplicationFlags.Usage = committeeServiceSubmitApplicationUsage
 	committeeServiceApproveApplicationFlags.Usage = committeeServiceApproveApplicationUsage
 	committeeServiceRejectApplicationFlags.Usage = committeeServiceRejectApplicationUsage
@@ -282,8 +284,8 @@ func ParseEndpoint(
 			case "delete-committee-member":
 				epf = committeeServiceDeleteCommitteeMemberFlags
 
-			case "list-invites":
-				epf = committeeServiceListInvitesFlags
+			case "get-invite":
+				epf = committeeServiceGetInviteFlags
 
 			case "create-invite":
 				epf = committeeServiceCreateInviteFlags
@@ -297,8 +299,8 @@ func ParseEndpoint(
 			case "decline-invite":
 				epf = committeeServiceDeclineInviteFlags
 
-			case "list-applications":
-				epf = committeeServiceListApplicationsFlags
+			case "get-application":
+				epf = committeeServiceGetApplicationFlags
 
 			case "submit-application":
 				epf = committeeServiceSubmitApplicationFlags
@@ -374,9 +376,9 @@ func ParseEndpoint(
 			case "delete-committee-member":
 				endpoint = c.DeleteCommitteeMember()
 				data, err = committeeservicec.BuildDeleteCommitteeMemberPayload(*committeeServiceDeleteCommitteeMemberUIDFlag, *committeeServiceDeleteCommitteeMemberMemberUIDFlag, *committeeServiceDeleteCommitteeMemberVersionFlag, *committeeServiceDeleteCommitteeMemberBearerTokenFlag, *committeeServiceDeleteCommitteeMemberIfMatchFlag, *committeeServiceDeleteCommitteeMemberXSyncFlag)
-			case "list-invites":
-				endpoint = c.ListInvites()
-				data, err = committeeservicec.BuildListInvitesPayload(*committeeServiceListInvitesUIDFlag, *committeeServiceListInvitesVersionFlag, *committeeServiceListInvitesBearerTokenFlag)
+			case "get-invite":
+				endpoint = c.GetInvite()
+				data, err = committeeservicec.BuildGetInvitePayload(*committeeServiceGetInviteUIDFlag, *committeeServiceGetInviteInviteUIDFlag, *committeeServiceGetInviteVersionFlag, *committeeServiceGetInviteBearerTokenFlag)
 			case "create-invite":
 				endpoint = c.CreateInvite()
 				data, err = committeeservicec.BuildCreateInvitePayload(*committeeServiceCreateInviteBodyFlag, *committeeServiceCreateInviteUIDFlag, *committeeServiceCreateInviteVersionFlag, *committeeServiceCreateInviteBearerTokenFlag, *committeeServiceCreateInviteXSyncFlag)
@@ -389,9 +391,9 @@ func ParseEndpoint(
 			case "decline-invite":
 				endpoint = c.DeclineInvite()
 				data, err = committeeservicec.BuildDeclineInvitePayload(*committeeServiceDeclineInviteUIDFlag, *committeeServiceDeclineInviteInviteUIDFlag, *committeeServiceDeclineInviteVersionFlag, *committeeServiceDeclineInviteBearerTokenFlag)
-			case "list-applications":
-				endpoint = c.ListApplications()
-				data, err = committeeservicec.BuildListApplicationsPayload(*committeeServiceListApplicationsUIDFlag, *committeeServiceListApplicationsVersionFlag, *committeeServiceListApplicationsBearerTokenFlag)
+			case "get-application":
+				endpoint = c.GetApplication()
+				data, err = committeeservicec.BuildGetApplicationPayload(*committeeServiceGetApplicationUIDFlag, *committeeServiceGetApplicationApplicationUIDFlag, *committeeServiceGetApplicationVersionFlag, *committeeServiceGetApplicationBearerTokenFlag)
 			case "submit-application":
 				endpoint = c.SubmitApplication()
 				data, err = committeeservicec.BuildSubmitApplicationPayload(*committeeServiceSubmitApplicationBodyFlag, *committeeServiceSubmitApplicationUIDFlag, *committeeServiceSubmitApplicationVersionFlag, *committeeServiceSubmitApplicationBearerTokenFlag, *committeeServiceSubmitApplicationXSyncFlag)
@@ -435,12 +437,12 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-member: Get a specific committee member by UID`)
 	fmt.Fprintln(os.Stderr, `    update-committee-member: Replace an existing committee member (requires complete resource)`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-member: Remove a member from a committee`)
-	fmt.Fprintln(os.Stderr, `    list-invites: List all invites for a committee`)
+	fmt.Fprintln(os.Stderr, `    get-invite: Get a single invite by UID`)
 	fmt.Fprintln(os.Stderr, `    create-invite: Create an invite for a committee`)
 	fmt.Fprintln(os.Stderr, `    revoke-invite: Revoke a pending invite`)
 	fmt.Fprintln(os.Stderr, `    accept-invite: Accept a pending invite`)
 	fmt.Fprintln(os.Stderr, `    decline-invite: Decline a pending invite`)
-	fmt.Fprintln(os.Stderr, `    list-applications: List all applications for a committee`)
+	fmt.Fprintln(os.Stderr, `    get-application: Get a single application by UID`)
 	fmt.Fprintln(os.Stderr, `    submit-application: Submit an application to join a committee`)
 	fmt.Fprintln(os.Stderr, `    approve-application: Approve a pending application`)
 	fmt.Fprintln(os.Stderr, `    reject-application: Reject a pending application`)
@@ -740,26 +742,28 @@ func committeeServiceDeleteCommitteeMemberUsage() {
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
-func committeeServiceListInvitesUsage() {
+func committeeServiceGetInviteUsage() {
 	// Header with flags
-	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-invites", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-invite", os.Args[0])
 	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -invite-uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `List all invites for a committee`)
+	fmt.Fprintln(os.Stderr, `Get a single invite by UID`)
 
 	// Flags list
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-invites --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateInviteUsage() {
@@ -860,26 +864,28 @@ func committeeServiceDeclineInviteUsage() {
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service decline-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
-func committeeServiceListApplicationsUsage() {
+func committeeServiceGetApplicationUsage() {
 	// Header with flags
-	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-applications", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-application", os.Args[0])
 	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `List all applications for a committee`)
+	fmt.Fprintln(os.Stderr, `Get a single application by UID`)
 
 	// Flags list
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-applications --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-application --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceSubmitApplicationUsage() {

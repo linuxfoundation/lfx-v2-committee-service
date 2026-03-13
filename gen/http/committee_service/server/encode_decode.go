@@ -1567,24 +1567,25 @@ func EncodeDeleteCommitteeMemberError(encoder func(context.Context, http.Respons
 	}
 }
 
-// EncodeListInvitesResponse returns an encoder for responses returned by the
-// committee-service list-invites endpoint.
-func EncodeListInvitesResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+// EncodeGetInviteResponse returns an encoder for responses returned by the
+// committee-service get-invite endpoint.
+func EncodeGetInviteResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.([]*committeeservice.CommitteeInviteWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeInviteWithReadonlyAttributes)
 		enc := encoder(ctx, w)
-		body := NewListInvitesResponseBody(res)
+		body := NewGetInviteResponseBody(res)
 		w.WriteHeader(http.StatusOK)
 		return enc.Encode(body)
 	}
 }
 
-// DecodeListInvitesRequest returns a decoder for requests sent to the
-// committee-service list-invites endpoint.
-func DecodeListInvitesRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ListInvitesPayload, error) {
-	return func(r *http.Request) (*committeeservice.ListInvitesPayload, error) {
+// DecodeGetInviteRequest returns a decoder for requests sent to the
+// committee-service get-invite endpoint.
+func DecodeGetInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GetInvitePayload, error) {
+	return func(r *http.Request) (*committeeservice.GetInvitePayload, error) {
 		var (
 			uid         string
+			inviteUID   string
 			version     string
 			bearerToken *string
 			err         error
@@ -1593,6 +1594,8 @@ func DecodeListInvitesRequest(mux goahttp.Muxer, decoder func(*http.Request) goa
 		)
 		uid = params["uid"]
 		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		inviteUID = params["invite_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("invite_uid", inviteUID, goa.FormatUUID))
 		version = r.URL.Query().Get("v")
 		if version == "" {
 			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
@@ -1607,7 +1610,7 @@ func DecodeListInvitesRequest(mux goahttp.Muxer, decoder func(*http.Request) goa
 		if err != nil {
 			return nil, err
 		}
-		payload := NewListInvitesPayload(uid, version, bearerToken)
+		payload := NewGetInvitePayload(uid, inviteUID, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -1620,9 +1623,9 @@ func DecodeListInvitesRequest(mux goahttp.Muxer, decoder func(*http.Request) goa
 	}
 }
 
-// EncodeListInvitesError returns an encoder for errors returned by the
-// list-invites committee-service endpoint.
-func EncodeListInvitesError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+// EncodeGetInviteError returns an encoder for errors returned by the
+// get-invite committee-service endpoint.
+func EncodeGetInviteError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
 	encodeError := goahttp.ErrorEncoder(encoder, formatter)
 	return func(ctx context.Context, w http.ResponseWriter, v error) error {
 		var en goa.GoaErrorNamer
@@ -1638,7 +1641,7 @@ func EncodeListInvitesError(encoder func(context.Context, http.ResponseWriter) g
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListInvitesInternalServerErrorResponseBody(res)
+				body = NewGetInviteInternalServerErrorResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -1651,7 +1654,7 @@ func EncodeListInvitesError(encoder func(context.Context, http.ResponseWriter) g
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListInvitesNotFoundResponseBody(res)
+				body = NewGetInviteNotFoundResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusNotFound)
@@ -1664,7 +1667,7 @@ func EncodeListInvitesError(encoder func(context.Context, http.ResponseWriter) g
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListInvitesServiceUnavailableResponseBody(res)
+				body = NewGetInviteServiceUnavailableResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -2234,32 +2237,35 @@ func EncodeDeclineInviteError(encoder func(context.Context, http.ResponseWriter)
 	}
 }
 
-// EncodeListApplicationsResponse returns an encoder for responses returned by
-// the committee-service list-applications endpoint.
-func EncodeListApplicationsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+// EncodeGetApplicationResponse returns an encoder for responses returned by
+// the committee-service get-application endpoint.
+func EncodeGetApplicationResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.([]*committeeservice.CommitteeApplicationWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeApplicationWithReadonlyAttributes)
 		enc := encoder(ctx, w)
-		body := NewListApplicationsResponseBody(res)
+		body := NewGetApplicationResponseBody(res)
 		w.WriteHeader(http.StatusOK)
 		return enc.Encode(body)
 	}
 }
 
-// DecodeListApplicationsRequest returns a decoder for requests sent to the
-// committee-service list-applications endpoint.
-func DecodeListApplicationsRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ListApplicationsPayload, error) {
-	return func(r *http.Request) (*committeeservice.ListApplicationsPayload, error) {
+// DecodeGetApplicationRequest returns a decoder for requests sent to the
+// committee-service get-application endpoint.
+func DecodeGetApplicationRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GetApplicationPayload, error) {
+	return func(r *http.Request) (*committeeservice.GetApplicationPayload, error) {
 		var (
-			uid         string
-			version     string
-			bearerToken *string
-			err         error
+			uid            string
+			applicationUID string
+			version        string
+			bearerToken    *string
+			err            error
 
 			params = mux.Vars(r)
 		)
 		uid = params["uid"]
 		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		applicationUID = params["application_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("application_uid", applicationUID, goa.FormatUUID))
 		version = r.URL.Query().Get("v")
 		if version == "" {
 			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
@@ -2274,7 +2280,7 @@ func DecodeListApplicationsRequest(mux goahttp.Muxer, decoder func(*http.Request
 		if err != nil {
 			return nil, err
 		}
-		payload := NewListApplicationsPayload(uid, version, bearerToken)
+		payload := NewGetApplicationPayload(uid, applicationUID, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -2287,9 +2293,9 @@ func DecodeListApplicationsRequest(mux goahttp.Muxer, decoder func(*http.Request
 	}
 }
 
-// EncodeListApplicationsError returns an encoder for errors returned by the
-// list-applications committee-service endpoint.
-func EncodeListApplicationsError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+// EncodeGetApplicationError returns an encoder for errors returned by the
+// get-application committee-service endpoint.
+func EncodeGetApplicationError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
 	encodeError := goahttp.ErrorEncoder(encoder, formatter)
 	return func(ctx context.Context, w http.ResponseWriter, v error) error {
 		var en goa.GoaErrorNamer
@@ -2305,7 +2311,7 @@ func EncodeListApplicationsError(encoder func(context.Context, http.ResponseWrit
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListApplicationsInternalServerErrorResponseBody(res)
+				body = NewGetApplicationInternalServerErrorResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -2318,7 +2324,7 @@ func EncodeListApplicationsError(encoder func(context.Context, http.ResponseWrit
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListApplicationsNotFoundResponseBody(res)
+				body = NewGetApplicationNotFoundResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusNotFound)
@@ -2331,7 +2337,7 @@ func EncodeListApplicationsError(encoder func(context.Context, http.ResponseWrit
 			if formatter != nil {
 				body = formatter(ctx, res)
 			} else {
-				body = NewListApplicationsServiceUnavailableResponseBody(res)
+				body = NewGetApplicationServiceUnavailableResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -3116,50 +3122,4 @@ func EncodeLeaveCommitteeError(encoder func(context.Context, http.ResponseWriter
 			return encodeError(ctx, w, v)
 		}
 	}
-}
-
-// marshalCommitteeserviceCommitteeInviteWithReadonlyAttributesToCommitteeInviteWithReadonlyAttributesResponse
-// builds a value of type *CommitteeInviteWithReadonlyAttributesResponse from a
-// value of type *committeeservice.CommitteeInviteWithReadonlyAttributes.
-func marshalCommitteeserviceCommitteeInviteWithReadonlyAttributesToCommitteeInviteWithReadonlyAttributesResponse(v *committeeservice.CommitteeInviteWithReadonlyAttributes) *CommitteeInviteWithReadonlyAttributesResponse {
-	res := &CommitteeInviteWithReadonlyAttributesResponse{
-		UID:          v.UID,
-		CommitteeUID: v.CommitteeUID,
-		InviteeEmail: v.InviteeEmail,
-		Role:         v.Role,
-		Status:       v.Status,
-		CreatedAt:    v.CreatedAt,
-	}
-	{
-		var zero string
-		if res.Status == zero {
-			res.Status = "pending"
-		}
-	}
-
-	return res
-}
-
-// marshalCommitteeserviceCommitteeApplicationWithReadonlyAttributesToCommitteeApplicationWithReadonlyAttributesResponse
-// builds a value of type *CommitteeApplicationWithReadonlyAttributesResponse
-// from a value of type
-// *committeeservice.CommitteeApplicationWithReadonlyAttributes.
-func marshalCommitteeserviceCommitteeApplicationWithReadonlyAttributesToCommitteeApplicationWithReadonlyAttributesResponse(v *committeeservice.CommitteeApplicationWithReadonlyAttributes) *CommitteeApplicationWithReadonlyAttributesResponse {
-	res := &CommitteeApplicationWithReadonlyAttributesResponse{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		ApplicantUID:  v.ApplicantUID,
-		Message:       v.Message,
-		Status:        v.Status,
-		ReviewerNotes: v.ReviewerNotes,
-		CreatedAt:     v.CreatedAt,
-	}
-	{
-		var zero string
-		if res.Status == zero {
-			res.Status = "pending"
-		}
-	}
-
-	return res
 }

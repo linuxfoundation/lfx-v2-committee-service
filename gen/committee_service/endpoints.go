@@ -29,12 +29,12 @@ type Endpoints struct {
 	GetCommitteeMember      goa.Endpoint
 	UpdateCommitteeMember   goa.Endpoint
 	DeleteCommitteeMember   goa.Endpoint
-	ListInvites             goa.Endpoint
+	GetInvite               goa.Endpoint
 	CreateInvite            goa.Endpoint
 	RevokeInvite            goa.Endpoint
 	AcceptInvite            goa.Endpoint
 	DeclineInvite           goa.Endpoint
-	ListApplications        goa.Endpoint
+	GetApplication          goa.Endpoint
 	SubmitApplication       goa.Endpoint
 	ApproveApplication      goa.Endpoint
 	RejectApplication       goa.Endpoint
@@ -60,12 +60,12 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCommitteeMember:      NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
 		UpdateCommitteeMember:   NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
 		DeleteCommitteeMember:   NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
-		ListInvites:             NewListInvitesEndpoint(s, a.JWTAuth),
+		GetInvite:               NewGetInviteEndpoint(s, a.JWTAuth),
 		CreateInvite:            NewCreateInviteEndpoint(s, a.JWTAuth),
 		RevokeInvite:            NewRevokeInviteEndpoint(s, a.JWTAuth),
 		AcceptInvite:            NewAcceptInviteEndpoint(s, a.JWTAuth),
 		DeclineInvite:           NewDeclineInviteEndpoint(s, a.JWTAuth),
-		ListApplications:        NewListApplicationsEndpoint(s, a.JWTAuth),
+		GetApplication:          NewGetApplicationEndpoint(s, a.JWTAuth),
 		SubmitApplication:       NewSubmitApplicationEndpoint(s, a.JWTAuth),
 		ApproveApplication:      NewApproveApplicationEndpoint(s, a.JWTAuth),
 		RejectApplication:       NewRejectApplicationEndpoint(s, a.JWTAuth),
@@ -89,12 +89,12 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
 	e.DeleteCommitteeMember = m(e.DeleteCommitteeMember)
-	e.ListInvites = m(e.ListInvites)
+	e.GetInvite = m(e.GetInvite)
 	e.CreateInvite = m(e.CreateInvite)
 	e.RevokeInvite = m(e.RevokeInvite)
 	e.AcceptInvite = m(e.AcceptInvite)
 	e.DeclineInvite = m(e.DeclineInvite)
-	e.ListApplications = m(e.ListApplications)
+	e.GetApplication = m(e.GetApplication)
 	e.SubmitApplication = m(e.SubmitApplication)
 	e.ApproveApplication = m(e.ApproveApplication)
 	e.RejectApplication = m(e.RejectApplication)
@@ -348,11 +348,11 @@ func NewDeleteCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc)
 	}
 }
 
-// NewListInvitesEndpoint returns an endpoint function that calls the method
-// "list-invites" of service "committee-service".
-func NewListInvitesEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+// NewGetInviteEndpoint returns an endpoint function that calls the method
+// "get-invite" of service "committee-service".
+func NewGetInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
-		p := req.(*ListInvitesPayload)
+		p := req.(*GetInvitePayload)
 		var err error
 		sc := security.JWTScheme{
 			Name:           "jwt",
@@ -367,7 +367,7 @@ func NewListInvitesEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpo
 		if err != nil {
 			return nil, err
 		}
-		return s.ListInvites(ctx, p)
+		return s.GetInvite(ctx, p)
 	}
 }
 
@@ -463,11 +463,11 @@ func NewDeclineInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.End
 	}
 }
 
-// NewListApplicationsEndpoint returns an endpoint function that calls the
-// method "list-applications" of service "committee-service".
-func NewListApplicationsEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+// NewGetApplicationEndpoint returns an endpoint function that calls the method
+// "get-application" of service "committee-service".
+func NewGetApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
-		p := req.(*ListApplicationsPayload)
+		p := req.(*GetApplicationPayload)
 		var err error
 		sc := security.JWTScheme{
 			Name:           "jwt",
@@ -482,7 +482,7 @@ func NewListApplicationsEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.
 		if err != nil {
 			return nil, err
 		}
-		return s.ListApplications(ctx, p)
+		return s.GetApplication(ctx, p)
 	}
 }
 

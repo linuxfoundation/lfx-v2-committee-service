@@ -1013,13 +1013,25 @@ func NewMockCommitteePublisher() port.CommitteePublisher {
 	return &MockCommitteePublisher{}
 }
 
-// GetSettingsPtr returns the settings pointer for a committee so tests can mutate it directly.
+// GetSettingsPtr returns the settings pointer for a committee.
+// WARNING: The returned pointer is NOT safe to mutate without external synchronization.
+// Prefer SetJoinMode() for thread-safe updates in tests.
 // Returns nil if no settings exist for the given committee UID.
 func (m *MockRepository) GetSettingsPtr(committeeUID string) *model.CommitteeSettings {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	return m.committeeSettings[committeeUID]
+}
+
+// SetJoinMode safely updates the join_mode for a committee's settings.
+func (m *MockRepository) SetJoinMode(committeeUID, joinMode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if settings, exists := m.committeeSettings[committeeUID]; exists {
+		settings.JoinMode = joinMode
+	}
 }
 
 // AddCommitteeInvite adds a committee invite to the mock data (useful for testing)
