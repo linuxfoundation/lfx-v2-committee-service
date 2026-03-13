@@ -3976,11 +3976,12 @@ func NewJoinCommitteePayload(uid string, version string, bearerToken *string, xS
 
 // NewLeaveCommitteePayload builds a committee-service service leave-committee
 // endpoint payload.
-func NewLeaveCommitteePayload(uid string, version string, bearerToken *string) *committeeservice.LeaveCommitteePayload {
+func NewLeaveCommitteePayload(uid string, version string, bearerToken *string, xSync bool) *committeeservice.LeaveCommitteePayload {
 	v := &committeeservice.LeaveCommitteePayload{}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }

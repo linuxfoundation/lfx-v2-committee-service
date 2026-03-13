@@ -1028,6 +1028,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.

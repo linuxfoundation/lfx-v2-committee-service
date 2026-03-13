@@ -55,6 +55,14 @@ const (
 	// RemoveMemberCommitteeSubject is the subject for the committee member access control deletion.
 	// The subject is of the form: lfx.remove_member.committee
 	RemoveMemberCommitteeSubject = "lfx.remove_member.committee"
+
+	// IndexCommitteeInviteSubject is the subject for the committee invite index.
+	// The subject is of the form: lfx.index.committee_invite
+	IndexCommitteeInviteSubject = "lfx.index.committee_invite"
+
+	// IndexCommitteeApplicationSubject is the subject for the committee application index.
+	// The subject is of the form: lfx.index.committee_application
+	IndexCommitteeApplicationSubject = "lfx.index.committee_application"
 )
 
 // Event subjects emitted by the committee service for general consumption by any service

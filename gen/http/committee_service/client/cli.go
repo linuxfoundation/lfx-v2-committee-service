@@ -1614,7 +1614,7 @@ func BuildJoinCommitteePayload(committeeServiceJoinCommitteeUID string, committe
 
 // BuildLeaveCommitteePayload builds the payload for the committee-service
 // leave-committee endpoint from CLI flags.
-func BuildLeaveCommitteePayload(committeeServiceLeaveCommitteeUID string, committeeServiceLeaveCommitteeVersion string, committeeServiceLeaveCommitteeBearerToken string) (*committeeservice.LeaveCommitteePayload, error) {
+func BuildLeaveCommitteePayload(committeeServiceLeaveCommitteeUID string, committeeServiceLeaveCommitteeVersion string, committeeServiceLeaveCommitteeBearerToken string, committeeServiceLeaveCommitteeXSync string) (*committeeservice.LeaveCommitteePayload, error) {
 	var err error
 	var uid string
 	{
@@ -1640,10 +1640,20 @@ func BuildLeaveCommitteePayload(committeeServiceLeaveCommitteeUID string, commit
 			bearerToken = &committeeServiceLeaveCommitteeBearerToken
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceLeaveCommitteeXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceLeaveCommitteeXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.LeaveCommitteePayload{}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v, nil
 }

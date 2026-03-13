@@ -3006,6 +3006,7 @@ func DecodeLeaveCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request) 
 			uid         string
 			version     string
 			bearerToken *string
+			xSync       bool
 			err         error
 
 			params = mux.Vars(r)
@@ -3023,10 +3024,20 @@ func DecodeLeaveCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request) 
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewLeaveCommitteePayload(uid, version, bearerToken)
+		payload := NewLeaveCommitteePayload(uid, version, bearerToken, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

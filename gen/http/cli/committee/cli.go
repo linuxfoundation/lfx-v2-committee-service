@@ -185,6 +185,7 @@ func ParseEndpoint(
 		committeeServiceLeaveCommitteeUIDFlag         = committeeServiceLeaveCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceLeaveCommitteeVersionFlag     = committeeServiceLeaveCommitteeFlags.String("version", "REQUIRED", "")
 		committeeServiceLeaveCommitteeBearerTokenFlag = committeeServiceLeaveCommitteeFlags.String("bearer-token", "", "")
+		committeeServiceLeaveCommitteeXSyncFlag       = committeeServiceLeaveCommitteeFlags.String("x-sync", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -405,7 +406,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
 			case "leave-committee":
 				endpoint = c.LeaveCommittee()
-				data, err = committeeservicec.BuildLeaveCommitteePayload(*committeeServiceLeaveCommitteeUIDFlag, *committeeServiceLeaveCommitteeVersionFlag, *committeeServiceLeaveCommitteeBearerTokenFlag)
+				data, err = committeeservicec.BuildLeaveCommitteePayload(*committeeServiceLeaveCommitteeUIDFlag, *committeeServiceLeaveCommitteeVersionFlag, *committeeServiceLeaveCommitteeBearerTokenFlag, *committeeServiceLeaveCommitteeXSyncFlag)
 			}
 		}
 	}
@@ -989,6 +990,7 @@ func committeeServiceLeaveCommitteeUsage() {
 	fmt.Fprint(os.Stderr, " -uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
@@ -999,8 +1001,9 @@ func committeeServiceLeaveCommitteeUsage() {
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service leave-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service leave-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
