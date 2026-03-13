@@ -34,14 +34,17 @@ func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, 
 
 }
 
+// Slug retrieves the project slug for the given project UID via a NATS request.
 func (m *messageRequest) Slug(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetSlugSubject, uid)
 }
 
+// Name retrieves the project name for the given project UID via a NATS request.
 func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
+// SubByEmail retrieves a user's sub (subject identifier) for the given email address via a NATS request.
 func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
 
 	data := []byte(email)
@@ -64,12 +67,14 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	return response, nil
 }
 
+// NewMessageRequest creates a new NATS-backed ProjectReader for retrieving project attributes.
 func NewMessageRequest(client *NATSClient) port.ProjectReader {
 	return &messageRequest{
 		client: client,
 	}
 }
 
+// NewUserRequest creates a new NATS-backed UserReader for looking up user attributes.
 func NewUserRequest(client *NATSClient) port.UserReader {
 	return &messageRequest{
 		client: client,

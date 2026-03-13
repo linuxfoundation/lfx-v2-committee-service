@@ -43,6 +43,8 @@ type CommitteeIndexerMessage struct {
 	Tags []string `json:"tags"`
 }
 
+// Build populates the CommitteeIndexerMessage with authorization headers from the context
+// and converts the input into the payload format expected by the indexer service.
 func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*CommitteeIndexerMessage, error) {
 
 	headers := make(map[string]string)
