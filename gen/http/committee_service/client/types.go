@@ -3882,8 +3882,8 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 		}
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {
@@ -4032,8 +4032,8 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {
@@ -4060,8 +4060,8 @@ func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsRe
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {
@@ -5608,8 +5608,8 @@ func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *Committee
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {

@@ -1809,6 +1809,7 @@ definitions:
                     - open
                     - invite_only
                     - application
+                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2456,6 +2457,7 @@ definitions:
                     - open
                     - invite_only
                     - application
+                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2931,6 +2933,7 @@ definitions:
                     - open
                     - invite_only
                     - application
+                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -3000,6 +3003,7 @@ definitions:
                     - open
                     - invite_only
                     - application
+                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format

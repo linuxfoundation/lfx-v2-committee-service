@@ -704,7 +704,7 @@ func ShowMeetingAttendeesAttribute() {
 // JoinModeAttribute is the DSL attribute for committee join mode.
 func JoinModeAttribute() {
 	dsl.Attribute("join_mode", dsl.String, "How new members can join this committee", func() {
-		dsl.Enum("open", "invite_only", "application")
+		dsl.Enum("open", "invite_only", "application", "closed")
 		dsl.Default("invite_only")
 		dsl.Example("open")
 	})
