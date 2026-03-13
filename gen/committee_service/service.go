@@ -612,6 +612,9 @@ type LeaveCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 }

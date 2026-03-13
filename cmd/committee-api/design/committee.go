@@ -854,6 +854,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
+			XSyncAttribute()
 			CommitteeUIDAttribute()
 
 			dsl.Required("version", "uid")
@@ -869,6 +870,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)

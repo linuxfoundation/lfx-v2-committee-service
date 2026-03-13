@@ -3504,6 +3504,11 @@ func EncodeLeaveCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) fu
 				req.Header.Set("Authorization", head)
 			}
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()
