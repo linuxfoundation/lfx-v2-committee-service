@@ -473,114 +473,6 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/applications:
-        get:
-            tags:
-                - committee-service
-            summary: list-applications committee-service
-            description: List all applications for a committee
-            operationId: committee-service#list-applications
-            parameters:
-                - name: v
-                  in: query
-                  description: Version of the API
-                  allowEmptyValue: true
-                  required: true
-                  schema:
-                    type: string
-                    description: Version of the API
-                    example: "1"
-                    enum:
-                        - "1"
-                  example: "1"
-                - name: uid
-                  in: path
-                  description: Committee UID -- v2 uid, not related to v1 id directly
-                  required: true
-                  schema:
-                    type: string
-                    description: Committee UID -- v2 uid, not related to v1 id directly
-                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    format: uuid
-                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            responses:
-                "200":
-                    description: OK response.
-                    content:
-                        application/json:
-                            schema:
-                                type: array
-                                items:
-                                    $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
-                                example:
-                                    - applicant_uid: user-uid-12345
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      message: I would like to join the TSC to contribute my expertise.
-                                      reviewer_notes: Approved based on contribution history.
-                                      status: pending
-                                      uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                                    - applicant_uid: user-uid-12345
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      message: I would like to join the TSC to contribute my expertise.
-                                      reviewer_notes: Approved based on contribution history.
-                                      status: pending
-                                      uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                            example:
-                                - applicant_uid: user-uid-12345
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  message: I would like to join the TSC to contribute my expertise.
-                                  reviewer_notes: Approved based on contribution history.
-                                  status: pending
-                                  uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                                - applicant_uid: user-uid-12345
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  message: I would like to join the TSC to contribute my expertise.
-                                  reviewer_notes: Approved based on contribution history.
-                                  status: pending
-                                  uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                                - applicant_uid: user-uid-12345
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  message: I would like to join the TSC to contribute my expertise.
-                                  reviewer_notes: Approved based on contribution history.
-                                  status: pending
-                                  uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                                - applicant_uid: user-uid-12345
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  message: I would like to join the TSC to contribute my expertise.
-                                  reviewer_notes: Approved based on contribution history.
-                                  status: pending
-                                  uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                "404":
-                    description: 'NotFound: Committee not found'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/NotFoundError'
-                            example:
-                                message: The resource was not found.
-                "500":
-                    description: 'InternalServerError: Internal server error'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/InternalServerError'
-                            example:
-                                message: An internal server error occurred.
-                "503":
-                    description: 'ServiceUnavailable: Service unavailable'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ServiceUnavailableError'
-                            example:
-                                message: The service is unavailable.
-            security:
-                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -675,6 +567,87 @@ paths:
                                 $ref: '#/components/schemas/ConflictError'
                             example:
                                 message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}:
+        get:
+            tags:
+                - committee-service
+            summary: get-application committee-service
+            description: Get a single application by UID
+            operationId: committee-service#get-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+                  example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_uid: user-uid-12345
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "404":
+                    description: 'NotFound: Application not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -904,102 +877,6 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/invites:
-        get:
-            tags:
-                - committee-service
-            summary: list-invites committee-service
-            description: List all invites for a committee
-            operationId: committee-service#list-invites
-            parameters:
-                - name: v
-                  in: query
-                  description: Version of the API
-                  allowEmptyValue: true
-                  required: true
-                  schema:
-                    type: string
-                    description: Version of the API
-                    example: "1"
-                    enum:
-                        - "1"
-                  example: "1"
-                - name: uid
-                  in: path
-                  description: Committee UID -- v2 uid, not related to v1 id directly
-                  required: true
-                  schema:
-                    type: string
-                    description: Committee UID -- v2 uid, not related to v1 id directly
-                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    format: uuid
-                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            responses:
-                "200":
-                    description: OK response.
-                    content:
-                        application/json:
-                            schema:
-                                type: array
-                                items:
-                                    $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
-                                example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      invitee_email: invitee@example.com
-                                      role: None
-                                      status: pending
-                                      uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      invitee_email: invitee@example.com
-                                      role: None
-                                      status: pending
-                                      uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      invitee_email: invitee@example.com
-                                      role: None
-                                      status: pending
-                                      uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                            example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  invitee_email: invitee@example.com
-                                  role: None
-                                  status: pending
-                                  uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  invitee_email: invitee@example.com
-                                  role: None
-                                  status: pending
-                                  uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                "404":
-                    description: 'NotFound: Committee not found'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/NotFoundError'
-                            example:
-                                message: The resource was not found.
-                "500":
-                    description: 'InternalServerError: Internal server error'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/InternalServerError'
-                            example:
-                                message: An internal server error occurred.
-                "503":
-                    description: 'ServiceUnavailable: Service unavailable'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ServiceUnavailableError'
-                            example:
-                                message: The service is unavailable.
-            security:
-                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -1155,6 +1032,85 @@ paths:
                                 $ref: '#/components/schemas/BadRequestError'
                             example:
                                 message: The request was invalid.
+                "404":
+                    description: 'NotFound: Invite not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-invite committee-service
+            description: Get a single invite by UID
+            operationId: committee-service#get-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: invite_uid
+                  in: path
+                  description: Committee invite UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+                  example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                invitee_email: invitee@example.com
+                                role: None
+                                status: pending
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 "404":
                     description: 'NotFound: Invite not found'
                     content:
@@ -2647,7 +2603,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Sequi velit repellat aut quasi.
+                        example: Voluptatibus ad ut est aliquam animi.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -2790,7 +2746,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Voluptatibus ad ut est aliquam animi.
+                        example: Expedita illo rerum ut sed non deserunt.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -2831,7 +2787,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Aliquid mollitia numquam officia voluptas earum.
+                        example: Aliquid laboriosam consequatur fugiat fuga placeat eos.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -2995,7 +2951,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Aliquid laboriosam consequatur fugiat fuga placeat eos.
+                        example: Sequi velit repellat aut quasi.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -3935,7 +3891,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Ratione qui.
+                        example: Ea quae ipsam consequuntur corrupti eum.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -4078,7 +4034,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Ea quae ipsam consequuntur corrupti eum.
+                        example: Aliquid mollitia numquam officia voluptas earum.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -4313,7 +4269,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Beatae eveniet corporis rerum.
+                        example: Commodi aut aperiam voluptatem ab similique inventore.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -4359,7 +4315,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Commodi aut aperiam voluptatem ab similique inventore.
+                        example: Ratione qui.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1

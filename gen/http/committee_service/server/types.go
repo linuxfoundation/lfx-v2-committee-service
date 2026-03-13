@@ -527,9 +527,22 @@ type UpdateCommitteeMemberResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// ListInvitesResponseBody is the type of the "committee-service" service
-// "list-invites" endpoint HTTP response body.
-type ListInvitesResponseBody []*CommitteeInviteWithReadonlyAttributesResponse
+// GetInviteResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body.
+type GetInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status string `form:"status" json:"status" xml:"status"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
 
 // CreateInviteResponseBody is the type of the "committee-service" service
 // "create-invite" endpoint HTTP response body.
@@ -582,9 +595,24 @@ type DeclineInviteResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
-// ListApplicationsResponseBody is the type of the "committee-service" service
-// "list-applications" endpoint HTTP response body.
-type ListApplicationsResponseBody []*CommitteeApplicationWithReadonlyAttributesResponse
+// GetApplicationResponseBody is the type of the "committee-service" service
+// "get-application" endpoint HTTP response body.
+type GetApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
 
 // SubmitApplicationResponseBody is the type of the "committee-service" service
 // "submit-application" endpoint HTTP response body.
@@ -1071,25 +1099,25 @@ type DeleteCommitteeMemberServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListInvitesInternalServerErrorResponseBody is the type of the
-// "committee-service" service "list-invites" endpoint HTTP response body for
-// the "InternalServerError" error.
-type ListInvitesInternalServerErrorResponseBody struct {
+// GetInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "InternalServerError" error.
+type GetInviteInternalServerErrorResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListInvitesNotFoundResponseBody is the type of the "committee-service"
-// service "list-invites" endpoint HTTP response body for the "NotFound" error.
-type ListInvitesNotFoundResponseBody struct {
+// GetInviteNotFoundResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body for the "NotFound" error.
+type GetInviteNotFoundResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListInvitesServiceUnavailableResponseBody is the type of the
-// "committee-service" service "list-invites" endpoint HTTP response body for
-// the "ServiceUnavailable" error.
-type ListInvitesServiceUnavailableResponseBody struct {
+// GetInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "ServiceUnavailable" error.
+type GetInviteServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -1241,26 +1269,26 @@ type DeclineInviteServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListApplicationsInternalServerErrorResponseBody is the type of the
-// "committee-service" service "list-applications" endpoint HTTP response body
+// GetApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
 // for the "InternalServerError" error.
-type ListApplicationsInternalServerErrorResponseBody struct {
+type GetApplicationInternalServerErrorResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListApplicationsNotFoundResponseBody is the type of the "committee-service"
-// service "list-applications" endpoint HTTP response body for the "NotFound"
+// GetApplicationNotFoundResponseBody is the type of the "committee-service"
+// service "get-application" endpoint HTTP response body for the "NotFound"
 // error.
-type ListApplicationsNotFoundResponseBody struct {
+type GetApplicationNotFoundResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
-// ListApplicationsServiceUnavailableResponseBody is the type of the
-// "committee-service" service "list-applications" endpoint HTTP response body
+// GetApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
-type ListApplicationsServiceUnavailableResponseBody struct {
+type GetApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -1604,42 +1632,6 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-}
-
-// CommitteeInviteWithReadonlyAttributesResponse is used to define fields on
-// response body types.
-type CommitteeInviteWithReadonlyAttributesResponse struct {
-	// Invite UID
-	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
-	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Email of the invited person
-	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
-	// Suggested role for the invitee
-	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
-	// Invite status
-	Status string `form:"status" json:"status" xml:"status"`
-	// The timestamp when the resource was created (read-only)
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-}
-
-// CommitteeApplicationWithReadonlyAttributesResponse is used to define fields
-// on response body types.
-type CommitteeApplicationWithReadonlyAttributesResponse struct {
-	// Application UID
-	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
-	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
-	// Application message from the applicant
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-	// Application status
-	Status string `form:"status" json:"status" xml:"status"`
-	// Notes from the reviewer
-	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
-	// The timestamp when the resource was created (read-only)
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
 // NewCreateCommitteeResponseBody builds the HTTP response body from the result
@@ -2228,12 +2220,22 @@ func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 	return body
 }
 
-// NewListInvitesResponseBody builds the HTTP response body from the result of
-// the "list-invites" endpoint of the "committee-service" service.
-func NewListInvitesResponseBody(res []*committeeservice.CommitteeInviteWithReadonlyAttributes) ListInvitesResponseBody {
-	body := make([]*CommitteeInviteWithReadonlyAttributesResponse, len(res))
-	for i, val := range res {
-		body[i] = marshalCommitteeserviceCommitteeInviteWithReadonlyAttributesToCommitteeInviteWithReadonlyAttributesResponse(val)
+// NewGetInviteResponseBody builds the HTTP response body from the result of
+// the "get-invite" endpoint of the "committee-service" service.
+func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *GetInviteResponseBody {
+	body := &GetInviteResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		InviteeEmail: res.InviteeEmail,
+		Role:         res.Role,
+		Status:       res.Status,
+		CreatedAt:    res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
 	}
 	return body
 }
@@ -2298,13 +2300,23 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 	return body
 }
 
-// NewListApplicationsResponseBody builds the HTTP response body from the
-// result of the "list-applications" endpoint of the "committee-service"
-// service.
-func NewListApplicationsResponseBody(res []*committeeservice.CommitteeApplicationWithReadonlyAttributes) ListApplicationsResponseBody {
-	body := make([]*CommitteeApplicationWithReadonlyAttributesResponse, len(res))
-	for i, val := range res {
-		body[i] = marshalCommitteeserviceCommitteeApplicationWithReadonlyAttributesToCommitteeApplicationWithReadonlyAttributesResponse(val)
+// NewGetApplicationResponseBody builds the HTTP response body from the result
+// of the "get-application" endpoint of the "committee-service" service.
+func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *GetApplicationResponseBody {
+	body := &GetApplicationResponseBody{
+		UID:           res.UID,
+		CommitteeUID:  res.CommitteeUID,
+		ApplicantUID:  res.ApplicantUID,
+		Message:       res.Message,
+		Status:        res.Status,
+		ReviewerNotes: res.ReviewerNotes,
+		CreatedAt:     res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
 	}
 	return body
 }
@@ -2922,30 +2934,30 @@ func NewDeleteCommitteeMemberServiceUnavailableResponseBody(res *committeeservic
 	return body
 }
 
-// NewListInvitesInternalServerErrorResponseBody builds the HTTP response body
-// from the result of the "list-invites" endpoint of the "committee-service"
+// NewGetInviteInternalServerErrorResponseBody builds the HTTP response body
+// from the result of the "get-invite" endpoint of the "committee-service"
 // service.
-func NewListInvitesInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ListInvitesInternalServerErrorResponseBody {
-	body := &ListInvitesInternalServerErrorResponseBody{
+func NewGetInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetInviteInternalServerErrorResponseBody {
+	body := &GetInviteInternalServerErrorResponseBody{
 		Message: res.Message,
 	}
 	return body
 }
 
-// NewListInvitesNotFoundResponseBody builds the HTTP response body from the
-// result of the "list-invites" endpoint of the "committee-service" service.
-func NewListInvitesNotFoundResponseBody(res *committeeservice.NotFoundError) *ListInvitesNotFoundResponseBody {
-	body := &ListInvitesNotFoundResponseBody{
+// NewGetInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "get-invite" endpoint of the "committee-service" service.
+func NewGetInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *GetInviteNotFoundResponseBody {
+	body := &GetInviteNotFoundResponseBody{
 		Message: res.Message,
 	}
 	return body
 }
 
-// NewListInvitesServiceUnavailableResponseBody builds the HTTP response body
-// from the result of the "list-invites" endpoint of the "committee-service"
+// NewGetInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "get-invite" endpoint of the "committee-service"
 // service.
-func NewListInvitesServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ListInvitesServiceUnavailableResponseBody {
-	body := &ListInvitesServiceUnavailableResponseBody{
+func NewGetInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetInviteServiceUnavailableResponseBody {
+	body := &GetInviteServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -3131,31 +3143,30 @@ func NewDeclineInviteServiceUnavailableResponseBody(res *committeeservice.Servic
 	return body
 }
 
-// NewListApplicationsInternalServerErrorResponseBody builds the HTTP response
-// body from the result of the "list-applications" endpoint of the
+// NewGetApplicationInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "get-application" endpoint of the
 // "committee-service" service.
-func NewListApplicationsInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ListApplicationsInternalServerErrorResponseBody {
-	body := &ListApplicationsInternalServerErrorResponseBody{
+func NewGetApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetApplicationInternalServerErrorResponseBody {
+	body := &GetApplicationInternalServerErrorResponseBody{
 		Message: res.Message,
 	}
 	return body
 }
 
-// NewListApplicationsNotFoundResponseBody builds the HTTP response body from
-// the result of the "list-applications" endpoint of the "committee-service"
-// service.
-func NewListApplicationsNotFoundResponseBody(res *committeeservice.NotFoundError) *ListApplicationsNotFoundResponseBody {
-	body := &ListApplicationsNotFoundResponseBody{
+// NewGetApplicationNotFoundResponseBody builds the HTTP response body from the
+// result of the "get-application" endpoint of the "committee-service" service.
+func NewGetApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *GetApplicationNotFoundResponseBody {
+	body := &GetApplicationNotFoundResponseBody{
 		Message: res.Message,
 	}
 	return body
 }
 
-// NewListApplicationsServiceUnavailableResponseBody builds the HTTP response
-// body from the result of the "list-applications" endpoint of the
+// NewGetApplicationServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "get-application" endpoint of the
 // "committee-service" service.
-func NewListApplicationsServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ListApplicationsServiceUnavailableResponseBody {
-	body := &ListApplicationsServiceUnavailableResponseBody{
+func NewGetApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetApplicationServiceUnavailableResponseBody {
+	body := &GetApplicationServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -3847,11 +3858,12 @@ func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version strin
 	return v
 }
 
-// NewListInvitesPayload builds a committee-service service list-invites
-// endpoint payload.
-func NewListInvitesPayload(uid string, version string, bearerToken *string) *committeeservice.ListInvitesPayload {
-	v := &committeeservice.ListInvitesPayload{}
+// NewGetInvitePayload builds a committee-service service get-invite endpoint
+// payload.
+func NewGetInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.GetInvitePayload {
+	v := &committeeservice.GetInvitePayload{}
 	v.UID = uid
+	v.InviteUID = inviteUID
 	v.Version = version
 	v.BearerToken = bearerToken
 
@@ -3909,11 +3921,12 @@ func NewDeclineInvitePayload(uid string, inviteUID string, version string, beare
 	return v
 }
 
-// NewListApplicationsPayload builds a committee-service service
-// list-applications endpoint payload.
-func NewListApplicationsPayload(uid string, version string, bearerToken *string) *committeeservice.ListApplicationsPayload {
-	v := &committeeservice.ListApplicationsPayload{}
+// NewGetApplicationPayload builds a committee-service service get-application
+// endpoint payload.
+func NewGetApplicationPayload(uid string, applicationUID string, version string, bearerToken *string) *committeeservice.GetApplicationPayload {
+	v := &committeeservice.GetApplicationPayload{}
 	v.UID = uid
+	v.ApplicationUID = applicationUID
 	v.Version = version
 	v.BearerToken = bearerToken
 

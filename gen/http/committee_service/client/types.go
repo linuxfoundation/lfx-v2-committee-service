@@ -527,9 +527,22 @@ type UpdateCommitteeMemberResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// ListInvitesResponseBody is the type of the "committee-service" service
-// "list-invites" endpoint HTTP response body.
-type ListInvitesResponseBody []*CommitteeInviteWithReadonlyAttributesResponse
+// GetInviteResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body.
+type GetInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
 
 // CreateInviteResponseBody is the type of the "committee-service" service
 // "create-invite" endpoint HTTP response body.
@@ -582,9 +595,24 @@ type DeclineInviteResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
-// ListApplicationsResponseBody is the type of the "committee-service" service
-// "list-applications" endpoint HTTP response body.
-type ListApplicationsResponseBody []*CommitteeApplicationWithReadonlyAttributesResponse
+// GetApplicationResponseBody is the type of the "committee-service" service
+// "get-application" endpoint HTTP response body.
+type GetApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
 
 // SubmitApplicationResponseBody is the type of the "committee-service" service
 // "submit-application" endpoint HTTP response body.
@@ -1071,25 +1099,25 @@ type DeleteCommitteeMemberServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListInvitesInternalServerErrorResponseBody is the type of the
-// "committee-service" service "list-invites" endpoint HTTP response body for
-// the "InternalServerError" error.
-type ListInvitesInternalServerErrorResponseBody struct {
+// GetInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "InternalServerError" error.
+type GetInviteInternalServerErrorResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListInvitesNotFoundResponseBody is the type of the "committee-service"
-// service "list-invites" endpoint HTTP response body for the "NotFound" error.
-type ListInvitesNotFoundResponseBody struct {
+// GetInviteNotFoundResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body for the "NotFound" error.
+type GetInviteNotFoundResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListInvitesServiceUnavailableResponseBody is the type of the
-// "committee-service" service "list-invites" endpoint HTTP response body for
-// the "ServiceUnavailable" error.
-type ListInvitesServiceUnavailableResponseBody struct {
+// GetInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "ServiceUnavailable" error.
+type GetInviteServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -1241,26 +1269,26 @@ type DeclineInviteServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListApplicationsInternalServerErrorResponseBody is the type of the
-// "committee-service" service "list-applications" endpoint HTTP response body
+// GetApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
 // for the "InternalServerError" error.
-type ListApplicationsInternalServerErrorResponseBody struct {
+type GetApplicationInternalServerErrorResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListApplicationsNotFoundResponseBody is the type of the "committee-service"
-// service "list-applications" endpoint HTTP response body for the "NotFound"
+// GetApplicationNotFoundResponseBody is the type of the "committee-service"
+// service "get-application" endpoint HTTP response body for the "NotFound"
 // error.
-type ListApplicationsNotFoundResponseBody struct {
+type GetApplicationNotFoundResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListApplicationsServiceUnavailableResponseBody is the type of the
-// "committee-service" service "list-applications" endpoint HTTP response body
+// GetApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
-type ListApplicationsServiceUnavailableResponseBody struct {
+type GetApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -1604,42 +1632,6 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-}
-
-// CommitteeInviteWithReadonlyAttributesResponse is used to define fields on
-// response body types.
-type CommitteeInviteWithReadonlyAttributesResponse struct {
-	// Invite UID
-	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
-	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Email of the invited person
-	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
-	// Suggested role for the invitee
-	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
-	// Invite status
-	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
-	// The timestamp when the resource was created (read-only)
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-}
-
-// CommitteeApplicationWithReadonlyAttributesResponse is used to define fields
-// on response body types.
-type CommitteeApplicationWithReadonlyAttributesResponse struct {
-	// Application UID
-	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
-	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
-	// Application message from the applicant
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-	// Application status
-	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
-	// Notes from the reviewer
-	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
-	// The timestamp when the resource was created (read-only)
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
 // NewCreateCommitteeRequestBody builds the HTTP request body from the payload
@@ -3076,21 +3068,30 @@ func NewDeleteCommitteeMemberServiceUnavailable(body *DeleteCommitteeMemberServi
 	return v
 }
 
-// NewListInvitesCommitteeInviteWithReadonlyAttributesOK builds a
-// "committee-service" service "list-invites" endpoint result from a HTTP "OK"
+// NewGetInviteCommitteeInviteWithReadonlyAttributesOK builds a
+// "committee-service" service "get-invite" endpoint result from a HTTP "OK"
 // response.
-func NewListInvitesCommitteeInviteWithReadonlyAttributesOK(body []*CommitteeInviteWithReadonlyAttributesResponse) []*committeeservice.CommitteeInviteWithReadonlyAttributes {
-	v := make([]*committeeservice.CommitteeInviteWithReadonlyAttributes, len(body))
-	for i, val := range body {
-		v[i] = unmarshalCommitteeInviteWithReadonlyAttributesResponseToCommitteeserviceCommitteeInviteWithReadonlyAttributes(val)
+func NewGetInviteCommitteeInviteWithReadonlyAttributesOK(body *GetInviteResponseBody) *committeeservice.CommitteeInviteWithReadonlyAttributes {
+	v := &committeeservice.CommitteeInviteWithReadonlyAttributes{
+		UID:          body.UID,
+		CommitteeUID: body.CommitteeUID,
+		InviteeEmail: body.InviteeEmail,
+		Role:         body.Role,
+		CreatedAt:    body.CreatedAt,
+	}
+	if body.Status != nil {
+		v.Status = *body.Status
+	}
+	if body.Status == nil {
+		v.Status = "pending"
 	}
 
 	return v
 }
 
-// NewListInvitesInternalServerError builds a committee-service service
-// list-invites endpoint InternalServerError error.
-func NewListInvitesInternalServerError(body *ListInvitesInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+// NewGetInviteInternalServerError builds a committee-service service
+// get-invite endpoint InternalServerError error.
+func NewGetInviteInternalServerError(body *GetInviteInternalServerErrorResponseBody) *committeeservice.InternalServerError {
 	v := &committeeservice.InternalServerError{
 		Message: *body.Message,
 	}
@@ -3098,9 +3099,9 @@ func NewListInvitesInternalServerError(body *ListInvitesInternalServerErrorRespo
 	return v
 }
 
-// NewListInvitesNotFound builds a committee-service service list-invites
-// endpoint NotFound error.
-func NewListInvitesNotFound(body *ListInvitesNotFoundResponseBody) *committeeservice.NotFoundError {
+// NewGetInviteNotFound builds a committee-service service get-invite endpoint
+// NotFound error.
+func NewGetInviteNotFound(body *GetInviteNotFoundResponseBody) *committeeservice.NotFoundError {
 	v := &committeeservice.NotFoundError{
 		Message: *body.Message,
 	}
@@ -3108,9 +3109,9 @@ func NewListInvitesNotFound(body *ListInvitesNotFoundResponseBody) *committeeser
 	return v
 }
 
-// NewListInvitesServiceUnavailable builds a committee-service service
-// list-invites endpoint ServiceUnavailable error.
-func NewListInvitesServiceUnavailable(body *ListInvitesServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+// NewGetInviteServiceUnavailable builds a committee-service service get-invite
+// endpoint ServiceUnavailable error.
+func NewGetInviteServiceUnavailable(body *GetInviteServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -3371,21 +3372,31 @@ func NewDeclineInviteServiceUnavailable(body *DeclineInviteServiceUnavailableRes
 	return v
 }
 
-// NewListApplicationsCommitteeApplicationWithReadonlyAttributesOK builds a
-// "committee-service" service "list-applications" endpoint result from a HTTP
+// NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK builds a
+// "committee-service" service "get-application" endpoint result from a HTTP
 // "OK" response.
-func NewListApplicationsCommitteeApplicationWithReadonlyAttributesOK(body []*CommitteeApplicationWithReadonlyAttributesResponse) []*committeeservice.CommitteeApplicationWithReadonlyAttributes {
-	v := make([]*committeeservice.CommitteeApplicationWithReadonlyAttributes, len(body))
-	for i, val := range body {
-		v[i] = unmarshalCommitteeApplicationWithReadonlyAttributesResponseToCommitteeserviceCommitteeApplicationWithReadonlyAttributes(val)
+func NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK(body *GetApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
+	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		ApplicantUID:  body.ApplicantUID,
+		Message:       body.Message,
+		ReviewerNotes: body.ReviewerNotes,
+		CreatedAt:     body.CreatedAt,
+	}
+	if body.Status != nil {
+		v.Status = *body.Status
+	}
+	if body.Status == nil {
+		v.Status = "pending"
 	}
 
 	return v
 }
 
-// NewListApplicationsInternalServerError builds a committee-service service
-// list-applications endpoint InternalServerError error.
-func NewListApplicationsInternalServerError(body *ListApplicationsInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+// NewGetApplicationInternalServerError builds a committee-service service
+// get-application endpoint InternalServerError error.
+func NewGetApplicationInternalServerError(body *GetApplicationInternalServerErrorResponseBody) *committeeservice.InternalServerError {
 	v := &committeeservice.InternalServerError{
 		Message: *body.Message,
 	}
@@ -3393,9 +3404,9 @@ func NewListApplicationsInternalServerError(body *ListApplicationsInternalServer
 	return v
 }
 
-// NewListApplicationsNotFound builds a committee-service service
-// list-applications endpoint NotFound error.
-func NewListApplicationsNotFound(body *ListApplicationsNotFoundResponseBody) *committeeservice.NotFoundError {
+// NewGetApplicationNotFound builds a committee-service service get-application
+// endpoint NotFound error.
+func NewGetApplicationNotFound(body *GetApplicationNotFoundResponseBody) *committeeservice.NotFoundError {
 	v := &committeeservice.NotFoundError{
 		Message: *body.Message,
 	}
@@ -3403,9 +3414,9 @@ func NewListApplicationsNotFound(body *ListApplicationsNotFoundResponseBody) *co
 	return v
 }
 
-// NewListApplicationsServiceUnavailable builds a committee-service service
-// list-applications endpoint ServiceUnavailable error.
-func NewListApplicationsServiceUnavailable(body *ListApplicationsServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+// NewGetApplicationServiceUnavailable builds a committee-service service
+// get-application endpoint ServiceUnavailable error.
+func NewGetApplicationServiceUnavailable(body *GetApplicationServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -4390,6 +4401,29 @@ func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberRespon
 	return
 }
 
+// ValidateGetInviteResponseBody runs the validations defined on
+// Get-InviteResponseBody
+func ValidateGetInviteResponseBody(body *GetInviteResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.InviteeEmail != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", *body.InviteeEmail, goa.FormatEmail))
+	}
+	if body.Status != nil {
+		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateCreateInviteResponseBody runs the validations defined on
 // Create-InviteResponseBody
 func ValidateCreateInviteResponseBody(body *CreateInviteResponseBody) (err error) {
@@ -4451,6 +4485,36 @@ func ValidateDeclineInviteResponseBody(body *DeclineInviteResponseBody) (err err
 	if body.Status != nil {
 		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetApplicationResponseBody runs the validations defined on
+// Get-ApplicationResponseBody
+func ValidateGetApplicationResponseBody(body *GetApplicationResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Message != nil {
+		if utf8.RuneCountInString(*body.Message) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		}
+	}
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -5077,27 +5141,27 @@ func ValidateDeleteCommitteeMemberServiceUnavailableResponseBody(body *DeleteCom
 	return
 }
 
-// ValidateListInvitesInternalServerErrorResponseBody runs the validations
-// defined on list-invites_InternalServerError_response_body
-func ValidateListInvitesInternalServerErrorResponseBody(body *ListInvitesInternalServerErrorResponseBody) (err error) {
+// ValidateGetInviteInternalServerErrorResponseBody runs the validations
+// defined on get-invite_InternalServerError_response_body
+func ValidateGetInviteInternalServerErrorResponseBody(body *GetInviteInternalServerErrorResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
 	return
 }
 
-// ValidateListInvitesNotFoundResponseBody runs the validations defined on
-// list-invites_NotFound_response_body
-func ValidateListInvitesNotFoundResponseBody(body *ListInvitesNotFoundResponseBody) (err error) {
+// ValidateGetInviteNotFoundResponseBody runs the validations defined on
+// get-invite_NotFound_response_body
+func ValidateGetInviteNotFoundResponseBody(body *GetInviteNotFoundResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
 	return
 }
 
-// ValidateListInvitesServiceUnavailableResponseBody runs the validations
-// defined on list-invites_ServiceUnavailable_response_body
-func ValidateListInvitesServiceUnavailableResponseBody(body *ListInvitesServiceUnavailableResponseBody) (err error) {
+// ValidateGetInviteServiceUnavailableResponseBody runs the validations defined
+// on get-invite_ServiceUnavailable_response_body
+func ValidateGetInviteServiceUnavailableResponseBody(body *GetInviteServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -5275,27 +5339,27 @@ func ValidateDeclineInviteServiceUnavailableResponseBody(body *DeclineInviteServ
 	return
 }
 
-// ValidateListApplicationsInternalServerErrorResponseBody runs the validations
-// defined on list-applications_InternalServerError_response_body
-func ValidateListApplicationsInternalServerErrorResponseBody(body *ListApplicationsInternalServerErrorResponseBody) (err error) {
+// ValidateGetApplicationInternalServerErrorResponseBody runs the validations
+// defined on get-application_InternalServerError_response_body
+func ValidateGetApplicationInternalServerErrorResponseBody(body *GetApplicationInternalServerErrorResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
 	return
 }
 
-// ValidateListApplicationsNotFoundResponseBody runs the validations defined on
-// list-applications_NotFound_response_body
-func ValidateListApplicationsNotFoundResponseBody(body *ListApplicationsNotFoundResponseBody) (err error) {
+// ValidateGetApplicationNotFoundResponseBody runs the validations defined on
+// get-application_NotFound_response_body
+func ValidateGetApplicationNotFoundResponseBody(body *GetApplicationNotFoundResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
 	return
 }
 
-// ValidateListApplicationsServiceUnavailableResponseBody runs the validations
-// defined on list-applications_ServiceUnavailable_response_body
-func ValidateListApplicationsServiceUnavailableResponseBody(body *ListApplicationsServiceUnavailableResponseBody) (err error) {
+// ValidateGetApplicationServiceUnavailableResponseBody runs the validations
+// defined on get-application_ServiceUnavailable_response_body
+func ValidateGetApplicationServiceUnavailableResponseBody(body *GetApplicationServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -5729,59 +5793,6 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
-	}
-	return
-}
-
-// ValidateCommitteeInviteWithReadonlyAttributesResponse runs the validations
-// defined on committee-invite-with-readonly-attributesResponse
-func ValidateCommitteeInviteWithReadonlyAttributesResponse(body *CommitteeInviteWithReadonlyAttributesResponse) (err error) {
-	if body.UID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
-	}
-	if body.CommitteeUID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
-	}
-	if body.InviteeEmail != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", *body.InviteeEmail, goa.FormatEmail))
-	}
-	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
-		}
-	}
-	if body.CreatedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
-	}
-	return
-}
-
-// ValidateCommitteeApplicationWithReadonlyAttributesResponse runs the
-// validations defined on committee-application-with-readonly-attributesResponse
-func ValidateCommitteeApplicationWithReadonlyAttributesResponse(body *CommitteeApplicationWithReadonlyAttributesResponse) (err error) {
-	if body.UID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
-	}
-	if body.CommitteeUID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
-	}
-	if body.Message != nil {
-		if utf8.RuneCountInString(*body.Message) > 2000 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
-		}
-	}
-	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
-		}
-	}
-	if body.ReviewerNotes != nil {
-		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
-		}
-	}
-	if body.CreatedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
 	return
 }

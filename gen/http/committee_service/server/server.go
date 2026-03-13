@@ -33,12 +33,12 @@ type Server struct {
 	GetCommitteeMember      http.Handler
 	UpdateCommitteeMember   http.Handler
 	DeleteCommitteeMember   http.Handler
-	ListInvites             http.Handler
+	GetInvite               http.Handler
 	CreateInvite            http.Handler
 	RevokeInvite            http.Handler
 	AcceptInvite            http.Handler
 	DeclineInvite           http.Handler
-	ListApplications        http.Handler
+	GetApplication          http.Handler
 	SubmitApplication       http.Handler
 	ApproveApplication      http.Handler
 	RejectApplication       http.Handler
@@ -109,12 +109,12 @@ func New(
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
 			{"UpdateCommitteeMember", "PUT", "/committees/{uid}/members/{member_uid}"},
 			{"DeleteCommitteeMember", "DELETE", "/committees/{uid}/members/{member_uid}"},
-			{"ListInvites", "GET", "/committees/{uid}/invites"},
+			{"GetInvite", "GET", "/committees/{uid}/invites/{invite_uid}"},
 			{"CreateInvite", "POST", "/committees/{uid}/invites"},
 			{"RevokeInvite", "DELETE", "/committees/{uid}/invites/{invite_uid}"},
 			{"AcceptInvite", "POST", "/committees/{uid}/invites/{invite_uid}/accept"},
 			{"DeclineInvite", "POST", "/committees/{uid}/invites/{invite_uid}/decline"},
-			{"ListApplications", "GET", "/committees/{uid}/applications"},
+			{"GetApplication", "GET", "/committees/{uid}/applications/{application_uid}"},
 			{"SubmitApplication", "POST", "/committees/{uid}/applications"},
 			{"ApproveApplication", "POST", "/committees/{uid}/applications/{application_uid}/approve"},
 			{"RejectApplication", "POST", "/committees/{uid}/applications/{application_uid}/reject"},
@@ -137,12 +137,12 @@ func New(
 		GetCommitteeMember:      NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		UpdateCommitteeMember:   NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeMember:   NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
-		ListInvites:             NewListInvitesHandler(e.ListInvites, mux, decoder, encoder, errhandler, formatter),
+		GetInvite:               NewGetInviteHandler(e.GetInvite, mux, decoder, encoder, errhandler, formatter),
 		CreateInvite:            NewCreateInviteHandler(e.CreateInvite, mux, decoder, encoder, errhandler, formatter),
 		RevokeInvite:            NewRevokeInviteHandler(e.RevokeInvite, mux, decoder, encoder, errhandler, formatter),
 		AcceptInvite:            NewAcceptInviteHandler(e.AcceptInvite, mux, decoder, encoder, errhandler, formatter),
 		DeclineInvite:           NewDeclineInviteHandler(e.DeclineInvite, mux, decoder, encoder, errhandler, formatter),
-		ListApplications:        NewListApplicationsHandler(e.ListApplications, mux, decoder, encoder, errhandler, formatter),
+		GetApplication:          NewGetApplicationHandler(e.GetApplication, mux, decoder, encoder, errhandler, formatter),
 		SubmitApplication:       NewSubmitApplicationHandler(e.SubmitApplication, mux, decoder, encoder, errhandler, formatter),
 		ApproveApplication:      NewApproveApplicationHandler(e.ApproveApplication, mux, decoder, encoder, errhandler, formatter),
 		RejectApplication:       NewRejectApplicationHandler(e.RejectApplication, mux, decoder, encoder, errhandler, formatter),
@@ -172,12 +172,12 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.GetCommitteeMember = m(s.GetCommitteeMember)
 	s.UpdateCommitteeMember = m(s.UpdateCommitteeMember)
 	s.DeleteCommitteeMember = m(s.DeleteCommitteeMember)
-	s.ListInvites = m(s.ListInvites)
+	s.GetInvite = m(s.GetInvite)
 	s.CreateInvite = m(s.CreateInvite)
 	s.RevokeInvite = m(s.RevokeInvite)
 	s.AcceptInvite = m(s.AcceptInvite)
 	s.DeclineInvite = m(s.DeclineInvite)
-	s.ListApplications = m(s.ListApplications)
+	s.GetApplication = m(s.GetApplication)
 	s.SubmitApplication = m(s.SubmitApplication)
 	s.ApproveApplication = m(s.ApproveApplication)
 	s.RejectApplication = m(s.RejectApplication)
@@ -202,12 +202,12 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
 	MountUpdateCommitteeMemberHandler(mux, h.UpdateCommitteeMember)
 	MountDeleteCommitteeMemberHandler(mux, h.DeleteCommitteeMember)
-	MountListInvitesHandler(mux, h.ListInvites)
+	MountGetInviteHandler(mux, h.GetInvite)
 	MountCreateInviteHandler(mux, h.CreateInvite)
 	MountRevokeInviteHandler(mux, h.RevokeInvite)
 	MountAcceptInviteHandler(mux, h.AcceptInvite)
 	MountDeclineInviteHandler(mux, h.DeclineInvite)
-	MountListApplicationsHandler(mux, h.ListApplications)
+	MountGetApplicationHandler(mux, h.GetApplication)
 	MountSubmitApplicationHandler(mux, h.SubmitApplication)
 	MountApproveApplicationHandler(mux, h.ApproveApplication)
 	MountRejectApplicationHandler(mux, h.RejectApplication)
@@ -856,21 +856,21 @@ func NewDeleteCommitteeMemberHandler(
 	})
 }
 
-// MountListInvitesHandler configures the mux to serve the "committee-service"
-// service "list-invites" endpoint.
-func MountListInvitesHandler(mux goahttp.Muxer, h http.Handler) {
+// MountGetInviteHandler configures the mux to serve the "committee-service"
+// service "get-invite" endpoint.
+func MountGetInviteHandler(mux goahttp.Muxer, h http.Handler) {
 	f, ok := h.(http.HandlerFunc)
 	if !ok {
 		f = func(w http.ResponseWriter, r *http.Request) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("GET", "/committees/{uid}/invites", f)
+	mux.Handle("GET", "/committees/{uid}/invites/{invite_uid}", f)
 }
 
-// NewListInvitesHandler creates a HTTP handler which loads the HTTP request
-// and calls the "committee-service" service "list-invites" endpoint.
-func NewListInvitesHandler(
+// NewGetInviteHandler creates a HTTP handler which loads the HTTP request and
+// calls the "committee-service" service "get-invite" endpoint.
+func NewGetInviteHandler(
 	endpoint goa.Endpoint,
 	mux goahttp.Muxer,
 	decoder func(*http.Request) goahttp.Decoder,
@@ -879,13 +879,13 @@ func NewListInvitesHandler(
 	formatter func(ctx context.Context, err error) goahttp.Statuser,
 ) http.Handler {
 	var (
-		decodeRequest  = DecodeListInvitesRequest(mux, decoder)
-		encodeResponse = EncodeListInvitesResponse(encoder)
-		encodeError    = EncodeListInvitesError(encoder, formatter)
+		decodeRequest  = DecodeGetInviteRequest(mux, decoder)
+		encodeResponse = EncodeGetInviteResponse(encoder)
+		encodeError    = EncodeGetInviteError(encoder, formatter)
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
-		ctx = context.WithValue(ctx, goa.MethodKey, "list-invites")
+		ctx = context.WithValue(ctx, goa.MethodKey, "get-invite")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {
@@ -1121,22 +1121,21 @@ func NewDeclineInviteHandler(
 	})
 }
 
-// MountListApplicationsHandler configures the mux to serve the
-// "committee-service" service "list-applications" endpoint.
-func MountListApplicationsHandler(mux goahttp.Muxer, h http.Handler) {
+// MountGetApplicationHandler configures the mux to serve the
+// "committee-service" service "get-application" endpoint.
+func MountGetApplicationHandler(mux goahttp.Muxer, h http.Handler) {
 	f, ok := h.(http.HandlerFunc)
 	if !ok {
 		f = func(w http.ResponseWriter, r *http.Request) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("GET", "/committees/{uid}/applications", f)
+	mux.Handle("GET", "/committees/{uid}/applications/{application_uid}", f)
 }
 
-// NewListApplicationsHandler creates a HTTP handler which loads the HTTP
-// request and calls the "committee-service" service "list-applications"
-// endpoint.
-func NewListApplicationsHandler(
+// NewGetApplicationHandler creates a HTTP handler which loads the HTTP request
+// and calls the "committee-service" service "get-application" endpoint.
+func NewGetApplicationHandler(
 	endpoint goa.Endpoint,
 	mux goahttp.Muxer,
 	decoder func(*http.Request) goahttp.Decoder,
@@ -1145,13 +1144,13 @@ func NewListApplicationsHandler(
 	formatter func(ctx context.Context, err error) goahttp.Statuser,
 ) http.Handler {
 	var (
-		decodeRequest  = DecodeListApplicationsRequest(mux, decoder)
-		encodeResponse = EncodeListApplicationsResponse(encoder)
-		encodeError    = EncodeListApplicationsError(encoder, formatter)
+		decodeRequest  = DecodeGetApplicationRequest(mux, decoder)
+		encodeResponse = EncodeGetApplicationResponse(encoder)
+		encodeError    = EncodeGetApplicationError(encoder, formatter)
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
-		ctx = context.WithValue(ctx, goa.MethodKey, "list-applications")
+		ctx = context.WithValue(ctx, goa.MethodKey, "get-application")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

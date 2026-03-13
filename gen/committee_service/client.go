@@ -28,12 +28,12 @@ type Client struct {
 	GetCommitteeMemberEndpoint      goa.Endpoint
 	UpdateCommitteeMemberEndpoint   goa.Endpoint
 	DeleteCommitteeMemberEndpoint   goa.Endpoint
-	ListInvitesEndpoint             goa.Endpoint
+	GetInviteEndpoint               goa.Endpoint
 	CreateInviteEndpoint            goa.Endpoint
 	RevokeInviteEndpoint            goa.Endpoint
 	AcceptInviteEndpoint            goa.Endpoint
 	DeclineInviteEndpoint           goa.Endpoint
-	ListApplicationsEndpoint        goa.Endpoint
+	GetApplicationEndpoint          goa.Endpoint
 	SubmitApplicationEndpoint       goa.Endpoint
 	ApproveApplicationEndpoint      goa.Endpoint
 	RejectApplicationEndpoint       goa.Endpoint
@@ -43,7 +43,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, listInvites, createInvite, revokeInvite, acceptInvite, declineInvite, listApplications, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:         createCommittee,
 		GetCommitteeBaseEndpoint:        getCommitteeBase,
@@ -57,12 +57,12 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		GetCommitteeMemberEndpoint:      getCommitteeMember,
 		UpdateCommitteeMemberEndpoint:   updateCommitteeMember,
 		DeleteCommitteeMemberEndpoint:   deleteCommitteeMember,
-		ListInvitesEndpoint:             listInvites,
+		GetInviteEndpoint:               getInvite,
 		CreateInviteEndpoint:            createInvite,
 		RevokeInviteEndpoint:            revokeInvite,
 		AcceptInviteEndpoint:            acceptInvite,
 		DeclineInviteEndpoint:           declineInvite,
-		ListApplicationsEndpoint:        listApplications,
+		GetApplicationEndpoint:          getApplication,
 		SubmitApplicationEndpoint:       submitApplication,
 		ApproveApplicationEndpoint:      approveApplication,
 		RejectApplicationEndpoint:       rejectApplication,
@@ -261,20 +261,19 @@ func (c *Client) DeleteCommitteeMember(ctx context.Context, p *DeleteCommitteeMe
 	return
 }
 
-// ListInvites calls the "list-invites" endpoint of the "committee-service"
-// service.
-// ListInvites may return the following errors:
-//   - "NotFound" (type *NotFoundError): Committee not found
+// GetInvite calls the "get-invite" endpoint of the "committee-service" service.
+// GetInvite may return the following errors:
+//   - "NotFound" (type *NotFoundError): Invite not found
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) ListInvites(ctx context.Context, p *ListInvitesPayload) (res []*CommitteeInviteWithReadonlyAttributes, err error) {
+func (c *Client) GetInvite(ctx context.Context, p *GetInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error) {
 	var ires any
-	ires, err = c.ListInvitesEndpoint(ctx, p)
+	ires, err = c.GetInviteEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.([]*CommitteeInviteWithReadonlyAttributes), nil
+	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
 }
 
 // CreateInvite calls the "create-invite" endpoint of the "committee-service"
@@ -344,20 +343,20 @@ func (c *Client) DeclineInvite(ctx context.Context, p *DeclineInvitePayload) (re
 	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
 }
 
-// ListApplications calls the "list-applications" endpoint of the
+// GetApplication calls the "get-application" endpoint of the
 // "committee-service" service.
-// ListApplications may return the following errors:
-//   - "NotFound" (type *NotFoundError): Committee not found
+// GetApplication may return the following errors:
+//   - "NotFound" (type *NotFoundError): Application not found
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) ListApplications(ctx context.Context, p *ListApplicationsPayload) (res []*CommitteeApplicationWithReadonlyAttributes, err error) {
+func (c *Client) GetApplication(ctx context.Context, p *GetApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
 	var ires any
-	ires, err = c.ListApplicationsEndpoint(ctx, p)
+	ires, err = c.GetApplicationEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.([]*CommitteeApplicationWithReadonlyAttributes), nil
+	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
 }
 
 // SubmitApplication calls the "submit-application" endpoint of the

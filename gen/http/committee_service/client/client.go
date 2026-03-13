@@ -64,9 +64,9 @@ type Client struct {
 	// delete-committee-member endpoint.
 	DeleteCommitteeMemberDoer goahttp.Doer
 
-	// ListInvites Doer is the HTTP client used to make requests to the
-	// list-invites endpoint.
-	ListInvitesDoer goahttp.Doer
+	// GetInvite Doer is the HTTP client used to make requests to the get-invite
+	// endpoint.
+	GetInviteDoer goahttp.Doer
 
 	// CreateInvite Doer is the HTTP client used to make requests to the
 	// create-invite endpoint.
@@ -84,9 +84,9 @@ type Client struct {
 	// decline-invite endpoint.
 	DeclineInviteDoer goahttp.Doer
 
-	// ListApplications Doer is the HTTP client used to make requests to the
-	// list-applications endpoint.
-	ListApplicationsDoer goahttp.Doer
+	// GetApplication Doer is the HTTP client used to make requests to the
+	// get-application endpoint.
+	GetApplicationDoer goahttp.Doer
 
 	// SubmitApplication Doer is the HTTP client used to make requests to the
 	// submit-application endpoint.
@@ -141,12 +141,12 @@ func NewClient(
 		GetCommitteeMemberDoer:      doer,
 		UpdateCommitteeMemberDoer:   doer,
 		DeleteCommitteeMemberDoer:   doer,
-		ListInvitesDoer:             doer,
+		GetInviteDoer:               doer,
 		CreateInviteDoer:            doer,
 		RevokeInviteDoer:            doer,
 		AcceptInviteDoer:            doer,
 		DeclineInviteDoer:           doer,
-		ListApplicationsDoer:        doer,
+		GetApplicationDoer:          doer,
 		SubmitApplicationDoer:       doer,
 		ApproveApplicationDoer:      doer,
 		RejectApplicationDoer:       doer,
@@ -438,15 +438,15 @@ func (c *Client) DeleteCommitteeMember() goa.Endpoint {
 	}
 }
 
-// ListInvites returns an endpoint that makes HTTP requests to the
-// committee-service service list-invites server.
-func (c *Client) ListInvites() goa.Endpoint {
+// GetInvite returns an endpoint that makes HTTP requests to the
+// committee-service service get-invite server.
+func (c *Client) GetInvite() goa.Endpoint {
 	var (
-		encodeRequest  = EncodeListInvitesRequest(c.encoder)
-		decodeResponse = DecodeListInvitesResponse(c.decoder, c.RestoreResponseBody)
+		encodeRequest  = EncodeGetInviteRequest(c.encoder)
+		decodeResponse = DecodeGetInviteResponse(c.decoder, c.RestoreResponseBody)
 	)
 	return func(ctx context.Context, v any) (any, error) {
-		req, err := c.BuildListInvitesRequest(ctx, v)
+		req, err := c.BuildGetInviteRequest(ctx, v)
 		if err != nil {
 			return nil, err
 		}
@@ -454,9 +454,9 @@ func (c *Client) ListInvites() goa.Endpoint {
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.ListInvitesDoer.Do(req)
+		resp, err := c.GetInviteDoer.Do(req)
 		if err != nil {
-			return nil, goahttp.ErrRequestError("committee-service", "list-invites", err)
+			return nil, goahttp.ErrRequestError("committee-service", "get-invite", err)
 		}
 		return decodeResponse(resp)
 	}
@@ -558,15 +558,15 @@ func (c *Client) DeclineInvite() goa.Endpoint {
 	}
 }
 
-// ListApplications returns an endpoint that makes HTTP requests to the
-// committee-service service list-applications server.
-func (c *Client) ListApplications() goa.Endpoint {
+// GetApplication returns an endpoint that makes HTTP requests to the
+// committee-service service get-application server.
+func (c *Client) GetApplication() goa.Endpoint {
 	var (
-		encodeRequest  = EncodeListApplicationsRequest(c.encoder)
-		decodeResponse = DecodeListApplicationsResponse(c.decoder, c.RestoreResponseBody)
+		encodeRequest  = EncodeGetApplicationRequest(c.encoder)
+		decodeResponse = DecodeGetApplicationResponse(c.decoder, c.RestoreResponseBody)
 	)
 	return func(ctx context.Context, v any) (any, error) {
-		req, err := c.BuildListApplicationsRequest(ctx, v)
+		req, err := c.BuildGetApplicationRequest(ctx, v)
 		if err != nil {
 			return nil, err
 		}
@@ -574,9 +574,9 @@ func (c *Client) ListApplications() goa.Endpoint {
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.ListApplicationsDoer.Do(req)
+		resp, err := c.GetApplicationDoer.Do(req)
 		if err != nil {
-			return nil, goahttp.ErrRequestError("committee-service", "list-applications", err)
+			return nil, goahttp.ErrRequestError("committee-service", "get-application", err)
 		}
 		return decodeResponse(resp)
 	}

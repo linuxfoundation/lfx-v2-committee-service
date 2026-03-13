@@ -488,19 +488,83 @@ func TestUpdateCommitteeMember(t *testing.T) {
 
 // ==================== Invite Endpoint Tests ====================
 
-func TestListInvites_ReturnsNotFound(t *testing.T) {
-	service, _ := setupServiceTest()
+func TestGetInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(repo *mock.MockRepository)
+		payload     *committeeservice.GetInvitePayload
+		expectError bool
+		errType     string
+	}{
+		{
+			name: "successful get invite",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "get-invite-001",
+					CommitteeUID: "committee-1",
+					InviteeEmail: "getinvite@example.com",
+					Role:         "member",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "get-invite-001",
+			},
+		},
+		{
+			name:  "invite not found",
+			setup: func(repo *mock.MockRepository) {},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "non-existent-invite",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+		{
+			name: "invite in different committee",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "get-invite-002",
+					CommitteeUID: "committee-2",
+					InviteeEmail: "other@example.com",
+					Role:         "member",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "get-invite-002",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+	}
 
-	result, err := service.ListInvites(context.Background(), &committeeservice.ListInvitesPayload{
-		UID: "committee-1",
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, repo := setupServiceTestWithRepo()
+			tt.setup(repo)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
+			result, err := service.GetInvite(context.Background(), tt.payload)
 
-	var nfErr *committeeservice.NotFoundError
-	require.ErrorAs(t, err, &nfErr)
-	assert.Contains(t, nfErr.Message, "list invites endpoint has been removed")
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				if tt.errType == "not_found" {
+					var nfErr *committeeservice.NotFoundError
+					require.ErrorAs(t, err, &nfErr)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.payload.InviteUID, *result.UID)
+			}
+		})
+	}
 }
 
 func TestCreateInvite(t *testing.T) {
@@ -817,19 +881,83 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 
 // ==================== Application Endpoint Tests ====================
 
-func TestListApplications_ReturnsNotFound(t *testing.T) {
-	service, _ := setupServiceTest()
+func TestGetApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(repo *mock.MockRepository)
+		payload     *committeeservice.GetApplicationPayload
+		expectError bool
+		errType     string
+	}{
+		{
+			name: "successful get application",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeApplication(&model.CommitteeApplication{
+					UID:          "get-app-001",
+					CommitteeUID: "committee-1",
+					ApplicantUID: "get-app-unique@example.com",
+					Message:      "I want to join",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "get-app-001",
+			},
+		},
+		{
+			name:  "application not found",
+			setup: func(repo *mock.MockRepository) {},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "non-existent-app",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+		{
+			name: "application in different committee",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeApplication(&model.CommitteeApplication{
+					UID:          "get-app-002",
+					CommitteeUID: "committee-2",
+					ApplicantUID: "other-applicant@example.com",
+					Message:      "Wrong committee",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "get-app-002",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+	}
 
-	result, err := service.ListApplications(context.Background(), &committeeservice.ListApplicationsPayload{
-		UID: "committee-1",
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, repo := setupServiceTestWithRepo()
+			tt.setup(repo)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
+			result, err := service.GetApplication(context.Background(), tt.payload)
 
-	var nfErr *committeeservice.NotFoundError
-	require.ErrorAs(t, err, &nfErr)
-	assert.Contains(t, nfErr.Message, "list applications endpoint has been removed")
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				if tt.errType == "not_found" {
+					var nfErr *committeeservice.NotFoundError
+					require.ErrorAs(t, err, &nfErr)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.payload.ApplicationUID, *result.UID)
+			}
+		})
+	}
 }
 
 func TestSubmitApplication(t *testing.T) {
@@ -888,10 +1016,7 @@ func TestSubmitApplication(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
 
 			// Update committee-1 settings with the desired join_mode
-			settings := repo.GetSettingsPtr("committee-1")
-			if settings != nil {
-				settings.JoinMode = tt.joinMode
-			}
+			repo.SetJoinMode("committee-1", tt.joinMode)
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
 			msg := "I'd like to join"
@@ -1089,10 +1214,7 @@ func TestJoinCommittee(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 
 			// Update committee-1 settings with the desired join_mode
-			settings := repo.GetSettingsPtr("committee-1")
-			if settings != nil {
-				settings.JoinMode = tt.joinMode
-			}
+			repo.SetJoinMode("committee-1", tt.joinMode)
 
 			// Configure mock orchestrator to return a member on CreateMember
 			mockOrch.createMember = &model.CommitteeMember{

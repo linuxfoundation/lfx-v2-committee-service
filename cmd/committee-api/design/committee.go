@@ -463,8 +463,8 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	// Committee invite endpoints
-	dsl.Method("list-invites", func() {
-		dsl.Description("List all invites for a committee")
+	dsl.Method("get-invite", func() {
+		dsl.Description("Get a single invite by UID")
 
 		dsl.Security(JWTAuth)
 
@@ -472,20 +472,22 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			CommitteeUIDAttribute()
+			InviteUIDAttribute()
 
-			dsl.Required("version", "uid")
+			dsl.Required("version", "uid", "invite_uid")
 		})
 
-		dsl.Result(dsl.ArrayOf(CommitteeInviteWithReadonlyAttributes))
+		dsl.Result(CommitteeInviteWithReadonlyAttributes)
 
-		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("NotFound", NotFoundError, "Invite not found")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
-			dsl.GET("/committees/{uid}/invites")
+			dsl.GET("/committees/{uid}/invites/{invite_uid}")
 			dsl.Param("version:v")
 			dsl.Param("uid")
+			dsl.Param("invite_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -647,8 +649,8 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	// Committee application endpoints
-	dsl.Method("list-applications", func() {
-		dsl.Description("List all applications for a committee")
+	dsl.Method("get-application", func() {
+		dsl.Description("Get a single application by UID")
 
 		dsl.Security(JWTAuth)
 
@@ -656,20 +658,22 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			CommitteeUIDAttribute()
+			ApplicationUIDAttribute()
 
-			dsl.Required("version", "uid")
+			dsl.Required("version", "uid", "application_uid")
 		})
 
-		dsl.Result(dsl.ArrayOf(CommitteeApplicationWithReadonlyAttributes))
+		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
 
-		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("NotFound", NotFoundError, "Application not found")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
-			dsl.GET("/committees/{uid}/applications")
+			dsl.GET("/committees/{uid}/applications/{application_uid}")
 			dsl.Param("version:v")
 			dsl.Param("uid")
+			dsl.Param("application_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("NotFound", dsl.StatusNotFound)
