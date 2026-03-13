@@ -62,7 +62,7 @@ Ask the contributor what they're building. Before writing code, answer:
 1. **What is the feature?** Describe it in one sentence from the user's perspective.
 2. **What data does it need?** What fields/information are involved?
 3. **What operation is this?** Create, Read, Update, Delete, or a query?
-4. **Does the API endpoint already exist?** Check `cmd/committee-api/design/committee.go` and the generated `gen/` folder.
+4. **Does the API endpoint already exist?** Check `cmd/committee-api/design/committee_svc.go` and the generated `gen/` folder.
 5. **Does similar code already exist?** Check for existing patterns to follow.
 
 ## Step 3: Explore Existing Code First
@@ -74,7 +74,7 @@ Always read what exists before writing anything new:
 ls gen/http/committee/
 
 # Read the design specification (source of truth for the API contract)
-# cmd/committee-api/design/committee.go
+# cmd/committee-api/design/committee_svc.go
 
 # See existing service methods
 ls cmd/committee-api/service/
@@ -100,8 +100,9 @@ Based on the feature, determine which layers need to change:
 
 | Layer | File Location | When to Change |
 |-------|--------------|----------------|
-| **API Design** | `cmd/committee-api/design/committee.go` | New endpoint or new request/response fields |
-| **Data Types** | `cmd/committee-api/design/type.go` | New Goa types for request/response |
+| **API Design** | `cmd/committee-api/design/committee_svc.go` | New endpoint or new request/response fields |
+| **Data Types** | `cmd/committee-api/design/type.go` or `<entity>_type.go` | New Goa types for request/response |
+| **Helm Ruleset** | `charts/lfx-v2-committee-service/templates/ruleset.yaml` | Every new endpoint needs an auth rule |
 | **Domain Model** | `internal/domain/model/` | New or changed data shape stored in NATS |
 | **Port Interface** | `internal/domain/port/` | New storage operation needed |
 | **NATS Storage** | `internal/infrastructure/nats/` | Implementing a new port operation |
@@ -122,7 +123,7 @@ Only modify design files if you're adding a **new endpoint** or changing the **r
 
 ### The design files
 
-- `cmd/committee-api/design/committee.go` — Endpoint definitions (HTTP methods, paths, payloads, responses)
+- `cmd/committee-api/design/committee_svc.go` — Endpoint definitions (HTTP methods, paths, payloads, responses)
 - `cmd/committee-api/design/type.go` — Data types used in those endpoints
 
 ### After modifying design files
@@ -135,6 +136,77 @@ make apigen
 This regenerates everything in `gen/` — never edit files in `gen/` directly, they will be overwritten.
 
 Read `references/goa-patterns.md` for examples of adding endpoints and types.
+
+## Step 5b: Add a Heimdall Ruleset Entry
+
+**Every new endpoint must have a corresponding rule in `charts/lfx-v2-committee-service/templates/ruleset.yaml`.** Without it, the request will be blocked at the gateway when deployed.
+
+Each rule specifies the HTTP method + path and what authorization check to perform. The check uses OpenFGA, which enforces access based on the user's relation to an object. The authorization model for committees is defined in [`lfx-v2-helm`](https://github.com/linuxfoundation/lfx-v2-helm/blob/main/charts/lfx-platform/templates/openfga/model.yaml). To see the live model in your local cluster:
+
+```bash
+kubectl describe authorizationmodel lfx-core -n lfx
+```
+
+At the time of writing, the `committee` type defines these relations:
+
+```text
+type committee
+  relations
+    define member: [user]                  # explicitly added as a committee member
+    define writer: [user] or writer from project  # can modify the committee
+    define auditor: [user, team#member] or auditor from project  # can view settings/sensitive data
+    define viewer: [user:*] or member or auditor  # can view general committee data (public = anyone)
+```
+
+**Choose the relation based on what the endpoint does:**
+
+| Endpoint type | Relation | Example |
+| ------------- | -------- | ------- |
+| Read public committee data | `viewer` | GET /committees/:uid |
+| Read sensitive settings | `auditor` | GET /committees/:uid/settings |
+| Create, update, delete | `writer` | PUT /committees/:uid |
+| Self-action (user acts on themselves, no prior relation) | none — use `allow_all` | join, leave, accept invite |
+
+For a standard protected endpoint, the rule looks like this:
+
+```yaml
+- id: "rule:lfx:lfx-v2-committee-service:<resource>:<action>"
+  allow_encoded_slashes: 'off'
+  match:
+    methods:
+      - GET
+    routes:
+      - path: /committees/:uid/your-resource
+  execute:
+    - authenticator: oidc
+    - authenticator: anonymous_authenticator
+    {{- if .Values.app.use_oidc_contextualizer }}
+    - contextualizer: oidc_contextualizer
+    {{- end }}
+    {{- if .Values.openfga.enabled }}
+    - authorizer: openfga_check
+      config:
+        values:
+          relation: viewer          # change to writer/auditor as needed
+          object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+    {{- else }}
+    - authorizer: allow_all
+    {{- end }}
+    - finalizer: create_jwt
+      config:
+        values:
+          aud: {{ .Values.app.audience }}
+```
+
+For self-action endpoints (where the user has no prior OpenFGA relation to the object), skip the `openfga_check` and use `allow_all` — the service layer enforces business rules:
+
+```yaml
+    {{- if .Values.openfga.enabled }}
+    - authorizer: allow_all         # no prior relation to check
+    {{- else }}
+    - authorizer: allow_all
+    {{- end }}
+```
 
 ## Step 6: Data Models and Storage
 
@@ -200,6 +272,41 @@ Handlers in this service are thin — they:
 
 No business logic should live in handlers. If you find yourself writing complex logic here, it belongs in the internal service layer.
 
+## Step 8b: V1 Compatibility — Does This Change Need to Sync?
+
+This service coexists with a V1 system ([`project-management`](https://github.com/linuxfoundation/project-management)) that exposes the same committee data via its own API ([V1 committee API docs](https://api-gw.platform.linuxfoundation.org/project-service/v1/api-docs#tag/committeeV2)). The two systems are kept in sync by the `lfx-v1-sync-helper` service.
+
+**Ask yourself: does this change touch a field that also exists (or should exist) in V1?**
+
+If yes, you need changes in **three repos**, not just this one:
+
+| Repo | What to update |
+| ---- | -------------- |
+| `lfx-v2-committee-service` (this repo) | V2 domain model + API design |
+| [`project-management`](https://github.com/linuxfoundation/project-management) | V1 API + data model to add/change the field |
+| [`lfx-v1-sync-helper`](https://github.com/linuxfoundation/lfx-v1-sync-helper) | Sync logic that converts between V1 and V2 models |
+
+### How the sync works
+
+**V2 → V1 (when data is written in V2):**
+Write in V2 → indexed in OpenSearch → triggers `lfx-v1-sync-helper` → writes to V1 (PostgreSQL). The sync helper contains a function that converts the V2 data model to the V1 data model. **Any new V2 field that should appear in V1 must be mapped there.**
+
+**V1 → V2 (when data is written in V1):**
+Write in V1 → triggers `lfx-v1-sync-helper` → indexes in V2 (OpenSearch). The sync helper contains a separate function that maps V1 attributes to V2 attributes. **Any new V1 field that should appear in V2 must be mapped there.**
+
+### Important: module versioning in lfx-v1-sync-helper
+
+The `lfx-v1-sync-helper` imports this committee service as a Go module to use the V2 data model types. If you're adding new fields to the V2 model and updating the sync helper in parallel (before the V2 changes are released and tagged), you must point the sync helper's `go.mod` to your branch version rather than the tagged release:
+
+```bash
+# In lfx-v1-sync-helper, point to your in-progress branch
+go get github.com/linuxfoundation/lfx-v2-committee-service@<your-branch-or-commit>
+```
+
+Revert this to a tagged version before merging the sync helper PR.
+
+Read `references/v1-sync-patterns.md` for details on where exactly to update in `lfx-v1-sync-helper`.
+
 ## Step 9: Tests
 
 Tests live next to the code they test, in `*_test.go` files.
@@ -258,3 +365,4 @@ Provide a clear summary of what was built:
 
 - `references/goa-patterns.md` — How to add endpoints and types to the Goa design
 - `references/nats-patterns.md` — NATS key-value storage patterns
+- `references/v1-sync-patterns.md` — Where and how to update lfx-v1-sync-helper for V1/V2 data model changes

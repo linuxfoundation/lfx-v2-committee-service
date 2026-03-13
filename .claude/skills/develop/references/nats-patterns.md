@@ -10,6 +10,75 @@ This service uses NATS JetStream key-value (KV) buckets as its database. Think o
 | `committee-settings` | `constants.KVBucketNameCommitteeSettings` | Committee settings |
 | `committee-members` | `constants.KVBucketNameCommitteeMembers` | Committee member data |
 
+## Adding a New Bucket
+
+Each new data entity that needs its own storage requires a bucket. You need to create it in two places: locally for development, and in the Helm chart for Kubernetes deployments.
+
+### 1. Local development (nats CLI)
+
+Create the bucket manually using the `nats` CLI once your local NATS server is running:
+
+```bash
+nats kv add <bucket-name> \
+  --history=20 \
+  --storage=file \
+  --max-value-size=10485760 \
+  --max-bucket-size=1073741824
+```
+
+Replace `<bucket-name>` with the actual bucket name (e.g. `committee-invites`). Use the same defaults as the existing buckets: history=20, file storage, 10MB max value size, 1GB max bucket size.
+
+### 2. Kubernetes deployment (Helm chart)
+
+Two files must be updated:
+
+**Step 1 — Add the bucket config to `charts/lfx-v2-committee-service/values.yaml`:**
+
+```yaml
+  # <your_entity>_kv_bucket is the configuration for the KV bucket for storing <your_entity>
+  <your_entity>_kv_bucket:
+    creation: true
+    keep: true
+    name: <bucket-name>
+    history: 20
+    storage: file
+    maxValueSize: 10485760  # 10MB
+    maxBytes: 1073741824    # 1GB
+    compression: true
+```
+
+Follow the naming convention: `<entity>_kv_bucket` for the key (e.g. `committee_invites_kv_bucket`).
+
+**Step 2 — Add a `KeyValue` CRD block to `charts/lfx-v2-committee-service/templates/nats-kv-buckets.yaml`:**
+
+```yaml
+---
+{{- if .Values.nats.<your_entity>_kv_bucket.creation }}
+apiVersion: jetstream.nats.io/v1beta2
+kind: KeyValue
+metadata:
+  name: {{ .Values.nats.<your_entity>_kv_bucket.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.nats.<your_entity>_kv_bucket.keep }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  {{- end }}
+spec:
+  bucket: {{ .Values.nats.<your_entity>_kv_bucket.name }}
+  history: {{ .Values.nats.<your_entity>_kv_bucket.history }}
+  storage: {{ .Values.nats.<your_entity>_kv_bucket.storage }}
+  maxValueSize: {{ .Values.nats.<your_entity>_kv_bucket.maxValueSize }}
+  maxBytes: {{ .Values.nats.<your_entity>_kv_bucket.maxBytes }}
+  compression: {{ .Values.nats.<your_entity>_kv_bucket.compression }}
+{{- end }}
+```
+
+Add a `---` separator before each new block. The `keep: true` annotation tells Helm to preserve the bucket (and its data) when the chart is uninstalled — always set this to `true` for production buckets.
+
+### 3. Register the bucket constant
+
+Add the bucket name as a constant in `pkg/constants/storage.go` alongside the existing ones, then initialize it in the NATS client in `internal/infrastructure/nats/client.go`.
+
 ## How Data Flows
 
 The storage layer lives in `internal/infrastructure/nats/storage.go`. It implements the port interfaces from `internal/domain/port/`.

@@ -4,14 +4,18 @@ Goa is a code generation framework. You write a **design specification** describ
 
 ## Files
 
-- `cmd/committee-api/design/committee.go` — Service and method (endpoint) definitions
-- `cmd/committee-api/design/type.go` — Reusable data types
+- `cmd/committee-api/design/committee_svc.go` — Service and method (endpoint) definitions
+- `cmd/committee-api/design/type.go` — Shared/cross-entity types: common attributes (Version, ETag, BearerToken, CreatedAt, UpdatedAt, etc.) and error types
+- `cmd/committee-api/design/committee_type.go` — Committee entity types and attribute helpers
+- `cmd/committee-api/design/committee_member_type.go` — Committee member entity types and attribute helpers
+
+**Type file convention:** Keep `type.go` for shared utilities and error types only. When an entity has enough types to warrant its own file, create `<entity>_type.go` (e.g. `committee_type.go`, `committee_member_type.go`). Do not put committee-specific types in `type.go`.
 
 **Never edit files in `gen/`** — they are fully overwritten by `make apigen`.
 
 ## Adding a New Endpoint
 
-### Step 1: Define the method in committee.go
+### Step 1: Define the method in committee_svc.go
 
 Add a new `dsl.Method(...)` block inside the existing `dsl.Service(...)` block:
 
@@ -48,9 +52,9 @@ dsl.Method("get-committee-stats", func() {
 })
 ```
 
-### Step 2: Define new types in type.go (if needed)
+### Step 2: Define new types (if needed)
 
-If the endpoint needs new request/response shapes, add types to `type.go`:
+If the endpoint needs new request/response shapes, add types to the appropriate file — `<entity>_type.go` for entity-specific types, or `type.go` for shared utilities:
 
 ```go
 var CommitteeStats = dsl.Type("committee-stats", func() {
@@ -75,9 +79,10 @@ After generation, Goa will expect a method on the service struct in `cmd/committ
 
 ## Reusable Attribute Helpers
 
-Look in `type.go` for helper functions like `CommitteeUIDAttribute()`, `BearerTokenAttribute()`, `VersionAttribute()` — use these instead of defining the same attributes repeatedly.
+Helper functions like `CommitteeUIDAttribute()` live in `committee_type.go`, shared ones like `BearerTokenAttribute()` and `VersionAttribute()` live in `type.go` — use these instead of defining the same attributes repeatedly.
 
 To add a new reusable attribute:
+
 ```go
 func MemberCountAttribute() {
     dsl.Attribute("member_count", dsl.Int, "Number of members in the committee")
@@ -87,6 +92,7 @@ func MemberCountAttribute() {
 ## Standard Error Types
 
 These are already defined — always use them for consistency:
+
 - `BadRequestError` — invalid input (400)
 - `NotFoundError` — resource doesn't exist (404)
 - `ConflictError` — uniqueness violation (409)
