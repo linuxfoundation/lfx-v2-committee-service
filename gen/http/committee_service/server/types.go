@@ -4038,8 +4038,8 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {
@@ -4115,8 +4115,8 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 		err = goa.MergeErrors(err, goa.MissingFieldError("business_email_required", "body"))
 	}
 	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {

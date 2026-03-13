@@ -62,8 +62,8 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		if body.ParentUID != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 		}
-		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application" || body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -496,8 +496,8 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }'")
 		}
-		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application"}))
+		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application" || body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))

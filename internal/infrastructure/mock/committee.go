@@ -219,12 +219,12 @@ type MockRepository struct {
 	inviteIndexKeys       map[string]*model.CommitteeInvite      // indexKey -> invite
 	applicationIndexKeys  map[string]*model.CommitteeApplication // indexKey -> application
 	// Revision tracking for optimistic locking
-	committeeRevisions    map[string]uint64 // committeeUID -> revision
-	settingsRevisions     map[string]uint64 // committeeUID -> settings revision
-	memberRevisions       map[string]uint64 // memberUID -> revision
-	inviteRevisions       map[string]uint64 // inviteUID -> revision
-	applicationRevisions  map[string]uint64 // applicationUID -> revision
-	mu                    sync.RWMutex      // Protect concurrent access to maps
+	committeeRevisions   map[string]uint64 // committeeUID -> revision
+	settingsRevisions    map[string]uint64 // committeeUID -> settings revision
+	memberRevisions      map[string]uint64 // memberUID -> revision
+	inviteRevisions      map[string]uint64 // inviteUID -> revision
+	applicationRevisions map[string]uint64 // applicationUID -> revision
+	mu                   sync.RWMutex      // Protect concurrent access to maps
 }
 
 // ================== CommitteeBaseReader implementation ==================
