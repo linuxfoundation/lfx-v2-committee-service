@@ -51,6 +51,8 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 
 	// Handle Website (already a pointer, safe to assign directly)
 	base.Website = p.Website
+	base.MailingList = p.MailingList
+	base.ChatChannel = p.ChatChannel
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
@@ -75,6 +77,7 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 		Auditors:              p.Auditors,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
+		JoinMode:              p.JoinMode,
 	}
 
 	// Handle LastReviewedAt - GOA validates format via Pattern constraint
@@ -115,6 +118,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 
 	// Handle Website (already a pointer, safe to assign directly)
 	base.Website = p.Website
+	base.MailingList = p.MailingList
+	base.ChatChannel = p.ChatChannel
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
@@ -151,6 +156,7 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		Auditors:              p.Auditors,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
+		JoinMode:              p.JoinMode,
 	}
 
 	return settings
@@ -178,6 +184,12 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	}
 	if response.Website != nil && *response.Website != "" {
 		result.Website = response.Website
+	}
+	if response.MailingList != nil && *response.MailingList != "" {
+		result.MailingList = response.MailingList
+	}
+	if response.ChatChannel != nil && *response.ChatChannel != "" {
+		result.ChatChannel = response.ChatChannel
 	}
 	if response.DisplayName != "" {
 		result.DisplayName = &response.DisplayName
@@ -220,6 +232,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 
 		result.ShowMeetingAttendees = response.ShowMeetingAttendees
 		result.MemberVisibility = response.MemberVisibility
+		result.JoinMode = response.JoinMode
 	}
 
 	return result
@@ -251,6 +264,12 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	}
 	if base.Website != nil && *base.Website != "" {
 		result.Website = base.Website
+	}
+	if base.MailingList != nil && *base.MailingList != "" {
+		result.MailingList = base.MailingList
+	}
+	if base.ChatChannel != nil && *base.ChatChannel != "" {
+		result.ChatChannel = base.ChatChannel
 	}
 	if base.DisplayName != "" {
 		result.DisplayName = &base.DisplayName
@@ -289,6 +308,7 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 		BusinessEmailRequired: settings.BusinessEmailRequired,
 		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
 		MemberVisibility:      settings.MemberVisibility,
+		JoinMode:              settings.JoinMode,
 	}
 
 	// Only set optional fields if they have values
@@ -583,5 +603,50 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 		result.UpdatedAt = &updatedAt
 	}
 
+	return result
+}
+
+func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.CommitteeInvite) *committeeservice.CommitteeInviteWithReadonlyAttributes {
+	if invite == nil {
+		return nil
+	}
+	result := &committeeservice.CommitteeInviteWithReadonlyAttributes{
+		UID:          &invite.UID,
+		CommitteeUID: &invite.CommitteeUID,
+		InviteeEmail: &invite.InviteeEmail,
+		Status:       invite.Status,
+	}
+	if invite.Role != "" {
+		result.Role = &invite.Role
+	}
+	if !invite.CreatedAt.IsZero() {
+		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
+	return result
+}
+
+func (s *committeeServicesrvc) convertApplicationDomainToResponse(app *model.CommitteeApplication) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
+	if app == nil {
+		return nil
+	}
+	result := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
+		UID:          &app.UID,
+		CommitteeUID: &app.CommitteeUID,
+		Status:       app.Status,
+	}
+	if app.ApplicantUID != "" {
+		result.ApplicantUID = &app.ApplicantUID
+	}
+	if app.Message != "" {
+		result.Message = &app.Message
+	}
+	if app.ReviewerNotes != "" {
+		result.ReviewerNotes = &app.ReviewerNotes
+	}
+	if !app.CreatedAt.IsZero() {
+		createdAt := app.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		result.CreatedAt = &createdAt
+	}
 	return result
 }

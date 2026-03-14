@@ -64,3 +64,23 @@ func NewConflict(message string, err ...error) Conflict {
 		},
 	}
 }
+
+// Forbidden represents a forbidden error in the application.
+type Forbidden struct {
+	base
+}
+
+// Error returns the error message for Forbidden.
+func (f Forbidden) Error() string {
+	return f.error()
+}
+
+// NewForbidden creates a new Forbidden error with the provided message.
+func NewForbidden(message string, errs ...error) Forbidden {
+	return Forbidden{
+		base: base{
+			message: message,
+			err:     errors.Join(errs...),
+		},
+	}
+}

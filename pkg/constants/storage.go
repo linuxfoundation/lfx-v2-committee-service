@@ -14,11 +14,23 @@ const (
 	// KVBucketNameCommitteeMembers is the name of the KV bucket for committee members.
 	KVBucketNameCommitteeMembers = "committee-members"
 
+	// KVBucketNameCommitteeInvites is the name of the KV bucket for committee invites.
+	KVBucketNameCommitteeInvites = "committee-invites"
+
+	// KVBucketNameCommitteeApplications is the name of the KV bucket for committee applications.
+	KVBucketNameCommitteeApplications = "committee-applications"
+
 	// KVLookupPrefix is the prefix for lookup keys in the KV store.
 	KVLookupPrefix = "lookup/committees/%s"
 
 	// KVLookupMemberPrefix is the prefix for member lookup keys in the KV store.
 	KVLookupMemberPrefix = "lookup/committee-members/%s"
+
+	// KVLookupInvitePrefix is the prefix for invite lookup keys in the KV store.
+	KVLookupInvitePrefix = "lookup/committee-invites/%s"
+
+	// KVLookupApplicationPrefix is the prefix for application lookup keys in the KV store.
+	KVLookupApplicationPrefix = "lookup/committee-applications/%s"
 
 	// KVLookupSSOGroupNamePrefix is the prefix for SSO group name lookup keys in the KV store.
 	KVLookupSSOGroupNamePrefix = "lookup/committee-sso-groups/%s"

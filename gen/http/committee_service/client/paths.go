@@ -71,3 +71,58 @@ func UpdateCommitteeMemberCommitteeServicePath(uid string, memberUID string) str
 func DeleteCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
 }
+
+// GetInviteCommitteeServicePath returns the URL path to the committee-service service get-invite HTTP endpoint.
+func GetInviteCommitteeServicePath(uid string, inviteUID string) string {
+	return fmt.Sprintf("/committees/%v/invites/%v", uid, inviteUID)
+}
+
+// CreateInviteCommitteeServicePath returns the URL path to the committee-service service create-invite HTTP endpoint.
+func CreateInviteCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/invites", uid)
+}
+
+// RevokeInviteCommitteeServicePath returns the URL path to the committee-service service revoke-invite HTTP endpoint.
+func RevokeInviteCommitteeServicePath(uid string, inviteUID string) string {
+	return fmt.Sprintf("/committees/%v/invites/%v", uid, inviteUID)
+}
+
+// AcceptInviteCommitteeServicePath returns the URL path to the committee-service service accept-invite HTTP endpoint.
+func AcceptInviteCommitteeServicePath(uid string, inviteUID string) string {
+	return fmt.Sprintf("/committees/%v/invites/%v/accept", uid, inviteUID)
+}
+
+// DeclineInviteCommitteeServicePath returns the URL path to the committee-service service decline-invite HTTP endpoint.
+func DeclineInviteCommitteeServicePath(uid string, inviteUID string) string {
+	return fmt.Sprintf("/committees/%v/invites/%v/decline", uid, inviteUID)
+}
+
+// GetApplicationCommitteeServicePath returns the URL path to the committee-service service get-application HTTP endpoint.
+func GetApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v", uid, applicationUID)
+}
+
+// SubmitApplicationCommitteeServicePath returns the URL path to the committee-service service submit-application HTTP endpoint.
+func SubmitApplicationCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/applications", uid)
+}
+
+// ApproveApplicationCommitteeServicePath returns the URL path to the committee-service service approve-application HTTP endpoint.
+func ApproveApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v/approve", uid, applicationUID)
+}
+
+// RejectApplicationCommitteeServicePath returns the URL path to the committee-service service reject-application HTTP endpoint.
+func RejectApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v/reject", uid, applicationUID)
+}
+
+// JoinCommitteeCommitteeServicePath returns the URL path to the committee-service service join-committee HTTP endpoint.
+func JoinCommitteeCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/join", uid)
+}
+
+// LeaveCommitteeCommitteeServicePath returns the URL path to the committee-service service leave-committee HTTP endpoint.
+func LeaveCommitteeCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/leave", uid)
+}

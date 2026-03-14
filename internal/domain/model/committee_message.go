@@ -13,6 +13,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 
 	"github.com/go-viper/mapstructure/v2"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // MessageAction is a type for the action of a project message.
@@ -41,8 +42,13 @@ type CommitteeIndexerMessage struct {
 	Data    any               `json:"data"`
 	// Tags is a list of tags to be set on the indexed resource for search.
 	Tags []string `json:"tags"`
+	// IndexingConfig provides pre-computed indexing metadata for resources that
+	// do not have a server-side enricher registered in the indexer service.
+	IndexingConfig *indexerTypes.IndexingConfig `json:"indexing_config,omitempty"`
 }
 
+// Build populates the CommitteeIndexerMessage with authorization headers from the context
+// and converts the input into the payload format expected by the indexer service.
 func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*CommitteeIndexerMessage, error) {
 
 	headers := make(map[string]string)

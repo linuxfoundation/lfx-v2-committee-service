@@ -23,6 +23,7 @@ type storage struct {
 	client *NATSClient
 }
 
+// Create persists a new committee and its optional settings in the NATS JetStream KV store.
 func (s *storage) Create(ctx context.Context, committee *model.Committee) error {
 
 	if committee == nil {
@@ -66,6 +67,9 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 	return nil
 }
 
+// UniqueNameProject enforces a uniqueness constraint on the committee name within a project
+// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
+// if a committee with the same name already exists for the project.
 func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
@@ -79,6 +83,9 @@ func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Commit
 	return uniqueKey, nil
 }
 
+// UniqueSSOGroupName enforces a uniqueness constraint on the committee's SSO group name
+// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
+// if a committee with the same SSO group name already exists.
 func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
 
 	ssoGroupKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, committee.SSOGroupName)
@@ -118,6 +125,7 @@ func (s *storage) get(ctx context.Context, bucket, uid string, model any, onlyRe
 
 }
 
+// GetBase retrieves a committee's base data and its current revision from the KV store by UID.
 func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
 	committee := &model.CommitteeBase{}
@@ -133,10 +141,12 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 	return committee, rev, nil
 }
 
+// GetRevision retrieves only the current revision number for a committee without unmarshaling its data.
 func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
 	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{}, true)
 }
 
+// GetSettings retrieves a committee's settings and its current revision from the KV store by committee UID.
 func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
 	settings := &model.CommitteeSettings{}
@@ -152,6 +162,7 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 	return settings, rev, nil
 }
 
+// UpdateBase updates a committee's base data in the KV store using optimistic locking via the provided revision.
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
 
 	// Marshal the committee base data
@@ -178,6 +189,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 	return nil
 }
 
+// UpdateSetting updates a committee's settings in the KV store using optimistic locking via the provided revision.
 func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 
 	// Marshal the committee settings data
@@ -204,6 +216,8 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 	return nil
 }
 
+// Delete removes a committee's base data and associated settings from the KV store.
+// It uses optimistic locking for the base record and silently ignores missing settings.
 func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error {
 
 	// Delete committee base
@@ -402,10 +416,266 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 	return uniqueKey, nil
 }
 
+// ================== CommitteeInviteReader implementation ==================
+
+// GetInvite retrieves a committee invite by invite UID
+func (s *storage) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
+
+	invite := &model.CommitteeInvite{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeInvites, uid, invite, false)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", uid))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee invite", errGet)
+	}
+
+	return invite, rev, nil
+}
+
+// ListInvites retrieves all invites for a given committee UID
+func (s *storage) ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error) {
+	slog.DebugContext(ctx, "listing committee invites from NATS storage", "committee_uid", committeeUID)
+
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeInvites].ListKeys(ctx)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee invites bucket", errKeys)
+	}
+
+	var invites []*model.CommitteeInvite
+
+	for key := range keys.Keys() {
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		invite := &model.CommitteeInvite{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeInvites, key, invite, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get invite while listing",
+				"key", key,
+				"error", errGet,
+				"committee_uid", committeeUID)
+			continue
+		}
+
+		if invite.CommitteeUID == committeeUID {
+			invites = append(invites, invite)
+		}
+	}
+
+	slog.DebugContext(ctx, "retrieved committee invites from NATS storage",
+		"committee_uid", committeeUID,
+		"invite_count", len(invites),
+	)
+
+	return invites, nil
+}
+
+// ================== CommitteeInviteWriter implementation ==================
+
+// CreateInvite creates a new committee invite
+func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
+
+	if invite == nil {
+		return errs.NewValidation("committee invite cannot be nil")
+	}
+
+	inviteBytes, errMarshal := json.Marshal(invite)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee invite", errMarshal)
+	}
+
+	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, invite.UID, inviteBytes)
+	if errCreate != nil {
+		return errs.NewUnexpected("failed to create committee invite", errCreate)
+	}
+
+	slog.DebugContext(ctx, "created committee invite in NATS storage",
+		"committee_uid", invite.CommitteeUID,
+		"invite_uid", invite.UID,
+		"revision", rev,
+	)
+
+	return nil
+}
+
+// UpdateInvite updates an existing committee invite
+func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error {
+
+	if invite == nil {
+		return errs.NewValidation("committee invite cannot be nil")
+	}
+
+	inviteBytes, errMarshal := json.Marshal(invite)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee invite", errMarshal)
+	}
+
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Update(ctx, invite.UID, inviteBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", invite.UID))
+		}
+		return errs.NewUnexpected("failed to update committee invite", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee invite in NATS storage",
+		"invite_uid", invite.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
+	return nil
+}
+
+// UniqueInvite verifies if an invite with the same email exists for the committee
+func (s *storage) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
+	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
+	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, uniqueKey, []byte(invite.UID))
+	if errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return uniqueKey, errs.NewConflict("invite for the same email already exists in the committee")
+		}
+		return uniqueKey, errs.NewUnexpected("failed to create unique key for invite", errUnique)
+	}
+	return uniqueKey, nil
+}
+
+// ================== CommitteeApplicationReader implementation ==================
+
+// GetApplication retrieves a committee application by application UID
+func (s *storage) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+
+	application := &model.CommitteeApplication{}
+
+	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeApplications, uid, application, false)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return nil, 0, errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", uid))
+		}
+		return nil, 0, errs.NewUnexpected("failed to get committee application", errGet)
+	}
+
+	return application, rev, nil
+}
+
+// ListApplications retrieves all applications for a given committee UID
+func (s *storage) ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error) {
+	slog.DebugContext(ctx, "listing committee applications from NATS storage", "committee_uid", committeeUID)
+
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeApplications].ListKeys(ctx)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee applications bucket", errKeys)
+	}
+
+	var applications []*model.CommitteeApplication
+
+	for key := range keys.Keys() {
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		application := &model.CommitteeApplication{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeApplications, key, application, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get application while listing",
+				"key", key,
+				"error", errGet,
+				"committee_uid", committeeUID)
+			continue
+		}
+
+		if application.CommitteeUID == committeeUID {
+			applications = append(applications, application)
+		}
+	}
+
+	slog.DebugContext(ctx, "retrieved committee applications from NATS storage",
+		"committee_uid", committeeUID,
+		"application_count", len(applications),
+	)
+
+	return applications, nil
+}
+
+// ================== CommitteeApplicationWriter implementation ==================
+
+// CreateApplication creates a new committee application
+func (s *storage) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
+
+	if application == nil {
+		return errs.NewValidation("committee application cannot be nil")
+	}
+
+	applicationBytes, errMarshal := json.Marshal(application)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee application", errMarshal)
+	}
+
+	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, application.UID, applicationBytes)
+	if errCreate != nil {
+		return errs.NewUnexpected("failed to create committee application", errCreate)
+	}
+
+	slog.DebugContext(ctx, "created committee application in NATS storage",
+		"committee_uid", application.CommitteeUID,
+		"application_uid", application.UID,
+		"revision", rev,
+	)
+
+	return nil
+}
+
+// UpdateApplication updates an existing committee application
+func (s *storage) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+
+	if application == nil {
+		return errs.NewValidation("committee application cannot be nil")
+	}
+
+	applicationBytes, errMarshal := json.Marshal(application)
+	if errMarshal != nil {
+		return errs.NewUnexpected("failed to marshal committee application", errMarshal)
+	}
+
+	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Update(ctx, application.UID, applicationBytes, revision)
+	if errUpdate != nil {
+		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", application.UID))
+		}
+		return errs.NewUnexpected("failed to update committee application", errUpdate)
+	}
+
+	slog.DebugContext(ctx, "updated committee application in NATS storage",
+		"application_uid", application.UID,
+		"old_revision", revision,
+		"new_revision", newRevision,
+	)
+
+	return nil
+}
+
+// UniqueApplication verifies if an application from the same user exists for the committee
+func (s *storage) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
+	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
+	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, uniqueKey, []byte(application.UID))
+	if errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return uniqueKey, errs.NewConflict("application from the same user already exists in the committee")
+		}
+		return uniqueKey, errs.NewUnexpected("failed to create unique key for application", errUnique)
+	}
+	return uniqueKey, nil
+}
+
+// IsReady checks whether the underlying NATS client connection is healthy and ready to serve requests.
 func (s *storage) IsReady(ctx context.Context) error {
 	return s.client.IsReady(ctx)
 }
 
+// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
 func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
 	return &storage{
 		client: client,

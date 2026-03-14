@@ -24,13 +24,13 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee)",
 	}
 }
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + " " + "committee-service create-committee --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true" + "\n" +
+	return os.Args[0] + " " + "committee-service create-committee --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true" + "\n" +
 		""
 }
 
@@ -118,6 +118,76 @@ func ParseEndpoint(
 		committeeServiceDeleteCommitteeMemberBearerTokenFlag = committeeServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
 		committeeServiceDeleteCommitteeMemberIfMatchFlag     = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
 		committeeServiceDeleteCommitteeMemberXSyncFlag       = committeeServiceDeleteCommitteeMemberFlags.String("x-sync", "", "")
+
+		committeeServiceGetInviteFlags           = flag.NewFlagSet("get-invite", flag.ExitOnError)
+		committeeServiceGetInviteUIDFlag         = committeeServiceGetInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetInviteInviteUIDFlag   = committeeServiceGetInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
+		committeeServiceGetInviteVersionFlag     = committeeServiceGetInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceGetInviteBearerTokenFlag = committeeServiceGetInviteFlags.String("bearer-token", "", "")
+
+		committeeServiceCreateInviteFlags           = flag.NewFlagSet("create-invite", flag.ExitOnError)
+		committeeServiceCreateInviteBodyFlag        = committeeServiceCreateInviteFlags.String("body", "REQUIRED", "")
+		committeeServiceCreateInviteUIDFlag         = committeeServiceCreateInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceCreateInviteVersionFlag     = committeeServiceCreateInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceCreateInviteBearerTokenFlag = committeeServiceCreateInviteFlags.String("bearer-token", "", "")
+		committeeServiceCreateInviteXSyncFlag       = committeeServiceCreateInviteFlags.String("x-sync", "", "")
+
+		committeeServiceRevokeInviteFlags           = flag.NewFlagSet("revoke-invite", flag.ExitOnError)
+		committeeServiceRevokeInviteUIDFlag         = committeeServiceRevokeInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceRevokeInviteInviteUIDFlag   = committeeServiceRevokeInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
+		committeeServiceRevokeInviteVersionFlag     = committeeServiceRevokeInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceRevokeInviteBearerTokenFlag = committeeServiceRevokeInviteFlags.String("bearer-token", "", "")
+
+		committeeServiceAcceptInviteFlags           = flag.NewFlagSet("accept-invite", flag.ExitOnError)
+		committeeServiceAcceptInviteUIDFlag         = committeeServiceAcceptInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceAcceptInviteInviteUIDFlag   = committeeServiceAcceptInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
+		committeeServiceAcceptInviteVersionFlag     = committeeServiceAcceptInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceAcceptInviteBearerTokenFlag = committeeServiceAcceptInviteFlags.String("bearer-token", "", "")
+
+		committeeServiceDeclineInviteFlags           = flag.NewFlagSet("decline-invite", flag.ExitOnError)
+		committeeServiceDeclineInviteUIDFlag         = committeeServiceDeclineInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeclineInviteInviteUIDFlag   = committeeServiceDeclineInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
+		committeeServiceDeclineInviteVersionFlag     = committeeServiceDeclineInviteFlags.String("version", "REQUIRED", "")
+		committeeServiceDeclineInviteBearerTokenFlag = committeeServiceDeclineInviteFlags.String("bearer-token", "", "")
+
+		committeeServiceGetApplicationFlags              = flag.NewFlagSet("get-application", flag.ExitOnError)
+		committeeServiceGetApplicationUIDFlag            = committeeServiceGetApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetApplicationApplicationUIDFlag = committeeServiceGetApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceGetApplicationVersionFlag        = committeeServiceGetApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceGetApplicationBearerTokenFlag    = committeeServiceGetApplicationFlags.String("bearer-token", "", "")
+
+		committeeServiceSubmitApplicationFlags           = flag.NewFlagSet("submit-application", flag.ExitOnError)
+		committeeServiceSubmitApplicationBodyFlag        = committeeServiceSubmitApplicationFlags.String("body", "REQUIRED", "")
+		committeeServiceSubmitApplicationUIDFlag         = committeeServiceSubmitApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceSubmitApplicationVersionFlag     = committeeServiceSubmitApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceSubmitApplicationBearerTokenFlag = committeeServiceSubmitApplicationFlags.String("bearer-token", "", "")
+		committeeServiceSubmitApplicationXSyncFlag       = committeeServiceSubmitApplicationFlags.String("x-sync", "", "")
+
+		committeeServiceApproveApplicationFlags              = flag.NewFlagSet("approve-application", flag.ExitOnError)
+		committeeServiceApproveApplicationBodyFlag           = committeeServiceApproveApplicationFlags.String("body", "REQUIRED", "")
+		committeeServiceApproveApplicationUIDFlag            = committeeServiceApproveApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceApproveApplicationApplicationUIDFlag = committeeServiceApproveApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceApproveApplicationVersionFlag        = committeeServiceApproveApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceApproveApplicationBearerTokenFlag    = committeeServiceApproveApplicationFlags.String("bearer-token", "", "")
+
+		committeeServiceRejectApplicationFlags              = flag.NewFlagSet("reject-application", flag.ExitOnError)
+		committeeServiceRejectApplicationBodyFlag           = committeeServiceRejectApplicationFlags.String("body", "REQUIRED", "")
+		committeeServiceRejectApplicationUIDFlag            = committeeServiceRejectApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceRejectApplicationApplicationUIDFlag = committeeServiceRejectApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceRejectApplicationVersionFlag        = committeeServiceRejectApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceRejectApplicationBearerTokenFlag    = committeeServiceRejectApplicationFlags.String("bearer-token", "", "")
+
+		committeeServiceJoinCommitteeFlags           = flag.NewFlagSet("join-committee", flag.ExitOnError)
+		committeeServiceJoinCommitteeUIDFlag         = committeeServiceJoinCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceJoinCommitteeVersionFlag     = committeeServiceJoinCommitteeFlags.String("version", "REQUIRED", "")
+		committeeServiceJoinCommitteeBearerTokenFlag = committeeServiceJoinCommitteeFlags.String("bearer-token", "", "")
+		committeeServiceJoinCommitteeXSyncFlag       = committeeServiceJoinCommitteeFlags.String("x-sync", "", "")
+
+		committeeServiceLeaveCommitteeFlags           = flag.NewFlagSet("leave-committee", flag.ExitOnError)
+		committeeServiceLeaveCommitteeUIDFlag         = committeeServiceLeaveCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceLeaveCommitteeVersionFlag     = committeeServiceLeaveCommitteeFlags.String("version", "REQUIRED", "")
+		committeeServiceLeaveCommitteeBearerTokenFlag = committeeServiceLeaveCommitteeFlags.String("bearer-token", "", "")
+		committeeServiceLeaveCommitteeXSyncFlag       = committeeServiceLeaveCommitteeFlags.String("x-sync", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -132,6 +202,17 @@ func ParseEndpoint(
 	committeeServiceGetCommitteeMemberFlags.Usage = committeeServiceGetCommitteeMemberUsage
 	committeeServiceUpdateCommitteeMemberFlags.Usage = committeeServiceUpdateCommitteeMemberUsage
 	committeeServiceDeleteCommitteeMemberFlags.Usage = committeeServiceDeleteCommitteeMemberUsage
+	committeeServiceGetInviteFlags.Usage = committeeServiceGetInviteUsage
+	committeeServiceCreateInviteFlags.Usage = committeeServiceCreateInviteUsage
+	committeeServiceRevokeInviteFlags.Usage = committeeServiceRevokeInviteUsage
+	committeeServiceAcceptInviteFlags.Usage = committeeServiceAcceptInviteUsage
+	committeeServiceDeclineInviteFlags.Usage = committeeServiceDeclineInviteUsage
+	committeeServiceGetApplicationFlags.Usage = committeeServiceGetApplicationUsage
+	committeeServiceSubmitApplicationFlags.Usage = committeeServiceSubmitApplicationUsage
+	committeeServiceApproveApplicationFlags.Usage = committeeServiceApproveApplicationUsage
+	committeeServiceRejectApplicationFlags.Usage = committeeServiceRejectApplicationUsage
+	committeeServiceJoinCommitteeFlags.Usage = committeeServiceJoinCommitteeUsage
+	committeeServiceLeaveCommitteeFlags.Usage = committeeServiceLeaveCommitteeUsage
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return nil, nil, err
@@ -203,6 +284,39 @@ func ParseEndpoint(
 			case "delete-committee-member":
 				epf = committeeServiceDeleteCommitteeMemberFlags
 
+			case "get-invite":
+				epf = committeeServiceGetInviteFlags
+
+			case "create-invite":
+				epf = committeeServiceCreateInviteFlags
+
+			case "revoke-invite":
+				epf = committeeServiceRevokeInviteFlags
+
+			case "accept-invite":
+				epf = committeeServiceAcceptInviteFlags
+
+			case "decline-invite":
+				epf = committeeServiceDeclineInviteFlags
+
+			case "get-application":
+				epf = committeeServiceGetApplicationFlags
+
+			case "submit-application":
+				epf = committeeServiceSubmitApplicationFlags
+
+			case "approve-application":
+				epf = committeeServiceApproveApplicationFlags
+
+			case "reject-application":
+				epf = committeeServiceRejectApplicationFlags
+
+			case "join-committee":
+				epf = committeeServiceJoinCommitteeFlags
+
+			case "leave-committee":
+				epf = committeeServiceLeaveCommitteeFlags
+
 			}
 
 		}
@@ -262,6 +376,39 @@ func ParseEndpoint(
 			case "delete-committee-member":
 				endpoint = c.DeleteCommitteeMember()
 				data, err = committeeservicec.BuildDeleteCommitteeMemberPayload(*committeeServiceDeleteCommitteeMemberUIDFlag, *committeeServiceDeleteCommitteeMemberMemberUIDFlag, *committeeServiceDeleteCommitteeMemberVersionFlag, *committeeServiceDeleteCommitteeMemberBearerTokenFlag, *committeeServiceDeleteCommitteeMemberIfMatchFlag, *committeeServiceDeleteCommitteeMemberXSyncFlag)
+			case "get-invite":
+				endpoint = c.GetInvite()
+				data, err = committeeservicec.BuildGetInvitePayload(*committeeServiceGetInviteUIDFlag, *committeeServiceGetInviteInviteUIDFlag, *committeeServiceGetInviteVersionFlag, *committeeServiceGetInviteBearerTokenFlag)
+			case "create-invite":
+				endpoint = c.CreateInvite()
+				data, err = committeeservicec.BuildCreateInvitePayload(*committeeServiceCreateInviteBodyFlag, *committeeServiceCreateInviteUIDFlag, *committeeServiceCreateInviteVersionFlag, *committeeServiceCreateInviteBearerTokenFlag, *committeeServiceCreateInviteXSyncFlag)
+			case "revoke-invite":
+				endpoint = c.RevokeInvite()
+				data, err = committeeservicec.BuildRevokeInvitePayload(*committeeServiceRevokeInviteUIDFlag, *committeeServiceRevokeInviteInviteUIDFlag, *committeeServiceRevokeInviteVersionFlag, *committeeServiceRevokeInviteBearerTokenFlag)
+			case "accept-invite":
+				endpoint = c.AcceptInvite()
+				data, err = committeeservicec.BuildAcceptInvitePayload(*committeeServiceAcceptInviteUIDFlag, *committeeServiceAcceptInviteInviteUIDFlag, *committeeServiceAcceptInviteVersionFlag, *committeeServiceAcceptInviteBearerTokenFlag)
+			case "decline-invite":
+				endpoint = c.DeclineInvite()
+				data, err = committeeservicec.BuildDeclineInvitePayload(*committeeServiceDeclineInviteUIDFlag, *committeeServiceDeclineInviteInviteUIDFlag, *committeeServiceDeclineInviteVersionFlag, *committeeServiceDeclineInviteBearerTokenFlag)
+			case "get-application":
+				endpoint = c.GetApplication()
+				data, err = committeeservicec.BuildGetApplicationPayload(*committeeServiceGetApplicationUIDFlag, *committeeServiceGetApplicationApplicationUIDFlag, *committeeServiceGetApplicationVersionFlag, *committeeServiceGetApplicationBearerTokenFlag)
+			case "submit-application":
+				endpoint = c.SubmitApplication()
+				data, err = committeeservicec.BuildSubmitApplicationPayload(*committeeServiceSubmitApplicationBodyFlag, *committeeServiceSubmitApplicationUIDFlag, *committeeServiceSubmitApplicationVersionFlag, *committeeServiceSubmitApplicationBearerTokenFlag, *committeeServiceSubmitApplicationXSyncFlag)
+			case "approve-application":
+				endpoint = c.ApproveApplication()
+				data, err = committeeservicec.BuildApproveApplicationPayload(*committeeServiceApproveApplicationBodyFlag, *committeeServiceApproveApplicationUIDFlag, *committeeServiceApproveApplicationApplicationUIDFlag, *committeeServiceApproveApplicationVersionFlag, *committeeServiceApproveApplicationBearerTokenFlag)
+			case "reject-application":
+				endpoint = c.RejectApplication()
+				data, err = committeeservicec.BuildRejectApplicationPayload(*committeeServiceRejectApplicationBodyFlag, *committeeServiceRejectApplicationUIDFlag, *committeeServiceRejectApplicationApplicationUIDFlag, *committeeServiceRejectApplicationVersionFlag, *committeeServiceRejectApplicationBearerTokenFlag)
+			case "join-committee":
+				endpoint = c.JoinCommittee()
+				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
+			case "leave-committee":
+				endpoint = c.LeaveCommittee()
+				data, err = committeeservicec.BuildLeaveCommitteePayload(*committeeServiceLeaveCommitteeUIDFlag, *committeeServiceLeaveCommitteeVersionFlag, *committeeServiceLeaveCommitteeBearerTokenFlag, *committeeServiceLeaveCommitteeXSyncFlag)
 			}
 		}
 	}
@@ -290,6 +437,17 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-member: Get a specific committee member by UID`)
 	fmt.Fprintln(os.Stderr, `    update-committee-member: Replace an existing committee member (requires complete resource)`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-member: Remove a member from a committee`)
+	fmt.Fprintln(os.Stderr, `    get-invite: Get a single invite by UID`)
+	fmt.Fprintln(os.Stderr, `    create-invite: Create an invite for a committee`)
+	fmt.Fprintln(os.Stderr, `    revoke-invite: Revoke a pending invite`)
+	fmt.Fprintln(os.Stderr, `    accept-invite: Accept a pending invite`)
+	fmt.Fprintln(os.Stderr, `    decline-invite: Decline a pending invite`)
+	fmt.Fprintln(os.Stderr, `    get-application: Get a single application by UID`)
+	fmt.Fprintln(os.Stderr, `    submit-application: Submit an application to join a committee`)
+	fmt.Fprintln(os.Stderr, `    approve-application: Approve a pending application`)
+	fmt.Fprintln(os.Stderr, `    reject-application: Reject a pending application`)
+	fmt.Fprintln(os.Stderr, `    join-committee: Self-join a committee (only works when join_mode is open)`)
+	fmt.Fprintln(os.Stderr, `    leave-committee: Leave a committee`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -315,7 +473,7 @@ func committeeServiceCreateCommitteeUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeBaseUsage() {
@@ -365,7 +523,7 @@ func committeeServiceUpdateCommitteeBaseUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-base --body '{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-base --body '{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeUsage() {
@@ -441,7 +599,7 @@ func committeeServiceUpdateCommitteeSettingsUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-settings --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-settings --body '{\n      \"auditors\": [\n         \"auditor_user_id1\",\n         \"auditor_user_id2\"\n      ],\n      \"business_email_required\": false,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         \"manager_user_id1\",\n         \"manager_user_id2\"\n      ]\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceReadyzUsage() {
@@ -582,4 +740,276 @@ func committeeServiceDeleteCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+}
+
+func committeeServiceGetInviteUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -invite-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get a single invite by UID`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceCreateInviteUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service create-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Create an invite for a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-invite --body '{\n      \"invitee_email\": \"invitee@example.com\",\n      \"role\": \"None\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+}
+
+func committeeServiceRevokeInviteUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service revoke-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -invite-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Revoke a pending invite`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service revoke-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceAcceptInviteUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service accept-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -invite-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Accept a pending invite`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service accept-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceDeclineInviteUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service decline-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -invite-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Decline a pending invite`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service decline-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceGetApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get a single application by UID`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-application --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceSubmitApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service submit-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Submit an application to join a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service submit-application --body '{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+}
+
+func committeeServiceApproveApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service approve-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Approve a pending application`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service approve-application --body '{\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceRejectApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service reject-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Reject a pending application`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reject-application --body '{\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceJoinCommitteeUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service join-committee", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Self-join a committee (only works when join_mode is open)`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service join-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+}
+
+func committeeServiceLeaveCommitteeUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service leave-committee", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Leave a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service leave-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }

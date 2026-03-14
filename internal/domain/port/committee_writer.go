@@ -14,6 +14,8 @@ type CommitteeWriter interface {
 	CommitteeBaseWriter
 	CommitteeSettingsWriter
 	CommitteeMemberWriter
+	CommitteeInviteWriter
+	CommitteeApplicationWriter
 }
 
 // CommitteeBaseWriter handles committee base data writing operations

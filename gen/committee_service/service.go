@@ -40,6 +40,28 @@ type Service interface {
 	UpdateCommitteeMember(context.Context, *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Remove a member from a committee
 	DeleteCommitteeMember(context.Context, *DeleteCommitteeMemberPayload) (err error)
+	// Get a single invite by UID
+	GetInvite(context.Context, *GetInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	// Create an invite for a committee
+	CreateInvite(context.Context, *CreateInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	// Revoke a pending invite
+	RevokeInvite(context.Context, *RevokeInvitePayload) (err error)
+	// Accept a pending invite
+	AcceptInvite(context.Context, *AcceptInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	// Decline a pending invite
+	DeclineInvite(context.Context, *DeclineInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	// Get a single application by UID
+	GetApplication(context.Context, *GetApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Submit an application to join a committee
+	SubmitApplication(context.Context, *SubmitApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Approve a pending application
+	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Reject a pending application
+	RejectApplication(context.Context, *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Self-join a committee (only works when join_mode is open)
+	JoinCommittee(context.Context, *JoinCommitteePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
+	// Leave a committee
+	LeaveCommittee(context.Context, *LeaveCommitteePayload) (err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -62,7 +84,54 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [12]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member"}
+var MethodNames = [23]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee"}
+
+// AcceptInvitePayload is the payload type of the committee-service service
+// accept-invite method.
+type AcceptInvitePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee invite UID
+	InviteUID string
+}
+
+// ApproveApplicationPayload is the payload type of the committee-service
+// service approve-application method.
+type ApproveApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee application UID
+	ApplicationUID string
+	// Notes from the reviewer
+	ReviewerNotes *string
+}
+
+// CommitteeApplicationWithReadonlyAttributes is the result type of the
+// committee-service service get-application method.
+type CommitteeApplicationWithReadonlyAttributes struct {
+	// Application UID
+	UID *string
+	// Committee UID
+	CommitteeUID *string
+	// Applicant user UID
+	ApplicantUID *string
+	// Application message from the applicant
+	Message *string
+	// Application status
+	Status string
+	// Notes from the reviewer
+	ReviewerNotes *string
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
+}
 
 // CommitteeBaseWithReadonlyAttributes is the result type of the
 // committee-service service update-committee-base method.
@@ -80,6 +149,10 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	Description *string
 	// The website URL of the committee
 	Website *string
+	// The mailing list email address for the committee
+	MailingList *string
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -124,6 +197,10 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Description *string
 	// The website URL of the committee
 	Website *string
+	// The mailing list email address for the committee
+	MailingList *string
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -150,6 +227,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	TotalVotingRepos *int
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
+	// How new members can join this committee
+	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -164,6 +243,23 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Writers []string
 	// Auditor user IDs who can audit this committee
 	Auditors []string
+}
+
+// CommitteeInviteWithReadonlyAttributes is the result type of the
+// committee-service service get-invite method.
+type CommitteeInviteWithReadonlyAttributes struct {
+	// Invite UID
+	UID *string
+	// Committee UID
+	CommitteeUID *string
+	// Email of the invited person
+	InviteeEmail *string
+	// Suggested role for the invitee
+	Role *string
+	// Invite status
+	Status string
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
 }
 
 // CommitteeMemberFullWithReadonlyAttributes is the result type of the
@@ -233,6 +329,8 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
+	// How new members can join this committee
+	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -327,6 +425,10 @@ type CreateCommitteePayload struct {
 	Description *string
 	// The website URL of the committee
 	Website *string
+	// The mailing list email address for the committee
+	MailingList *string
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -347,6 +449,8 @@ type CreateCommitteePayload struct {
 	ParentUID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
+	// How new members can join this committee
+	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -361,6 +465,37 @@ type CreateCommitteePayload struct {
 	Writers []string
 	// Auditor user IDs who can audit this committee
 	Auditors []string
+}
+
+// CreateInvitePayload is the payload type of the committee-service service
+// create-invite method.
+type CreateInvitePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Email of the person to invite
+	InviteeEmail string
+	// Suggested role for the invitee
+	Role *string
+}
+
+// DeclineInvitePayload is the payload type of the committee-service service
+// decline-invite method.
+type DeclineInvitePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee invite UID
+	InviteUID string
 }
 
 // DeleteCommitteeMemberPayload is the payload type of the committee-service
@@ -395,6 +530,19 @@ type DeleteCommitteePayload struct {
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
+}
+
+// GetApplicationPayload is the payload type of the committee-service service
+// get-application method.
+type GetApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee application UID
+	ApplicationUID string
 }
 
 // GetCommitteeBasePayload is the payload type of the committee-service service
@@ -456,6 +604,91 @@ type GetCommitteeSettingsResult struct {
 	Etag *string
 }
 
+// GetInvitePayload is the payload type of the committee-service service
+// get-invite method.
+type GetInvitePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee invite UID
+	InviteUID string
+}
+
+// JoinCommitteePayload is the payload type of the committee-service service
+// join-committee method.
+type JoinCommitteePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+}
+
+// LeaveCommitteePayload is the payload type of the committee-service service
+// leave-committee method.
+type LeaveCommitteePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+}
+
+// RejectApplicationPayload is the payload type of the committee-service
+// service reject-application method.
+type RejectApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee application UID
+	ApplicationUID string
+	// Notes from the reviewer
+	ReviewerNotes *string
+}
+
+// RevokeInvitePayload is the payload type of the committee-service service
+// revoke-invite method.
+type RevokeInvitePayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee invite UID
+	InviteUID string
+}
+
+// SubmitApplicationPayload is the payload type of the committee-service
+// service submit-application method.
+type SubmitApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Application message
+	Message *string
+}
+
 // UpdateCommitteeBasePayload is the payload type of the committee-service
 // service update-committee-base method.
 type UpdateCommitteeBasePayload struct {
@@ -481,6 +714,10 @@ type UpdateCommitteeBasePayload struct {
 	Description *string
 	// The website URL of the committee
 	Website *string
+	// The mailing list email address for the committee
+	MailingList *string
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -578,6 +815,8 @@ type UpdateCommitteeSettingsPayload struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
+	// How new members can join this committee
+	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -600,6 +839,11 @@ type BadRequestError struct {
 }
 
 type ConflictError struct {
+	// Error message
+	Message string
+}
+
+type ForbiddenError struct {
 	// Error message
 	Message string
 }
@@ -651,6 +895,23 @@ func (e *ConflictError) ErrorName() string {
 // GoaErrorName returns "conflict-error".
 func (e *ConflictError) GoaErrorName() string {
 	return "Conflict"
+}
+
+// Error returns an error description.
+func (e *ForbiddenError) Error() string {
+	return ""
+}
+
+// ErrorName returns "forbidden-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *ForbiddenError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "forbidden-error".
+func (e *ForbiddenError) GoaErrorName() string {
+	return "Forbidden"
 }
 
 // Error returns an error description.
