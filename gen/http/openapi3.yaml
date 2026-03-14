@@ -49,11 +49,14 @@ paths:
                             calendar:
                                 public: true
                             category: Technical Steering Committee
+                            chat_channel: https://slack.example.org/channels/tsc
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
+                            join_mode: open
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
+                            mailing_list: tsc@lists.example.org
                             member_visibility: hidden
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -81,11 +84,14 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                chat_channel: https://slack.example.org/channels/tsc
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                join_mode: open
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
+                                mailing_list: tsc@lists.example.org
                                 member_visibility: hidden
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -284,9 +290,11 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                chat_channel: https://slack.example.org/channels/tsc
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_name: Linux Foundation Project
@@ -382,9 +390,11 @@ paths:
                             calendar:
                                 public: true
                             category: Technical Steering Committee
+                            chat_channel: https://slack.example.org/channels/tsc
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
+                            mailing_list: tsc@lists.example.org
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -403,9 +413,11 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                chat_channel: https://slack.example.org/channels/tsc
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_name: Linux Foundation Project
@@ -442,6 +454,1064 @@ paths:
                                 $ref: '#/components/schemas/ConflictError'
                             example:
                                 message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/applications:
+        post:
+            tags:
+                - committee-service
+            summary: submit-application committee-service
+            description: Submit an application to join a committee
+            operationId: committee-service#submit-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SubmitApplicationRequestBody'
+                        example:
+                            message: I would like to join the TSC to contribute my expertise.
+            responses:
+                "201":
+                    description: Created response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_uid: user-uid-12345
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Committee does not accept applications'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Application already exists'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}:
+        get:
+            tags:
+                - committee-service
+            summary: get-application committee-service
+            description: Get a single application by UID
+            operationId: committee-service#get-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+                  example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_uid: user-uid-12345
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "404":
+                    description: 'NotFound: Application not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}/approve:
+        post:
+            tags:
+                - committee-service
+            summary: approve-application committee-service
+            description: Approve a pending application
+            operationId: committee-service#approve-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+                  example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ApproveApplicationRequestBody'
+                        example:
+                            reviewer_notes: Approved based on contribution history.
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_uid: user-uid-12345
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Application not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Application already processed'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}/reject:
+        post:
+            tags:
+                - committee-service
+            summary: reject-application committee-service
+            description: Reject a pending application
+            operationId: committee-service#reject-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+                  example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ApproveApplicationRequestBody'
+                        example:
+                            reviewer_notes: Does not meet current requirements.
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_uid: user-uid-12345
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Application not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Application already processed'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/invites:
+        post:
+            tags:
+                - committee-service
+            summary: create-invite committee-service
+            description: Create an invite for a committee
+            operationId: committee-service#create-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateInviteRequestBody'
+                        example:
+                            invitee_email: invitee@example.com
+                            role: None
+            responses:
+                "201":
+                    description: Created response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                invitee_email: invitee@example.com
+                                role: None
+                                status: pending
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Invite already exists'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/invites/{invite_uid}:
+        delete:
+            tags:
+                - committee-service
+            summary: revoke-invite committee-service
+            description: Revoke a pending invite
+            operationId: committee-service#revoke-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: invite_uid
+                  in: path
+                  description: Committee invite UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+                  example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Invite not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-invite committee-service
+            description: Get a single invite by UID
+            operationId: committee-service#get-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: invite_uid
+                  in: path
+                  description: Committee invite UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+                  example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                invitee_email: invitee@example.com
+                                role: None
+                                status: pending
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                "404":
+                    description: 'NotFound: Invite not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/invites/{invite_uid}/accept:
+        post:
+            tags:
+                - committee-service
+            summary: accept-invite committee-service
+            description: Accept a pending invite
+            operationId: committee-service#accept-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: invite_uid
+                  in: path
+                  description: Committee invite UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+                  example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                invitee_email: invitee@example.com
+                                role: None
+                                status: pending
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Invite not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Invite already processed'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/invites/{invite_uid}/decline:
+        post:
+            tags:
+                - committee-service
+            summary: decline-invite committee-service
+            description: Decline a pending invite
+            operationId: committee-service#decline-invite
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: invite_uid
+                  in: path
+                  description: Committee invite UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+                  example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                invitee_email: invitee@example.com
+                                role: None
+                                status: pending
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Invite not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Invite already processed'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/join:
+        post:
+            tags:
+                - committee-service
+            summary: join-committee committee-service
+            description: Self-join a committee (only works when join_mode is open)
+            operationId: committee-service#join-committee
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
+            responses:
+                "201":
+                    description: Created response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                            example:
+                                appointed_by: Community
+                                committee_category: Board
+                                committee_name: Technical Steering Committee
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                email: user@example.com
+                                first_name: John
+                                job_title: Chief Technology Officer
+                                last_name: Doe
+                                linkedin_profile: https://www.linkedin.com/in/johndoe
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                status: Active
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                                username: user123
+                                voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Committee join_mode is not open'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Already a member'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/leave:
+        delete:
+            tags:
+                - committee-service
+            summary: leave-committee committee-service
+            description: Leave a committee
+            operationId: committee-service#leave-committee
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Not a member of this committee'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -1030,6 +2100,7 @@ paths:
                             example:
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
+                                join_mode: open
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
@@ -1120,6 +2191,7 @@ paths:
                                 - auditor_user_id1
                                 - auditor_user_id2
                             business_email_required: false
+                            join_mode: open
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
@@ -1137,6 +2209,7 @@ paths:
                             example:
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
+                                join_mode: open
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
@@ -1187,6 +2260,16 @@ paths:
                 - jwt_header_Authorization: []
 components:
     schemas:
+        ApproveApplicationRequestBody:
+            type: object
+            properties:
+                reviewer_notes:
+                    type: string
+                    description: Notes from the reviewer
+                    example: Approved based on contribution history.
+                    maxLength: 2000
+            example:
+                reviewer_notes: Approved based on contribution history.
         BadRequestError:
             type: object
             properties:
@@ -1198,6 +2281,56 @@ components:
                 message: The request was invalid.
             required:
                 - message
+        CommitteeApplicationWithReadonlyAttributes:
+            type: object
+            properties:
+                applicant_uid:
+                    type: string
+                    description: Applicant user UID
+                    example: user-uid-12345
+                committee_uid:
+                    type: string
+                    description: Committee UID
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                message:
+                    type: string
+                    description: Application message from the applicant
+                    example: I would like to join the TSC to contribute my expertise.
+                    maxLength: 2000
+                reviewer_notes:
+                    type: string
+                    description: Notes from the reviewer
+                    example: Approved based on contribution history.
+                    maxLength: 2000
+                status:
+                    type: string
+                    description: Application status
+                    default: pending
+                    example: pending
+                    enum:
+                        - pending
+                        - approved
+                        - rejected
+                uid:
+                    type: string
+                    description: Application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+            description: A representation of a committee application with readonly attributes.
+            example:
+                applicant_uid: user-uid-12345
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                message: I would like to join the TSC to contribute my expertise.
+                reviewer_notes: Approved based on contribution history.
+                status: pending
+                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
         CommitteeBase:
             type: object
             properties:
@@ -1237,6 +2370,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -1252,6 +2390,11 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 name:
                     type: string
                     description: The name of the committee
@@ -1293,9 +2436,11 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -1342,6 +2487,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -1357,6 +2507,11 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 name:
                     type: string
                     description: The name of the committee
@@ -1424,9 +2579,11 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_name: Linux Foundation Project
@@ -1492,6 +2649,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -1507,6 +2669,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -1516,6 +2688,11 @@ components:
                     type: string
                     description: The user ID who last reviewed this committee
                     example: user_id_12345
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 member_visibility:
                     type: string
                     description: Dertermines the visibility level of members profiles to other members of the same committee
@@ -1583,11 +2760,14 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
+                mailing_list: tsc@lists.example.org
                 member_visibility: hidden
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -1653,6 +2833,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -1668,6 +2853,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -1677,6 +2872,11 @@ components:
                     type: string
                     description: The user ID who last reviewed this committee
                     example: user_id_12345
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 member_visibility:
                     type: string
                     description: Dertermines the visibility level of members profiles to other members of the same committee
@@ -1765,11 +2965,14 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
+                mailing_list: tsc@lists.example.org
                 member_visibility: hidden
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -1786,6 +2989,51 @@ components:
                 writers:
                     - manager_user_id1
                     - manager_user_id2
+        CommitteeInviteWithReadonlyAttributes:
+            type: object
+            properties:
+                committee_uid:
+                    type: string
+                    description: Committee UID
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                invitee_email:
+                    type: string
+                    description: Email of the invited person
+                    example: invitee@example.com
+                    format: email
+                role:
+                    type: string
+                    description: Suggested role for the invitee
+                    example: None
+                status:
+                    type: string
+                    description: Invite status
+                    default: pending
+                    example: pending
+                    enum:
+                        - pending
+                        - accepted
+                        - declined
+                        - revoked
+                uid:
+                    type: string
+                    description: Invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    format: uuid
+            description: A representation of a committee invite with readonly attributes.
+            example:
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                invitee_email: invitee@example.com
+                role: None
+                status: pending
+                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         CommitteeMemberBase:
             type: object
             properties:
@@ -2346,6 +3594,16 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2371,6 +3629,7 @@ components:
             description: A representation of LF Committee settings.
             example:
                 business_email_required: false
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -2388,6 +3647,16 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2424,6 +3693,7 @@ components:
             example:
                 business_email_required: false
                 created_at: "2023-01-15T10:30:00Z"
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -2667,6 +3937,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -2682,6 +3957,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2691,6 +3976,11 @@ components:
                     type: string
                     description: The user ID who last reviewed this committee
                     example: user_id_12345
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 member_visibility:
                     type: string
                     description: Dertermines the visibility level of members profiles to other members of the same committee
@@ -2757,11 +4047,14 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
+                mailing_list: tsc@lists.example.org
                 member_visibility: hidden
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -2778,6 +4071,34 @@ components:
                 - name
                 - category
                 - project_uid
+        CreateInviteRequestBody:
+            type: object
+            properties:
+                invitee_email:
+                    type: string
+                    description: Email of the person to invite
+                    example: invitee@example.com
+                    format: email
+                role:
+                    type: string
+                    description: Suggested role for the invitee
+                    example: None
+            example:
+                invitee_email: invitee@example.com
+                role: None
+            required:
+                - invitee_email
+        ForbiddenError:
+            type: object
+            properties:
+                message:
+                    type: string
+                    description: Error message
+                    example: You do not have permission to perform this action.
+            example:
+                message: You do not have permission to perform this action.
+            required:
+                - message
         InternalServerError:
             type: object
             properties:
@@ -2811,6 +4132,16 @@ components:
                 message: The service is unavailable.
             required:
                 - message
+        SubmitApplicationRequestBody:
+            type: object
+            properties:
+                message:
+                    type: string
+                    description: Application message
+                    example: I would like to join the TSC to contribute my expertise.
+                    maxLength: 2000
+            example:
+                message: I would like to join the TSC to contribute my expertise.
         UpdateCommitteeBaseRequestBody:
             type: object
             properties:
@@ -2850,6 +4181,11 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                chat_channel:
+                    type: string
+                    description: The chat channel URL or identifier for the committee
+                    example: https://slack.example.org/channels/tsc
+                    maxLength: 500
                 description:
                     type: string
                     description: The description of the committee
@@ -2865,6 +4201,11 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                mailing_list:
+                    type: string
+                    description: The mailing list email address for the committee
+                    example: tsc@lists.example.org
+                    format: email
                 name:
                     type: string
                     description: The name of the committee
@@ -2905,9 +4246,11 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                chat_channel: https://slack.example.org/channels/tsc
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -2936,6 +4279,16 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2972,6 +4325,7 @@ components:
                     - auditor_user_id1
                     - auditor_user_id2
                 business_email_required: false
+                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden

@@ -56,6 +56,7 @@ func (c *HeimdallClaims) Validate(_ context.Context) error {
 	return nil
 }
 
+// JWTAuth provides JWT token validation and principal extraction using Heimdall JWKS.
 type JWTAuth struct {
 	validator *validator.Validator
 	config    JWTAuthConfig

@@ -29,6 +29,10 @@ type CreateCommitteeRequestBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// The website URL of the committee
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
+	// The mailing list email address for the committee
+	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
 	EnableVoting *bool `form:"enable_voting,omitempty" json:"enable_voting,omitempty" xml:"enable_voting,omitempty"`
 	// Whether SSO group integration is enabled
@@ -49,6 +53,8 @@ type CreateCommitteeRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
+	// How new members can join this committee
+	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -79,6 +85,10 @@ type UpdateCommitteeBaseRequestBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// The website URL of the committee
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
+	// The mailing list email address for the committee
+	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
 	EnableVoting *bool `form:"enable_voting,omitempty" json:"enable_voting,omitempty" xml:"enable_voting,omitempty"`
 	// Whether SSO group integration is enabled
@@ -104,6 +114,8 @@ type UpdateCommitteeBaseRequestBody struct {
 type UpdateCommitteeSettingsRequestBody struct {
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
+	// How new members can join this committee
+	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -216,6 +228,36 @@ type UpdateCommitteeMemberRequestBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
+// CreateInviteRequestBody is the type of the "committee-service" service
+// "create-invite" endpoint HTTP request body.
+type CreateInviteRequestBody struct {
+	// Email of the person to invite
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+}
+
+// SubmitApplicationRequestBody is the type of the "committee-service" service
+// "submit-application" endpoint HTTP request body.
+type SubmitApplicationRequestBody struct {
+	// Application message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ApproveApplicationRequestBody is the type of the "committee-service" service
+// "approve-application" endpoint HTTP request body.
+type ApproveApplicationRequestBody struct {
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+}
+
+// RejectApplicationRequestBody is the type of the "committee-service" service
+// "reject-application" endpoint HTTP request body.
+type RejectApplicationRequestBody struct {
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -232,6 +274,10 @@ type CreateCommitteeResponseBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// The website URL of the committee
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
+	// The mailing list email address for the committee
+	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
 	EnableVoting bool `form:"enable_voting" json:"enable_voting" xml:"enable_voting"`
 	// Whether SSO group integration is enabled
@@ -258,6 +304,8 @@ type CreateCommitteeResponseBody struct {
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// How new members can join this committee
+	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -294,6 +342,10 @@ type UpdateCommitteeBaseResponseBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// The website URL of the committee
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
+	// The mailing list email address for the committee
+	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
 	EnableVoting bool `form:"enable_voting" json:"enable_voting" xml:"enable_voting"`
 	// Whether SSO group integration is enabled
@@ -333,6 +385,8 @@ type UpdateCommitteeSettingsResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// How new members can join this committee
+	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -416,6 +470,210 @@ type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesRes
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
 type UpdateCommitteeMemberResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Member status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// GetInviteResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body.
+type GetInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status string `form:"status" json:"status" xml:"status"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// CreateInviteResponseBody is the type of the "committee-service" service
+// "create-invite" endpoint HTTP response body.
+type CreateInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status string `form:"status" json:"status" xml:"status"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// AcceptInviteResponseBody is the type of the "committee-service" service
+// "accept-invite" endpoint HTTP response body.
+type AcceptInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status string `form:"status" json:"status" xml:"status"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// DeclineInviteResponseBody is the type of the "committee-service" service
+// "decline-invite" endpoint HTTP response body.
+type DeclineInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Email of the invited person
+	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
+	// Suggested role for the invitee
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Invite status
+	Status string `form:"status" json:"status" xml:"status"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// GetApplicationResponseBody is the type of the "committee-service" service
+// "get-application" endpoint HTTP response body.
+type GetApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// SubmitApplicationResponseBody is the type of the "committee-service" service
+// "submit-application" endpoint HTTP response body.
+type SubmitApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// ApproveApplicationResponseBody is the type of the "committee-service"
+// service "approve-application" endpoint HTTP response body.
+type ApproveApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// RejectApplicationResponseBody is the type of the "committee-service" service
+// "reject-application" endpoint HTTP response body.
+type RejectApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant user UID
+	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// JoinCommitteeResponseBody is the type of the "committee-service" service
+// "join-committee" endpoint HTTP response body.
+type JoinCommitteeResponseBody struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -841,6 +1099,408 @@ type DeleteCommitteeMemberServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// GetInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "InternalServerError" error.
+type GetInviteInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetInviteNotFoundResponseBody is the type of the "committee-service" service
+// "get-invite" endpoint HTTP response body for the "NotFound" error.
+type GetInviteNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-invite" endpoint HTTP response body for the
+// "ServiceUnavailable" error.
+type GetInviteServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// CreateInviteBadRequestResponseBody is the type of the "committee-service"
+// service "create-invite" endpoint HTTP response body for the "BadRequest"
+// error.
+type CreateInviteBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// CreateInviteConflictResponseBody is the type of the "committee-service"
+// service "create-invite" endpoint HTTP response body for the "Conflict" error.
+type CreateInviteConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// CreateInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "create-invite" endpoint HTTP response body for
+// the "InternalServerError" error.
+type CreateInviteInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// CreateInviteNotFoundResponseBody is the type of the "committee-service"
+// service "create-invite" endpoint HTTP response body for the "NotFound" error.
+type CreateInviteNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// CreateInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "create-invite" endpoint HTTP response body for
+// the "ServiceUnavailable" error.
+type CreateInviteServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RevokeInviteBadRequestResponseBody is the type of the "committee-service"
+// service "revoke-invite" endpoint HTTP response body for the "BadRequest"
+// error.
+type RevokeInviteBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RevokeInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "revoke-invite" endpoint HTTP response body for
+// the "InternalServerError" error.
+type RevokeInviteInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RevokeInviteNotFoundResponseBody is the type of the "committee-service"
+// service "revoke-invite" endpoint HTTP response body for the "NotFound" error.
+type RevokeInviteNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RevokeInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "revoke-invite" endpoint HTTP response body for
+// the "ServiceUnavailable" error.
+type RevokeInviteServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// AcceptInviteBadRequestResponseBody is the type of the "committee-service"
+// service "accept-invite" endpoint HTTP response body for the "BadRequest"
+// error.
+type AcceptInviteBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// AcceptInviteConflictResponseBody is the type of the "committee-service"
+// service "accept-invite" endpoint HTTP response body for the "Conflict" error.
+type AcceptInviteConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// AcceptInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "accept-invite" endpoint HTTP response body for
+// the "InternalServerError" error.
+type AcceptInviteInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// AcceptInviteNotFoundResponseBody is the type of the "committee-service"
+// service "accept-invite" endpoint HTTP response body for the "NotFound" error.
+type AcceptInviteNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// AcceptInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "accept-invite" endpoint HTTP response body for
+// the "ServiceUnavailable" error.
+type AcceptInviteServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteBadRequestResponseBody is the type of the "committee-service"
+// service "decline-invite" endpoint HTTP response body for the "BadRequest"
+// error.
+type DeclineInviteBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteConflictResponseBody is the type of the "committee-service"
+// service "decline-invite" endpoint HTTP response body for the "Conflict"
+// error.
+type DeclineInviteConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteInternalServerErrorResponseBody is the type of the
+// "committee-service" service "decline-invite" endpoint HTTP response body for
+// the "InternalServerError" error.
+type DeclineInviteInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteNotFoundResponseBody is the type of the "committee-service"
+// service "decline-invite" endpoint HTTP response body for the "NotFound"
+// error.
+type DeclineInviteNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteServiceUnavailableResponseBody is the type of the
+// "committee-service" service "decline-invite" endpoint HTTP response body for
+// the "ServiceUnavailable" error.
+type DeclineInviteServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
+// for the "InternalServerError" error.
+type GetApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetApplicationNotFoundResponseBody is the type of the "committee-service"
+// service "get-application" endpoint HTTP response body for the "NotFound"
+// error.
+type GetApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-application" endpoint HTTP response body
+// for the "ServiceUnavailable" error.
+type GetApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "submit-application" endpoint HTTP response body
+// for the "BadRequest" error.
+type SubmitApplicationBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationConflictResponseBody is the type of the "committee-service"
+// service "submit-application" endpoint HTTP response body for the "Conflict"
+// error.
+type SubmitApplicationConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "submit-application" endpoint HTTP response body
+// for the "Forbidden" error.
+type SubmitApplicationForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "submit-application" endpoint HTTP response body
+// for the "InternalServerError" error.
+type SubmitApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationNotFoundResponseBody is the type of the "committee-service"
+// service "submit-application" endpoint HTTP response body for the "NotFound"
+// error.
+type SubmitApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// SubmitApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "submit-application" endpoint HTTP response body
+// for the "ServiceUnavailable" error.
+type SubmitApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ApproveApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "approve-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type ApproveApplicationBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ApproveApplicationConflictResponseBody is the type of the
+// "committee-service" service "approve-application" endpoint HTTP response
+// body for the "Conflict" error.
+type ApproveApplicationConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ApproveApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "approve-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type ApproveApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ApproveApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "approve-application" endpoint HTTP response
+// body for the "NotFound" error.
+type ApproveApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ApproveApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "approve-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type ApproveApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RejectApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "reject-application" endpoint HTTP response body
+// for the "BadRequest" error.
+type RejectApplicationBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RejectApplicationConflictResponseBody is the type of the "committee-service"
+// service "reject-application" endpoint HTTP response body for the "Conflict"
+// error.
+type RejectApplicationConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RejectApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "reject-application" endpoint HTTP response body
+// for the "InternalServerError" error.
+type RejectApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RejectApplicationNotFoundResponseBody is the type of the "committee-service"
+// service "reject-application" endpoint HTTP response body for the "NotFound"
+// error.
+type RejectApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// RejectApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "reject-application" endpoint HTTP response body
+// for the "ServiceUnavailable" error.
+type RejectApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeBadRequestResponseBody is the type of the "committee-service"
+// service "join-committee" endpoint HTTP response body for the "BadRequest"
+// error.
+type JoinCommitteeBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeConflictResponseBody is the type of the "committee-service"
+// service "join-committee" endpoint HTTP response body for the "Conflict"
+// error.
+type JoinCommitteeConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeForbiddenResponseBody is the type of the "committee-service"
+// service "join-committee" endpoint HTTP response body for the "Forbidden"
+// error.
+type JoinCommitteeForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeInternalServerErrorResponseBody is the type of the
+// "committee-service" service "join-committee" endpoint HTTP response body for
+// the "InternalServerError" error.
+type JoinCommitteeInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeNotFoundResponseBody is the type of the "committee-service"
+// service "join-committee" endpoint HTTP response body for the "NotFound"
+// error.
+type JoinCommitteeNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// JoinCommitteeServiceUnavailableResponseBody is the type of the
+// "committee-service" service "join-committee" endpoint HTTP response body for
+// the "ServiceUnavailable" error.
+type JoinCommitteeServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// LeaveCommitteeBadRequestResponseBody is the type of the "committee-service"
+// service "leave-committee" endpoint HTTP response body for the "BadRequest"
+// error.
+type LeaveCommitteeBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// LeaveCommitteeInternalServerErrorResponseBody is the type of the
+// "committee-service" service "leave-committee" endpoint HTTP response body
+// for the "InternalServerError" error.
+type LeaveCommitteeInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// LeaveCommitteeNotFoundResponseBody is the type of the "committee-service"
+// service "leave-committee" endpoint HTTP response body for the "NotFound"
+// error.
+type LeaveCommitteeNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// LeaveCommitteeServiceUnavailableResponseBody is the type of the
+// "committee-service" service "leave-committee" endpoint HTTP response body
+// for the "ServiceUnavailable" error.
+type LeaveCommitteeServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
 type CommitteeBaseWithReadonlyAttributesResponseBody struct {
@@ -857,6 +1517,10 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// The website URL of the committee
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
+	// The mailing list email address for the committee
+	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// The chat channel URL or identifier for the committee
+	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
 	EnableVoting bool `form:"enable_voting" json:"enable_voting" xml:"enable_voting"`
 	// Whether SSO group integration is enabled
@@ -892,6 +1556,8 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// How new members can join this committee
+	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -978,6 +1644,8 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		Category:              res.Category,
 		Description:           res.Description,
 		Website:               res.Website,
+		MailingList:           res.MailingList,
+		ChatChannel:           res.ChatChannel,
 		EnableVoting:          res.EnableVoting,
 		SsoGroupEnabled:       res.SsoGroupEnabled,
 		RequiresReview:        res.RequiresReview,
@@ -988,6 +1656,7 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		TotalMembers:          res.TotalMembers,
 		TotalVotingRepos:      res.TotalVotingRepos,
 		BusinessEmailRequired: res.BusinessEmailRequired,
+		JoinMode:              res.JoinMode,
 		LastReviewedAt:        res.LastReviewedAt,
 		LastReviewedBy:        res.LastReviewedBy,
 		MemberVisibility:      res.MemberVisibility,
@@ -1039,6 +1708,12 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 	}
 	{
 		var zero string
+		if body.JoinMode == zero {
+			body.JoinMode = "invite_only"
+		}
+	}
+	{
+		var zero string
 		if body.MemberVisibility == zero {
 			body.MemberVisibility = "hidden"
 		}
@@ -1075,6 +1750,8 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 		Category:         res.CommitteeBase.Category,
 		Description:      res.CommitteeBase.Description,
 		Website:          res.CommitteeBase.Website,
+		MailingList:      res.CommitteeBase.MailingList,
+		ChatChannel:      res.CommitteeBase.ChatChannel,
 		EnableVoting:     res.CommitteeBase.EnableVoting,
 		SsoGroupEnabled:  res.CommitteeBase.SsoGroupEnabled,
 		RequiresReview:   res.CommitteeBase.RequiresReview,
@@ -1138,6 +1815,8 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		Category:         res.Category,
 		Description:      res.Description,
 		Website:          res.Website,
+		MailingList:      res.MailingList,
+		ChatChannel:      res.ChatChannel,
 		EnableVoting:     res.EnableVoting,
 		SsoGroupEnabled:  res.SsoGroupEnabled,
 		RequiresReview:   res.RequiresReview,
@@ -1197,6 +1876,7 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 	body := &GetCommitteeSettingsResponseBody{
 		UID:                   res.CommitteeSettings.UID,
 		BusinessEmailRequired: res.CommitteeSettings.BusinessEmailRequired,
+		JoinMode:              res.CommitteeSettings.JoinMode,
 		LastReviewedAt:        res.CommitteeSettings.LastReviewedAt,
 		LastReviewedBy:        res.CommitteeSettings.LastReviewedBy,
 		MemberVisibility:      res.CommitteeSettings.MemberVisibility,
@@ -1208,6 +1888,12 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 		var zero bool
 		if body.BusinessEmailRequired == zero {
 			body.BusinessEmailRequired = false
+		}
+	}
+	{
+		var zero string
+		if body.JoinMode == zero {
+			body.JoinMode = "invite_only"
 		}
 	}
 	{
@@ -1232,6 +1918,7 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 	body := &UpdateCommitteeSettingsResponseBody{
 		UID:                   res.UID,
 		BusinessEmailRequired: res.BusinessEmailRequired,
+		JoinMode:              res.JoinMode,
 		LastReviewedAt:        res.LastReviewedAt,
 		LastReviewedBy:        res.LastReviewedBy,
 		MemberVisibility:      res.MemberVisibility,
@@ -1243,6 +1930,12 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		var zero bool
 		if body.BusinessEmailRequired == zero {
 			body.BusinessEmailRequired = false
+		}
+	}
+	{
+		var zero string
+		if body.JoinMode == zero {
+			body.JoinMode = "invite_only"
 		}
 	}
 	{
@@ -1443,6 +2136,261 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 // service.
 func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *UpdateCommitteeMemberResponseBody {
 	body := &UpdateCommitteeMemberResponseBody{
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		Username:          res.Username,
+		Email:             res.Email,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		JobTitle:          res.JobTitle,
+		LinkedinProfile:   res.LinkedinProfile,
+		AppointedBy:       res.AppointedBy,
+		Status:            res.Status,
+		CreatedAt:         res.CreatedAt,
+		UpdatedAt:         res.UpdatedAt,
+	}
+	if res.Role != nil {
+		body.Role = &struct {
+			// Committee role name
+			Name string `form:"name" json:"name" xml:"name"`
+			// Role start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Role end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Name:      res.Role.Name,
+			StartDate: res.Role.StartDate,
+			EndDate:   res.Role.EndDate,
+		}
+		{
+			var zero string
+			if body.Role.Name == zero {
+				body.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if body.AppointedBy == zero {
+			body.AppointedBy = "None"
+		}
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "Active"
+		}
+	}
+	if res.Voting != nil {
+		body.Voting = &struct {
+			// Voting status
+			Status string `form:"status" json:"status" xml:"status"`
+			// Voting start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Voting end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Status:    res.Voting.Status,
+			StartDate: res.Voting.StartDate,
+			EndDate:   res.Voting.EndDate,
+		}
+		{
+			var zero string
+			if body.Voting.Status == zero {
+				body.Voting.Status = "None"
+			}
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
+	return body
+}
+
+// NewGetInviteResponseBody builds the HTTP response body from the result of
+// the "get-invite" endpoint of the "committee-service" service.
+func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *GetInviteResponseBody {
+	body := &GetInviteResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		InviteeEmail: res.InviteeEmail,
+		Role:         res.Role,
+		Status:       res.Status,
+		CreatedAt:    res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewCreateInviteResponseBody builds the HTTP response body from the result of
+// the "create-invite" endpoint of the "committee-service" service.
+func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *CreateInviteResponseBody {
+	body := &CreateInviteResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		InviteeEmail: res.InviteeEmail,
+		Role:         res.Role,
+		Status:       res.Status,
+		CreatedAt:    res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewAcceptInviteResponseBody builds the HTTP response body from the result of
+// the "accept-invite" endpoint of the "committee-service" service.
+func NewAcceptInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *AcceptInviteResponseBody {
+	body := &AcceptInviteResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		InviteeEmail: res.InviteeEmail,
+		Role:         res.Role,
+		Status:       res.Status,
+		CreatedAt:    res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewDeclineInviteResponseBody builds the HTTP response body from the result
+// of the "decline-invite" endpoint of the "committee-service" service.
+func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *DeclineInviteResponseBody {
+	body := &DeclineInviteResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		InviteeEmail: res.InviteeEmail,
+		Role:         res.Role,
+		Status:       res.Status,
+		CreatedAt:    res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewGetApplicationResponseBody builds the HTTP response body from the result
+// of the "get-application" endpoint of the "committee-service" service.
+func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *GetApplicationResponseBody {
+	body := &GetApplicationResponseBody{
+		UID:           res.UID,
+		CommitteeUID:  res.CommitteeUID,
+		ApplicantUID:  res.ApplicantUID,
+		Message:       res.Message,
+		Status:        res.Status,
+		ReviewerNotes: res.ReviewerNotes,
+		CreatedAt:     res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewSubmitApplicationResponseBody builds the HTTP response body from the
+// result of the "submit-application" endpoint of the "committee-service"
+// service.
+func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *SubmitApplicationResponseBody {
+	body := &SubmitApplicationResponseBody{
+		UID:           res.UID,
+		CommitteeUID:  res.CommitteeUID,
+		ApplicantUID:  res.ApplicantUID,
+		Message:       res.Message,
+		Status:        res.Status,
+		ReviewerNotes: res.ReviewerNotes,
+		CreatedAt:     res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewApproveApplicationResponseBody builds the HTTP response body from the
+// result of the "approve-application" endpoint of the "committee-service"
+// service.
+func NewApproveApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *ApproveApplicationResponseBody {
+	body := &ApproveApplicationResponseBody{
+		UID:           res.UID,
+		CommitteeUID:  res.CommitteeUID,
+		ApplicantUID:  res.ApplicantUID,
+		Message:       res.Message,
+		Status:        res.Status,
+		ReviewerNotes: res.ReviewerNotes,
+		CreatedAt:     res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewRejectApplicationResponseBody builds the HTTP response body from the
+// result of the "reject-application" endpoint of the "committee-service"
+// service.
+func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *RejectApplicationResponseBody {
+	body := &RejectApplicationResponseBody{
+		UID:           res.UID,
+		CommitteeUID:  res.CommitteeUID,
+		ApplicantUID:  res.ApplicantUID,
+		Message:       res.Message,
+		Status:        res.Status,
+		ReviewerNotes: res.ReviewerNotes,
+		CreatedAt:     res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	return body
+}
+
+// NewJoinCommitteeResponseBody builds the HTTP response body from the result
+// of the "join-committee" endpoint of the "committee-service" service.
+func NewJoinCommitteeResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *JoinCommitteeResponseBody {
+	body := &JoinCommitteeResponseBody{
 		UID:               res.UID,
 		CommitteeUID:      res.CommitteeUID,
 		CommitteeName:     res.CommitteeName,
@@ -1986,6 +2934,500 @@ func NewDeleteCommitteeMemberServiceUnavailableResponseBody(res *committeeservic
 	return body
 }
 
+// NewGetInviteInternalServerErrorResponseBody builds the HTTP response body
+// from the result of the "get-invite" endpoint of the "committee-service"
+// service.
+func NewGetInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetInviteInternalServerErrorResponseBody {
+	body := &GetInviteInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "get-invite" endpoint of the "committee-service" service.
+func NewGetInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *GetInviteNotFoundResponseBody {
+	body := &GetInviteNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "get-invite" endpoint of the "committee-service"
+// service.
+func NewGetInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetInviteServiceUnavailableResponseBody {
+	body := &GetInviteServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateInviteBadRequestResponseBody builds the HTTP response body from the
+// result of the "create-invite" endpoint of the "committee-service" service.
+func NewCreateInviteBadRequestResponseBody(res *committeeservice.BadRequestError) *CreateInviteBadRequestResponseBody {
+	body := &CreateInviteBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateInviteConflictResponseBody builds the HTTP response body from the
+// result of the "create-invite" endpoint of the "committee-service" service.
+func NewCreateInviteConflictResponseBody(res *committeeservice.ConflictError) *CreateInviteConflictResponseBody {
+	body := &CreateInviteConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateInviteInternalServerErrorResponseBody builds the HTTP response body
+// from the result of the "create-invite" endpoint of the "committee-service"
+// service.
+func NewCreateInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *CreateInviteInternalServerErrorResponseBody {
+	body := &CreateInviteInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "create-invite" endpoint of the "committee-service" service.
+func NewCreateInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *CreateInviteNotFoundResponseBody {
+	body := &CreateInviteNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewCreateInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "create-invite" endpoint of the "committee-service"
+// service.
+func NewCreateInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *CreateInviteServiceUnavailableResponseBody {
+	body := &CreateInviteServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRevokeInviteBadRequestResponseBody builds the HTTP response body from the
+// result of the "revoke-invite" endpoint of the "committee-service" service.
+func NewRevokeInviteBadRequestResponseBody(res *committeeservice.BadRequestError) *RevokeInviteBadRequestResponseBody {
+	body := &RevokeInviteBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRevokeInviteInternalServerErrorResponseBody builds the HTTP response body
+// from the result of the "revoke-invite" endpoint of the "committee-service"
+// service.
+func NewRevokeInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *RevokeInviteInternalServerErrorResponseBody {
+	body := &RevokeInviteInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRevokeInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "revoke-invite" endpoint of the "committee-service" service.
+func NewRevokeInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *RevokeInviteNotFoundResponseBody {
+	body := &RevokeInviteNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRevokeInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "revoke-invite" endpoint of the "committee-service"
+// service.
+func NewRevokeInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *RevokeInviteServiceUnavailableResponseBody {
+	body := &RevokeInviteServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewAcceptInviteBadRequestResponseBody builds the HTTP response body from the
+// result of the "accept-invite" endpoint of the "committee-service" service.
+func NewAcceptInviteBadRequestResponseBody(res *committeeservice.BadRequestError) *AcceptInviteBadRequestResponseBody {
+	body := &AcceptInviteBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewAcceptInviteConflictResponseBody builds the HTTP response body from the
+// result of the "accept-invite" endpoint of the "committee-service" service.
+func NewAcceptInviteConflictResponseBody(res *committeeservice.ConflictError) *AcceptInviteConflictResponseBody {
+	body := &AcceptInviteConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewAcceptInviteInternalServerErrorResponseBody builds the HTTP response body
+// from the result of the "accept-invite" endpoint of the "committee-service"
+// service.
+func NewAcceptInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *AcceptInviteInternalServerErrorResponseBody {
+	body := &AcceptInviteInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewAcceptInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "accept-invite" endpoint of the "committee-service" service.
+func NewAcceptInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *AcceptInviteNotFoundResponseBody {
+	body := &AcceptInviteNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewAcceptInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "accept-invite" endpoint of the "committee-service"
+// service.
+func NewAcceptInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *AcceptInviteServiceUnavailableResponseBody {
+	body := &AcceptInviteServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteBadRequestResponseBody builds the HTTP response body from
+// the result of the "decline-invite" endpoint of the "committee-service"
+// service.
+func NewDeclineInviteBadRequestResponseBody(res *committeeservice.BadRequestError) *DeclineInviteBadRequestResponseBody {
+	body := &DeclineInviteBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteConflictResponseBody builds the HTTP response body from the
+// result of the "decline-invite" endpoint of the "committee-service" service.
+func NewDeclineInviteConflictResponseBody(res *committeeservice.ConflictError) *DeclineInviteConflictResponseBody {
+	body := &DeclineInviteConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "decline-invite" endpoint of the
+// "committee-service" service.
+func NewDeclineInviteInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *DeclineInviteInternalServerErrorResponseBody {
+	body := &DeclineInviteInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteNotFoundResponseBody builds the HTTP response body from the
+// result of the "decline-invite" endpoint of the "committee-service" service.
+func NewDeclineInviteNotFoundResponseBody(res *committeeservice.NotFoundError) *DeclineInviteNotFoundResponseBody {
+	body := &DeclineInviteNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "decline-invite" endpoint of the "committee-service"
+// service.
+func NewDeclineInviteServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *DeclineInviteServiceUnavailableResponseBody {
+	body := &DeclineInviteServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetApplicationInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "get-application" endpoint of the
+// "committee-service" service.
+func NewGetApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetApplicationInternalServerErrorResponseBody {
+	body := &GetApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetApplicationNotFoundResponseBody builds the HTTP response body from the
+// result of the "get-application" endpoint of the "committee-service" service.
+func NewGetApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *GetApplicationNotFoundResponseBody {
+	body := &GetApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetApplicationServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "get-application" endpoint of the
+// "committee-service" service.
+func NewGetApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetApplicationServiceUnavailableResponseBody {
+	body := &GetApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationBadRequestResponseBody builds the HTTP response body
+// from the result of the "submit-application" endpoint of the
+// "committee-service" service.
+func NewSubmitApplicationBadRequestResponseBody(res *committeeservice.BadRequestError) *SubmitApplicationBadRequestResponseBody {
+	body := &SubmitApplicationBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationConflictResponseBody builds the HTTP response body from
+// the result of the "submit-application" endpoint of the "committee-service"
+// service.
+func NewSubmitApplicationConflictResponseBody(res *committeeservice.ConflictError) *SubmitApplicationConflictResponseBody {
+	body := &SubmitApplicationConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationForbiddenResponseBody builds the HTTP response body from
+// the result of the "submit-application" endpoint of the "committee-service"
+// service.
+func NewSubmitApplicationForbiddenResponseBody(res *committeeservice.ForbiddenError) *SubmitApplicationForbiddenResponseBody {
+	body := &SubmitApplicationForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "submit-application" endpoint of the
+// "committee-service" service.
+func NewSubmitApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *SubmitApplicationInternalServerErrorResponseBody {
+	body := &SubmitApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationNotFoundResponseBody builds the HTTP response body from
+// the result of the "submit-application" endpoint of the "committee-service"
+// service.
+func NewSubmitApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *SubmitApplicationNotFoundResponseBody {
+	body := &SubmitApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewSubmitApplicationServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "submit-application" endpoint of the
+// "committee-service" service.
+func NewSubmitApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *SubmitApplicationServiceUnavailableResponseBody {
+	body := &SubmitApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewApproveApplicationBadRequestResponseBody builds the HTTP response body
+// from the result of the "approve-application" endpoint of the
+// "committee-service" service.
+func NewApproveApplicationBadRequestResponseBody(res *committeeservice.BadRequestError) *ApproveApplicationBadRequestResponseBody {
+	body := &ApproveApplicationBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewApproveApplicationConflictResponseBody builds the HTTP response body from
+// the result of the "approve-application" endpoint of the "committee-service"
+// service.
+func NewApproveApplicationConflictResponseBody(res *committeeservice.ConflictError) *ApproveApplicationConflictResponseBody {
+	body := &ApproveApplicationConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewApproveApplicationInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "approve-application" endpoint of the
+// "committee-service" service.
+func NewApproveApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ApproveApplicationInternalServerErrorResponseBody {
+	body := &ApproveApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewApproveApplicationNotFoundResponseBody builds the HTTP response body from
+// the result of the "approve-application" endpoint of the "committee-service"
+// service.
+func NewApproveApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *ApproveApplicationNotFoundResponseBody {
+	body := &ApproveApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewApproveApplicationServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "approve-application" endpoint of the
+// "committee-service" service.
+func NewApproveApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ApproveApplicationServiceUnavailableResponseBody {
+	body := &ApproveApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRejectApplicationBadRequestResponseBody builds the HTTP response body
+// from the result of the "reject-application" endpoint of the
+// "committee-service" service.
+func NewRejectApplicationBadRequestResponseBody(res *committeeservice.BadRequestError) *RejectApplicationBadRequestResponseBody {
+	body := &RejectApplicationBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRejectApplicationConflictResponseBody builds the HTTP response body from
+// the result of the "reject-application" endpoint of the "committee-service"
+// service.
+func NewRejectApplicationConflictResponseBody(res *committeeservice.ConflictError) *RejectApplicationConflictResponseBody {
+	body := &RejectApplicationConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRejectApplicationInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "reject-application" endpoint of the
+// "committee-service" service.
+func NewRejectApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *RejectApplicationInternalServerErrorResponseBody {
+	body := &RejectApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRejectApplicationNotFoundResponseBody builds the HTTP response body from
+// the result of the "reject-application" endpoint of the "committee-service"
+// service.
+func NewRejectApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *RejectApplicationNotFoundResponseBody {
+	body := &RejectApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewRejectApplicationServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "reject-application" endpoint of the
+// "committee-service" service.
+func NewRejectApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *RejectApplicationServiceUnavailableResponseBody {
+	body := &RejectApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeBadRequestResponseBody builds the HTTP response body from
+// the result of the "join-committee" endpoint of the "committee-service"
+// service.
+func NewJoinCommitteeBadRequestResponseBody(res *committeeservice.BadRequestError) *JoinCommitteeBadRequestResponseBody {
+	body := &JoinCommitteeBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeConflictResponseBody builds the HTTP response body from the
+// result of the "join-committee" endpoint of the "committee-service" service.
+func NewJoinCommitteeConflictResponseBody(res *committeeservice.ConflictError) *JoinCommitteeConflictResponseBody {
+	body := &JoinCommitteeConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeForbiddenResponseBody builds the HTTP response body from the
+// result of the "join-committee" endpoint of the "committee-service" service.
+func NewJoinCommitteeForbiddenResponseBody(res *committeeservice.ForbiddenError) *JoinCommitteeForbiddenResponseBody {
+	body := &JoinCommitteeForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "join-committee" endpoint of the
+// "committee-service" service.
+func NewJoinCommitteeInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *JoinCommitteeInternalServerErrorResponseBody {
+	body := &JoinCommitteeInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeNotFoundResponseBody builds the HTTP response body from the
+// result of the "join-committee" endpoint of the "committee-service" service.
+func NewJoinCommitteeNotFoundResponseBody(res *committeeservice.NotFoundError) *JoinCommitteeNotFoundResponseBody {
+	body := &JoinCommitteeNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewJoinCommitteeServiceUnavailableResponseBody builds the HTTP response body
+// from the result of the "join-committee" endpoint of the "committee-service"
+// service.
+func NewJoinCommitteeServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *JoinCommitteeServiceUnavailableResponseBody {
+	body := &JoinCommitteeServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewLeaveCommitteeBadRequestResponseBody builds the HTTP response body from
+// the result of the "leave-committee" endpoint of the "committee-service"
+// service.
+func NewLeaveCommitteeBadRequestResponseBody(res *committeeservice.BadRequestError) *LeaveCommitteeBadRequestResponseBody {
+	body := &LeaveCommitteeBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewLeaveCommitteeInternalServerErrorResponseBody builds the HTTP response
+// body from the result of the "leave-committee" endpoint of the
+// "committee-service" service.
+func NewLeaveCommitteeInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *LeaveCommitteeInternalServerErrorResponseBody {
+	body := &LeaveCommitteeInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewLeaveCommitteeNotFoundResponseBody builds the HTTP response body from the
+// result of the "leave-committee" endpoint of the "committee-service" service.
+func NewLeaveCommitteeNotFoundResponseBody(res *committeeservice.NotFoundError) *LeaveCommitteeNotFoundResponseBody {
+	body := &LeaveCommitteeNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewLeaveCommitteeServiceUnavailableResponseBody builds the HTTP response
+// body from the result of the "leave-committee" endpoint of the
+// "committee-service" service.
+func NewLeaveCommitteeServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *LeaveCommitteeServiceUnavailableResponseBody {
+	body := &LeaveCommitteeServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewCreateCommitteePayload builds a committee-service service
 // create-committee endpoint payload.
 func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteePayload {
@@ -1995,6 +3437,8 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 		Category:       *body.Category,
 		Description:    body.Description,
 		Website:        body.Website,
+		MailingList:    body.MailingList,
+		ChatChannel:    body.ChatChannel,
 		DisplayName:    body.DisplayName,
 		ParentUID:      body.ParentUID,
 		LastReviewedAt: body.LastReviewedAt,
@@ -2014,6 +3458,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	if body.BusinessEmailRequired != nil {
 		v.BusinessEmailRequired = *body.BusinessEmailRequired
+	}
+	if body.JoinMode != nil {
+		v.JoinMode = *body.JoinMode
 	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
@@ -2047,6 +3494,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
+	}
+	if body.JoinMode == nil {
+		v.JoinMode = "invite_only"
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
@@ -2093,6 +3543,8 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 		Category:    *body.Category,
 		Description: body.Description,
 		Website:     body.Website,
+		MailingList: body.MailingList,
+		ChatChannel: body.ChatChannel,
 		DisplayName: body.DisplayName,
 		ParentUID:   body.ParentUID,
 	}
@@ -2173,11 +3625,17 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
 	}
+	if body.JoinMode != nil {
+		v.JoinMode = *body.JoinMode
+	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
+	}
+	if body.JoinMode == nil {
+		v.JoinMode = "invite_only"
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
@@ -2400,6 +3858,147 @@ func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version strin
 	return v
 }
 
+// NewGetInvitePayload builds a committee-service service get-invite endpoint
+// payload.
+func NewGetInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.GetInvitePayload {
+	v := &committeeservice.GetInvitePayload{}
+	v.UID = uid
+	v.InviteUID = inviteUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewCreateInvitePayload builds a committee-service service create-invite
+// endpoint payload.
+func NewCreateInvitePayload(body *CreateInviteRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.CreateInvitePayload {
+	v := &committeeservice.CreateInvitePayload{
+		InviteeEmail: *body.InviteeEmail,
+		Role:         body.Role,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+
+	return v
+}
+
+// NewRevokeInvitePayload builds a committee-service service revoke-invite
+// endpoint payload.
+func NewRevokeInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.RevokeInvitePayload {
+	v := &committeeservice.RevokeInvitePayload{}
+	v.UID = uid
+	v.InviteUID = inviteUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewAcceptInvitePayload builds a committee-service service accept-invite
+// endpoint payload.
+func NewAcceptInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.AcceptInvitePayload {
+	v := &committeeservice.AcceptInvitePayload{}
+	v.UID = uid
+	v.InviteUID = inviteUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewDeclineInvitePayload builds a committee-service service decline-invite
+// endpoint payload.
+func NewDeclineInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.DeclineInvitePayload {
+	v := &committeeservice.DeclineInvitePayload{}
+	v.UID = uid
+	v.InviteUID = inviteUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewGetApplicationPayload builds a committee-service service get-application
+// endpoint payload.
+func NewGetApplicationPayload(uid string, applicationUID string, version string, bearerToken *string) *committeeservice.GetApplicationPayload {
+	v := &committeeservice.GetApplicationPayload{}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewSubmitApplicationPayload builds a committee-service service
+// submit-application endpoint payload.
+func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.SubmitApplicationPayload {
+	v := &committeeservice.SubmitApplicationPayload{
+		Message: body.Message,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+
+	return v
+}
+
+// NewApproveApplicationPayload builds a committee-service service
+// approve-application endpoint payload.
+func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.ApproveApplicationPayload {
+	v := &committeeservice.ApproveApplicationPayload{
+		ReviewerNotes: body.ReviewerNotes,
+	}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewRejectApplicationPayload builds a committee-service service
+// reject-application endpoint payload.
+func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.RejectApplicationPayload {
+	v := &committeeservice.RejectApplicationPayload{
+		ReviewerNotes: body.ReviewerNotes,
+	}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewJoinCommitteePayload builds a committee-service service join-committee
+// endpoint payload.
+func NewJoinCommitteePayload(uid string, version string, bearerToken *string, xSync bool) *committeeservice.JoinCommitteePayload {
+	v := &committeeservice.JoinCommitteePayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+
+	return v
+}
+
+// NewLeaveCommitteePayload builds a committee-service service leave-committee
+// endpoint payload.
+func NewLeaveCommitteePayload(uid string, version string, bearerToken *string, xSync bool) *committeeservice.LeaveCommitteePayload {
+	v := &committeeservice.LeaveCommitteePayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+
+	return v
+}
+
 // ValidateCreateCommitteeRequestBody runs the validations defined on
 // Create-CommitteeRequestBody
 func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err error) {
@@ -2436,6 +4035,14 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	if body.Website != nil {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
 	}
+	if body.MailingList != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
+	}
+	if body.ChatChannel != nil {
+		if utf8.RuneCountInString(*body.ChatChannel) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
+		}
+	}
 	if body.DisplayName != nil {
 		if utf8.RuneCountInString(*body.DisplayName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -2443,6 +4050,11 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	}
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
+	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -2491,6 +4103,14 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 	if body.Website != nil {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
 	}
+	if body.MailingList != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
+	}
+	if body.ChatChannel != nil {
+		if utf8.RuneCountInString(*body.ChatChannel) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
+		}
+	}
 	if body.DisplayName != nil {
 		if utf8.RuneCountInString(*body.DisplayName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -2507,6 +4127,11 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsRequestBody) (err error) {
 	if body.BusinessEmailRequired == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("business_email_required", "body"))
+	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -2682,6 +4307,51 @@ func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequest
 		}
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+	}
+	return
+}
+
+// ValidateCreateInviteRequestBody runs the validations defined on
+// Create-InviteRequestBody
+func ValidateCreateInviteRequestBody(body *CreateInviteRequestBody) (err error) {
+	if body.InviteeEmail == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("invitee_email", "body"))
+	}
+	if body.InviteeEmail != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", *body.InviteeEmail, goa.FormatEmail))
+	}
+	return
+}
+
+// ValidateSubmitApplicationRequestBody runs the validations defined on
+// Submit-ApplicationRequestBody
+func ValidateSubmitApplicationRequestBody(body *SubmitApplicationRequestBody) (err error) {
+	if body.Message != nil {
+		if utf8.RuneCountInString(*body.Message) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	return
+}
+
+// ValidateApproveApplicationRequestBody runs the validations defined on
+// Approve-ApplicationRequestBody
+func ValidateApproveApplicationRequestBody(body *ApproveApplicationRequestBody) (err error) {
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	return
+}
+
+// ValidateRejectApplicationRequestBody runs the validations defined on
+// Reject-ApplicationRequestBody
+func ValidateRejectApplicationRequestBody(body *RejectApplicationRequestBody) (err error) {
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
 		}
 	}
 	return

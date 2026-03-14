@@ -36,6 +36,8 @@ type CommitteeBase struct {
 	Category         string    `json:"category"`
 	Description      string    `json:"description,omitempty"`
 	Website          *string   `json:"website,omitempty"`
+	MailingList      *string   `json:"mailing_list,omitempty"`
+	ChatChannel      *string   `json:"chat_channel,omitempty"`
 	EnableVoting     bool      `json:"enable_voting"`
 	SSOGroupEnabled  bool      `json:"sso_group_enabled"`
 	SSOGroupName     string    `json:"sso_group_name,omitempty"`

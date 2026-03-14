@@ -7,12 +7,18 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 
 	"goa.design/goa/v3/security"
 )
@@ -23,6 +29,7 @@ type committeeServicesrvc struct {
 	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
 	storage                     port.CommitteeReaderWriter
+	publisher                   port.CommitteePublisher
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -330,6 +337,407 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	return nil
 }
 
+// GetInvite retrieves a single invite by UID
+func (s *committeeServicesrvc) GetInvite(ctx context.Context, p *committeeservice.GetInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.get-invite",
+		"committee_uid", p.UID,
+		"invite_uid", p.InviteUID,
+	)
+
+	invite, _, err := s.storage.GetInvite(ctx, p.InviteUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// CreateInvite creates a new invite for a committee
+func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeservice.CreateInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.create-invite",
+		"committee_uid", p.UID,
+		"invitee_email", redaction.RedactEmail(p.InviteeEmail),
+	)
+
+	// Verify committee exists
+	_, _, err := s.storage.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	invite := &model.CommitteeInvite{
+		UID:          uuid.New().String(),
+		CommitteeUID: p.UID,
+		InviteeEmail: p.InviteeEmail,
+		Status:       "pending",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if p.Role != nil {
+		invite.Role = *p.Role
+	}
+
+	// Check uniqueness
+	_, errUnique := s.storage.UniqueInvite(ctx, invite)
+	if errUnique != nil {
+		return nil, wrapError(ctx, errUnique)
+	}
+
+	if err := s.storage.CreateInvite(ctx, invite); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
+
+	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// RevokeInvite revokes a pending invite
+func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeservice.RevokeInvitePayload) error {
+	slog.DebugContext(ctx, "committeeService.revoke-invite",
+		"committee_uid", p.UID,
+		"invite_uid", p.InviteUID,
+	)
+
+	invite, rev, err := s.storage.GetInvite(ctx, p.InviteUID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	if invite.Status != "pending" {
+		return wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	invite.Status = "revoked"
+	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
+		return wrapError(ctx, err)
+	}
+
+	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+
+	return nil
+}
+
+// AcceptInvite accepts a pending invite
+func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.accept-invite",
+		"committee_uid", p.UID,
+		"invite_uid", p.InviteUID,
+	)
+
+	invite, rev, err := s.storage.GetInvite(ctx, p.InviteUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	// Enforce invite ownership: only the invitee can accept their own invite
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if !strings.EqualFold(principal, invite.InviteeEmail) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
+	}
+
+	if invite.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	invite.Status = "accepted"
+	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+
+	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// DeclineInvite declines a pending invite
+func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeeservice.DeclineInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.decline-invite",
+		"committee_uid", p.UID,
+		"invite_uid", p.InviteUID,
+	)
+
+	invite, rev, err := s.storage.GetInvite(ctx, p.InviteUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if invite.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
+	}
+
+	// Enforce invite ownership: only the invitee can decline their own invite
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if !strings.EqualFold(principal, invite.InviteeEmail) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
+	}
+
+	if invite.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	invite.Status = "declined"
+	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+
+	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// GetApplication retrieves a single application by UID
+func (s *committeeServicesrvc) GetApplication(ctx context.Context, p *committeeservice.GetApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.get-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, _, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// SubmitApplication submits an application to join a committee
+func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committeeservice.SubmitApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.submit-application",
+		"committee_uid", p.UID,
+	)
+
+	// Verify committee exists and get settings to check join_mode
+	settings, _, err := s.storage.GetSettings(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if settings.JoinMode != "application" {
+		return nil, wrapError(ctx, errors.NewForbidden("committee does not accept applications"))
+	}
+
+	// Get principal from context — in the Heimdall OIDC flow, the principal
+	// is the user's email address from the identity provider.
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	}
+
+	// Validate that the principal is an email address, not a bare UID/sub
+	if !strings.Contains(principal, "@") {
+		slog.ErrorContext(ctx, "committeeService.submit-application: principal is not an email",
+			"principal_redacted", redaction.Redact(principal),
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	}
+
+	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
+		"committee_uid", p.UID,
+		"applicant_email_redacted", redaction.RedactEmail(principal),
+	)
+
+	// ApplicantUID stores the applicant's email (the Heimdall principal).
+	// In the OIDC flow, the principal IS the email address.
+	application := &model.CommitteeApplication{
+		UID:          uuid.New().String(),
+		CommitteeUID: p.UID,
+		ApplicantUID: principal,
+		Status:       "pending",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if p.Message != nil {
+		application.Message = *p.Message
+	}
+
+	// Check uniqueness
+	_, errUnique := s.storage.UniqueApplication(ctx, application)
+	if errUnique != nil {
+		return nil, wrapError(ctx, errUnique)
+	}
+
+	if err := s.storage.CreateApplication(ctx, application); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// ApproveApplication approves a pending application
+func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *committeeservice.ApproveApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.approve-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, rev, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	if application.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+	}
+
+	application.Status = "approved"
+	if p.ReviewerNotes != nil {
+		application.ReviewerNotes = *p.ReviewerNotes
+	}
+
+	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// RejectApplication rejects a pending application
+func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committeeservice.RejectApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.reject-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, rev, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	if application.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+	}
+
+	application.Status = "rejected"
+	if p.ReviewerNotes != nil {
+		application.ReviewerNotes = *p.ReviewerNotes
+	}
+
+	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// JoinCommittee allows self-join when join_mode is "open"
+func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeeservice.JoinCommitteePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.join-committee", "committee_uid", p.UID)
+
+	// Verify committee exists and get settings to check join_mode
+	settings, _, err := s.storage.GetSettings(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if settings.JoinMode != "open" {
+		return nil, wrapError(ctx, errors.NewForbidden("committee join_mode is not open"))
+	}
+
+	// Get principal from context — in the Heimdall OIDC flow, the principal
+	// is the user's email address from the identity provider.
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	}
+
+	// Validate that the principal is an email address, not a bare UID/sub
+	if !strings.Contains(principal, "@") {
+		slog.ErrorContext(ctx, "committeeService.join-committee: principal is not an email",
+			"principal_redacted", redaction.Redact(principal),
+			"committee_uid", p.UID,
+		)
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	}
+
+	// Create member via the existing orchestrator
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: p.UID,
+			Email:        principal,
+			Status:       "Active",
+		},
+	}
+
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertMemberDomainToFullResponse(response), nil
+}
+
+// LeaveCommittee allows a member to leave a committee
+func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committeeservice.LeaveCommitteePayload) error {
+	slog.DebugContext(ctx, "committeeService.leave-committee", "committee_uid", p.UID)
+
+	// Get principal from context
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	}
+
+	// Find the member by listing all members and matching email
+	members, err := s.storage.ListMembers(ctx, p.UID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+
+	var memberToRemove *model.CommitteeMember
+	for _, m := range members {
+		if strings.EqualFold(m.Email, principal) {
+			memberToRemove = m
+			break
+		}
+	}
+
+	if memberToRemove == nil {
+		return wrapError(ctx, errors.NewNotFound("you are not a member of this committee"))
+	}
+
+	// Get revision for optimistic locking
+	rev, err := s.storage.GetMemberRevision(ctx, memberToRemove.UID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+
+	// Use orchestrator (not direct storage) to ensure event publishing and cleanup
+	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync); err != nil {
+		return wrapError(ctx, err)
+	}
+
+	return nil
+}
+
 // Check if the service is able to take inbound requests.
 func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err error) {
 	// Check NATS readiness
@@ -350,12 +758,115 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
+// publishInviteIndexerMessage publishes an indexer message for invite operations.
+// Publishing is best-effort: failures are logged but do not fail the request.
+// IndexingConfig is required because there is no server-side enricher for committee_invite.
+func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
+	tags := invite.Tags()
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             invite.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", invite.CommitteeUID)},
+		SortName:             invite.InviteeEmail,
+		NameAndAliases:       []string{invite.InviteeEmail},
+		Fulltext:             invite.InviteeEmail,
+		Tags:                 tags,
+	}
+
+	var data any
+	if action == model.ActionDeleted {
+		data = invite.UID
+	} else {
+		public := false
+		indexingConfig.Public = &public
+		data = invite
+	}
+
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action:         action,
+		Tags:           tags,
+		IndexingConfig: indexingConfig,
+	}
+
+	built, err := indexerMessage.Build(ctx, data)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build invite indexer message",
+			"error", err,
+			"action", string(action),
+			"invite_uid", invite.UID,
+		)
+		return
+	}
+
+	if pubErr := s.publisher.Indexer(ctx, constants.IndexCommitteeInviteSubject, built, sync); pubErr != nil {
+		slog.WarnContext(ctx, "failed to publish invite indexer message",
+			"error", pubErr,
+			"action", string(action),
+			"invite_uid", invite.UID,
+		)
+	}
+}
+
+// publishApplicationIndexerMessage publishes an indexer message for application operations.
+// Publishing is best-effort: failures are logged but do not fail the request.
+// IndexingConfig is required because there is no server-side enricher for committee_application.
+func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
+	tags := application.Tags()
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             application.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", application.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", application.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", application.CommitteeUID)},
+		Fulltext:             application.Message,
+		Tags:                 tags,
+	}
+
+	var data any
+	if action == model.ActionDeleted {
+		data = application.UID
+	} else {
+		public := false
+		indexingConfig.Public = &public
+		data = application
+	}
+
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action:         action,
+		Tags:           tags,
+		IndexingConfig: indexingConfig,
+	}
+
+	built, err := indexerMessage.Build(ctx, data)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build application indexer message",
+			"error", err,
+			"action", string(action),
+			"application_uid", application.UID,
+		)
+		return
+	}
+
+	if pubErr := s.publisher.Indexer(ctx, constants.IndexCommitteeApplicationSubject, built, sync); pubErr != nil {
+		slog.WarnContext(ctx, "failed to publish application indexer message",
+			"error", pubErr,
+			"action", string(action),
+			"application_uid", application.UID,
+		)
+	}
+}
+
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
 		storage:                     storage,
+		publisher:                   publisher,
 	}
 }

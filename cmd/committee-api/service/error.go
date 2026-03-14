@@ -27,6 +27,10 @@ func wrapError(ctx context.Context, err error) error {
 			return &committeeservice.ConflictError{
 				Message: e.Error(),
 			}
+		case errors.Forbidden:
+			return &committeeservice.ForbiddenError{
+				Message: e.Error(),
+			}
 		case errors.ServiceUnavailable:
 			return &committeeservice.ServiceUnavailableError{
 				Message: e.Error(),
