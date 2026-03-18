@@ -82,6 +82,8 @@ nats:
     maxBytes: 1073741824  # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
 
   # committees_settings_kv_bucket is the configuration for the KV bucket for storing committees_settings
   committees_settings_kv_bucket:
@@ -103,6 +105,8 @@ nats:
     maxBytes: 1073741824  # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
 
   # committee_members_kv_bucket is the configuration for the KV bucket for storing committee_members
   committee_members_kv_bucket:
@@ -124,6 +128,8 @@ nats:
     maxBytes: 1073741824  # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
 
   # committee_invites_kv_bucket is the configuration for the KV bucket for storing committee invites
   committee_invites_kv_bucket:
@@ -145,6 +151,8 @@ nats:
     maxBytes: 1073741824  # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
 
   # committee_applications_kv_bucket is the configuration for the KV bucket for storing committee applications
   committee_applications_kv_bucket:
@@ -166,6 +174,8 @@ nats:
     maxBytes: 1073741824  # 1GB
     # compression is a boolean to determine if the KV bucket should be compressed
     compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
 
 # openfga is the configuration for the OpenFGA server
 openfga:
