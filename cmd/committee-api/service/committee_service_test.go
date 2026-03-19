@@ -1179,34 +1179,47 @@ func TestJoinCommittee(t *testing.T) {
 	tests := []struct {
 		name        string
 		joinMode    string
-		principal   string
+		username    string
+		email       string
 		expectError bool
 		errContains string
 	}{
 		{
 			name:        "successful join when open",
 			joinMode:    "open",
-			principal:   "joiner@example.com",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
 			expectError: false,
 		},
 		{
 			name:        "rejected when join_mode is application",
 			joinMode:    "application",
-			principal:   "joiner@example.com",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
 			expectError: true,
 			errContains: "join_mode is not open",
 		},
 		{
 			name:        "rejected when join_mode is empty (closed)",
 			joinMode:    "",
-			principal:   "joiner@example.com",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
 			expectError: true,
 			errContains: "join_mode is not open",
 		},
 		{
+			name:        "rejected when username is empty",
+			joinMode:    "open",
+			username:    "",
+			email:       "joiner@example.com",
+			expectError: true,
+			errContains: "unable to determine user username from identity",
+		},
+		{
 			name:        "rejected when email is empty",
 			joinMode:    "open",
-			principal:   "",
+			username:    "auth0|joiner",
+			email:       "",
 			expectError: true,
 			errContains: "unable to determine user email from identity",
 		},
@@ -1224,12 +1237,13 @@ func TestJoinCommittee(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "new-member-uid",
 					CommitteeUID: "committee-1",
-					Email:        tt.principal,
+					Email:        tt.email,
 					Status:       "Active",
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
+			ctx = context.WithValue(ctx, constants.EmailContextID, tt.email)
 
 			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
 				UID:   "committee-1",

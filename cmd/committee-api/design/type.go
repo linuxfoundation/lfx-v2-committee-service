@@ -831,6 +831,7 @@ var ConflictError = dsl.Type("conflict-error", func() {
 
 // ForbiddenError is the DSL type for a forbidden error.
 var ForbiddenError = dsl.Type("forbidden-error", func() {
+	dsl.Description("Forbidden")
 	dsl.Attribute("message", dsl.String, "Error message", func() {
 		dsl.Example("You do not have permission to perform this action.")
 	})

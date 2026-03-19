@@ -452,14 +452,8 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 
-	invite.Status = "accepted"
-	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
-		return nil, wrapError(ctx, err)
-	}
-
-	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
-
-	// Create the committee member from the invite
+	// Create the committee member first — if this fails the invite remains pending
+	// and the invitee can retry without being stuck in an inconsistent state.
 	username, _ := ctx.Value(constants.PrincipalContextID).(string)
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
@@ -475,6 +469,14 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	// Member created successfully — now mark the invite accepted.
+	invite.Status = "accepted"
+	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }
@@ -607,17 +609,8 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
 	}
 
-	application.Status = "approved"
-	if p.ReviewerNotes != nil {
-		application.ReviewerNotes = *p.ReviewerNotes
-	}
-
-	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
-		return nil, wrapError(ctx, err)
-	}
-
-	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-
+	// Create the committee member first — if this fails the application remains pending
+	// and the reviewer can retry without being stuck in an inconsistent state.
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: application.CommitteeUID,
@@ -630,6 +623,18 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	// Member created successfully — now mark the application approved.
+	application.Status = "approved"
+	if p.ReviewerNotes != nil {
+		application.ReviewerNotes = *p.ReviewerNotes
+	}
+
+	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }

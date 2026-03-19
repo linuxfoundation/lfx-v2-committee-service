@@ -4150,6 +4150,7 @@ components:
                     type: string
                     description: Error message
                     example: You do not have permission to perform this action.
+            description: Forbidden
             example:
                 message: You do not have permission to perform this action.
             required:

@@ -10,11 +10,12 @@ const RequestIDHeader requestIDHeaderType = "X-REQUEST-ID"
 
 type contextID int
 
-// PrincipalContextID
-const PrincipalContextID contextID = iota
-
-// EmailContextID is the context ID for the email from JWT claims
-const EmailContextID contextID = iota
+const (
+	// PrincipalContextID is the context ID for the principal (username/Auth0 sub) from JWT claims
+	PrincipalContextID contextID = iota
+	// EmailContextID is the context ID for the email from JWT claims
+	EmailContextID contextID = iota
+)
 
 type contextPrincipal string
 

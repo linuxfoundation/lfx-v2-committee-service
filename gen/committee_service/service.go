@@ -843,6 +843,7 @@ type ConflictError struct {
 	Message string
 }
 
+// Forbidden
 type ForbiddenError struct {
 	// Error message
 	Message string
@@ -899,7 +900,7 @@ func (e *ConflictError) GoaErrorName() string {
 
 // Error returns an error description.
 func (e *ForbiddenError) Error() string {
-	return ""
+	return "Forbidden"
 }
 
 // ErrorName returns "forbidden-error".
