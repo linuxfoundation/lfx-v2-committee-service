@@ -13,6 +13,9 @@ type contextID int
 // PrincipalContextID
 const PrincipalContextID contextID = iota
 
+// EmailContextID is the context ID for the email from JWT claims
+const EmailContextID contextID = iota
+
 type contextPrincipal string
 
 // AuthorizationHeader is the header name for the authorization

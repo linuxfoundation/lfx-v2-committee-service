@@ -47,7 +47,7 @@ type Service interface {
 	// Revoke a pending invite
 	RevokeInvite(context.Context, *RevokeInvitePayload) (err error)
 	// Accept a pending invite
-	AcceptInvite(context.Context, *AcceptInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	AcceptInvite(context.Context, *AcceptInvitePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Decline a pending invite
 	DeclineInvite(context.Context, *DeclineInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
 	// Get a single application by UID
