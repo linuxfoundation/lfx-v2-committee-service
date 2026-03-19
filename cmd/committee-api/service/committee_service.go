@@ -587,8 +587,8 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	return s.convertApplicationDomainToResponse(application), nil
 }
 
-// ApproveApplication approves a pending application
-func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *committeeservice.ApproveApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+// ApproveApplication approves a pending application and creates a committee member
+func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *committeeservice.ApproveApplicationPayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.approve-application",
 		"committee_uid", p.UID,
 		"application_uid", p.ApplicationUID,
@@ -618,7 +618,20 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
 
-	return s.convertApplicationDomainToResponse(application), nil
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: application.CommitteeUID,
+			Email:        application.ApplicantUID,
+			Status:       "Active",
+		},
+	}
+
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertMemberDomainToFullResponse(response), nil
 }
 
 // RejectApplication rejects a pending application

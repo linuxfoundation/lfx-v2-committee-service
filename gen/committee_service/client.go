@@ -389,13 +389,13 @@ func (c *Client) SubmitApplication(ctx context.Context, p *SubmitApplicationPayl
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) ApproveApplication(ctx context.Context, p *ApproveApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+func (c *Client) ApproveApplication(ctx context.Context, p *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.ApproveApplicationEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
 }
 
 // RejectApplication calls the "reject-application" endpoint of the

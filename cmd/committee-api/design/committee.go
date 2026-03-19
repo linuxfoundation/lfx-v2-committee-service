@@ -749,7 +749,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Required("version", "uid", "application_uid")
 		})
 
-		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Application not found")

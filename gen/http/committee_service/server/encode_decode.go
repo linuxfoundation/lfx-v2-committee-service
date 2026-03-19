@@ -2555,7 +2555,7 @@ func EncodeSubmitApplicationError(encoder func(context.Context, http.ResponseWri
 // by the committee-service approve-application endpoint.
 func EncodeApproveApplicationResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeApplicationWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeMemberFullWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewApproveApplicationResponseBody(res)
 		w.WriteHeader(http.StatusOK)
