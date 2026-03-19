@@ -1183,14 +1183,34 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CommitteeInviteWithReadonlyAttributes'
+                                $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
                             example:
+                                appointed_by: Community
+                                committee_category: Board
+                                committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                invitee_email: invitee@example.com
-                                role: None
-                                status: pending
-                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                                email: user@example.com
+                                first_name: John
+                                job_title: Chief Technology Officer
+                                last_name: Doe
+                                linkedin_profile: https://www.linkedin.com/in/johndoe
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                status: Active
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                updated_at: "2023-06-20T14:45:30Z"
+                                username: user123
+                                voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -1199,6 +1219,14 @@ paths:
                                 $ref: '#/components/schemas/BadRequestError'
                             example:
                                 message: The request was invalid.
+                "403":
+                    description: 'Forbidden: You are not the invitee for this invite'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
                 "404":
                     description: 'NotFound: Invite not found'
                     content:
@@ -1295,6 +1323,14 @@ paths:
                                 $ref: '#/components/schemas/BadRequestError'
                             example:
                                 message: The request was invalid.
+                "403":
+                    description: 'Forbidden: You are not the invitee for this invite'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
                 "404":
                     description: 'NotFound: Invite not found'
                     content:

@@ -36,8 +36,8 @@ type committeeServicesrvc struct {
 // for the "jwt" security scheme.
 func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme *security.JWTScheme) (context.Context, error) {
 
-	// Parse the Heimdall-authorized principal from the token
-	principal, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
+	// Parse the Heimdall-authorized principal and email from the token
+	principal, email, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
 	if err != nil {
 		slog.ErrorContext(ctx, "committeeService.jwt-auth",
 			"error", err,
@@ -46,8 +46,9 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 		return ctx, err
 	}
 
-	// Return a new context containing the principal as a value
-	return context.WithValue(ctx, constants.PrincipalContextID, principal), nil
+	ctx = context.WithValue(ctx, constants.PrincipalContextID, principal)
+	ctx = context.WithValue(ctx, constants.EmailContextID, email)
+	return ctx, nil
 }
 
 // Create Committee
@@ -425,8 +426,8 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	return nil
 }
 
-// AcceptInvite accepts a pending invite
-func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeInviteWithReadonlyAttributes, error) {
+// AcceptInvite accepts a pending invite and creates a committee member
+func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.accept-invite",
 		"committee_uid", p.UID,
 		"invite_uid", p.InviteUID,
@@ -442,8 +443,8 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 
 	// Enforce invite ownership: only the invitee can accept their own invite
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if !strings.EqualFold(principal, invite.InviteeEmail) {
+	email, _ := ctx.Value(constants.EmailContextID).(string)
+	if !strings.EqualFold(email, invite.InviteeEmail) {
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
@@ -458,7 +459,24 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
 
-	return s.convertInviteDomainToResponse(invite), nil
+	// Create the committee member from the invite
+	username, _ := ctx.Value(constants.PrincipalContextID).(string)
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: invite.CommitteeUID,
+			Username:     username,
+			Email:        invite.InviteeEmail,
+			Role:         model.CommitteeMemberRole{Name: invite.Role},
+			Status:       "Active",
+		},
+	}
+
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertMemberDomainToFullResponse(response), nil
 }
 
 // DeclineInvite declines a pending invite
@@ -478,8 +496,8 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	// Enforce invite ownership: only the invitee can decline their own invite
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if !strings.EqualFold(principal, invite.InviteeEmail) {
+	email, _ := ctx.Value(constants.EmailContextID).(string)
+	if !strings.EqualFold(email, invite.InviteeEmail) {
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
@@ -532,33 +550,21 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		return nil, wrapError(ctx, errors.NewForbidden("committee does not accept applications"))
 	}
 
-	// Get principal from context — in the Heimdall OIDC flow, the principal
-	// is the user's email address from the identity provider.
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
-		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity"))
-	}
-
-	// Validate that the principal is an email address, not a bare UID/sub
-	if !strings.Contains(principal, "@") {
-		slog.ErrorContext(ctx, "committeeService.submit-application: principal is not an email",
-			"principal_redacted", redaction.Redact(principal),
-			"committee_uid", p.UID,
-		)
+	// Get email from context — Heimdall injects the user's email as a JWT claim.
+	email, _ := ctx.Value(constants.EmailContextID).(string)
+	if email == "" {
 		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
 	}
 
 	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
 		"committee_uid", p.UID,
-		"applicant_email_redacted", redaction.RedactEmail(principal),
+		"applicant_email_redacted", redaction.RedactEmail(email),
 	)
 
-	// ApplicantUID stores the applicant's email (the Heimdall principal).
-	// In the OIDC flow, the principal IS the email address.
 	application := &model.CommitteeApplication{
 		UID:          uuid.New().String(),
 		CommitteeUID: p.UID,
-		ApplicantUID: principal,
+		ApplicantUID: email,
 		Status:       "pending",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -663,19 +669,15 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		return nil, wrapError(ctx, errors.NewForbidden("committee join_mode is not open"))
 	}
 
-	// Get principal from context — in the Heimdall OIDC flow, the principal
-	// is the user's email address from the identity provider.
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
-		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	// Get username from context — Heimdall injects the user's username as a JWT claim.
+	username, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if username == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user username from identity"))
 	}
 
-	// Validate that the principal is an email address, not a bare UID/sub
-	if !strings.Contains(principal, "@") {
-		slog.ErrorContext(ctx, "committeeService.join-committee: principal is not an email",
-			"principal_redacted", redaction.Redact(principal),
-			"committee_uid", p.UID,
-		)
+	// Get email from context — Heimdall injects the user's email as a JWT claim.
+	email, _ := ctx.Value(constants.EmailContextID).(string)
+	if email == "" {
 		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
 	}
 
@@ -683,7 +685,8 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
-			Email:        principal,
+			Username:     username,
+			Email:        email,
 			Status:       "Active",
 		},
 	}
@@ -700,10 +703,10 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committeeservice.LeaveCommitteePayload) error {
 	slog.DebugContext(ctx, "committeeService.leave-committee", "committee_uid", p.UID)
 
-	// Get principal from context
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
-		return wrapError(ctx, errors.NewValidation("unable to determine user identity"))
+	// Get email from context — Heimdall injects the user's email as a JWT claim.
+	email, _ := ctx.Value(constants.EmailContextID).(string)
+	if email == "" {
+		return wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
 	}
 
 	// Find the member by listing all members and matching email
@@ -714,7 +717,7 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 
 	var memberToRemove *model.CommitteeMember
 	for _, m := range members {
-		if strings.EqualFold(m.Email, principal) {
+		if strings.EqualFold(m.Email, email) {
 			memberToRemove = m
 			break
 		}

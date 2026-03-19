@@ -746,7 +746,7 @@ func TestAcceptInvite(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, _, repo := setupServiceTestWithRepo()
+			svc, mockOrch, repo := setupServiceTestWithRepo()
 
 			invite := &model.CommitteeInvite{
 				UID:          "invite-accept-test",
@@ -757,7 +757,16 @@ func TestAcceptInvite(t *testing.T) {
 			}
 			repo.AddCommitteeInvite(invite)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "new-member-uid",
+					CommitteeUID: "committee-1",
+					Email:        "accept@example.com",
+					Status:       "Active",
+				},
+			}
+
+			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
 			result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-accept-test",
@@ -769,7 +778,7 @@ func TestAcceptInvite(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, "accepted", result.Status)
+				assert.Equal(t, "Active", result.Status)
 			}
 		})
 	}
@@ -788,7 +797,7 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to accept someone else's invite
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.EmailContextID, "attacker@example.com")
 	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-accept",
@@ -835,7 +844,7 @@ func TestDeclineInvite(t *testing.T) {
 			}
 			repo.AddCommitteeInvite(invite)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
 			result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-decline-test",
@@ -866,7 +875,7 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to decline someone else's invite
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.EmailContextID, "attacker@example.com")
 	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-decline",
@@ -996,18 +1005,11 @@ func TestSubmitApplication(t *testing.T) {
 			errContains: "does not accept applications",
 		},
 		{
-			name:        "rejected when principal is empty",
+			name:        "rejected when email is empty",
 			joinMode:    "application",
 			principal:   "",
 			expectError: true,
-			errContains: "unable to determine user identity",
-		},
-		{
-			name:        "rejected when principal is not an email",
-			joinMode:    "application",
-			principal:   "some-bare-uid",
-			expectError: true,
-			errContains: "unable to determine user email",
+			errContains: "unable to determine user email from identity",
 		},
 	}
 
@@ -1018,7 +1020,7 @@ func TestSubmitApplication(t *testing.T) {
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
 			msg := "I'd like to join"
 
 			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -1194,18 +1196,11 @@ func TestJoinCommittee(t *testing.T) {
 			errContains: "join_mode is not open",
 		},
 		{
-			name:        "rejected when principal is empty",
+			name:        "rejected when email is empty",
 			joinMode:    "open",
 			principal:   "",
 			expectError: true,
-			errContains: "unable to determine user identity",
-		},
-		{
-			name:        "rejected when principal is not an email",
-			joinMode:    "open",
-			principal:   "some-uid-without-at",
-			expectError: true,
-			errContains: "unable to determine user email",
+			errContains: "unable to determine user email from identity",
 		},
 	}
 
@@ -1226,7 +1221,7 @@ func TestJoinCommittee(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
 
 			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
 				UID:   "committee-1",
@@ -1268,11 +1263,11 @@ func TestLeaveCommittee(t *testing.T) {
 			errContains: "you are not a member",
 		},
 		{
-			name:        "empty principal",
+			name:        "empty email",
 			principal:   "",
 			seedMember:  false,
 			expectError: true,
-			errContains: "unable to determine user identity",
+			errContains: "unable to determine user email from identity",
 		},
 	}
 
@@ -1292,7 +1287,7 @@ func TestLeaveCommittee(t *testing.T) {
 				mockOrch.deleteError = nil
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
 
 			err := svc.LeaveCommittee(ctx, &committeeservice.LeaveCommitteePayload{
 				UID:   "committee-1",

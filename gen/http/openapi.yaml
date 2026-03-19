@@ -828,11 +828,17 @@ paths:
                 "200":
                     description: OK response.
                     schema:
-                        $ref: '#/definitions/CommitteeInviteWithReadonlyAttributes'
+                        $ref: '#/definitions/CommitteeMemberFullWithReadonlyAttributes'
                 "400":
                     description: Bad Request response.
                     schema:
                         $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
                         required:
                             - message
                 "404":
@@ -904,6 +910,12 @@ paths:
                     description: Bad Request response.
                     schema:
                         $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
                         required:
                             - message
                 "404":
@@ -3081,7 +3093,7 @@ definitions:
                 type: string
                 description: Error message
                 example: You do not have permission to perform this action.
-        description: Committee does not accept applications
+        description: You are not the invitee for this invite
         example:
             message: You do not have permission to perform this action.
         required:

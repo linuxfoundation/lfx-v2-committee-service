@@ -588,9 +588,10 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Required("version", "uid", "invite_uid")
 		})
 
-		dsl.Result(CommitteeInviteWithReadonlyAttributes)
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "You are not the invitee for this invite")
 		dsl.Error("NotFound", NotFoundError, "Invite not found")
 		dsl.Error("Conflict", ConflictError, "Invite already processed")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
@@ -604,6 +605,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("Conflict", dsl.StatusConflict)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
@@ -628,6 +630,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Result(CommitteeInviteWithReadonlyAttributes)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "You are not the invitee for this invite")
 		dsl.Error("NotFound", NotFoundError, "Invite not found")
 		dsl.Error("Conflict", ConflictError, "Invite already processed")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
@@ -641,6 +644,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("Conflict", dsl.StatusConflict)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
