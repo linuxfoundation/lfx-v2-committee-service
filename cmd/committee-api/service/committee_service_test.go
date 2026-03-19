@@ -1062,7 +1062,7 @@ func TestApproveApplication(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, _, repo := setupServiceTestWithRepo()
+			svc, mockOrch, repo := setupServiceTestWithRepo()
 
 			app := &model.CommitteeApplication{
 				UID:          "app-approve-test",
@@ -1072,6 +1072,14 @@ func TestApproveApplication(t *testing.T) {
 				CreatedAt:    time.Now(),
 			}
 			repo.AddCommitteeApplication(app)
+
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Email:        "user@example.com",
+					Status:       "Active",
+				},
+			}
 
 			notes := "Welcome aboard"
 			result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
@@ -1086,7 +1094,7 @@ func TestApproveApplication(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, "approved", result.Status)
+				assert.Equal(t, "Active", result.Status)
 			}
 		})
 	}

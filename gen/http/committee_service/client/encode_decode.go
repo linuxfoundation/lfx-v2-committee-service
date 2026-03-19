@@ -3047,7 +3047,7 @@ func DecodeApproveApplicationResponse(decoder func(*http.Response) goahttp.Decod
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "approve-application", err)
 			}
-			res := NewApproveApplicationCommitteeApplicationWithReadonlyAttributesOK(&body)
+			res := NewApproveApplicationCommitteeMemberFullWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (

@@ -55,7 +55,7 @@ type Service interface {
 	// Submit an application to join a committee
 	SubmitApplication(context.Context, *SubmitApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Approve a pending application
-	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Reject a pending application
 	RejectApplication(context.Context, *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Self-join a committee (only works when join_mode is open)
