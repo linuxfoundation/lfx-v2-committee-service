@@ -28,6 +28,10 @@ const (
 	// The subject is of the form: lfx.auth-service.email_to_sub
 	AuthEmailToSubLookupSubject = "lfx.auth-service.email_to_sub"
 
+	// AuthUserEmailsReadSubject is the subject for looking up a user's email addresses by principal.
+	// The subject is of the form: lfx.auth-service.user_emails.read
+	AuthUserEmailsReadSubject = "lfx.auth-service.user_emails.read"
+
 	// IndexCommitteeSubject is the subject for the committee index.
 	// The subject is of the form: lfx.index.committee
 	IndexCommitteeSubject = "lfx.index.committee"
