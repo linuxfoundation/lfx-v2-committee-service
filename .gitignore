@@ -69,6 +69,9 @@ coverage/
 config/local.yml
 config/secrets.yml
 
+# Local Helm values (copy from values.local.example.yaml)
+charts/lfx-v2-committee-service/values.local.yaml
+
 # Docker files
 .dockerignore
 

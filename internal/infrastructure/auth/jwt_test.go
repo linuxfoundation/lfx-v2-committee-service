@@ -84,10 +84,11 @@ func TestJWTAuthParsePrincipalNilValidator(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 	assert.Contains(t, err.Error(), "JWT validator is not set up")
 }
 
@@ -103,10 +104,11 @@ func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 }
 
 func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
@@ -135,10 +137,11 @@ func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
 			testName = testName[:50]
 		}
 		t.Run(testName, func(t *testing.T) {
-			principal, err := jwtAuth.ParsePrincipal(ctx, token, logger)
+			principal, email, err := jwtAuth.ParsePrincipal(ctx, token, logger)
 
 			assert.Error(t, err)
 			assert.Empty(t, principal)
+			assert.Empty(t, email)
 			// Should not contain sensitive information
 			assert.NotContains(t, err.Error(), "go-jose/go-jose/jwt")
 		})

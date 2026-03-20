@@ -18,6 +18,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 │       ├── service/                # Service implementation
 │       ├── main.go                 # Application entry point
 │       └── http.go                 # HTTP server setup
+├── docs/                           # Feature and flow documentation
 ├── gen/                            # Generated code from Goa design
 ├── internal/                       # Internal service packages
 │   ├── domain/                     # Domain logic layer (business logic)
@@ -48,6 +49,10 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - **Structured Logging**: JSON-formatted logs with contextual information
 - **Committee Settings**: Configurable voting, membership, and access control settings
 
+## Documentation
+
+- [Invite & Application Flows](docs/invite-application-flows.md) — membership modes, invite/application lifecycle, state transitions, and edge cases
+
 ## Releases
 
 ### Creating a Release
@@ -56,6 +61,7 @@ To create a new release of the committee service:
 
 1. **Update the chart version** in `charts/lfx-v2-committee-service/Chart.yaml` prior to any project releases, or if any
    change is made to the chart manifests or configuration:
+
    ```yaml
    version: 0.2.0  # Increment this version
    appVersion: "latest"  # Keep this as "latest"
