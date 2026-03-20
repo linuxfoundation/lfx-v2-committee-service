@@ -645,8 +645,8 @@ type GetApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -664,8 +664,8 @@ type SubmitApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -743,8 +743,8 @@ type RejectApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -2472,13 +2472,13 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 // of the "get-application" endpoint of the "committee-service" service.
 func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *GetApplicationResponseBody {
 	body := &GetApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string
@@ -2494,13 +2494,13 @@ func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWit
 // service.
 func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *SubmitApplicationResponseBody {
 	body := &SubmitApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string
@@ -2605,13 +2605,13 @@ func NewApproveApplicationResponseBody(res *committeeservice.CommitteeMemberFull
 // service.
 func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *RejectApplicationResponseBody {
 	body := &RejectApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string

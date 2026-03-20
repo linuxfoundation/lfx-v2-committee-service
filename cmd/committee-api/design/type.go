@@ -785,8 +785,8 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 		dsl.Format(dsl.FormatUUID)
 	})
-	dsl.Attribute("applicant_uid", dsl.String, "Applicant user UID", func() {
-		dsl.Example("user-uid-12345")
+	dsl.Attribute("applicant_email", dsl.String, "Applicant email address", func() {
+		dsl.Example("user@example.com")
 	})
 	dsl.Attribute("message", dsl.String, "Application message from the applicant", func() {
 		dsl.MaxLength(2000)

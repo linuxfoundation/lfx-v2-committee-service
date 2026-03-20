@@ -121,8 +121,8 @@ type CommitteeApplicationWithReadonlyAttributes struct {
 	UID *string
 	// Committee UID
 	CommitteeUID *string
-	// Applicant user UID
-	ApplicantUID *string
+	// Applicant email address
+	ApplicantEmail *string
 	// Application message from the applicant
 	Message *string
 	// Application status
