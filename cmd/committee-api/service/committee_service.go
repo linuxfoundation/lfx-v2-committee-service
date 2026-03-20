@@ -31,14 +31,15 @@ type committeeServicesrvc struct {
 	auth                        port.Authenticator
 	storage                     port.CommitteeReaderWriter
 	publisher                   port.CommitteePublisher
+	userReader                  port.UserReader
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
 // for the "jwt" security scheme.
 func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme *security.JWTScheme) (context.Context, error) {
 
-	// Parse the Heimdall-authorized principal and email from the token
-	principal, email, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
+	// Parse the Heimdall-authorized principal from the token
+	principal, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
 	if err != nil {
 		slog.ErrorContext(ctx, "committeeService.jwt-auth",
 			"error", err,
@@ -48,7 +49,6 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 	}
 
 	ctx = context.WithValue(ctx, constants.PrincipalContextID, principal)
-	ctx = context.WithValue(ctx, constants.EmailContextID, email)
 	return ctx, nil
 }
 
@@ -480,7 +480,10 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 
 	// Enforce invite ownership: only the invitee can accept their own invite
-	email, _ := ctx.Value(constants.EmailContextID).(string)
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
 	if !strings.EqualFold(email, invite.InviteeEmail) {
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
@@ -535,7 +538,10 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	// Enforce invite ownership: only the invitee can decline their own invite
-	email, _ := ctx.Value(constants.EmailContextID).(string)
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
 	if !strings.EqualFold(email, invite.InviteeEmail) {
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
@@ -589,10 +595,10 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		return nil, wrapError(ctx, errors.NewForbidden("committee does not accept applications"))
 	}
 
-	// Get email from context — Heimdall injects the user's email as a JWT claim.
-	email, _ := ctx.Value(constants.EmailContextID).(string)
-	if email == "" {
-		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	// Resolve the applicant's email via the auth-service NATS lookup.
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
 	}
 
 	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
@@ -767,10 +773,10 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		return nil, wrapError(ctx, errors.NewValidation("unable to determine user username from identity"))
 	}
 
-	// Get email from context — Heimdall injects the user's email as a JWT claim.
-	email, _ := ctx.Value(constants.EmailContextID).(string)
-	if email == "" {
-		return nil, wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	// Resolve the user's email via the auth-service NATS lookup.
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
 	}
 
 	// Create member via the existing orchestrator
@@ -795,10 +801,10 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committeeservice.LeaveCommitteePayload) error {
 	slog.DebugContext(ctx, "committeeService.leave-committee", "committee_uid", p.UID)
 
-	// Get email from context — Heimdall injects the user's email as a JWT claim.
-	email, _ := ctx.Value(constants.EmailContextID).(string)
-	if email == "" {
-		return wrapError(ctx, errors.NewValidation("unable to determine user email from identity"))
+	// Resolve the user's email via the auth-service NATS lookup.
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return wrapError(ctx, err)
 	}
 
 	// Find the member by listing all members and matching email
@@ -851,6 +857,26 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	// service must likewise self-detect non-recoverable errors and
 	// self-terminate.
 	return []byte("OK\n"), nil
+}
+
+// resolveCallerEmail looks up the primary email for the authenticated caller by sending
+// their principal (from context) to the auth-service via NATS.
+func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
+	}
+
+	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
+	if err != nil {
+		return "", errors.NewValidation("unable to resolve user email from identity")
+	}
+
+	if userEmails.PrimaryEmail == "" {
+		return "", errors.NewValidation("no primary email found for user")
+	}
+
+	return userEmails.PrimaryEmail, nil
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
@@ -956,12 +982,13 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
 		storage:                     storage,
 		publisher:                   publisher,
+		userReader:                  userReader,
 	}
 }
