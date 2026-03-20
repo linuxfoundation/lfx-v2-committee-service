@@ -601,11 +601,11 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	)
 
 	application := &model.CommitteeApplication{
-		UID:          uuid.New().String(),
-		CommitteeUID: p.UID,
+		UID:            uuid.New().String(),
+		CommitteeUID:   p.UID,
 		ApplicantEmail: email,
-		Status:       "pending",
-		CreatedAt:    time.Now().UTC(),
+		Status:         "pending",
+		CreatedAt:      time.Now().UTC(),
 	}
 	if p.Message != nil {
 		application.Message = *p.Message
