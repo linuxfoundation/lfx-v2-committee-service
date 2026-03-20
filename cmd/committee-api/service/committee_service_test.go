@@ -992,12 +992,12 @@ func TestGetApplication(t *testing.T) {
 			name: "successful get application",
 			setup: func(repo *mock.MockRepository) {
 				repo.AddCommitteeApplication(&model.CommitteeApplication{
-					UID:          "get-app-001",
-					CommitteeUID: "committee-1",
+					UID:            "get-app-001",
+					CommitteeUID:   "committee-1",
 					ApplicantEmail: "get-app-unique@example.com",
-					Message:      "I want to join",
-					Status:       "pending",
-					CreatedAt:    time.Now().UTC(),
+					Message:        "I want to join",
+					Status:         "pending",
+					CreatedAt:      time.Now().UTC(),
 				})
 			},
 			payload: &committeeservice.GetApplicationPayload{
@@ -1019,12 +1019,12 @@ func TestGetApplication(t *testing.T) {
 			name: "application in different committee",
 			setup: func(repo *mock.MockRepository) {
 				repo.AddCommitteeApplication(&model.CommitteeApplication{
-					UID:          "get-app-002",
-					CommitteeUID: "committee-2",
+					UID:            "get-app-002",
+					CommitteeUID:   "committee-2",
 					ApplicantEmail: "other-applicant@example.com",
-					Message:      "Wrong committee",
-					Status:       "pending",
-					CreatedAt:    time.Now().UTC(),
+					Message:        "Wrong committee",
+					Status:         "pending",
+					CreatedAt:      time.Now().UTC(),
 				})
 			},
 			payload: &committeeservice.GetApplicationPayload{
@@ -1138,12 +1138,12 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 
 	// Seed a rejected application
 	rejected := &model.CommitteeApplication{
-		UID:           "rejected-app",
-		CommitteeUID:  "committee-1",
-		ApplicantEmail:  "reapplicant@example.com",
-		Status:        "rejected",
-		ReviewerNotes: "not a good fit",
-		CreatedAt:     time.Now(),
+		UID:            "rejected-app",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "reapplicant@example.com",
+		Status:         "rejected",
+		ReviewerNotes:  "not a good fit",
+		CreatedAt:      time.Now(),
 	}
 	repo.AddCommitteeApplication(rejected)
 
@@ -1170,11 +1170,11 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 			repo.SetJoinMode("committee-1", "application")
 
 			existing := &model.CommitteeApplication{
-				UID:          "existing-app",
-				CommitteeUID: "committee-1",
+				UID:            "existing-app",
+				CommitteeUID:   "committee-1",
 				ApplicantEmail: "applicant@example.com",
-				Status:       status,
-				CreatedAt:    time.Now(),
+				Status:         status,
+				CreatedAt:      time.Now(),
 			}
 			repo.AddCommitteeApplication(existing)
 
@@ -1213,11 +1213,11 @@ func TestApproveApplication(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 
 			app := &model.CommitteeApplication{
-				UID:          "app-approve-test",
-				CommitteeUID: "committee-1",
+				UID:            "app-approve-test",
+				CommitteeUID:   "committee-1",
 				ApplicantEmail: "user@example.com",
-				Status:       tt.seedStatus,
-				CreatedAt:    time.Now(),
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
 			}
 			repo.AddCommitteeApplication(app)
 
@@ -1252,11 +1252,11 @@ func TestApproveApplication_WrongCommittee(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 
 	app := &model.CommitteeApplication{
-		UID:          "app-wrong-committee",
-		CommitteeUID: "committee-1",
+		UID:            "app-wrong-committee",
+		CommitteeUID:   "committee-1",
 		ApplicantEmail: "user@example.com",
-		Status:       "pending",
-		CreatedAt:    time.Now(),
+		Status:         "pending",
+		CreatedAt:      time.Now(),
 	}
 	repo.AddCommitteeApplication(app)
 
@@ -1294,11 +1294,11 @@ func TestRejectApplication(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
 
 			app := &model.CommitteeApplication{
-				UID:          "app-reject-test",
-				CommitteeUID: "committee-1",
+				UID:            "app-reject-test",
+				CommitteeUID:   "committee-1",
 				ApplicantEmail: "user@example.com",
-				Status:       tt.seedStatus,
-				CreatedAt:    time.Now(),
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
 			}
 			repo.AddCommitteeApplication(app)
 
