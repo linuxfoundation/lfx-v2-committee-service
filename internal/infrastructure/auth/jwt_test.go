@@ -84,11 +84,10 @@ func TestJWTAuthParsePrincipalNilValidator(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, email, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
+	principal, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
-	assert.Empty(t, email)
 	assert.Contains(t, err.Error(), "JWT validator is not set up")
 }
 
@@ -104,11 +103,10 @@ func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, email, err := jwtAuth.ParsePrincipal(ctx, "", logger)
+	principal, err := jwtAuth.ParsePrincipal(ctx, "", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
-	assert.Empty(t, email)
 }
 
 func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
@@ -137,11 +135,10 @@ func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
 			testName = testName[:50]
 		}
 		t.Run(testName, func(t *testing.T) {
-			principal, email, err := jwtAuth.ParsePrincipal(ctx, token, logger)
+			principal, err := jwtAuth.ParsePrincipal(ctx, token, logger)
 
 			assert.Error(t, err)
 			assert.Empty(t, principal)
-			assert.Empty(t, email)
 			// Should not contain sensitive information
 			assert.NotContains(t, err.Error(), "go-jose/go-jose/jwt")
 		})
@@ -159,7 +156,6 @@ func TestHeimdallClaims_Validate(t *testing.T) {
 			name: "valid claims with principal",
 			claims: HeimdallClaims{
 				Principal: "test-user-123",
-				Email:     "test@example.com",
 			},
 			expectError: false,
 		},
@@ -171,17 +167,14 @@ func TestHeimdallClaims_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid claims without principal",
-			claims: HeimdallClaims{
-				Email: "test@example.com",
-			},
+			name:        "invalid claims without principal",
+			claims:      HeimdallClaims{},
 			expectError: true,
 		},
 		{
 			name: "invalid claims with empty principal",
 			claims: HeimdallClaims{
 				Principal: "",
-				Email:     "test@example.com",
 			},
 			expectError: true,
 		},

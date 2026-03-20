@@ -62,7 +62,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
 
 **Accepting an invite** (`POST .../accept`):
-- Only the invitee (matched by JWT email) can accept their own invite.
+- Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
 - Allowed from: `pending`, `declined`.
 - Blocked from: `accepted` (already done), `revoked` (invite was withdrawn).
 - On success: creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
@@ -104,7 +104,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 
 **Submitting an application** (`POST /committees/{uid}/applications`):
 - Only available when `join_mode: application`.
-- The applicant's identity is resolved from the JWT `email` claim.
+- The applicant's identity is resolved via the auth-service (see [Identity Resolution](#identity-resolution)).
 - Creates a new application with `status: pending`.
 - If an application for the same email already exists in this committee:
   - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared and `message` is updated if provided.
@@ -129,6 +129,18 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 **How it works:**
 - User calls `POST /committees/{uid}/members/join`.
 - A committee member is created immediately with `status: Active`.
+
+---
+
+## Identity Resolution
+
+Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (subject identifier), the service resolves the email at request time via a NATS request/reply call to the auth-service:
+
+- **Subject:** `lfx.auth-service.user_emails.read`
+- **Request payload:** the caller's principal (raw bytes, no JSON wrapping)
+- **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
+
+The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
 
 ---
 

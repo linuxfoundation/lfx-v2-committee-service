@@ -5,8 +5,10 @@ package nats
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -65,6 +67,44 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	}
 
 	return response, nil
+}
+
+// EmailsByPrincipal retrieves all email addresses for a user by sending their principal
+// to the NATS subject lfx.auth-service.user_emails.read.
+func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, []byte(principal))
+	if err != nil {
+		return nil, err
+	}
+
+	var response UserEmailsNATSResponse
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		return nil, errors.NewUnexpected("failed to parse user_emails response", err)
+	}
+
+	if !response.Success {
+		errMsg := response.Error
+		if errMsg == "" {
+			errMsg = "user not found"
+		}
+		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found for principal %s: %s", redaction.Redact(principal), errMsg))
+	}
+
+	if response.Data == nil {
+		return nil, errors.NewNotFound(fmt.Sprintf("no email data returned for principal: %s", redaction.Redact(principal)))
+	}
+
+	result := &model.UserEmails{
+		PrimaryEmail: response.Data.PrimaryEmail,
+	}
+	for _, alt := range response.Data.AlternateEmails {
+		result.AlternateEmails = append(result.AlternateEmails, model.AlternateEmail{
+			Email:    alt.Email,
+			Verified: alt.Verified,
+		})
+	}
+
+	return result, nil
 }
 
 // NewMessageRequest creates a new NATS-backed ProjectReader for retrieving project attributes.
