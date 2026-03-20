@@ -205,8 +205,7 @@ func UserReaderImpl(ctx context.Context) port.UserReader {
 	switch repoSource {
 	case "mock":
 		slog.InfoContext(ctx, "initializing mock user reader")
-		// For mock, we can return nil since the orchestrator handles nil gracefully
-		userReader = nil
+		userReader = infrastructure.NewMockUserReader()
 
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS user reader")

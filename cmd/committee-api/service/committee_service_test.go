@@ -1407,7 +1407,7 @@ func TestJoinCommittee(t *testing.T) {
 			username:    "auth0|joiner",
 			email:       "",
 			expectError: true,
-			errContains: "unable to resolve user email from identity",
+			errContains: "principal not found",
 		},
 	}
 
