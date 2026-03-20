@@ -140,7 +140,7 @@ Endpoints that act on behalf of the caller (accept/decline invite, submit applic
 - **Request payload:** the caller's principal (raw bytes, no JSON wrapping)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `422 Unprocessable Entity`.
+The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
 
 ---
 

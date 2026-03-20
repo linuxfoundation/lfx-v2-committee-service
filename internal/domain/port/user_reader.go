@@ -13,7 +13,7 @@ import (
 type UserReader interface {
 	// SubByEmail retrieves a user sub (username) by email address
 	SubByEmail(ctx context.Context, email string) (string, error)
-	// EmailsByPrincipal retrieves all email addresses (primary and alternate) for a user by their
-	// principal (subject identifier or username) via the NATS subject lfx.auth-service.user_emails.read.
+	// EmailsByPrincipal retrieves all email addresses (primary and alternate) for a user
+	// from the identity provider, looked up by their principal (subject identifier).
 	EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error)
 }
