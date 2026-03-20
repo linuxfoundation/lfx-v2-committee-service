@@ -635,8 +635,8 @@ func (s *committeeServicesrvc) convertApplicationDomainToResponse(app *model.Com
 		CommitteeUID: &app.CommitteeUID,
 		Status:       app.Status,
 	}
-	if app.ApplicantUID != "" {
-		result.ApplicantUID = &app.ApplicantUID
+	if app.ApplicantEmail != "" {
+		result.ApplicantEmail = &app.ApplicantEmail
 	}
 	if app.Message != "" {
 		result.Message = &app.Message

@@ -564,18 +564,61 @@ type CreateInviteResponseBody struct {
 // AcceptInviteResponseBody is the type of the "committee-service" service
 // "accept-invite" endpoint HTTP response body.
 type AcceptInviteResponseBody struct {
-	// Invite UID
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Email of the invited person
-	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
-	// Suggested role for the invitee
-	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
-	// Invite status
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
+	// Member status
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status *string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // DeclineInviteResponseBody is the type of the "committee-service" service
@@ -602,8 +645,8 @@ type GetApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -621,8 +664,8 @@ type SubmitApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -636,20 +679,61 @@ type SubmitApplicationResponseBody struct {
 // ApproveApplicationResponseBody is the type of the "committee-service"
 // service "approve-application" endpoint HTTP response body.
 type ApproveApplicationResponseBody struct {
-	// Application UID
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
-	// Application message from the applicant
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-	// Application status
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
+	// Member status
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
-	// Notes from the reviewer
-	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status *string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // RejectApplicationResponseBody is the type of the "committee-service" service
@@ -659,8 +743,8 @@ type RejectApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -1206,6 +1290,14 @@ type AcceptInviteConflictResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// AcceptInviteForbiddenResponseBody is the type of the "committee-service"
+// service "accept-invite" endpoint HTTP response body for the "Forbidden"
+// error.
+type AcceptInviteForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // AcceptInviteInternalServerErrorResponseBody is the type of the
 // "committee-service" service "accept-invite" endpoint HTTP response body for
 // the "InternalServerError" error.
@@ -1241,6 +1333,14 @@ type DeclineInviteBadRequestResponseBody struct {
 // service "decline-invite" endpoint HTTP response body for the "Conflict"
 // error.
 type DeclineInviteConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeclineInviteForbiddenResponseBody is the type of the "committee-service"
+// service "decline-invite" endpoint HTTP response body for the "Forbidden"
+// error.
+type DeclineInviteForbiddenResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -3230,22 +3330,87 @@ func NewRevokeInviteServiceUnavailable(body *RevokeInviteServiceUnavailableRespo
 	return v
 }
 
-// NewAcceptInviteCommitteeInviteWithReadonlyAttributesOK builds a
+// NewAcceptInviteCommitteeMemberFullWithReadonlyAttributesOK builds a
 // "committee-service" service "accept-invite" endpoint result from a HTTP "OK"
 // response.
-func NewAcceptInviteCommitteeInviteWithReadonlyAttributesOK(body *AcceptInviteResponseBody) *committeeservice.CommitteeInviteWithReadonlyAttributes {
-	v := &committeeservice.CommitteeInviteWithReadonlyAttributes{
-		UID:          body.UID,
-		CommitteeUID: body.CommitteeUID,
-		InviteeEmail: body.InviteeEmail,
-		Role:         body.Role,
-		CreatedAt:    body.CreatedAt,
+func NewAcceptInviteCommitteeMemberFullWithReadonlyAttributesOK(body *AcceptInviteResponseBody) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
+	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		CommitteeName:     body.CommitteeName,
+		CommitteeCategory: body.CommitteeCategory,
+		Username:          body.Username,
+		Email:             body.Email,
+		FirstName:         body.FirstName,
+		LastName:          body.LastName,
+		JobTitle:          body.JobTitle,
+		LinkedinProfile:   body.LinkedinProfile,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
+	}
+	if body.AppointedBy != nil {
+		v.AppointedBy = *body.AppointedBy
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
 	}
+	if body.Role != nil {
+		v.Role = &struct {
+			// Committee role name
+			Name string
+			// Role start date
+			StartDate *string
+			// Role end date
+			EndDate *string
+		}{
+			StartDate: body.Role.StartDate,
+			EndDate:   body.Role.EndDate,
+		}
+		if body.Role.Name != nil {
+			v.Role.Name = *body.Role.Name
+		}
+		if body.Role.Name == nil {
+			v.Role.Name = "None"
+		}
+	}
+	if body.AppointedBy == nil {
+		v.AppointedBy = "None"
+	}
 	if body.Status == nil {
-		v.Status = "pending"
+		v.Status = "Active"
+	}
+	if body.Voting != nil {
+		v.Voting = &struct {
+			// Voting status
+			Status string
+			// Voting start date
+			StartDate *string
+			// Voting end date
+			EndDate *string
+		}{
+			StartDate: body.Voting.StartDate,
+			EndDate:   body.Voting.EndDate,
+		}
+		if body.Voting.Status != nil {
+			v.Voting.Status = *body.Voting.Status
+		}
+		if body.Voting.Status == nil {
+			v.Voting.Status = "None"
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 
 	return v
@@ -3265,6 +3430,16 @@ func NewAcceptInviteBadRequest(body *AcceptInviteBadRequestResponseBody) *commit
 // endpoint Conflict error.
 func NewAcceptInviteConflict(body *AcceptInviteConflictResponseBody) *committeeservice.ConflictError {
 	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewAcceptInviteForbidden builds a committee-service service accept-invite
+// endpoint Forbidden error.
+func NewAcceptInviteForbidden(body *AcceptInviteForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
 		Message: *body.Message,
 	}
 
@@ -3342,6 +3517,16 @@ func NewDeclineInviteConflict(body *DeclineInviteConflictResponseBody) *committe
 	return v
 }
 
+// NewDeclineInviteForbidden builds a committee-service service decline-invite
+// endpoint Forbidden error.
+func NewDeclineInviteForbidden(body *DeclineInviteForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewDeclineInviteInternalServerError builds a committee-service service
 // decline-invite endpoint InternalServerError error.
 func NewDeclineInviteInternalServerError(body *DeclineInviteInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -3377,12 +3562,12 @@ func NewDeclineInviteServiceUnavailable(body *DeclineInviteServiceUnavailableRes
 // "OK" response.
 func NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK(body *GetApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
@@ -3429,12 +3614,12 @@ func NewGetApplicationServiceUnavailable(body *GetApplicationServiceUnavailableR
 // HTTP "Created" response.
 func NewSubmitApplicationCommitteeApplicationWithReadonlyAttributesCreated(body *SubmitApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
@@ -3506,23 +3691,87 @@ func NewSubmitApplicationServiceUnavailable(body *SubmitApplicationServiceUnavai
 	return v
 }
 
-// NewApproveApplicationCommitteeApplicationWithReadonlyAttributesOK builds a
+// NewApproveApplicationCommitteeMemberFullWithReadonlyAttributesOK builds a
 // "committee-service" service "approve-application" endpoint result from a
 // HTTP "OK" response.
-func NewApproveApplicationCommitteeApplicationWithReadonlyAttributesOK(body *ApproveApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
-	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+func NewApproveApplicationCommitteeMemberFullWithReadonlyAttributesOK(body *ApproveApplicationResponseBody) *committeeservice.CommitteeMemberFullWithReadonlyAttributes {
+	v := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		CommitteeName:     body.CommitteeName,
+		CommitteeCategory: body.CommitteeCategory,
+		Username:          body.Username,
+		Email:             body.Email,
+		FirstName:         body.FirstName,
+		LastName:          body.LastName,
+		JobTitle:          body.JobTitle,
+		LinkedinProfile:   body.LinkedinProfile,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
+	}
+	if body.AppointedBy != nil {
+		v.AppointedBy = *body.AppointedBy
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
 	}
+	if body.Role != nil {
+		v.Role = &struct {
+			// Committee role name
+			Name string
+			// Role start date
+			StartDate *string
+			// Role end date
+			EndDate *string
+		}{
+			StartDate: body.Role.StartDate,
+			EndDate:   body.Role.EndDate,
+		}
+		if body.Role.Name != nil {
+			v.Role.Name = *body.Role.Name
+		}
+		if body.Role.Name == nil {
+			v.Role.Name = "None"
+		}
+	}
+	if body.AppointedBy == nil {
+		v.AppointedBy = "None"
+	}
 	if body.Status == nil {
-		v.Status = "pending"
+		v.Status = "Active"
+	}
+	if body.Voting != nil {
+		v.Voting = &struct {
+			// Voting status
+			Status string
+			// Voting start date
+			StartDate *string
+			// Voting end date
+			EndDate *string
+		}{
+			StartDate: body.Voting.StartDate,
+			EndDate:   body.Voting.EndDate,
+		}
+		if body.Voting.Status != nil {
+			v.Voting.Status = *body.Voting.Status
+		}
+		if body.Voting.Status == nil {
+			v.Voting.Status = "None"
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 
 	return v
@@ -3583,12 +3832,12 @@ func NewApproveApplicationServiceUnavailable(body *ApproveApplicationServiceUnav
 // "OK" response.
 func NewRejectApplicationCommitteeApplicationWithReadonlyAttributesOK(body *RejectApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
@@ -4456,16 +4705,96 @@ func ValidateAcceptInviteResponseBody(body *AcceptInviteResponseBody) (err error
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
-	if body.InviteeEmail != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", *body.InviteeEmail, goa.FormatEmail))
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
+	if body.CommitteeCategory != nil {
+		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
+		}
+	}
+	if body.Username != nil {
+		if utf8.RuneCountInString(*body.Username) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.JobTitle != nil {
+		if utf8.RuneCountInString(*body.JobTitle) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
+	if body.Role != nil {
+		if body.Role.Name != nil {
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Counsel" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+		}
+		if body.Role.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+		}
+		if body.Role.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
+		if !(*body.Status == "Active" || *body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"Active", "Inactive"}))
+		}
+	}
+	if body.Voting != nil {
+		if body.Voting.Status != nil {
+			if !(*body.Voting.Status == "Alternate Voting Rep" || *body.Voting.Status == "Observer" || *body.Voting.Status == "Voting Rep" || *body.Voting.Status == "Emeritus" || *body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", *body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+		}
+		if body.Voting.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+		}
+		if body.Voting.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
 	}
 	return
 }
@@ -4562,23 +4891,96 @@ func ValidateApproveApplicationResponseBody(body *ApproveApplicationResponseBody
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
-	if body.Message != nil {
-		if utf8.RuneCountInString(*body.Message) > 2000 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
+	if body.CommitteeCategory != nil {
+		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
+		}
+	}
+	if body.Username != nil {
+		if utf8.RuneCountInString(*body.Username) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.JobTitle != nil {
+		if utf8.RuneCountInString(*body.JobTitle) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
+	if body.Role != nil {
+		if body.Role.Name != nil {
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Counsel" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+		}
+		if body.Role.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+		}
+		if body.Role.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "Active" || *body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"Active", "Inactive"}))
 		}
 	}
-	if body.ReviewerNotes != nil {
-		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+	if body.Voting != nil {
+		if body.Voting.Status != nil {
+			if !(*body.Voting.Status == "Alternate Voting Rep" || *body.Voting.Status == "Observer" || *body.Voting.Status == "Voting Rep" || *body.Voting.Status == "Emeritus" || *body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", *body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+		}
+		if body.Voting.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+		}
+		if body.Voting.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
 	}
 	return
 }
@@ -5267,6 +5669,15 @@ func ValidateAcceptInviteConflictResponseBody(body *AcceptInviteConflictResponse
 	return
 }
 
+// ValidateAcceptInviteForbiddenResponseBody runs the validations defined on
+// accept-invite_Forbidden_response_body
+func ValidateAcceptInviteForbiddenResponseBody(body *AcceptInviteForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateAcceptInviteInternalServerErrorResponseBody runs the validations
 // defined on accept-invite_InternalServerError_response_body
 func ValidateAcceptInviteInternalServerErrorResponseBody(body *AcceptInviteInternalServerErrorResponseBody) (err error) {
@@ -5306,6 +5717,15 @@ func ValidateDeclineInviteBadRequestResponseBody(body *DeclineInviteBadRequestRe
 // ValidateDeclineInviteConflictResponseBody runs the validations defined on
 // decline-invite_Conflict_response_body
 func ValidateDeclineInviteConflictResponseBody(body *DeclineInviteConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeclineInviteForbiddenResponseBody runs the validations defined on
+// decline-invite_Forbidden_response_body
+func ValidateDeclineInviteForbiddenResponseBody(body *DeclineInviteForbiddenResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

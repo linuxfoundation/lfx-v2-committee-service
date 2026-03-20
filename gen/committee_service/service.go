@@ -47,7 +47,7 @@ type Service interface {
 	// Revoke a pending invite
 	RevokeInvite(context.Context, *RevokeInvitePayload) (err error)
 	// Accept a pending invite
-	AcceptInvite(context.Context, *AcceptInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
+	AcceptInvite(context.Context, *AcceptInvitePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Decline a pending invite
 	DeclineInvite(context.Context, *DeclineInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error)
 	// Get a single application by UID
@@ -55,7 +55,7 @@ type Service interface {
 	// Submit an application to join a committee
 	SubmitApplication(context.Context, *SubmitApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Approve a pending application
-	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Reject a pending application
 	RejectApplication(context.Context, *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Self-join a committee (only works when join_mode is open)
@@ -121,8 +121,8 @@ type CommitteeApplicationWithReadonlyAttributes struct {
 	UID *string
 	// Committee UID
 	CommitteeUID *string
-	// Applicant user UID
-	ApplicantUID *string
+	// Applicant email address
+	ApplicantEmail *string
 	// Application message from the applicant
 	Message *string
 	// Application status
@@ -843,6 +843,7 @@ type ConflictError struct {
 	Message string
 }
 
+// Forbidden
 type ForbiddenError struct {
 	// Error message
 	Message string
@@ -899,7 +900,7 @@ func (e *ConflictError) GoaErrorName() string {
 
 // Error returns an error description.
 func (e *ForbiddenError) Error() string {
-	return ""
+	return "Forbidden"
 }
 
 // ErrorName returns "forbidden-error".

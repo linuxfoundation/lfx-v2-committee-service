@@ -564,18 +564,61 @@ type CreateInviteResponseBody struct {
 // AcceptInviteResponseBody is the type of the "committee-service" service
 // "accept-invite" endpoint HTTP response body.
 type AcceptInviteResponseBody struct {
-	// Invite UID
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Email of the invited person
-	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
-	// Suggested role for the invitee
-	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
-	// Invite status
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Member status
 	Status string `form:"status" json:"status" xml:"status"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // DeclineInviteResponseBody is the type of the "committee-service" service
@@ -602,8 +645,8 @@ type GetApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -621,8 +664,8 @@ type SubmitApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -636,20 +679,61 @@ type SubmitApplicationResponseBody struct {
 // ApproveApplicationResponseBody is the type of the "committee-service"
 // service "approve-application" endpoint HTTP response body.
 type ApproveApplicationResponseBody struct {
-	// Application UID
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
-	// Application message from the applicant
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-	// Application status
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Member status
 	Status string `form:"status" json:"status" xml:"status"`
-	// Notes from the reviewer
-	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // RejectApplicationResponseBody is the type of the "committee-service" service
@@ -659,8 +743,8 @@ type RejectApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -1206,6 +1290,14 @@ type AcceptInviteConflictResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// AcceptInviteForbiddenResponseBody is the type of the "committee-service"
+// service "accept-invite" endpoint HTTP response body for the "Forbidden"
+// error.
+type AcceptInviteForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // AcceptInviteInternalServerErrorResponseBody is the type of the
 // "committee-service" service "accept-invite" endpoint HTTP response body for
 // the "InternalServerError" error.
@@ -1241,6 +1333,14 @@ type DeclineInviteBadRequestResponseBody struct {
 // service "decline-invite" endpoint HTTP response body for the "Conflict"
 // error.
 type DeclineInviteConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeclineInviteForbiddenResponseBody is the type of the "committee-service"
+// service "decline-invite" endpoint HTTP response body for the "Forbidden"
+// error.
+type DeclineInviteForbiddenResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -2262,19 +2362,87 @@ func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadon
 
 // NewAcceptInviteResponseBody builds the HTTP response body from the result of
 // the "accept-invite" endpoint of the "committee-service" service.
-func NewAcceptInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *AcceptInviteResponseBody {
+func NewAcceptInviteResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *AcceptInviteResponseBody {
 	body := &AcceptInviteResponseBody{
-		UID:          res.UID,
-		CommitteeUID: res.CommitteeUID,
-		InviteeEmail: res.InviteeEmail,
-		Role:         res.Role,
-		Status:       res.Status,
-		CreatedAt:    res.CreatedAt,
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		Username:          res.Username,
+		Email:             res.Email,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		JobTitle:          res.JobTitle,
+		LinkedinProfile:   res.LinkedinProfile,
+		AppointedBy:       res.AppointedBy,
+		Status:            res.Status,
+		CreatedAt:         res.CreatedAt,
+		UpdatedAt:         res.UpdatedAt,
+	}
+	if res.Role != nil {
+		body.Role = &struct {
+			// Committee role name
+			Name string `form:"name" json:"name" xml:"name"`
+			// Role start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Role end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Name:      res.Role.Name,
+			StartDate: res.Role.StartDate,
+			EndDate:   res.Role.EndDate,
+		}
+		{
+			var zero string
+			if body.Role.Name == zero {
+				body.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if body.AppointedBy == zero {
+			body.AppointedBy = "None"
+		}
 	}
 	{
 		var zero string
 		if body.Status == zero {
-			body.Status = "pending"
+			body.Status = "Active"
+		}
+	}
+	if res.Voting != nil {
+		body.Voting = &struct {
+			// Voting status
+			Status string `form:"status" json:"status" xml:"status"`
+			// Voting start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Voting end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Status:    res.Voting.Status,
+			StartDate: res.Voting.StartDate,
+			EndDate:   res.Voting.EndDate,
+		}
+		{
+			var zero string
+			if body.Voting.Status == zero {
+				body.Voting.Status = "None"
+			}
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
 		}
 	}
 	return body
@@ -2304,13 +2472,13 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 // of the "get-application" endpoint of the "committee-service" service.
 func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *GetApplicationResponseBody {
 	body := &GetApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string
@@ -2326,13 +2494,13 @@ func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWit
 // service.
 func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *SubmitApplicationResponseBody {
 	body := &SubmitApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string
@@ -2346,20 +2514,87 @@ func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplication
 // NewApproveApplicationResponseBody builds the HTTP response body from the
 // result of the "approve-application" endpoint of the "committee-service"
 // service.
-func NewApproveApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *ApproveApplicationResponseBody {
+func NewApproveApplicationResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *ApproveApplicationResponseBody {
 	body := &ApproveApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		Username:          res.Username,
+		Email:             res.Email,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		JobTitle:          res.JobTitle,
+		LinkedinProfile:   res.LinkedinProfile,
+		AppointedBy:       res.AppointedBy,
+		Status:            res.Status,
+		CreatedAt:         res.CreatedAt,
+		UpdatedAt:         res.UpdatedAt,
+	}
+	if res.Role != nil {
+		body.Role = &struct {
+			// Committee role name
+			Name string `form:"name" json:"name" xml:"name"`
+			// Role start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Role end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Name:      res.Role.Name,
+			StartDate: res.Role.StartDate,
+			EndDate:   res.Role.EndDate,
+		}
+		{
+			var zero string
+			if body.Role.Name == zero {
+				body.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if body.AppointedBy == zero {
+			body.AppointedBy = "None"
+		}
 	}
 	{
 		var zero string
 		if body.Status == zero {
-			body.Status = "pending"
+			body.Status = "Active"
+		}
+	}
+	if res.Voting != nil {
+		body.Voting = &struct {
+			// Voting status
+			Status string `form:"status" json:"status" xml:"status"`
+			// Voting start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Voting end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Status:    res.Voting.Status,
+			StartDate: res.Voting.StartDate,
+			EndDate:   res.Voting.EndDate,
+		}
+		{
+			var zero string
+			if body.Voting.Status == zero {
+				body.Voting.Status = "None"
+			}
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
 		}
 	}
 	return body
@@ -2370,13 +2605,13 @@ func NewApproveApplicationResponseBody(res *committeeservice.CommitteeApplicatio
 // service.
 func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *RejectApplicationResponseBody {
 	body := &RejectApplicationResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		ApplicantUID:  res.ApplicantUID,
-		Message:       res.Message,
-		Status:        res.Status,
-		ReviewerNotes: res.ReviewerNotes,
-		CreatedAt:     res.CreatedAt,
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
 	}
 	{
 		var zero string
@@ -3066,6 +3301,15 @@ func NewAcceptInviteConflictResponseBody(res *committeeservice.ConflictError) *A
 	return body
 }
 
+// NewAcceptInviteForbiddenResponseBody builds the HTTP response body from the
+// result of the "accept-invite" endpoint of the "committee-service" service.
+func NewAcceptInviteForbiddenResponseBody(res *committeeservice.ForbiddenError) *AcceptInviteForbiddenResponseBody {
+	body := &AcceptInviteForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewAcceptInviteInternalServerErrorResponseBody builds the HTTP response body
 // from the result of the "accept-invite" endpoint of the "committee-service"
 // service.
@@ -3109,6 +3353,15 @@ func NewDeclineInviteBadRequestResponseBody(res *committeeservice.BadRequestErro
 // result of the "decline-invite" endpoint of the "committee-service" service.
 func NewDeclineInviteConflictResponseBody(res *committeeservice.ConflictError) *DeclineInviteConflictResponseBody {
 	body := &DeclineInviteConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeclineInviteForbiddenResponseBody builds the HTTP response body from the
+// result of the "decline-invite" endpoint of the "committee-service" service.
+func NewDeclineInviteForbiddenResponseBody(res *committeeservice.ForbiddenError) *DeclineInviteForbiddenResponseBody {
+	body := &DeclineInviteForbiddenResponseBody{
 		Message: res.Message,
 	}
 	return body
