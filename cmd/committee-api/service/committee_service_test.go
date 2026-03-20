@@ -18,6 +18,35 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
+// mockUserReader is a simple in-memory UserReader for tests.
+// EmailByPrincipal maps principal → primary email.
+type mockUserReader struct {
+	emails map[string]string
+}
+
+func newMockUserReader(pairs ...string) *mockUserReader {
+	m := &mockUserReader{emails: make(map[string]string)}
+	for i := 0; i+1 < len(pairs); i += 2 {
+		m.emails[pairs[i]] = pairs[i+1]
+	}
+	return m
+}
+
+func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, error) {
+	return "", nil
+}
+
+func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+	if principal == "" {
+		return nil, errs.NewValidation("mock: principal is empty")
+	}
+	email, ok := m.emails[principal]
+	if !ok {
+		return nil, errs.NewNotFound("mock: principal not found: " + principal)
+	}
+	return &model.UserEmails{PrimaryEmail: email}, nil
+}
+
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
 	deleteError       error
@@ -88,6 +117,7 @@ func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
+		userReader:                  newMockUserReader(),
 	}
 
 	return service, mockOrchestrator
@@ -105,6 +135,7 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
+		userReader:                  newMockUserReader(),
 	}
 
 	return svc, mockOrchestrator, mockRepo
@@ -825,6 +856,7 @@ func TestAcceptInvite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
 
 			invite := &model.CommitteeInvite{
 				UID:          "invite-accept-test",
@@ -844,7 +876,7 @@ func TestAcceptInvite(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
 			result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-accept-test",
@@ -875,7 +907,8 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to accept someone else's invite
-	ctx := context.WithValue(context.Background(), constants.EmailContextID, "attacker@example.com")
+	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
 	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-accept",
@@ -924,6 +957,7 @@ func TestDeclineInvite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
 
 			invite := &model.CommitteeInvite{
 				UID:          "invite-decline-test",
@@ -934,7 +968,7 @@ func TestDeclineInvite(t *testing.T) {
 			}
 			repo.AddCommitteeInvite(invite)
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
 			result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-decline-test",
@@ -965,7 +999,8 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to decline someone else's invite
-	ctx := context.WithValue(context.Background(), constants.EmailContextID, "attacker@example.com")
+	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
 	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-decline",
@@ -1095,22 +1130,23 @@ func TestSubmitApplication(t *testing.T) {
 			errContains: "does not accept applications",
 		},
 		{
-			name:        "rejected when email is empty",
+			name:        "rejected when principal is empty",
 			joinMode:    "application",
 			principal:   "",
 			expectError: true,
-			errContains: "unable to determine user email from identity",
+			errContains: "unable to determine user identity from token",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
 
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
 			msg := "I'd like to join"
 
 			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -1147,8 +1183,9 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 	}
 	repo.AddCommitteeApplication(rejected)
 
+	svc.userReader = newMockUserReader("reapplicant@example.com", "reapplicant@example.com")
 	newMsg := "I've improved since last time"
-	ctx := context.WithValue(context.Background(), constants.EmailContextID, "reapplicant@example.com")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "reapplicant@example.com")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 		UID:     "committee-1",
 		Message: &newMsg,
@@ -1178,7 +1215,8 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 			}
 			repo.AddCommitteeApplication(existing)
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, "applicant@example.com")
+			svc.userReader = newMockUserReader("applicant@example.com", "applicant@example.com")
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "applicant@example.com")
 			_, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 				UID: "committee-1",
 			})
@@ -1364,18 +1402,21 @@ func TestJoinCommittee(t *testing.T) {
 			errContains: "unable to determine user username from identity",
 		},
 		{
-			name:        "rejected when email is empty",
+			name:        "rejected when principal has no email",
 			joinMode:    "open",
 			username:    "auth0|joiner",
 			email:       "",
 			expectError: true,
-			errContains: "unable to determine user email from identity",
+			errContains: "principal not found",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
+			if tt.email != "" {
+				svc.userReader = newMockUserReader(tt.username, tt.email)
+			}
 
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
@@ -1391,7 +1432,6 @@ func TestJoinCommittee(t *testing.T) {
 			}
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
-			ctx = context.WithValue(ctx, constants.EmailContextID, tt.email)
 
 			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
 				UID:   "committee-1",
@@ -1433,17 +1473,20 @@ func TestLeaveCommittee(t *testing.T) {
 			errContains: "you are not a member",
 		},
 		{
-			name:        "empty email",
+			name:        "empty principal",
 			principal:   "",
 			seedMember:  false,
 			expectError: true,
-			errContains: "unable to determine user email from identity",
+			errContains: "unable to determine user identity from token",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
+			if tt.principal != "" {
+				svc.userReader = newMockUserReader(tt.principal, tt.principal)
+			}
 
 			if tt.seedMember {
 				repo.AddCommitteeMember("committee-1", &model.CommitteeMember{
@@ -1457,7 +1500,7 @@ func TestLeaveCommittee(t *testing.T) {
 				mockOrch.deleteError = nil
 			}
 
-			ctx := context.WithValue(context.Background(), constants.EmailContextID, tt.principal)
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
 
 			err := svc.LeaveCommittee(ctx, &committeeservice.LeaveCommitteePayload{
 				UID:   "committee-1",
