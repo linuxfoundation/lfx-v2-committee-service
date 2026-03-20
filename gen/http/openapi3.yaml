@@ -528,7 +528,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
                             example:
-                                applicant_uid: user-uid-12345
+                                applicant_email: user@example.com
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
@@ -633,7 +633,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
                             example:
-                                applicant_uid: user-uid-12345
+                                applicant_email: user@example.com
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
@@ -846,7 +846,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
                             example:
-                                applicant_uid: user-uid-12345
+                                applicant_email: user@example.com
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
@@ -2339,10 +2339,10 @@ components:
         CommitteeApplicationWithReadonlyAttributes:
             type: object
             properties:
-                applicant_uid:
+                applicant_email:
                     type: string
-                    description: Applicant user UID
-                    example: user-uid-12345
+                    description: Applicant email address
+                    example: user@example.com
                 committee_uid:
                     type: string
                     description: Committee UID
@@ -2379,7 +2379,7 @@ components:
                     format: uuid
             description: A representation of a committee application with readonly attributes.
             example:
-                applicant_uid: user-uid-12345
+                applicant_email: user@example.com
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 message: I would like to join the TSC to contribute my expertise.

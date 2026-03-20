@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -381,10 +382,46 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		invite.Role = *p.Role
 	}
 
-	// Check uniqueness
+	// Check uniqueness — allow re-inviting if the existing invite is revoked
 	_, errUnique := s.storage.UniqueInvite(ctx, invite)
 	if errUnique != nil {
-		return nil, wrapError(ctx, errUnique)
+		var conflictErr errors.Conflict
+		if !stderrors.As(errUnique, &conflictErr) {
+			return nil, wrapError(ctx, errUnique)
+		}
+
+		// Uniqueness conflict: look for a revoked invite to reinstate
+		existing, errList := s.storage.ListInvites(ctx, p.UID)
+		if errList != nil {
+			return nil, wrapError(ctx, errList)
+		}
+		var revokedInvite *model.CommitteeInvite
+		for _, inv := range existing {
+			if strings.EqualFold(inv.InviteeEmail, p.InviteeEmail) && inv.Status == "revoked" {
+				revokedInvite = inv
+				break
+			}
+		}
+		if revokedInvite == nil {
+			return nil, wrapError(ctx, errUnique)
+		}
+
+		// Reinstate the revoked invite by setting it back to pending
+		_, rev, errGet := s.storage.GetInvite(ctx, revokedInvite.UID)
+		if errGet != nil {
+			return nil, wrapError(ctx, errGet)
+		}
+		revokedInvite.Status = "pending"
+		if p.Role != nil {
+			revokedInvite.Role = *p.Role
+		}
+		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
+			return nil, wrapError(ctx, errUpdate)
+		}
+
+		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
+
+		return s.convertInviteDomainToResponse(revokedInvite), nil
 	}
 
 	if err := s.storage.CreateInvite(ctx, invite); err != nil {
@@ -396,7 +433,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
-// RevokeInvite revokes a pending invite
+// RevokeInvite revokes a pending or declined invite
 func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeservice.RevokeInvitePayload) error {
 	slog.DebugContext(ctx, "committeeService.revoke-invite",
 		"committee_uid", p.UID,
@@ -412,7 +449,7 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 		return wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
-	if invite.Status != "pending" {
+	if invite.Status == "accepted" || invite.Status == "revoked" {
 		return wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 
@@ -426,7 +463,7 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	return nil
 }
 
-// AcceptInvite accepts a pending invite and creates a committee member
+// AcceptInvite accepts a pending or previously-declined invite and creates a committee member
 func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.accept-invite",
 		"committee_uid", p.UID,
@@ -448,11 +485,11 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
-	if invite.Status != "pending" {
+	if invite.Status == "accepted" || invite.Status == "revoked" {
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 
-	// Create the committee member first — if this fails the invite remains pending
+	// Create the committee member first — if this fails the invite remains pending/declined
 	// and the invitee can retry without being stuck in an inconsistent state.
 	username, _ := ctx.Value(constants.PrincipalContextID).(string)
 	member := &model.CommitteeMember{
@@ -566,7 +603,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	application := &model.CommitteeApplication{
 		UID:          uuid.New().String(),
 		CommitteeUID: p.UID,
-		ApplicantUID: email,
+		ApplicantEmail: email,
 		Status:       "pending",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -574,10 +611,47 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		application.Message = *p.Message
 	}
 
-	// Check uniqueness
+	// Check uniqueness — allow reapplying if the existing application is rejected
 	_, errUnique := s.storage.UniqueApplication(ctx, application)
 	if errUnique != nil {
-		return nil, wrapError(ctx, errUnique)
+		var conflictErr errors.Conflict
+		if !stderrors.As(errUnique, &conflictErr) {
+			return nil, wrapError(ctx, errUnique)
+		}
+
+		// Uniqueness conflict: look for a rejected application to reinstate
+		existing, errList := s.storage.ListApplications(ctx, p.UID)
+		if errList != nil {
+			return nil, wrapError(ctx, errList)
+		}
+		var rejectedApp *model.CommitteeApplication
+		for _, app := range existing {
+			if strings.EqualFold(app.ApplicantEmail, email) && app.Status == "rejected" {
+				rejectedApp = app
+				break
+			}
+		}
+		if rejectedApp == nil {
+			return nil, wrapError(ctx, errUnique)
+		}
+
+		// Reinstate the rejected application by setting it back to pending
+		_, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
+		if errGet != nil {
+			return nil, wrapError(ctx, errGet)
+		}
+		rejectedApp.Status = "pending"
+		rejectedApp.ReviewerNotes = ""
+		if p.Message != nil {
+			rejectedApp.Message = *p.Message
+		}
+		if errUpdate := s.storage.UpdateApplication(ctx, rejectedApp, rev); errUpdate != nil {
+			return nil, wrapError(ctx, errUpdate)
+		}
+
+		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
+
+		return s.convertApplicationDomainToResponse(rejectedApp), nil
 	}
 
 	if err := s.storage.CreateApplication(ctx, application); err != nil {
@@ -614,7 +688,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: application.CommitteeUID,
-			Email:        application.ApplicantUID,
+			Email:        application.ApplicantEmail,
 			Status:       "Active",
 		},
 	}

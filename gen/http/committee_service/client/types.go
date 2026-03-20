@@ -645,8 +645,8 @@ type GetApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -664,8 +664,8 @@ type SubmitApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -743,8 +743,8 @@ type RejectApplicationResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Applicant user UID
-	ApplicantUID *string `form:"applicant_uid,omitempty" json:"applicant_uid,omitempty" xml:"applicant_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
 	// Application message from the applicant
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	// Application status
@@ -3562,12 +3562,12 @@ func NewDeclineInviteServiceUnavailable(body *DeclineInviteServiceUnavailableRes
 // "OK" response.
 func NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK(body *GetApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
@@ -3614,12 +3614,12 @@ func NewGetApplicationServiceUnavailable(body *GetApplicationServiceUnavailableR
 // HTTP "Created" response.
 func NewSubmitApplicationCommitteeApplicationWithReadonlyAttributesCreated(body *SubmitApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
@@ -3832,12 +3832,12 @@ func NewApproveApplicationServiceUnavailable(body *ApproveApplicationServiceUnav
 // "OK" response.
 func NewRejectApplicationCommitteeApplicationWithReadonlyAttributesOK(body *RejectApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
 	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		ApplicantUID:  body.ApplicantUID,
-		Message:       body.Message,
-		ReviewerNotes: body.ReviewerNotes,
-		CreatedAt:     body.CreatedAt,
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
 	}
 	if body.Status != nil {
 		v.Status = *body.Status
