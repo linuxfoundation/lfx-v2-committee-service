@@ -29,6 +29,17 @@ type Endpoints struct {
 	GetCommitteeMember      goa.Endpoint
 	UpdateCommitteeMember   goa.Endpoint
 	DeleteCommitteeMember   goa.Endpoint
+	GetInvite               goa.Endpoint
+	CreateInvite            goa.Endpoint
+	RevokeInvite            goa.Endpoint
+	AcceptInvite            goa.Endpoint
+	DeclineInvite           goa.Endpoint
+	GetApplication          goa.Endpoint
+	SubmitApplication       goa.Endpoint
+	ApproveApplication      goa.Endpoint
+	RejectApplication       goa.Endpoint
+	JoinCommittee           goa.Endpoint
+	LeaveCommittee          goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "committee-service" service with
@@ -49,6 +60,17 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCommitteeMember:      NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
 		UpdateCommitteeMember:   NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
 		DeleteCommitteeMember:   NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetInvite:               NewGetInviteEndpoint(s, a.JWTAuth),
+		CreateInvite:            NewCreateInviteEndpoint(s, a.JWTAuth),
+		RevokeInvite:            NewRevokeInviteEndpoint(s, a.JWTAuth),
+		AcceptInvite:            NewAcceptInviteEndpoint(s, a.JWTAuth),
+		DeclineInvite:           NewDeclineInviteEndpoint(s, a.JWTAuth),
+		GetApplication:          NewGetApplicationEndpoint(s, a.JWTAuth),
+		SubmitApplication:       NewSubmitApplicationEndpoint(s, a.JWTAuth),
+		ApproveApplication:      NewApproveApplicationEndpoint(s, a.JWTAuth),
+		RejectApplication:       NewRejectApplicationEndpoint(s, a.JWTAuth),
+		JoinCommittee:           NewJoinCommitteeEndpoint(s, a.JWTAuth),
+		LeaveCommittee:          NewLeaveCommitteeEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -67,6 +89,17 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
 	e.DeleteCommitteeMember = m(e.DeleteCommitteeMember)
+	e.GetInvite = m(e.GetInvite)
+	e.CreateInvite = m(e.CreateInvite)
+	e.RevokeInvite = m(e.RevokeInvite)
+	e.AcceptInvite = m(e.AcceptInvite)
+	e.DeclineInvite = m(e.DeclineInvite)
+	e.GetApplication = m(e.GetApplication)
+	e.SubmitApplication = m(e.SubmitApplication)
+	e.ApproveApplication = m(e.ApproveApplication)
+	e.RejectApplication = m(e.RejectApplication)
+	e.JoinCommittee = m(e.JoinCommittee)
+	e.LeaveCommittee = m(e.LeaveCommittee)
 }
 
 // NewCreateCommitteeEndpoint returns an endpoint function that calls the
@@ -312,5 +345,258 @@ func NewDeleteCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc)
 			return nil, err
 		}
 		return nil, s.DeleteCommitteeMember(ctx, p)
+	}
+}
+
+// NewGetInviteEndpoint returns an endpoint function that calls the method
+// "get-invite" of service "committee-service".
+func NewGetInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetInvitePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetInvite(ctx, p)
+	}
+}
+
+// NewCreateInviteEndpoint returns an endpoint function that calls the method
+// "create-invite" of service "committee-service".
+func NewCreateInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*CreateInvitePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.CreateInvite(ctx, p)
+	}
+}
+
+// NewRevokeInviteEndpoint returns an endpoint function that calls the method
+// "revoke-invite" of service "committee-service".
+func NewRevokeInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*RevokeInvitePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.RevokeInvite(ctx, p)
+	}
+}
+
+// NewAcceptInviteEndpoint returns an endpoint function that calls the method
+// "accept-invite" of service "committee-service".
+func NewAcceptInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*AcceptInvitePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.AcceptInvite(ctx, p)
+	}
+}
+
+// NewDeclineInviteEndpoint returns an endpoint function that calls the method
+// "decline-invite" of service "committee-service".
+func NewDeclineInviteEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*DeclineInvitePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.DeclineInvite(ctx, p)
+	}
+}
+
+// NewGetApplicationEndpoint returns an endpoint function that calls the method
+// "get-application" of service "committee-service".
+func NewGetApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetApplication(ctx, p)
+	}
+}
+
+// NewSubmitApplicationEndpoint returns an endpoint function that calls the
+// method "submit-application" of service "committee-service".
+func NewSubmitApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*SubmitApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.SubmitApplication(ctx, p)
+	}
+}
+
+// NewApproveApplicationEndpoint returns an endpoint function that calls the
+// method "approve-application" of service "committee-service".
+func NewApproveApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ApproveApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.ApproveApplication(ctx, p)
+	}
+}
+
+// NewRejectApplicationEndpoint returns an endpoint function that calls the
+// method "reject-application" of service "committee-service".
+func NewRejectApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*RejectApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.RejectApplication(ctx, p)
+	}
+}
+
+// NewJoinCommitteeEndpoint returns an endpoint function that calls the method
+// "join-committee" of service "committee-service".
+func NewJoinCommitteeEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*JoinCommitteePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.JoinCommittee(ctx, p)
+	}
+}
+
+// NewLeaveCommitteeEndpoint returns an endpoint function that calls the method
+// "leave-committee" of service "committee-service".
+func NewLeaveCommitteeEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*LeaveCommitteePayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.LeaveCommittee(ctx, p)
 	}
 }

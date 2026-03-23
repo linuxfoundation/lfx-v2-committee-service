@@ -42,6 +42,25 @@ type ErrorMessageNATSResponse struct {
 	Error   string `json:"error"`
 }
 
+// UserEmailsNATSResponse represents the response from lfx.auth-service.user_emails.read
+type UserEmailsNATSResponse struct {
+	Success bool                    `json:"success"`
+	Error   string                  `json:"error,omitempty"`
+	Data    *UserEmailsNATSDataBody `json:"data,omitempty"`
+}
+
+// UserEmailsNATSDataBody holds the email payload from the auth-service user_emails response
+type UserEmailsNATSDataBody struct {
+	PrimaryEmail    string                    `json:"primary_email"`
+	AlternateEmails []UserEmailsNATSAlternate `json:"alternate_emails"`
+}
+
+// UserEmailsNATSAlternate represents a single alternate email entry
+type UserEmailsNATSAlternate struct {
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
+}
+
 // CheckError parses a JSON message and returns an error if the operation was unsuccessful.
 func (e ErrorMessageNATSResponse) CheckError(message string) error {
 	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal == nil {

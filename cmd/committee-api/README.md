@@ -309,18 +309,41 @@ The service relies on some resources and external services being spun up prior t
     ```bash
     # Build the dockerfile (from the root of the repo)
     docker build -t lfx-v2-committee-service:<release_number> .
+    ```
 
-    # Install the helm chart for the service into the lfx namespace (from the root of the repo)
-    helm install lfx-v2-committee-service ./charts/lfx-v2-committee-service/ -n lfx
+    **Using default values** (suitable for a shared/staging cluster with existing NATS buckets and Heimdall):
 
-    # Once you have already installed the helm chart and need to just update it, use the following command (from the root of the repo):
-    helm upgrade lfx-v2-committee-service ./charts/lfx-v2-committee-service/ -n lfx
+    ```bash
+    # Install the helm chart using default values
+    make helm-install
 
+    # Update an already-installed chart
+    make helm-install
+    ```
+
+    **Using a local values override** (recommended for local development — lets you customise image tag, disable auth, etc.):
+
+    ```bash
+    # 1. Copy the example local values file (only needed once)
+    cp charts/lfx-v2-committee-service/values.local.example.yaml \
+       charts/lfx-v2-committee-service/values.local.yaml
+
+    # 2. Edit values.local.yaml to suit your environment, then install:
+    make helm-install-local
+
+    # Preview what Kubernetes manifests will be rendered without installing:
+    make helm-templates-local
+    ```
+
+    > `values.local.yaml` is gitignored — your local overrides will never be committed.
+
+    ```bash
     # Check that the REST API is accessible by hitting the `/livez` endpoint (you should get a response of OK if it is working):
     #
     # Note: replace the hostname with the host from ./charts/lfx-v2-committee-service/ingressroute.yaml
     curl http://lfx-api.k8s.orb.local/livez
     ```
+
 ### Authorization with OpenFGA
 
 When deployed via Kubernetes, the committee service uses OpenFGA for fine-grained authorization control. The authorization is handled by Heimdall middleware before requests reach the service.

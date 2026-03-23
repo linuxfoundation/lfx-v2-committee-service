@@ -44,7 +44,6 @@ var (
 // token.
 type HeimdallClaims struct {
 	Principal string `json:"principal"`
-	Email     string `json:"email,omitempty"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -56,6 +55,7 @@ func (c *HeimdallClaims) Validate(_ context.Context) error {
 	return nil
 }
 
+// JWTAuth provides JWT token validation and principal extraction using Heimdall JWKS.
 type JWTAuth struct {
 	validator *validator.Validator
 	config    JWTAuthConfig

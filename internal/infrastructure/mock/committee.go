@@ -30,16 +30,22 @@ func NewMockRepository() *MockRepository {
 		ctx := context.Background()
 
 		mock := &MockRepository{
-			committees:         make(map[string]*model.Committee),
-			committeeSettings:  make(map[string]*model.CommitteeSettings),
-			committeeMembers:   make(map[string]map[string]*model.CommitteeMember),
-			projectSlugs:       make(map[string]string),
-			projectNames:       make(map[string]string),
-			committeeIndexKeys: make(map[string]*model.Committee),
-			memberIndexKeys:    make(map[string]map[string]*model.CommitteeMember),
-			committeeRevisions: make(map[string]uint64),
-			settingsRevisions:  make(map[string]uint64),
-			memberRevisions:    make(map[string]uint64),
+			committees:            make(map[string]*model.Committee),
+			committeeSettings:     make(map[string]*model.CommitteeSettings),
+			committeeMembers:      make(map[string]map[string]*model.CommitteeMember),
+			projectSlugs:          make(map[string]string),
+			projectNames:          make(map[string]string),
+			committeeIndexKeys:    make(map[string]*model.Committee),
+			memberIndexKeys:       make(map[string]map[string]*model.CommitteeMember),
+			committeeInvites:      make(map[string]*model.CommitteeInvite),
+			committeeApplications: make(map[string]*model.CommitteeApplication),
+			inviteIndexKeys:       make(map[string]*model.CommitteeInvite),
+			applicationIndexKeys:  make(map[string]*model.CommitteeApplication),
+			committeeRevisions:    make(map[string]uint64),
+			settingsRevisions:     make(map[string]uint64),
+			memberRevisions:       make(map[string]uint64),
+			inviteRevisions:       make(map[string]uint64),
+			applicationRevisions:  make(map[string]uint64),
 		}
 
 		// Add some sample data
@@ -207,11 +213,18 @@ type MockRepository struct {
 	projectNames       map[string]string                            // projectUID -> name
 	committeeIndexKeys map[string]*model.Committee                  // indexKey -> committee
 	memberIndexKeys    map[string]map[string]*model.CommitteeMember // committeeUID -> indexKey -> member
+	// Invite and application storage
+	committeeInvites      map[string]*model.CommitteeInvite      // inviteUID -> invite
+	committeeApplications map[string]*model.CommitteeApplication // applicationUID -> application
+	inviteIndexKeys       map[string]*model.CommitteeInvite      // indexKey -> invite
+	applicationIndexKeys  map[string]*model.CommitteeApplication // indexKey -> application
 	// Revision tracking for optimistic locking
-	committeeRevisions map[string]uint64 // committeeUID -> revision
-	settingsRevisions  map[string]uint64 // committeeUID -> settings revision
-	memberRevisions    map[string]uint64 // memberUID -> revision
-	mu                 sync.RWMutex      // Protect concurrent access to maps
+	committeeRevisions   map[string]uint64 // committeeUID -> revision
+	settingsRevisions    map[string]uint64 // committeeUID -> settings revision
+	memberRevisions      map[string]uint64 // memberUID -> revision
+	inviteRevisions      map[string]uint64 // inviteUID -> revision
+	applicationRevisions map[string]uint64 // applicationUID -> revision
+	mu                   sync.RWMutex      // Protect concurrent access to maps
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -418,6 +431,7 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision u
 
 // UniqueNameProject verifies if a committee with the same name and project exists
 // Returns conflict error if found (for uniqueness checking)
+// Returns (key, nil) when the name/project combination is unique (matches NATS storage behavior)
 func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
 	nameProjectKey := committee.BuildIndexKey(ctx)
 	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by name project key", "name_project_key", nameProjectKey)
@@ -431,8 +445,8 @@ func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *
 		return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with name project key %s already exists", nameProjectKey))
 	}
 
-	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("committee with name project key %s not found", nameProjectKey))
+	// Return nil error when unique (matches NATS KV Create behavior)
+	return nameProjectKey, nil
 }
 
 // UniqueSSOGroupName verifies if a committee with the same SSO group name exists
@@ -450,8 +464,9 @@ func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee 
 		}
 	}
 
-	// Return not found if unique (no conflict)
-	return "", errors.NewNotFound(fmt.Sprintf("committee with SSO group name %s not found", committee.SSOGroupName))
+	// Return nil error when unique (matches NATS KV Create behavior)
+	ssoKey := "sso:" + committee.SSOGroupName
+	return ssoKey, nil
 }
 
 // ================== CommitteeSettingsWriter implementation ==================
@@ -604,6 +619,192 @@ func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.Co
 	return "", nil
 }
 
+// ================== CommitteeInviteReader implementation ==================
+
+// GetInvite retrieves a committee invite by UID
+func (m *MockRepository) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
+	slog.DebugContext(ctx, "mock repository: getting committee invite", "uid", uid)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	invite, exists := m.committeeInvites[uid]
+	if !exists {
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("invite with UID %s not found", uid))
+	}
+
+	inviteCopy := *invite
+	revision := m.inviteRevisions[uid]
+	if revision == 0 {
+		revision = 1
+	}
+	return &inviteCopy, revision, nil
+}
+
+// ListInvites retrieves all invites for a given committee UID
+func (m *MockRepository) ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee invites", "committee_uid", committeeUID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var invites []*model.CommitteeInvite
+	for _, invite := range m.committeeInvites {
+		if invite.CommitteeUID == committeeUID {
+			inviteCopy := *invite
+			invites = append(invites, &inviteCopy)
+		}
+	}
+	if invites == nil {
+		invites = []*model.CommitteeInvite{}
+	}
+	return invites, nil
+}
+
+// ================== CommitteeApplicationReader implementation ==================
+
+// GetApplication retrieves a committee application by UID
+func (m *MockRepository) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	slog.DebugContext(ctx, "mock repository: getting committee application", "uid", uid)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	application, exists := m.committeeApplications[uid]
+	if !exists {
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("application with UID %s not found", uid))
+	}
+
+	applicationCopy := *application
+	revision := m.applicationRevisions[uid]
+	if revision == 0 {
+		revision = 1
+	}
+	return &applicationCopy, revision, nil
+}
+
+// ListApplications retrieves all applications for a given committee UID
+func (m *MockRepository) ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee applications", "committee_uid", committeeUID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var applications []*model.CommitteeApplication
+	for _, application := range m.committeeApplications {
+		if application.CommitteeUID == committeeUID {
+			applicationCopy := *application
+			applications = append(applications, &applicationCopy)
+		}
+	}
+	if applications == nil {
+		applications = []*model.CommitteeApplication{}
+	}
+	return applications, nil
+}
+
+// ================== CommitteeInviteWriter implementation ==================
+
+// CreateInvite creates a new committee invite
+func (w *MockCommitteeWriter) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
+	slog.DebugContext(ctx, "mock committee writer: creating invite", "invite_uid", invite.UID)
+
+	if invite.UID == "" {
+		invite.UID = uuid.New().String()
+	}
+	invite.CreatedAt = time.Now()
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	w.mock.committeeInvites[invite.UID] = invite
+	w.mock.inviteIndexKeys[invite.BuildIndexKey(ctx)] = invite
+	w.mock.inviteRevisions[invite.UID] = 1
+	return nil
+}
+
+// UpdateInvite updates an existing committee invite
+func (w *MockCommitteeWriter) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: updating invite", "invite_uid", invite.UID, "revision", revision)
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	if _, exists := w.mock.committeeInvites[invite.UID]; !exists {
+		return errors.NewNotFound(fmt.Sprintf("invite with UID %s not found", invite.UID))
+	}
+
+	w.mock.committeeInvites[invite.UID] = invite
+	w.mock.inviteIndexKeys[invite.BuildIndexKey(ctx)] = invite
+	w.mock.inviteRevisions[invite.UID] = revision + 1
+	return nil
+}
+
+// UniqueInvite checks if an invite is unique
+func (w *MockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: checking invite uniqueness")
+
+	w.mock.mu.RLock()
+	defer w.mock.mu.RUnlock()
+
+	indexKey := invite.BuildIndexKey(ctx)
+	if _, exists := w.mock.inviteIndexKeys[indexKey]; exists {
+		return indexKey, errors.NewConflict("invite already exists")
+	}
+	return indexKey, nil
+}
+
+// ================== CommitteeApplicationWriter implementation ==================
+
+// CreateApplication creates a new committee application
+func (w *MockCommitteeWriter) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	slog.DebugContext(ctx, "mock committee writer: creating application", "application_uid", application.UID)
+
+	if application.UID == "" {
+		application.UID = uuid.New().String()
+	}
+	application.CreatedAt = time.Now()
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	w.mock.committeeApplications[application.UID] = application
+	w.mock.applicationIndexKeys[application.BuildIndexKey(ctx)] = application
+	w.mock.applicationRevisions[application.UID] = 1
+	return nil
+}
+
+// UpdateApplication updates an existing committee application
+func (w *MockCommitteeWriter) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	slog.DebugContext(ctx, "mock committee writer: updating application", "application_uid", application.UID, "revision", revision)
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	if _, exists := w.mock.committeeApplications[application.UID]; !exists {
+		return errors.NewNotFound(fmt.Sprintf("application with UID %s not found", application.UID))
+	}
+
+	w.mock.committeeApplications[application.UID] = application
+	w.mock.applicationIndexKeys[application.BuildIndexKey(ctx)] = application
+	w.mock.applicationRevisions[application.UID] = revision + 1
+	return nil
+}
+
+// UniqueApplication checks if an application is unique
+func (w *MockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: checking application uniqueness")
+
+	w.mock.mu.RLock()
+	defer w.mock.mu.RUnlock()
+
+	indexKey := application.BuildIndexKey(ctx)
+	if _, exists := w.mock.applicationIndexKeys[indexKey]; exists {
+		return indexKey, errors.NewConflict("application already exists")
+	}
+	return indexKey, nil
+}
+
 // MockProjectRetriever implements ProjectRetriever interface
 type MockProjectRetriever struct {
 	mock *MockRepository
@@ -727,9 +928,15 @@ func (m *MockRepository) ClearAll() {
 	m.projectNames = make(map[string]string)
 	m.committeeIndexKeys = make(map[string]*model.Committee)
 	m.memberIndexKeys = make(map[string]map[string]*model.CommitteeMember)
+	m.committeeInvites = make(map[string]*model.CommitteeInvite)
+	m.committeeApplications = make(map[string]*model.CommitteeApplication)
+	m.inviteIndexKeys = make(map[string]*model.CommitteeInvite)
+	m.applicationIndexKeys = make(map[string]*model.CommitteeApplication)
 	m.committeeRevisions = make(map[string]uint64)
 	m.settingsRevisions = make(map[string]uint64)
 	m.memberRevisions = make(map[string]uint64)
+	m.inviteRevisions = make(map[string]uint64)
+	m.applicationRevisions = make(map[string]uint64)
 }
 
 // GetCommitteeCount returns the total number of committees
@@ -804,6 +1011,47 @@ func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, even
 // NewMockCommitteePublisher creates a mock committee publisher
 func NewMockCommitteePublisher() port.CommitteePublisher {
 	return &MockCommitteePublisher{}
+}
+
+// GetSettingsPtr returns the settings pointer for a committee.
+// WARNING: The returned pointer is NOT safe to mutate without external synchronization.
+// Prefer SetJoinMode() for thread-safe updates in tests.
+// Returns nil if no settings exist for the given committee UID.
+func (m *MockRepository) GetSettingsPtr(committeeUID string) *model.CommitteeSettings {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.committeeSettings[committeeUID]
+}
+
+// SetJoinMode safely updates the join_mode for a committee's settings.
+func (m *MockRepository) SetJoinMode(committeeUID, joinMode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if settings, exists := m.committeeSettings[committeeUID]; exists {
+		settings.JoinMode = joinMode
+	}
+}
+
+// AddCommitteeInvite adds a committee invite to the mock data (useful for testing)
+func (m *MockRepository) AddCommitteeInvite(invite *model.CommitteeInvite) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.committeeInvites[invite.UID] = invite
+	m.inviteIndexKeys[invite.BuildIndexKey(context.Background())] = invite
+	m.inviteRevisions[invite.UID] = 1
+}
+
+// AddCommitteeApplication adds a committee application to the mock data (useful for testing)
+func (m *MockRepository) AddCommitteeApplication(application *model.CommitteeApplication) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.committeeApplications[application.UID] = application
+	m.applicationIndexKeys[application.BuildIndexKey(context.Background())] = application
+	m.applicationRevisions[application.UID] = 1
 }
 
 // stringPtr is a helper function to create string pointers
