@@ -351,10 +351,29 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		"revision", committeeRevision,
 	)
 
-	// Step 3: Validate member against committee requirements (domain validation)
-	// We use empty settings for basic validation since we only need settings for email validation
-	basicSettings := &model.CommitteeSettings{}
-	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: basicSettings}
+	// Step 3: Fetch committee settings and validate member against committee requirements
+	var settings *model.CommitteeSettings
+	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
+	if errSettings != nil {
+		var notFoundErr errs.NotFound
+		if !errors.As(errSettings, &notFoundErr) {
+			slog.ErrorContext(ctx, "failed to retrieve committee settings during member update",
+				"error", errSettings,
+				"committee_uid", member.CommitteeUID,
+			)
+			return nil, errSettings
+		}
+	}
+	if settings == nil {
+		settings = &model.CommitteeSettings{}
+	}
+
+	slog.DebugContext(ctx, "committee settings retrieved for member update",
+		"committee_uid", member.CommitteeUID,
+		"business_email_required", settings.BusinessEmailRequired,
+	)
+
+	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
@@ -373,29 +392,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		slog.DebugContext(ctx, "email change detected",
 			"old_email", redaction.RedactEmail(existing.Email),
 			"new_email", redaction.RedactEmail(member.Email),
-		)
-
-		// Get committee settings to check business email requirements (only when email changes)
-		var settings *model.CommitteeSettings
-		settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
-		if errSettings != nil {
-			var notFoundErr errs.NotFound
-			if !errors.As(errSettings, &notFoundErr) {
-				slog.ErrorContext(ctx, "failed to retrieve committee settings for email validation",
-					"error", errSettings,
-					"committee_uid", member.CommitteeUID,
-				)
-				return nil, errSettings
-			}
-		}
-		// Use empty settings if not found
-		if settings == nil {
-			settings = &model.CommitteeSettings{}
-		}
-
-		slog.DebugContext(ctx, "committee settings retrieved for email validation",
-			"committee_uid", member.CommitteeUID,
-			"business_email_required", settings.BusinessEmailRequired,
 		)
 
 		// Validate business email domain if required
