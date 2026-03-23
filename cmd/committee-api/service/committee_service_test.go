@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,8 +14,38 @@ import (
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
+
+// mockUserReader is a simple in-memory UserReader for tests.
+// EmailByPrincipal maps principal → primary email.
+type mockUserReader struct {
+	emails map[string]string
+}
+
+func newMockUserReader(pairs ...string) *mockUserReader {
+	m := &mockUserReader{emails: make(map[string]string)}
+	for i := 0; i+1 < len(pairs); i += 2 {
+		m.emails[pairs[i]] = pairs[i+1]
+	}
+	return m
+}
+
+func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, error) {
+	return "", nil
+}
+
+func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+	if principal == "" {
+		return nil, errs.NewValidation("mock: principal is empty")
+	}
+	email, ok := m.emails[principal]
+	if !ok {
+		return nil, errs.NewNotFound("mock: principal not found: " + principal)
+	}
+	return &model.UserEmails{PrimaryEmail: email}, nil
+}
 
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
@@ -23,6 +54,8 @@ type mockCommitteeWriterOrchestrator struct {
 	updateMember      *model.CommitteeMember
 	updateMemberErr   error
 	updateMemberCalls []updateMemberCall
+	createMember      *model.CommitteeMember
+	createMemberErr   error
 }
 
 type updateMemberCall struct {
@@ -52,6 +85,12 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 }
 
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	if m.createMemberErr != nil {
+		return nil, m.createMemberErr
+	}
+	if m.createMember != nil {
+		return m.createMember, nil
+	}
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
@@ -77,9 +116,29 @@ func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator
 		committeeReaderOrchestrator: nil, // Not needed for delete member test
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
+		publisher:                   mock.NewMockCommitteePublisher(),
+		userReader:                  newMockUserReader(),
 	}
 
 	return service, mockOrchestrator
+}
+
+// setupServiceTestWithRepo returns the service, mock orchestrator, AND the underlying mock repo
+// so tests can seed invite/application/settings data.
+func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator, *mock.MockRepository) {
+	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
+	mockRepo := mock.NewMockRepository()
+
+	svc := &committeeServicesrvc{
+		committeeWriterOrchestrator: mockOrchestrator,
+		committeeReaderOrchestrator: nil,
+		auth:                        mock.NewMockAuthService(),
+		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
+		publisher:                   mock.NewMockCommitteePublisher(),
+		userReader:                  newMockUserReader(),
+	}
+
+	return svc, mockOrchestrator, mockRepo
 }
 
 func TestDeleteCommitteeMember(t *testing.T) {
@@ -453,6 +512,1008 @@ func TestUpdateCommitteeMember(t *testing.T) {
 
 			if tt.validateCall != nil {
 				tt.validateCall(t, mockOrchestrator.updateMemberCalls)
+			}
+		})
+	}
+}
+
+// ==================== Invite Endpoint Tests ====================
+
+func TestGetInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(repo *mock.MockRepository)
+		payload     *committeeservice.GetInvitePayload
+		expectError bool
+		errType     string
+	}{
+		{
+			name: "successful get invite",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "get-invite-001",
+					CommitteeUID: "committee-1",
+					InviteeEmail: "getinvite@example.com",
+					Role:         "member",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "get-invite-001",
+			},
+		},
+		{
+			name:  "invite not found",
+			setup: func(repo *mock.MockRepository) {},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "non-existent-invite",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+		{
+			name: "invite in different committee",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "get-invite-002",
+					CommitteeUID: "committee-2",
+					InviteeEmail: "other@example.com",
+					Role:         "member",
+					Status:       "pending",
+					CreatedAt:    time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "get-invite-002",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, repo := setupServiceTestWithRepo()
+			tt.setup(repo)
+
+			result, err := service.GetInvite(context.Background(), tt.payload)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				if tt.errType == "not_found" {
+					var nfErr *committeeservice.NotFoundError
+					require.ErrorAs(t, err, &nfErr)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.payload.InviteUID, *result.UID)
+			}
+		})
+	}
+}
+
+func TestCreateInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		payload     *committeeservice.CreateInvitePayload
+		expectError bool
+		errContains string
+	}{
+		{
+			name: "successful invite creation",
+			payload: &committeeservice.CreateInvitePayload{
+				UID:          "committee-1",
+				InviteeEmail: "newinvitee@example.com",
+				Role:         stringPtr("member"),
+				XSync:        false,
+			},
+			expectError: false,
+		},
+		{
+			name: "invite for non-existent committee",
+			payload: &committeeservice.CreateInvitePayload{
+				UID:          "non-existent-committee",
+				InviteeEmail: "someone@example.com",
+			},
+			expectError: true,
+			errContains: "not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, _ := setupServiceTestWithRepo()
+
+			result, err := svc.CreateInvite(context.Background(), tt.payload)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.NotEmpty(t, *result.UID)
+				assert.Equal(t, tt.payload.UID, *result.CommitteeUID)
+				assert.Equal(t, tt.payload.InviteeEmail, *result.InviteeEmail)
+				assert.Equal(t, "pending", result.Status)
+			}
+		})
+	}
+}
+
+func TestCreateInvite_DuplicateRejected(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	// Seed an existing invite
+	existing := &model.CommitteeInvite{
+		UID:          "existing-invite",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "dup@example.com",
+		Status:       "pending",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(existing)
+
+	// Attempt to create a duplicate
+	_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "dup@example.com",
+	})
+
+	require.Error(t, err)
+	var conflictErr *committeeservice.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	// Seed a revoked invite
+	revoked := &model.CommitteeInvite{
+		UID:          "revoked-invite",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "reinvite@example.com",
+		Status:       "revoked",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(revoked)
+
+	// Re-invite the same person
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "reinvite@example.com",
+		Role:         stringPtr("chair"),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	// Should return the existing invite reinstated, not a new one
+	assert.Equal(t, revoked.UID, *result.UID)
+	assert.Equal(t, "pending", result.Status)
+	require.NotNil(t, result.Role)
+	assert.Equal(t, "chair", *result.Role)
+}
+
+func TestCreateInvite_NonRevokedDuplicateRejected(t *testing.T) {
+	for _, status := range []string{"pending", "declined", "accepted"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+
+			existing := &model.CommitteeInvite{
+				UID:          "existing-invite",
+				CommitteeUID: "committee-1",
+				InviteeEmail: "dup@example.com",
+				Status:       status,
+				CreatedAt:    time.Now(),
+			}
+			repo.AddCommitteeInvite(existing)
+
+			_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+				UID:          "committee-1",
+				InviteeEmail: "dup@example.com",
+			})
+
+			require.Error(t, err)
+			var conflictErr *committeeservice.ConflictError
+			require.ErrorAs(t, err, &conflictErr)
+		})
+	}
+}
+
+func TestRevokeInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		seedStatus  string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "successful revocation of pending invite",
+			seedStatus:  "pending",
+			expectError: false,
+		},
+		{
+			name:        "successful revocation of declined invite",
+			seedStatus:  "declined",
+			expectError: false,
+		},
+		{
+			name:        "cannot revoke already accepted invite",
+			seedStatus:  "accepted",
+			expectError: true,
+			errContains: "already been processed",
+		},
+		{
+			name:        "cannot revoke already revoked invite",
+			seedStatus:  "revoked",
+			expectError: true,
+			errContains: "already been processed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+
+			invite := &model.CommitteeInvite{
+				UID:          "invite-revoke-test",
+				CommitteeUID: "committee-1",
+				InviteeEmail: "revoke@example.com",
+				Status:       tt.seedStatus,
+				CreatedAt:    time.Now(),
+			}
+			repo.AddCommitteeInvite(invite)
+
+			err := svc.RevokeInvite(context.Background(), &committeeservice.RevokeInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "invite-revoke-test",
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRevokeInvite_WrongCommittee(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	invite := &model.CommitteeInvite{
+		UID:          "invite-wrong-committee",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "test@example.com",
+		Status:       "pending",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(invite)
+
+	err := svc.RevokeInvite(context.Background(), &committeeservice.RevokeInvitePayload{
+		UID:       "committee-2", // wrong committee
+		InviteUID: "invite-wrong-committee",
+	})
+
+	require.Error(t, err)
+	var nfErr *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nfErr)
+	assert.Contains(t, nfErr.Message, "invite not found in this committee")
+}
+
+func TestRevokeInvite_NotFound(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+
+	err := svc.RevokeInvite(context.Background(), &committeeservice.RevokeInvitePayload{
+		UID:       "committee-1",
+		InviteUID: "does-not-exist",
+	})
+
+	require.Error(t, err)
+	var nfErr *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nfErr)
+}
+
+func TestAcceptInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		seedStatus  string
+		principal   string
+		expectError bool
+	}{
+		{
+			name:        "successful accept of pending invite",
+			seedStatus:  "pending",
+			principal:   "accept@example.com",
+			expectError: false,
+		},
+		{
+			name:        "successful accept of previously declined invite",
+			seedStatus:  "declined",
+			principal:   "accept@example.com",
+			expectError: false,
+		},
+		{
+			name:        "cannot accept already accepted invite",
+			seedStatus:  "accepted",
+			principal:   "accept@example.com",
+			expectError: true,
+		},
+		{
+			name:        "cannot accept revoked invite",
+			seedStatus:  "revoked",
+			principal:   "accept@example.com",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+
+			invite := &model.CommitteeInvite{
+				UID:          "invite-accept-test",
+				CommitteeUID: "committee-1",
+				InviteeEmail: "accept@example.com",
+				Status:       tt.seedStatus,
+				CreatedAt:    time.Now(),
+			}
+			repo.AddCommitteeInvite(invite)
+
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "new-member-uid",
+					CommitteeUID: "committee-1",
+					Email:        "accept@example.com",
+					Status:       "Active",
+				},
+			}
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "invite-accept-test",
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "Active", result.Status)
+			}
+		})
+	}
+}
+
+func TestAcceptInvite_OwnershipCheck(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	invite := &model.CommitteeInvite{
+		UID:          "invite-ownership-accept",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "real-invitee@example.com",
+		Status:       "pending",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(invite)
+
+	// Different user tries to accept someone else's invite
+	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+		UID:       "committee-1",
+		InviteUID: "invite-ownership-accept",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	var forbiddenErr *committeeservice.ForbiddenError
+	require.ErrorAs(t, err, &forbiddenErr)
+	assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+}
+
+func TestDeclineInvite(t *testing.T) {
+	tests := []struct {
+		name        string
+		seedStatus  string
+		principal   string
+		expectError bool
+	}{
+		{
+			name:        "successful decline of pending invite",
+			seedStatus:  "pending",
+			principal:   "decline@example.com",
+			expectError: false,
+		},
+		{
+			name:        "cannot decline already accepted invite",
+			seedStatus:  "accepted",
+			principal:   "decline@example.com",
+			expectError: true,
+		},
+		{
+			name:        "cannot decline already declined invite",
+			seedStatus:  "declined",
+			principal:   "decline@example.com",
+			expectError: true,
+		},
+		{
+			name:        "cannot decline revoked invite",
+			seedStatus:  "revoked",
+			principal:   "decline@example.com",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+
+			invite := &model.CommitteeInvite{
+				UID:          "invite-decline-test",
+				CommitteeUID: "committee-1",
+				InviteeEmail: "decline@example.com",
+				Status:       tt.seedStatus,
+				CreatedAt:    time.Now(),
+			}
+			repo.AddCommitteeInvite(invite)
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
+				UID:       "committee-1",
+				InviteUID: "invite-decline-test",
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "declined", result.Status)
+			}
+		})
+	}
+}
+
+func TestDeclineInvite_OwnershipCheck(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	invite := &model.CommitteeInvite{
+		UID:          "invite-ownership-decline",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "real-invitee@example.com",
+		Status:       "pending",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(invite)
+
+	// Different user tries to decline someone else's invite
+	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
+		UID:       "committee-1",
+		InviteUID: "invite-ownership-decline",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	var forbiddenErr *committeeservice.ForbiddenError
+	require.ErrorAs(t, err, &forbiddenErr)
+	assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+}
+
+// ==================== Application Endpoint Tests ====================
+
+func TestGetApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(repo *mock.MockRepository)
+		payload     *committeeservice.GetApplicationPayload
+		expectError bool
+		errType     string
+	}{
+		{
+			name: "successful get application",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeApplication(&model.CommitteeApplication{
+					UID:            "get-app-001",
+					CommitteeUID:   "committee-1",
+					ApplicantEmail: "get-app-unique@example.com",
+					Message:        "I want to join",
+					Status:         "pending",
+					CreatedAt:      time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "get-app-001",
+			},
+		},
+		{
+			name:  "application not found",
+			setup: func(repo *mock.MockRepository) {},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "non-existent-app",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+		{
+			name: "application in different committee",
+			setup: func(repo *mock.MockRepository) {
+				repo.AddCommitteeApplication(&model.CommitteeApplication{
+					UID:            "get-app-002",
+					CommitteeUID:   "committee-2",
+					ApplicantEmail: "other-applicant@example.com",
+					Message:        "Wrong committee",
+					Status:         "pending",
+					CreatedAt:      time.Now().UTC(),
+				})
+			},
+			payload: &committeeservice.GetApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "get-app-002",
+			},
+			expectError: true,
+			errType:     "not_found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, repo := setupServiceTestWithRepo()
+			tt.setup(repo)
+
+			result, err := service.GetApplication(context.Background(), tt.payload)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				if tt.errType == "not_found" {
+					var nfErr *committeeservice.NotFoundError
+					require.ErrorAs(t, err, &nfErr)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.payload.ApplicationUID, *result.UID)
+			}
+		})
+	}
+}
+
+func TestSubmitApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		joinMode    string
+		principal   string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "successful application when join_mode is application",
+			joinMode:    "application",
+			principal:   "applicant@example.com",
+			expectError: false,
+		},
+		{
+			name:        "rejected when join_mode is open",
+			joinMode:    "open",
+			principal:   "applicant@example.com",
+			expectError: true,
+			errContains: "does not accept applications",
+		},
+		{
+			name:        "rejected when join_mode is empty (closed)",
+			joinMode:    "",
+			principal:   "applicant@example.com",
+			expectError: true,
+			errContains: "does not accept applications",
+		},
+		{
+			name:        "rejected when join_mode is closed",
+			joinMode:    "closed",
+			principal:   "applicant@example.com",
+			expectError: true,
+			errContains: "does not accept applications",
+		},
+		{
+			name:        "rejected when principal is empty",
+			joinMode:    "application",
+			principal:   "",
+			expectError: true,
+			errContains: "unable to determine user identity from token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+
+			// Update committee-1 settings with the desired join_mode
+			repo.SetJoinMode("committee-1", tt.joinMode)
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			msg := "I'd like to join"
+
+			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+				UID:     "committee-1",
+				Message: &msg,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.NotEmpty(t, *result.UID)
+				assert.Equal(t, "committee-1", *result.CommitteeUID)
+				assert.Equal(t, "pending", result.Status)
+			}
+		})
+	}
+}
+
+func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+
+	// Seed a rejected application
+	rejected := &model.CommitteeApplication{
+		UID:            "rejected-app",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "reapplicant@example.com",
+		Status:         "rejected",
+		ReviewerNotes:  "not a good fit",
+		CreatedAt:      time.Now(),
+	}
+	repo.AddCommitteeApplication(rejected)
+
+	svc.userReader = newMockUserReader("reapplicant@example.com", "reapplicant@example.com")
+	newMsg := "I've improved since last time"
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "reapplicant@example.com")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID:     "committee-1",
+		Message: &newMsg,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	// Should return the existing application reinstated, not a new one
+	assert.Equal(t, rejected.UID, *result.UID)
+	assert.Equal(t, "pending", result.Status)
+	require.NotNil(t, result.Message)
+	assert.Equal(t, newMsg, *result.Message)
+}
+
+func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
+	for _, status := range []string{"pending", "approved"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
+
+			existing := &model.CommitteeApplication{
+				UID:            "existing-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "applicant@example.com",
+				Status:         status,
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(existing)
+
+			svc.userReader = newMockUserReader("applicant@example.com", "applicant@example.com")
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "applicant@example.com")
+			_, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+				UID: "committee-1",
+			})
+
+			require.Error(t, err)
+			var conflictErr *committeeservice.ConflictError
+			require.ErrorAs(t, err, &conflictErr)
+		})
+	}
+}
+
+func TestApproveApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		seedStatus  string
+		expectError bool
+	}{
+		{
+			name:        "successful approval of pending application",
+			seedStatus:  "pending",
+			expectError: false,
+		},
+		{
+			name:        "cannot approve already rejected application",
+			seedStatus:  "rejected",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+
+			app := &model.CommitteeApplication{
+				UID:            "app-approve-test",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "user@example.com",
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(app)
+
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Email:        "user@example.com",
+					Status:       "Active",
+				},
+			}
+
+			notes := "Welcome aboard"
+			result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-approve-test",
+				ReviewerNotes:  &notes,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "Active", result.Status)
+			}
+		})
+	}
+}
+
+func TestApproveApplication_WrongCommittee(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	app := &model.CommitteeApplication{
+		UID:            "app-wrong-committee",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "user@example.com",
+		Status:         "pending",
+		CreatedAt:      time.Now(),
+	}
+	repo.AddCommitteeApplication(app)
+
+	_, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+		UID:            "committee-2", // wrong committee
+		ApplicationUID: "app-wrong-committee",
+	})
+
+	require.Error(t, err)
+	var nfErr *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nfErr)
+	assert.Contains(t, nfErr.Message, "application not found in this committee")
+}
+
+func TestRejectApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		seedStatus  string
+		expectError bool
+	}{
+		{
+			name:        "successful rejection of pending application",
+			seedStatus:  "pending",
+			expectError: false,
+		},
+		{
+			name:        "cannot reject already approved application",
+			seedStatus:  "approved",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+
+			app := &model.CommitteeApplication{
+				UID:            "app-reject-test",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "user@example.com",
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(app)
+
+			notes := "Not a fit"
+			result, err := svc.RejectApplication(context.Background(), &committeeservice.RejectApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-reject-test",
+				ReviewerNotes:  &notes,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "rejected", result.Status)
+			}
+		})
+	}
+}
+
+// ==================== Join/Leave Endpoint Tests ====================
+
+func TestJoinCommittee(t *testing.T) {
+	tests := []struct {
+		name        string
+		joinMode    string
+		username    string
+		email       string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "successful join when open",
+			joinMode:    "open",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
+			expectError: false,
+		},
+		{
+			name:        "rejected when join_mode is application",
+			joinMode:    "application",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
+			expectError: true,
+			errContains: "join_mode is not open",
+		},
+		{
+			name:        "rejected when join_mode is empty (closed)",
+			joinMode:    "",
+			username:    "auth0|joiner",
+			email:       "joiner@example.com",
+			expectError: true,
+			errContains: "join_mode is not open",
+		},
+		{
+			name:        "rejected when username is empty",
+			joinMode:    "open",
+			username:    "",
+			email:       "joiner@example.com",
+			expectError: true,
+			errContains: "unable to determine user username from identity",
+		},
+		{
+			name:        "rejected when principal has no email",
+			joinMode:    "open",
+			username:    "auth0|joiner",
+			email:       "",
+			expectError: true,
+			errContains: "principal not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			if tt.email != "" {
+				svc.userReader = newMockUserReader(tt.username, tt.email)
+			}
+
+			// Update committee-1 settings with the desired join_mode
+			repo.SetJoinMode("committee-1", tt.joinMode)
+
+			// Configure mock orchestrator to return a member on CreateMember
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "new-member-uid",
+					CommitteeUID: "committee-1",
+					Email:        tt.email,
+					Status:       "Active",
+				},
+			}
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
+
+			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
+				UID:   "committee-1",
+				XSync: false,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+			}
+		})
+	}
+}
+
+func TestLeaveCommittee(t *testing.T) {
+	tests := []struct {
+		name          string
+		principal     string
+		seedMember    bool
+		seedMemberUID string
+		expectError   bool
+		errContains   string
+	}{
+		{
+			name:          "successful leave",
+			principal:     "leave-test-unique@example.com",
+			seedMember:    true,
+			seedMemberUID: "leave-member-uid",
+			expectError:   false,
+		},
+		{
+			name:        "not a member",
+			principal:   "notamember@example.com",
+			seedMember:  false,
+			expectError: true,
+			errContains: "you are not a member",
+		},
+		{
+			name:        "empty principal",
+			principal:   "",
+			seedMember:  false,
+			expectError: true,
+			errContains: "unable to determine user identity from token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			if tt.principal != "" {
+				svc.userReader = newMockUserReader(tt.principal, tt.principal)
+			}
+
+			if tt.seedMember {
+				repo.AddCommitteeMember("committee-1", &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          tt.seedMemberUID,
+						CommitteeUID: "committee-1",
+						Email:        tt.principal,
+						Status:       "Active",
+					},
+				})
+				mockOrch.deleteError = nil
+			}
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+
+			err := svc.LeaveCommittee(ctx, &committeeservice.LeaveCommitteePayload{
+				UID:   "committee-1",
+				XSync: true,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				// Verify the orchestrator was called with the correct member UID
+				require.Len(t, mockOrch.deleteCalls, 1)
+				assert.Equal(t, tt.seedMemberUID, mockOrch.deleteCalls[0].uid)
 			}
 		})
 	}

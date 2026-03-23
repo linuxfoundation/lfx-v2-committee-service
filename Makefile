@@ -15,6 +15,7 @@ DOCKER_TAG := $(VERSION)
 HELM_CHART_PATH=./charts/lfx-v2-committee-service
 HELM_RELEASE_NAME=lfx-v2-committee-service
 HELM_NAMESPACE=lfx
+HELM_VALUES_FILE=./charts/lfx-v2-committee-service/values.local.yaml
 
 # Go
 GO_VERSION := 1.24.5
@@ -143,12 +144,28 @@ helm-install:
 	helm upgrade --install $(HELM_RELEASE_NAME) $(HELM_CHART_PATH) --namespace $(HELM_NAMESPACE)
 	@echo "==> Helm chart installed: $(HELM_RELEASE_NAME)"
 
+# Install Helm chart with local values file
+.PHONY: helm-install-local
+helm-install-local:
+	@echo "==> Installing Helm chart with local values..."
+	helm upgrade --force --install $(HELM_RELEASE_NAME) $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) --create-namespace \
+		--values $(HELM_VALUES_FILE)
+
 # Print templates for Helm chart
 .PHONY: helm-templates
 helm-templates:
 	@echo "==> Printing templates for Helm chart..."
 	helm template $(HELM_RELEASE_NAME) $(HELM_CHART_PATH) --namespace $(HELM_NAMESPACE)
 	@echo "==> Templates printed for Helm chart: $(HELM_RELEASE_NAME)"
+
+# Print templates for Helm chart with local values file
+.PHONY: helm-templates-local
+helm-templates-local:
+	@echo "==> Rendering Helm templates with local values..."
+	helm template $(HELM_RELEASE_NAME) $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--values $(HELM_VALUES_FILE)
 
 # Uninstall Helm chart
 .PHONY: helm-uninstall

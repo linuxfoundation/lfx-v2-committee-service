@@ -102,14 +102,17 @@ func (m *messagePublisher) publish(ctx context.Context, subject string, message 
 	return m.publishMessage(ctx, subject, data, messageType)
 }
 
+// Indexer publishes an indexer message to the given NATS subject for search index updates.
 func (m *messagePublisher) Indexer(ctx context.Context, subject string, message any, sync bool) error {
 	return m.publish(ctx, subject, message, "indexer", sync)
 }
 
+// Access publishes an access-control message to the given NATS subject for permission updates.
 func (m *messagePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
 	return m.publish(ctx, subject, message, "access", sync)
 }
 
+// Event publishes a domain event to the given NATS subject for downstream consumers.
 func (m *messagePublisher) Event(ctx context.Context, subject string, event any, sync bool) error {
 	return m.publish(ctx, subject, event, "event", sync)
 }

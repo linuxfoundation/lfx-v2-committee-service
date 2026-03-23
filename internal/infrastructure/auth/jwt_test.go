@@ -156,7 +156,6 @@ func TestHeimdallClaims_Validate(t *testing.T) {
 			name: "valid claims with principal",
 			claims: HeimdallClaims{
 				Principal: "test-user-123",
-				Email:     "test@example.com",
 			},
 			expectError: false,
 		},
@@ -168,17 +167,14 @@ func TestHeimdallClaims_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid claims without principal",
-			claims: HeimdallClaims{
-				Email: "test@example.com",
-			},
+			name:        "invalid claims without principal",
+			claims:      HeimdallClaims{},
 			expectError: true,
 		},
 		{
 			name: "invalid claims with empty principal",
 			claims: HeimdallClaims{
 				Principal: "",
-				Email:     "test@example.com",
 			},
 			expectError: true,
 		},

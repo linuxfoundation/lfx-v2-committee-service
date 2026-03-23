@@ -28,11 +28,22 @@ type Client struct {
 	GetCommitteeMemberEndpoint      goa.Endpoint
 	UpdateCommitteeMemberEndpoint   goa.Endpoint
 	DeleteCommitteeMemberEndpoint   goa.Endpoint
+	GetInviteEndpoint               goa.Endpoint
+	CreateInviteEndpoint            goa.Endpoint
+	RevokeInviteEndpoint            goa.Endpoint
+	AcceptInviteEndpoint            goa.Endpoint
+	DeclineInviteEndpoint           goa.Endpoint
+	GetApplicationEndpoint          goa.Endpoint
+	SubmitApplicationEndpoint       goa.Endpoint
+	ApproveApplicationEndpoint      goa.Endpoint
+	RejectApplicationEndpoint       goa.Endpoint
+	JoinCommitteeEndpoint           goa.Endpoint
+	LeaveCommitteeEndpoint          goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:         createCommittee,
 		GetCommitteeBaseEndpoint:        getCommitteeBase,
@@ -46,6 +57,17 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		GetCommitteeMemberEndpoint:      getCommitteeMember,
 		UpdateCommitteeMemberEndpoint:   updateCommitteeMember,
 		DeleteCommitteeMemberEndpoint:   deleteCommitteeMember,
+		GetInviteEndpoint:               getInvite,
+		CreateInviteEndpoint:            createInvite,
+		RevokeInviteEndpoint:            revokeInvite,
+		AcceptInviteEndpoint:            acceptInvite,
+		DeclineInviteEndpoint:           declineInvite,
+		GetApplicationEndpoint:          getApplication,
+		SubmitApplicationEndpoint:       submitApplication,
+		ApproveApplicationEndpoint:      approveApplication,
+		RejectApplicationEndpoint:       rejectApplication,
+		JoinCommitteeEndpoint:           joinCommittee,
+		LeaveCommitteeEndpoint:          leaveCommittee,
 	}
 }
 
@@ -236,5 +258,192 @@ func (c *Client) UpdateCommitteeMember(ctx context.Context, p *UpdateCommitteeMe
 //   - error: internal error
 func (c *Client) DeleteCommitteeMember(ctx context.Context, p *DeleteCommitteeMemberPayload) (err error) {
 	_, err = c.DeleteCommitteeMemberEndpoint(ctx, p)
+	return
+}
+
+// GetInvite calls the "get-invite" endpoint of the "committee-service" service.
+// GetInvite may return the following errors:
+//   - "NotFound" (type *NotFoundError): Invite not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetInvite(ctx context.Context, p *GetInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.GetInviteEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
+}
+
+// CreateInvite calls the "create-invite" endpoint of the "committee-service"
+// service.
+// CreateInvite may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "Conflict" (type *ConflictError): Invite already exists
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) CreateInvite(ctx context.Context, p *CreateInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.CreateInviteEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
+}
+
+// RevokeInvite calls the "revoke-invite" endpoint of the "committee-service"
+// service.
+// RevokeInvite may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Invite not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) RevokeInvite(ctx context.Context, p *RevokeInvitePayload) (err error) {
+	_, err = c.RevokeInviteEndpoint(ctx, p)
+	return
+}
+
+// AcceptInvite calls the "accept-invite" endpoint of the "committee-service"
+// service.
+// AcceptInvite may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): You are not the invitee for this invite
+//   - "NotFound" (type *NotFoundError): Invite not found
+//   - "Conflict" (type *ConflictError): Invite already processed
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) AcceptInvite(ctx context.Context, p *AcceptInvitePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.AcceptInviteEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// DeclineInvite calls the "decline-invite" endpoint of the "committee-service"
+// service.
+// DeclineInvite may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): You are not the invitee for this invite
+//   - "NotFound" (type *NotFoundError): Invite not found
+//   - "Conflict" (type *ConflictError): Invite already processed
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) DeclineInvite(ctx context.Context, p *DeclineInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.DeclineInviteEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
+}
+
+// GetApplication calls the "get-application" endpoint of the
+// "committee-service" service.
+// GetApplication may return the following errors:
+//   - "NotFound" (type *NotFoundError): Application not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetApplication(ctx context.Context, p *GetApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.GetApplicationEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+}
+
+// SubmitApplication calls the "submit-application" endpoint of the
+// "committee-service" service.
+// SubmitApplication may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): Committee does not accept applications
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "Conflict" (type *ConflictError): Application already exists
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) SubmitApplication(ctx context.Context, p *SubmitApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.SubmitApplicationEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+}
+
+// ApproveApplication calls the "approve-application" endpoint of the
+// "committee-service" service.
+// ApproveApplication may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Application not found
+//   - "Conflict" (type *ConflictError): Application already processed
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) ApproveApplication(ctx context.Context, p *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.ApproveApplicationEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// RejectApplication calls the "reject-application" endpoint of the
+// "committee-service" service.
+// RejectApplication may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Application not found
+//   - "Conflict" (type *ConflictError): Application already processed
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) RejectApplication(ctx context.Context, p *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.RejectApplicationEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+}
+
+// JoinCommittee calls the "join-committee" endpoint of the "committee-service"
+// service.
+// JoinCommittee may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): Committee join_mode is not open
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "Conflict" (type *ConflictError): Already a member
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) JoinCommittee(ctx context.Context, p *JoinCommitteePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.JoinCommitteeEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// LeaveCommittee calls the "leave-committee" endpoint of the
+// "committee-service" service.
+// LeaveCommittee may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Not a member of this committee
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) LeaveCommittee(ctx context.Context, p *LeaveCommitteePayload) (err error) {
+	_, err = c.LeaveCommitteeEndpoint(ctx, p)
 	return
 }

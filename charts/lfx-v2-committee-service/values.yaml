@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 ---
 # replicaCount is the number of replicas for the deployment
-replicaCount: 3
+replicaCount: 1
 
 # podAnnotations are additional annotations applied to the pod template.
 # Example:
@@ -121,6 +121,48 @@ nats:
     keep: true
     # name is the name of the KV bucket for storing committee members
     name: committee-members
+    # history is the number of history entries to keep for the KV bucket
+    history: 20
+    # storage is the storage type for the KV bucket
+    storage: file
+    # maxValueSize is the maximum size of a value in the KV bucket
+    maxValueSize: 10485760  # 10MB
+    # maxBytes is the maximum number of bytes in the KV bucket
+    maxBytes: 1073741824  # 1GB
+    # compression is a boolean to determine if the KV bucket should be compressed
+    compression: true
+
+  # committee_invites_kv_bucket is the configuration for the KV bucket for storing committee invites
+  committee_invites_kv_bucket:
+    # creation is a boolean to determine if the KV bucket should be created via the helm chart.
+    # set it to false if you want to use an existing KV bucket.
+    creation: true
+    # keep is a boolean to determine if the KV bucket should be preserved during helm uninstall
+    # set it to false if you want the bucket to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the KV bucket for storing committee invites
+    name: committee-invites
+    # history is the number of history entries to keep for the KV bucket
+    history: 20
+    # storage is the storage type for the KV bucket
+    storage: file
+    # maxValueSize is the maximum size of a value in the KV bucket
+    maxValueSize: 10485760  # 10MB
+    # maxBytes is the maximum number of bytes in the KV bucket
+    maxBytes: 1073741824  # 1GB
+    # compression is a boolean to determine if the KV bucket should be compressed
+    compression: true
+
+  # committee_applications_kv_bucket is the configuration for the KV bucket for storing committee applications
+  committee_applications_kv_bucket:
+    # creation is a boolean to determine if the KV bucket should be created via the helm chart.
+    # set it to false if you want to use an existing KV bucket.
+    creation: true
+    # keep is a boolean to determine if the KV bucket should be preserved during helm uninstall
+    # set it to false if you want the bucket to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the KV bucket for storing committee applications
+    name: committee-applications
     # history is the number of history entries to keep for the KV bucket
     history: 20
     # storage is the storage type for the KV bucket
