@@ -311,24 +311,26 @@ func (c *Client) RevokeInvite(ctx context.Context, p *RevokeInvitePayload) (err 
 // service.
 // AcceptInvite may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): You are not the invitee for this invite
 //   - "NotFound" (type *NotFoundError): Invite not found
 //   - "Conflict" (type *ConflictError): Invite already processed
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) AcceptInvite(ctx context.Context, p *AcceptInvitePayload) (res *CommitteeInviteWithReadonlyAttributes, err error) {
+func (c *Client) AcceptInvite(ctx context.Context, p *AcceptInvitePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.AcceptInviteEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeInviteWithReadonlyAttributes), nil
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
 }
 
 // DeclineInvite calls the "decline-invite" endpoint of the "committee-service"
 // service.
 // DeclineInvite may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): You are not the invitee for this invite
 //   - "NotFound" (type *NotFoundError): Invite not found
 //   - "Conflict" (type *ConflictError): Invite already processed
 //   - "InternalServerError" (type *InternalServerError): Internal server error
@@ -387,13 +389,13 @@ func (c *Client) SubmitApplication(ctx context.Context, p *SubmitApplicationPayl
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) ApproveApplication(ctx context.Context, p *ApproveApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+func (c *Client) ApproveApplication(ctx context.Context, p *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.ApproveApplicationEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
 }
 
 // RejectApplication calls the "reject-application" endpoint of the

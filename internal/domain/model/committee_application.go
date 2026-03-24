@@ -17,17 +17,17 @@ import (
 
 // CommitteeApplication represents a committee application business entity
 type CommitteeApplication struct {
-	UID           string    `json:"uid"`
-	CommitteeUID  string    `json:"committee_uid"`
-	ApplicantUID  string    `json:"applicant_uid"`
-	Message       string    `json:"message"`
-	Status        string    `json:"status"`
-	ReviewerNotes string    `json:"reviewer_notes"`
-	CreatedAt     time.Time `json:"created_at"`
+	UID            string    `json:"uid"`
+	CommitteeUID   string    `json:"committee_uid"`
+	ApplicantEmail string    `json:"applicant_email"`
+	Message        string    `json:"message"`
+	Status         string    `json:"status"`
+	ReviewerNotes  string    `json:"reviewer_notes"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
-// The hash is generated from the committee UID and the applicant UID (i.e., committee_uid + applicant_uid).
+// The hash is generated from the committee UID and the applicant email (i.e., committee_uid + applicant_email).
 // This enforces uniqueness for committee applications within a committee.
 // This is necessary because the original input may contain special characters,
 // exceed length limits, or have inconsistent formatting, and we do not control its content.
@@ -35,7 +35,7 @@ type CommitteeApplication struct {
 func (ca *CommitteeApplication) BuildIndexKey(ctx context.Context) string {
 
 	committee := strings.TrimSpace(strings.ToLower(ca.CommitteeUID))
-	applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantUID))
+	applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantEmail))
 	// Combine normalized values with a delimiter
 	data := fmt.Sprintf("%s|%s", committee, applicant)
 
@@ -45,7 +45,7 @@ func (ca *CommitteeApplication) BuildIndexKey(ctx context.Context) string {
 
 	slog.DebugContext(ctx, "application index key built",
 		"committee_uid", ca.CommitteeUID,
-		"applicant_uid", redaction.Redact(ca.ApplicantUID),
+		"applicant_email", redaction.Redact(ca.ApplicantEmail),
 		"key", key,
 	)
 
@@ -75,9 +75,9 @@ func (ca *CommitteeApplication) Tags() []string {
 		tags = append(tags, tag)
 	}
 
-	if ca.ApplicantUID != "" {
-		applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantUID))
-		tag := fmt.Sprintf("applicant_uid:%s", applicant)
+	if ca.ApplicantEmail != "" {
+		applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantEmail))
+		tag := fmt.Sprintf("applicant_email:%s", applicant)
 		tags = append(tags, tag)
 	}
 

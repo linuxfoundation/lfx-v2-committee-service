@@ -44,7 +44,6 @@ var (
 // token.
 type HeimdallClaims struct {
 	Principal string `json:"principal"`
-	Email     string `json:"email,omitempty"`
 }
 
 // Validate provides additional middleware validation of any claims defined in

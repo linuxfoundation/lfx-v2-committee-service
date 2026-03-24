@@ -1967,7 +1967,7 @@ func EncodeRevokeInviteError(encoder func(context.Context, http.ResponseWriter) 
 // committee-service accept-invite endpoint.
 func EncodeAcceptInviteResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeInviteWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeMemberFullWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewAcceptInviteResponseBody(res)
 		w.WriteHeader(http.StatusOK)
@@ -2054,6 +2054,19 @@ func EncodeAcceptInviteError(encoder func(context.Context, http.ResponseWriter) 
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewAcceptInviteForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
 			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
@@ -2191,6 +2204,19 @@ func EncodeDeclineInviteError(encoder func(context.Context, http.ResponseWriter)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewDeclineInviteForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
 			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
@@ -2529,7 +2555,7 @@ func EncodeSubmitApplicationError(encoder func(context.Context, http.ResponseWri
 // by the committee-service approve-application endpoint.
 func EncodeApproveApplicationResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*committeeservice.CommitteeApplicationWithReadonlyAttributes)
+		res, _ := v.(*committeeservice.CommitteeMemberFullWithReadonlyAttributes)
 		enc := encoder(ctx, w)
 		body := NewApproveApplicationResponseBody(res)
 		w.WriteHeader(http.StatusOK)
