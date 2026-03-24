@@ -2318,6 +2318,7 @@ func EncodeAcceptInviteRequest(encoder func(*http.Request) goahttp.Encoder) func
 // DecodeAcceptInviteResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
 //   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -2350,7 +2351,7 @@ func DecodeAcceptInviteResponse(decoder func(*http.Response) goahttp.Decoder, re
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "accept-invite", err)
 			}
-			res := NewAcceptInviteCommitteeInviteWithReadonlyAttributesOK(&body)
+			res := NewAcceptInviteCommitteeMemberFullWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (
@@ -2380,6 +2381,20 @@ func DecodeAcceptInviteResponse(decoder func(*http.Response) goahttp.Decoder, re
 				return nil, goahttp.ErrValidationError("committee-service", "accept-invite", err)
 			}
 			return nil, NewAcceptInviteConflict(&body)
+		case http.StatusForbidden:
+			var (
+				body AcceptInviteForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "accept-invite", err)
+			}
+			err = ValidateAcceptInviteForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "accept-invite", err)
+			}
+			return nil, NewAcceptInviteForbidden(&body)
 		case http.StatusInternalServerError:
 			var (
 				body AcceptInviteInternalServerErrorResponseBody
@@ -2485,6 +2500,7 @@ func EncodeDeclineInviteRequest(encoder func(*http.Request) goahttp.Encoder) fun
 // DecodeDeclineInviteResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
 //   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -2547,6 +2563,20 @@ func DecodeDeclineInviteResponse(decoder func(*http.Response) goahttp.Decoder, r
 				return nil, goahttp.ErrValidationError("committee-service", "decline-invite", err)
 			}
 			return nil, NewDeclineInviteConflict(&body)
+		case http.StatusForbidden:
+			var (
+				body DeclineInviteForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "decline-invite", err)
+			}
+			err = ValidateDeclineInviteForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "decline-invite", err)
+			}
+			return nil, NewDeclineInviteForbidden(&body)
 		case http.StatusInternalServerError:
 			var (
 				body DeclineInviteInternalServerErrorResponseBody
@@ -3017,7 +3047,7 @@ func DecodeApproveApplicationResponse(decoder func(*http.Response) goahttp.Decod
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "approve-application", err)
 			}
-			res := NewApproveApplicationCommitteeApplicationWithReadonlyAttributesOK(&body)
+			res := NewApproveApplicationCommitteeMemberFullWithReadonlyAttributesOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (

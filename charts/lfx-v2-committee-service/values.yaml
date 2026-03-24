@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 ---
 # replicaCount is the number of replicas for the deployment
-replicaCount: 3
+replicaCount: 1
 
 # podAnnotations are additional annotations applied to the pod template.
 # Example:
