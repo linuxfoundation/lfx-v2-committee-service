@@ -419,7 +419,8 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 			Email:        "test@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
-				Name: "Test Org",
+				Name:    "Test Org",
+				Website: "https://testorg.com",
 			},
 		},
 	}
@@ -1015,7 +1016,8 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 			Email:        "old@example.com",
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
-				Name: "Test Org",
+				Name:    "Test Org",
+				Website: "https://testorg.com",
 			},
 		},
 	}
@@ -1031,7 +1033,8 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 			Email:        "new@corporate.com", // Email changed
 			Username:     "testuser",
 			Organization: model.CommitteeMemberOrganization{
-				Name: "Test Org",
+				Name:    "Test Org",
+				Website: "https://testorg.com",
 			},
 		},
 	}
