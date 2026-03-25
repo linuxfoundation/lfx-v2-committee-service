@@ -18,12 +18,27 @@ func TestCommitteeMember_Validate(t *testing.T) {
 		CommitteeBase: CommitteeBase{
 			Category: categoryGovernmentAdvisoryCouncil,
 		},
+		CommitteeSettings: &CommitteeSettings{},
 	}
 
 	nonGacCommittee := &Committee{
-		CommitteeBase: CommitteeBase{
-			Category: "Other",
-		},
+		CommitteeBase:     CommitteeBase{Category: "Other"},
+		CommitteeSettings: &CommitteeSettings{},
+	}
+
+	committeeWithBusinessEmail := &Committee{
+		CommitteeBase:     CommitteeBase{Category: "Other"},
+		CommitteeSettings: &CommitteeSettings{BusinessEmailRequired: true},
+	}
+
+	committeeWithVoting := &Committee{
+		CommitteeBase:     CommitteeBase{Category: "Other", EnableVoting: true},
+		CommitteeSettings: &CommitteeSettings{},
+	}
+
+	committeeWithBoth := &Committee{
+		CommitteeBase:     CommitteeBase{Category: "Other", EnableVoting: true},
+		CommitteeSettings: &CommitteeSettings{BusinessEmailRequired: true},
 	}
 
 	tests := []struct {
@@ -68,6 +83,119 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			committee:     nonGacCommittee,
 			expectError:   true,
 			expectedError: "email is required",
+		},
+		{
+			name: "business email required - missing org info",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+				},
+			},
+			committee:     committeeWithBusinessEmail,
+			expectError:   true,
+			expectedError: "organization id or organization name and domain are required when business email is required or voting is enabled",
+		},
+		{
+			name: "business email required - org id satisfies requirement",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						ID: "org-123",
+					},
+				},
+			},
+			committee:   committeeWithBusinessEmail,
+			expectError: false,
+		},
+		{
+			name: "business email required - org name and domain satisfies requirement",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						Name:    "Acme Corp",
+						Website: "https://acme.com",
+					},
+				},
+			},
+			committee:   committeeWithBusinessEmail,
+			expectError: false,
+		},
+		{
+			name: "business email required - org name only is insufficient",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						Name: "Acme Corp",
+					},
+				},
+			},
+			committee:     committeeWithBusinessEmail,
+			expectError:   true,
+			expectedError: "organization id or organization name and domain are required when business email is required or voting is enabled",
+		},
+		{
+			name: "voting enabled - missing org info",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+				},
+			},
+			committee:     committeeWithVoting,
+			expectError:   true,
+			expectedError: "organization id or organization name and domain are required when business email is required or voting is enabled",
+		},
+		{
+			name: "voting enabled - org id satisfies requirement",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						ID: "org-456",
+					},
+				},
+			},
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name: "voting enabled - org name and domain satisfies requirement",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						Name:    "Acme Corp",
+						Website: "https://acme.com",
+					},
+				},
+			},
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name: "both flags set - org id satisfies requirement",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						ID: "org-789",
+					},
+				},
+			},
+			committee:   committeeWithBoth,
+			expectError: false,
+		},
+		{
+			name: "no restrictions - no org info is fine",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@example.com",
+				},
+			},
+			committee:   nonGacCommittee,
+			expectError: false,
 		},
 	}
 

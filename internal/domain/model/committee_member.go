@@ -166,6 +166,11 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 		return err
 	}
 
+	// Validate organization fields based on committee settings
+	if err := cm.validateOrganizationFields(committee); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -173,6 +178,27 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 func (cm *CommitteeMember) validateRequiredFields() error {
 	if cm.Email == "" {
 		return errs.NewValidation("email is required")
+	}
+
+	return nil
+}
+
+// validateOrganizationFields validates that organization information is provided when required.
+// When business_email_required or voting is enabled on the committee, the member must supply
+// either an organization ID or both an organization name and domain (website).
+func (cm *CommitteeMember) validateOrganizationFields(committee *Committee) error {
+	businessEmailRequired := committee.CommitteeSettings != nil && committee.BusinessEmailRequired
+	votingEnabled := committee.EnableVoting
+
+	if !businessEmailRequired && !votingEnabled {
+		return nil
+	}
+
+	hasOrgID := cm.Organization.ID != ""
+	hasOrgNameAndDomain := cm.Organization.Name != "" && cm.Organization.Website != ""
+
+	if !hasOrgID && !hasOrgNameAndDomain {
+		return errs.NewValidation("organization id or organization name and domain are required when business email is required or voting is enabled")
 	}
 
 	return nil
