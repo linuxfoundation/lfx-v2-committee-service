@@ -176,7 +176,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		SsoGroupEnabled: response.SSOGroupEnabled,
 		RequiresReview:  response.RequiresReview,
 		Public:          response.Public,
-		JoinMode:        response.CommitteeBase.JoinMode,
+		JoinMode:        response.JoinMode,
 	}
 
 	// Only set optional fields if they have values

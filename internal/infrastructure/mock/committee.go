@@ -1030,7 +1030,7 @@ func (m *MockRepository) SetJoinMode(committeeUID, joinMode string) {
 	defer m.mu.Unlock()
 
 	if committee, exists := m.committees[committeeUID]; exists {
-		committee.CommitteeBase.JoinMode = joinMode
+		committee.JoinMode = joinMode
 	}
 }
 
