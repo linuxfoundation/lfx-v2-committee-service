@@ -585,13 +585,13 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		"committee_uid", p.UID,
 	)
 
-	// Verify committee exists and get settings to check join_mode
-	settings, _, err := s.storage.GetSettings(ctx, p.UID)
+	// Verify committee exists and get base to check join_mode
+	base, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
-	if settings.JoinMode != "application" {
+	if base.JoinMode != "application" {
 		return nil, wrapError(ctx, errors.NewForbidden("committee does not accept applications"))
 	}
 
@@ -757,13 +757,13 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeeservice.JoinCommitteePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.join-committee", "committee_uid", p.UID)
 
-	// Verify committee exists and get settings to check join_mode
-	settings, _, err := s.storage.GetSettings(ctx, p.UID)
+	// Verify committee exists and get base to check join_mode
+	base, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
-	if settings.JoinMode != "open" {
+	if base.JoinMode != "open" {
 		return nil, wrapError(ctx, errors.NewForbidden("committee join_mode is not open"))
 	}
 

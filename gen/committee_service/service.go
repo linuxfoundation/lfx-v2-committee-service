@@ -171,6 +171,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
+	// How new members can join this committee
+	JoinMode string
 	// The name of the project this committee belongs to
 	ProjectName *string
 	// The name of the SSO group - read-only
@@ -219,6 +221,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
+	// How new members can join this committee
+	JoinMode string
 	// The name of the SSO group - read-only
 	SsoGroupName *string
 	// The total number of members in this committee
@@ -227,8 +231,6 @@ type CommitteeFullWithReadonlyAttributes struct {
 	TotalVotingRepos *int
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// How new members can join this committee
-	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -329,8 +331,6 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// How new members can join this committee
-	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -447,10 +447,10 @@ type CreateCommitteePayload struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
-	// Whether business email is required for committee members
-	BusinessEmailRequired bool
 	// How new members can join this committee
 	JoinMode string
+	// Whether business email is required for committee members
+	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -736,6 +736,8 @@ type UpdateCommitteeBasePayload struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string
+	// How new members can join this committee
+	JoinMode string
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service
@@ -815,8 +817,6 @@ type UpdateCommitteeSettingsPayload struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// How new members can join this committee
-	JoinMode string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee

@@ -43,6 +43,7 @@ type CommitteeBase struct {
 	SSOGroupName     string    `json:"sso_group_name,omitempty"`
 	RequiresReview   bool      `json:"requires_review"`
 	Public           bool      `json:"public"`
+	JoinMode         string    `json:"join_mode,omitempty"`
 	Calendar         Calendar  `json:"calendar,omitempty"`
 	DisplayName      string    `json:"display_name,omitempty"`
 	ParentUID        *string   `json:"parent_uid,omitempty"`
