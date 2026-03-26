@@ -125,6 +125,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
 
+	base.JoinMode = p.JoinMode
+
 	// Handle calendar if present
 	if p.Calendar != nil {
 		base.Calendar = model.Calendar{
@@ -253,6 +255,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 		SsoGroupEnabled: base.SSOGroupEnabled,
 		RequiresReview:  base.RequiresReview,
 		Public:          base.Public,
+		JoinMode:        base.JoinMode,
 	}
 
 	// Only set optional fields if they have values
