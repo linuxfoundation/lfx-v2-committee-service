@@ -51,10 +51,10 @@ type CreateCommitteeRequestBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
-	// Whether business email is required for committee members
-	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// Whether business email is required for committee members
+	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -107,6 +107,8 @@ type UpdateCommitteeBaseRequestBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// How new members can join this committee
+	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -114,8 +116,6 @@ type UpdateCommitteeBaseRequestBody struct {
 type UpdateCommitteeSettingsRequestBody struct {
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
-	// How new members can join this committee
-	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -296,6 +296,8 @@ type CreateCommitteeResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// How new members can join this committee
+	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -304,8 +306,6 @@ type CreateCommitteeResponseBody struct {
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// How new members can join this committee
-	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -364,6 +364,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// How new members can join this committee
+	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -385,8 +387,6 @@ type UpdateCommitteeSettingsResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// How new members can join this committee
-	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -1639,6 +1639,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	// The UID of the parent committee -- v2 uid, not related to v1 id directly,
 	// should be empty if there is none
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
+	// How new members can join this committee
+	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -1656,8 +1658,6 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
-	// How new members can join this committee
-	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -1751,8 +1751,8 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		Public:                p.Public,
 		DisplayName:           p.DisplayName,
 		ParentUID:             p.ParentUID,
-		BusinessEmailRequired: p.BusinessEmailRequired,
 		JoinMode:              p.JoinMode,
+		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
@@ -1797,15 +1797,15 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		}
 	}
 	{
-		var zero bool
-		if body.BusinessEmailRequired == zero {
-			body.BusinessEmailRequired = false
-		}
-	}
-	{
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	{
+		var zero bool
+		if body.BusinessEmailRequired == zero {
+			body.BusinessEmailRequired = false
 		}
 	}
 	{
@@ -1853,6 +1853,7 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		Public:          p.Public,
 		DisplayName:     p.DisplayName,
 		ParentUID:       p.ParentUID,
+		JoinMode:        p.JoinMode,
 	}
 	{
 		var zero bool
@@ -1892,6 +1893,12 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 			}
 		}
 	}
+	{
+		var zero string
+		if body.JoinMode == zero {
+			body.JoinMode = "invite_only"
+		}
+	}
 	return body
 }
 
@@ -1901,17 +1908,10 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSettingsPayload) *UpdateCommitteeSettingsRequestBody {
 	body := &UpdateCommitteeSettingsRequestBody{
 		BusinessEmailRequired: p.BusinessEmailRequired,
-		JoinMode:              p.JoinMode,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-	}
-	{
-		var zero string
-		if body.JoinMode == zero {
-			body.JoinMode = "invite_only"
-		}
 	}
 	{
 		var zero string
@@ -2179,11 +2179,11 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	if body.Public != nil {
 		v.Public = *body.Public
 	}
-	if body.BusinessEmailRequired != nil {
-		v.BusinessEmailRequired = *body.BusinessEmailRequired
-	}
 	if body.JoinMode != nil {
 		v.JoinMode = *body.JoinMode
+	}
+	if body.BusinessEmailRequired != nil {
+		v.BusinessEmailRequired = *body.BusinessEmailRequired
 	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
@@ -2215,11 +2215,11 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 			v.Calendar.Public = false
 		}
 	}
-	if body.BusinessEmailRequired == nil {
-		v.BusinessEmailRequired = false
-	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.BusinessEmailRequired == nil {
+		v.BusinessEmailRequired = false
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
@@ -2324,6 +2324,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 	if body.Public != nil {
 		v.Public = *body.Public
 	}
+	if body.JoinMode != nil {
+		v.JoinMode = *body.JoinMode
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -2347,6 +2350,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 		if body.Calendar.Public == nil {
 			v.Calendar.Public = false
 		}
+	}
+	if body.JoinMode == nil {
+		v.JoinMode = "invite_only"
 	}
 	res := &committeeservice.GetCommitteeBaseResult{
 		CommitteeBase: v,
@@ -2418,6 +2424,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 	if body.Public != nil {
 		v.Public = *body.Public
 	}
+	if body.JoinMode != nil {
+		v.JoinMode = *body.JoinMode
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -2441,6 +2450,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 		if body.Calendar.Public == nil {
 			v.Calendar.Public = false
 		}
+	}
+	if body.JoinMode == nil {
+		v.JoinMode = "invite_only"
 	}
 
 	return v
@@ -2559,9 +2571,6 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	if body.BusinessEmailRequired != nil {
 		v.BusinessEmailRequired = *body.BusinessEmailRequired
 	}
-	if body.JoinMode != nil {
-		v.JoinMode = *body.JoinMode
-	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
@@ -2570,9 +2579,6 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
-	}
-	if body.JoinMode == nil {
-		v.JoinMode = "invite_only"
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
@@ -2632,9 +2638,6 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	if body.BusinessEmailRequired != nil {
 		v.BusinessEmailRequired = *body.BusinessEmailRequired
 	}
-	if body.JoinMode != nil {
-		v.JoinMode = *body.JoinMode
-	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
 	}
@@ -2643,9 +2646,6 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
-	}
-	if body.JoinMode == nil {
-		v.JoinMode = "invite_only"
 	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
@@ -4131,6 +4131,11 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+	}
 	if body.TotalMembers != nil {
 		if *body.TotalMembers < 0 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
@@ -4139,11 +4144,6 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 	if body.TotalVotingRepos != nil {
 		if *body.TotalVotingRepos < 0 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
-		}
-	}
-	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
 	if body.LastReviewedAt != nil {
@@ -4202,6 +4202,11 @@ func ValidateGetCommitteeBaseResponseBody(body *GetCommitteeBaseResponseBody) (e
 	}
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
+	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
 	}
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
@@ -4267,6 +4272,11 @@ func ValidateUpdateCommitteeBaseResponseBody(body *UpdateCommitteeBaseResponseBo
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+	}
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
@@ -4291,11 +4301,6 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
-	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
-		}
-	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -4318,11 +4323,6 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
-	}
-	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
-		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -6066,6 +6066,11 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 	if body.ParentUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.parent_uid", *body.ParentUID, goa.FormatUUID))
 	}
+	if body.JoinMode != nil {
+		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+	}
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
@@ -6090,11 +6095,6 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *CommitteeSettingsWithReadonlyAttributesResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
-	}
-	if body.JoinMode != nil {
-		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
-		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))

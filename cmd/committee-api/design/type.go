@@ -31,6 +31,7 @@ func CommitteeBaseAttributes() {
 	CalendarAttribute()
 	DisplayNameAttribute()
 	ParentCommitteeUIDAttribute()
+	JoinModeAttribute()
 }
 
 // CommitteeSettings is the DSL type for a committee settings.
@@ -43,7 +44,6 @@ var CommitteeSettings = dsl.Type("committee-settings", func() {
 // CommitteeSettingsAttributes is the DSL attributes for a committee settings.
 func CommitteeSettingsAttributes() {
 	BusinessEmailRequiredAttribute()
-	JoinModeAttribute()
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()
