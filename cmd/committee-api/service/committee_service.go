@@ -1025,12 +1025,15 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 	slog.DebugContext(ctx, "committeeService.create-committee-link", "committee_uid", p.UID)
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, errors.NewValidation("unable to determine user identity from token")
+	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID:  *p.UID,
-		Name:          p.Name,
-		URL:           p.URL,
-		CreatedByUID:  principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		CreatedByUID: principal,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description

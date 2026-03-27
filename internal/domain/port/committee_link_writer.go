@@ -17,6 +17,8 @@ type CommitteeLinkWriter interface {
 	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error
 	// UniqueLinkFolderName enforces uniqueness of folder name per committee. Returns the lookup key.
 	UniqueLinkFolderName(ctx context.Context, folder *model.CommitteeLinkFolder) (string, error)
+	// DeleteUniqueLinkFolderName removes a folder name uniqueness reservation by its lookup key.
+	DeleteUniqueLinkFolderName(ctx context.Context, uniqueKey string) error
 }
 
 // CommitteeLinkReaderWriter combines read and write interfaces for link/folder storage.

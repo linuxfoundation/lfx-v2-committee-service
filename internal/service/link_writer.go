@@ -24,8 +24,8 @@ type CommitteeLinkDataWriter interface {
 }
 
 type linkWriterOrchestrator struct {
-	linkWriter       port.CommitteeLinkWriter
-	linkReader       port.CommitteeLinkReader
+	linkWriter         port.CommitteeLinkWriter
+	linkReader         port.CommitteeLinkReader
 	committeePublisher port.CommitteePublisher
 }
 
@@ -114,11 +114,19 @@ func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *m
 	folder.CreatedAt = now
 	folder.UpdatedAt = now
 
-	if _, err := o.linkWriter.UniqueLinkFolderName(ctx, folder); err != nil {
+	uniqueKey, err := o.linkWriter.UniqueLinkFolderName(ctx, folder)
+	if err != nil {
 		return nil, err
 	}
 
 	if err := o.linkWriter.CreateLinkFolder(ctx, folder); err != nil {
+		// Roll back the uniqueness reservation so the name can be reused
+		if errCleanup := o.linkWriter.DeleteUniqueLinkFolderName(ctx, uniqueKey); errCleanup != nil {
+			slog.WarnContext(ctx, "failed to rollback folder name reservation",
+				"unique_key", uniqueKey,
+				"error", errCleanup,
+			)
+		}
 		return nil, err
 	}
 
