@@ -192,7 +192,7 @@ For full field reference and message format details, see the [indexer service cl
 | Committee Settings | `committee_settings:<uid>` | `auditor` | `committee_settings:<uid>` | `auditor` | _(none)_ | _(none)_ |
 | Committee Member | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>` | first name, last name, email, organization name |
 | Committee Link | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>`, optionally `committee_link_folder:<folder_uid>` | name, description, URL |
-| Committee Link Folder | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>` | name, description |
+| Committee Link Folder | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>` | name |
 
 ## Development
 
