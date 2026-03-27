@@ -43,9 +43,6 @@ const (
 	// KVBucketNameCommitteeFolders is the name of the KV bucket for committee folders.
 	KVBucketNameCommitteeFolders = "committee-folders"
 
-	// KVLookupLinkPrefix is the prefix for link lookup keys in the KV store.
-	KVLookupLinkPrefix = "lookup/committee-links/%s"
-
 	// KVLookupFolderPrefix is the prefix for folder lookup keys in the KV store.
 	KVLookupFolderPrefix = "lookup/committee-folders/%s"
 )

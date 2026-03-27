@@ -54,10 +54,19 @@ func NewLinkWriterOrchestrator(opts ...LinkWriterOption) CommitteeLinkDataWriter
 	for _, opt := range opts {
 		opt(o)
 	}
+	if o.linkWriter == nil {
+		panic("link writer is required")
+	}
+	if o.linkReader == nil {
+		panic("link reader is required for writer orchestrator")
+	}
 	return o
 }
 
 func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.CommitteeLink) (*model.CommitteeLink, error) {
+	if link == nil {
+		return nil, errs.NewValidation("link is required")
+	}
 	if link.Name == "" {
 		return nil, errs.NewValidation("link name is required")
 	}
@@ -66,6 +75,11 @@ func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.Com
 	}
 	if link.URL == "" {
 		return nil, errs.NewValidation("URL is required")
+	}
+	if link.FolderUID != nil && *link.FolderUID != "" {
+		if _, _, err := o.linkReader.GetLinkFolder(ctx, link.CommitteeUID, *link.FolderUID); err != nil {
+			return nil, err
+		}
 	}
 
 	link.UID = uuid.New().String()
@@ -102,6 +116,9 @@ func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, l
 }
 
 func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) (*model.CommitteeLinkFolder, error) {
+	if folder == nil {
+		return nil, errs.NewValidation("folder is required")
+	}
 	if folder.Name == "" {
 		return nil, errs.NewValidation("folder name is required")
 	}

@@ -1005,6 +1005,10 @@ func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCom
 func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *committeeservice.ListCommitteeLinksPayload) (res []*committeeservice.CommitteeLinkWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.list-committee-links", "committee_uid", p.UID)
 
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
 	links, err := s.linkReader.ListLinks(ctx, *p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -1023,6 +1027,10 @@ func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *commit
 // CreateCommitteeLink creates a new link for a committee.
 func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *committeeservice.CreateCommitteeLinkPayload) (res *committeeservice.CommitteeLinkWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.create-committee-link", "committee_uid", p.UID)
+
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	if principal == "" {
@@ -1088,6 +1096,10 @@ func (s *committeeServicesrvc) DeleteCommitteeLink(ctx context.Context, p *commi
 func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *committeeservice.ListCommitteeLinkFoldersPayload) (res []*committeeservice.CommitteeLinkFolderWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.list-committee-link-folders", "committee_uid", p.UID)
 
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
 	folders, err := s.linkReader.ListLinkFolders(ctx, *p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -1119,6 +1131,10 @@ func (s *committeeServicesrvc) GetCommitteeLinkFolder(ctx context.Context, p *co
 // CreateCommitteeLinkFolder creates a new link folder for a committee.
 func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p *committeeservice.CreateCommitteeLinkFolderPayload) (res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.create-committee-link-folder", "committee_uid", p.UID)
+
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	if principal == "" {

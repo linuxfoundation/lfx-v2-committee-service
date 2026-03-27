@@ -35,6 +35,9 @@ func (s *storage) CreateLink(ctx context.Context, link *model.CommitteeLink) err
 }
 
 func (s *storage) GetLink(ctx context.Context, committeeUID, linkUID string) (*model.CommitteeLink, uint64, error) {
+	if linkUID == "" {
+		return nil, 0, errs.NewValidation("link UID cannot be empty")
+	}
 	link := &model.CommitteeLink{}
 	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeLinks, linkUID, link, false)
 	if errGet != nil {
@@ -124,6 +127,9 @@ func (s *storage) DeleteUniqueLinkFolderName(ctx context.Context, uniqueKey stri
 }
 
 func (s *storage) GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error) {
+	if folderUID == "" {
+		return nil, 0, errs.NewValidation("folder UID cannot be empty")
+	}
 	folder := &model.CommitteeLinkFolder{}
 	rev, errGet := s.get(ctx, constants.KVBucketNameCommitteeFolders, folderUID, folder, false)
 	if errGet != nil {

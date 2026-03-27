@@ -322,6 +322,10 @@ func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReader
 	}
 
 	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock committee link storage")
+		return infrastructure.NewMockLinkRepository()
+
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee link storage")
 		s := natsStorageImpl(ctx)
