@@ -887,6 +887,308 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// ─── Committee Link endpoints ───
+
+	dsl.Method("get-committee-link", func() {
+		dsl.Description("Get a single link for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link", CommitteeLinkWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("list-committee-links", func() {
+		dsl.Description("List links for a committee, optionally filtered by folder")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("folder_uid", dsl.String, "Filter links to those inside a specific folder; omit to return all links", func() {
+				dsl.Format(dsl.FormatUUID)
+			})
+		})
+
+		dsl.Result(dsl.ArrayOf(CommitteeLinkWithReadonlyAttributes))
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/links")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("create-committee-link", func() {
+		dsl.Description("Add a URL link to a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the link", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Technical Architecture Decision Records")
+			})
+			dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+				dsl.MaxLength(2048)
+				dsl.Example("https://confluence.example.com/architecture-decisions")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description", func() {
+				dsl.MaxLength(2000)
+			})
+			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this link in", func() {
+				dsl.Format(dsl.FormatUUID)
+			})
+			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Alex Lee")
+			})
+
+			dsl.Required("name", "url")
+		})
+
+		dsl.Result(CommitteeLinkWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/links")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-link", func() {
+		dsl.Description("Delete a link from a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Committee Folder endpoints ───
+
+	dsl.Method("get-committee-link-folder", func() {
+		dsl.Description("Get a single folder for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link-folder", CommitteeLinkFolderWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link-folder")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link-folder")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("list-committee-link-folders", func() {
+		dsl.Description("List all folders for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Result(dsl.ArrayOf(CommitteeLinkFolderWithReadonlyAttributes))
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/folders")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("create-committee-link-folder", func() {
+		dsl.Description("Create a folder to organize committee links")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("name", dsl.String, "Folder name", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Meeting Notes")
+			})
+			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Alex Lee")
+			})
+			dsl.Required("name")
+		})
+
+		dsl.Result(CommitteeLinkFolderWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Conflict", ConflictError, "Folder name already exists")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/folders")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-link-folder", func() {
+		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
 	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
 		dsl.Meta("swagger:generate", "false")
