@@ -65,6 +65,8 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 
 	}
 
+	base.JoinMode = p.JoinMode
+
 	return base
 }
 
@@ -77,7 +79,6 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 		Auditors:              p.Auditors,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
-		JoinMode:              p.JoinMode,
 	}
 
 	// Handle LastReviewedAt - GOA validates format via Pattern constraint
@@ -124,6 +125,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
 
+	base.JoinMode = p.JoinMode
+
 	// Handle calendar if present
 	if p.Calendar != nil {
 		base.Calendar = model.Calendar{
@@ -156,7 +159,6 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		Auditors:              p.Auditors,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
-		JoinMode:              p.JoinMode,
 	}
 
 	return settings
@@ -176,6 +178,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		SsoGroupEnabled: response.SSOGroupEnabled,
 		RequiresReview:  response.RequiresReview,
 		Public:          response.Public,
+		JoinMode:        response.JoinMode,
 	}
 
 	// Only set optional fields if they have values
@@ -232,7 +235,6 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 
 		result.ShowMeetingAttendees = response.ShowMeetingAttendees
 		result.MemberVisibility = response.MemberVisibility
-		result.JoinMode = response.JoinMode
 	}
 
 	return result
@@ -253,6 +255,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 		SsoGroupEnabled: base.SSOGroupEnabled,
 		RequiresReview:  base.RequiresReview,
 		Public:          base.Public,
+		JoinMode:        base.JoinMode,
 	}
 
 	// Only set optional fields if they have values
@@ -308,7 +311,6 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 		BusinessEmailRequired: settings.BusinessEmailRequired,
 		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
 		MemberVisibility:      settings.MemberVisibility,
-		JoinMode:              settings.JoinMode,
 	}
 
 	// Only set optional fields if they have values
