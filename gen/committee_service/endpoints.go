@@ -40,9 +40,11 @@ type Endpoints struct {
 	RejectApplication         goa.Endpoint
 	JoinCommittee             goa.Endpoint
 	LeaveCommittee            goa.Endpoint
+	GetCommitteeLink          goa.Endpoint
 	ListCommitteeLinks        goa.Endpoint
 	CreateCommitteeLink       goa.Endpoint
 	DeleteCommitteeLink       goa.Endpoint
+	GetCommitteeLinkFolder    goa.Endpoint
 	ListCommitteeLinkFolders  goa.Endpoint
 	CreateCommitteeLinkFolder goa.Endpoint
 	DeleteCommitteeLinkFolder goa.Endpoint
@@ -77,9 +79,11 @@ func NewEndpoints(s Service) *Endpoints {
 		RejectApplication:         NewRejectApplicationEndpoint(s, a.JWTAuth),
 		JoinCommittee:             NewJoinCommitteeEndpoint(s, a.JWTAuth),
 		LeaveCommittee:            NewLeaveCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeLink:          NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
 		ListCommitteeLinks:        NewListCommitteeLinksEndpoint(s, a.JWTAuth),
 		CreateCommitteeLink:       NewCreateCommitteeLinkEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLink:       NewDeleteCommitteeLinkEndpoint(s, a.JWTAuth),
+		GetCommitteeLinkFolder:    NewGetCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		ListCommitteeLinkFolders:  NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
 		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
@@ -112,9 +116,11 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.RejectApplication = m(e.RejectApplication)
 	e.JoinCommittee = m(e.JoinCommittee)
 	e.LeaveCommittee = m(e.LeaveCommittee)
+	e.GetCommitteeLink = m(e.GetCommitteeLink)
 	e.ListCommitteeLinks = m(e.ListCommitteeLinks)
 	e.CreateCommitteeLink = m(e.CreateCommitteeLink)
 	e.DeleteCommitteeLink = m(e.DeleteCommitteeLink)
+	e.GetCommitteeLinkFolder = m(e.GetCommitteeLinkFolder)
 	e.ListCommitteeLinkFolders = m(e.ListCommitteeLinkFolders)
 	e.CreateCommitteeLinkFolder = m(e.CreateCommitteeLinkFolder)
 	e.DeleteCommitteeLinkFolder = m(e.DeleteCommitteeLinkFolder)
@@ -619,6 +625,29 @@ func NewLeaveCommitteeEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.En
 	}
 }
 
+// NewGetCommitteeLinkEndpoint returns an endpoint function that calls the
+// method "get-committee-link" of service "committee-service".
+func NewGetCommitteeLinkEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCommitteeLinkPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCommitteeLink(ctx, p)
+	}
+}
+
 // NewListCommitteeLinksEndpoint returns an endpoint function that calls the
 // method "list-committee-links" of service "committee-service".
 func NewListCommitteeLinksEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
@@ -685,6 +714,29 @@ func NewDeleteCommitteeLinkEndpoint(s Service, authJWTFn security.AuthJWTFunc) g
 			return nil, err
 		}
 		return nil, s.DeleteCommitteeLink(ctx, p)
+	}
+}
+
+// NewGetCommitteeLinkFolderEndpoint returns an endpoint function that calls
+// the method "get-committee-link-folder" of service "committee-service".
+func NewGetCommitteeLinkFolderEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCommitteeLinkFolderPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCommitteeLinkFolder(ctx, p)
 	}
 }
 

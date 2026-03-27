@@ -936,27 +936,37 @@ paths:
                                 example:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
+                                      created_by_name: Alex Lee
+                                      created_by_uid: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
+                                      created_by_name: Alex Lee
+                                      created_by_uid: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
+                                      created_by_name: Alex Lee
+                                      created_by_uid: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
+                                  created_by_name: Alex Lee
+                                  created_by_uid: alexlee
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
+                                  created_by_name: Alex Lee
+                                  created_by_uid: alexlee
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
@@ -1021,6 +1031,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkFolderRequestBody'
                         example:
+                            created_by_name: Alex Lee
                             name: Meeting Notes
             responses:
                 "201":
@@ -1032,6 +1043,8 @@ paths:
                             example:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
+                                created_by_name: Alex Lee
+                                created_by_uid: alexlee
                                 name: Meeting Notes
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -1082,7 +1095,7 @@ paths:
             tags:
                 - committee-service
             summary: delete-committee-link-folder committee-service
-            description: Delete a folder from a committee
+            description: Delete a folder from a committee. Returns BadRequest if the folder contains links.
             operationId: committee-service#delete-committee-link-folder
             parameters:
                 - name: v
@@ -1116,9 +1129,113 @@ paths:
                     example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                     format: uuid
                   example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: If-Match header value for conditional requests
+                    example: "123"
+                  example: "123"
             responses:
                 "204":
                     description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-link-folder committee-service
+            description: Get a single folder for a committee
+            operationId: committee-service#get-committee-link-folder
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: folder_uid
+                  in: path
+                  description: Committee folder UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee folder UID
+                    example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                    format: uuid
+                  example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+            responses:
+                "200":
+                    description: OK response.
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            schema:
+                                type: string
+                                description: ETag header value
+                                example: "123"
+                            example: "123"
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeLinkFolderWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                created_by_name: Alex Lee
+                                created_by_uid: alexlee
+                                name: Meeting Notes
+                                uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                updated_at: "2023-06-20T14:45:30Z"
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -2102,9 +2219,116 @@ paths:
                     example: c1d2e3f4-a5b6-7890-cdef-123456789012
                     format: uuid
                   example: c1d2e3f4-a5b6-7890-cdef-123456789012
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: If-Match header value for conditional requests
+                    example: "123"
+                  example: "123"
             responses:
                 "204":
                     description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-link committee-service
+            description: Get a single link for a committee
+            operationId: committee-service#get-committee-link
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: link_uid
+                  in: path
+                  description: Committee link UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee link UID
+                    example: c1d2e3f4-a5b6-7890-cdef-123456789012
+                    format: uuid
+                  example: c1d2e3f4-a5b6-7890-cdef-123456789012
+            responses:
+                "200":
+                    description: OK response.
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            schema:
+                                type: string
+                                description: ETag header value
+                                example: "123"
+                            example: "123"
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeLinkWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                created_by_name: Alex Lee
+                                created_by_uid: alexlee
+                                description: Confluence wiki — architecture decisions log
+                                folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                name: Technical Architecture Decision Records
+                                uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                updated_at: "2023-06-20T14:45:30Z"
+                                url: https://confluence.example.com/architecture-decisions
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -3648,6 +3872,14 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
+                created_by_name:
+                    type: string
+                    description: Display name of the user who created the folder (client-provided)
+                    example: Alex Lee
+                created_by_uid:
+                    type: string
+                    description: LF username of the user who created the folder (auto-populated from JWT)
+                    example: alexlee
                 name:
                     type: string
                     description: Folder name
@@ -3667,6 +3899,8 @@ components:
             example:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                created_by_name: Alex Lee
+                created_by_uid: alexlee
                 name: Meeting Notes
                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 updated_at: "2023-06-20T14:45:30Z"
@@ -4413,12 +4647,18 @@ components:
         CreateCommitteeLinkFolderRequestBody:
             type: object
             properties:
+                created_by_name:
+                    type: string
+                    description: Display name of the creator (client-provided from user session)
+                    example: Alex Lee
+                    maxLength: 200
                 name:
                     type: string
                     description: Folder name
                     example: Meeting Notes
                     maxLength: 200
             example:
+                created_by_name: Alex Lee
                 name: Meeting Notes
             required:
                 - name

@@ -18,9 +18,9 @@ import (
 // CommitteeLinkDataWriter defines use case operations for writing links and folders.
 type CommitteeLinkDataWriter interface {
 	CreateLink(ctx context.Context, link *model.CommitteeLink) (*model.CommitteeLink, error)
-	DeleteLink(ctx context.Context, committeeUID, linkUID string) error
+	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error
 	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) (*model.CommitteeLinkFolder, error)
-	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string) error
+	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error
 }
 
 type linkWriterOrchestrator struct {
@@ -87,12 +87,12 @@ func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.Com
 	return link, nil
 }
 
-func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, linkUID string) error {
-	link, rev, err := o.linkReader.GetLink(ctx, committeeUID, linkUID)
+func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error {
+	link, _, err := o.linkReader.GetLink(ctx, committeeUID, linkUID)
 	if err != nil {
 		return err
 	}
-	if err := o.linkWriter.DeleteLink(ctx, committeeUID, linkUID, rev); err != nil {
+	if err := o.linkWriter.DeleteLink(ctx, committeeUID, linkUID, revision); err != nil {
 		return err
 	}
 
@@ -140,12 +140,24 @@ func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *m
 	return folder, nil
 }
 
-func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string) error {
-	folder, rev, err := o.linkReader.GetLinkFolder(ctx, committeeUID, folderUID)
+func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error {
+	folder, _, err := o.linkReader.GetLinkFolder(ctx, committeeUID, folderUID)
 	if err != nil {
 		return err
 	}
-	if err := o.linkWriter.DeleteLinkFolder(ctx, committeeUID, folderUID, rev); err != nil {
+
+	// Block deletion if folder contains links
+	links, err := o.linkReader.ListLinks(ctx, committeeUID)
+	if err != nil {
+		return err
+	}
+	for _, l := range links {
+		if l.FolderUID != nil && *l.FolderUID == folderUID {
+			return errs.NewValidation("folder cannot be deleted because it contains links; remove all links from the folder first")
+		}
+	}
+
+	if err := o.linkWriter.DeleteLinkFolder(ctx, committeeUID, folderUID, revision); err != nil {
 		return err
 	}
 

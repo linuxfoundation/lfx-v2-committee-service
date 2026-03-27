@@ -108,6 +108,10 @@ type Client struct {
 	// leave-committee endpoint.
 	LeaveCommitteeDoer goahttp.Doer
 
+	// GetCommitteeLink Doer is the HTTP client used to make requests to the
+	// get-committee-link endpoint.
+	GetCommitteeLinkDoer goahttp.Doer
+
 	// ListCommitteeLinks Doer is the HTTP client used to make requests to the
 	// list-committee-links endpoint.
 	ListCommitteeLinksDoer goahttp.Doer
@@ -119,6 +123,10 @@ type Client struct {
 	// DeleteCommitteeLink Doer is the HTTP client used to make requests to the
 	// delete-committee-link endpoint.
 	DeleteCommitteeLinkDoer goahttp.Doer
+
+	// GetCommitteeLinkFolder Doer is the HTTP client used to make requests to the
+	// get-committee-link-folder endpoint.
+	GetCommitteeLinkFolderDoer goahttp.Doer
 
 	// ListCommitteeLinkFolders Doer is the HTTP client used to make requests to
 	// the list-committee-link-folders endpoint.
@@ -176,9 +184,11 @@ func NewClient(
 		RejectApplicationDoer:         doer,
 		JoinCommitteeDoer:             doer,
 		LeaveCommitteeDoer:            doer,
+		GetCommitteeLinkDoer:          doer,
 		ListCommitteeLinksDoer:        doer,
 		CreateCommitteeLinkDoer:       doer,
 		DeleteCommitteeLinkDoer:       doer,
+		GetCommitteeLinkFolderDoer:    doer,
 		ListCommitteeLinkFoldersDoer:  doer,
 		CreateCommitteeLinkFolderDoer: doer,
 		DeleteCommitteeLinkFolderDoer: doer,
@@ -732,6 +742,30 @@ func (c *Client) LeaveCommittee() goa.Endpoint {
 	}
 }
 
+// GetCommitteeLink returns an endpoint that makes HTTP requests to the
+// committee-service service get-committee-link server.
+func (c *Client) GetCommitteeLink() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCommitteeLinkRequest(c.encoder)
+		decodeResponse = DecodeGetCommitteeLinkResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCommitteeLinkRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCommitteeLinkDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-committee-link", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
 // ListCommitteeLinks returns an endpoint that makes HTTP requests to the
 // committee-service service list-committee-links server.
 func (c *Client) ListCommitteeLinks() goa.Endpoint {
@@ -799,6 +833,30 @@ func (c *Client) DeleteCommitteeLink() goa.Endpoint {
 		resp, err := c.DeleteCommitteeLinkDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-link", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetCommitteeLinkFolder returns an endpoint that makes HTTP requests to the
+// committee-service service get-committee-link-folder server.
+func (c *Client) GetCommitteeLinkFolder() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCommitteeLinkFolderRequest(c.encoder)
+		decodeResponse = DecodeGetCommitteeLinkFolderResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCommitteeLinkFolderRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCommitteeLinkFolderDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-committee-link-folder", err)
 		}
 		return decodeResponse(resp)
 	}

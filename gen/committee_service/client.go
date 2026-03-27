@@ -39,9 +39,11 @@ type Client struct {
 	RejectApplicationEndpoint         goa.Endpoint
 	JoinCommitteeEndpoint             goa.Endpoint
 	LeaveCommitteeEndpoint            goa.Endpoint
+	GetCommitteeLinkEndpoint          goa.Endpoint
 	ListCommitteeLinksEndpoint        goa.Endpoint
 	CreateCommitteeLinkEndpoint       goa.Endpoint
 	DeleteCommitteeLinkEndpoint       goa.Endpoint
+	GetCommitteeLinkFolderEndpoint    goa.Endpoint
 	ListCommitteeLinkFoldersEndpoint  goa.Endpoint
 	CreateCommitteeLinkFolderEndpoint goa.Endpoint
 	DeleteCommitteeLinkFolderEndpoint goa.Endpoint
@@ -49,7 +51,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -74,9 +76,11 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		RejectApplicationEndpoint:         rejectApplication,
 		JoinCommitteeEndpoint:             joinCommittee,
 		LeaveCommitteeEndpoint:            leaveCommittee,
+		GetCommitteeLinkEndpoint:          getCommitteeLink,
 		ListCommitteeLinksEndpoint:        listCommitteeLinks,
 		CreateCommitteeLinkEndpoint:       createCommitteeLink,
 		DeleteCommitteeLinkEndpoint:       deleteCommitteeLink,
+		GetCommitteeLinkFolderEndpoint:    getCommitteeLinkFolder,
 		ListCommitteeLinkFoldersEndpoint:  listCommitteeLinkFolders,
 		CreateCommitteeLinkFolderEndpoint: createCommitteeLinkFolder,
 		DeleteCommitteeLinkFolderEndpoint: deleteCommitteeLinkFolder,
@@ -460,6 +464,22 @@ func (c *Client) LeaveCommittee(ctx context.Context, p *LeaveCommitteePayload) (
 	return
 }
 
+// GetCommitteeLink calls the "get-committee-link" endpoint of the
+// "committee-service" service.
+// GetCommitteeLink may return the following errors:
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeLink(ctx context.Context, p *GetCommitteeLinkPayload) (res *GetCommitteeLinkResult, err error) {
+	var ires any
+	ires, err = c.GetCommitteeLinkEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GetCommitteeLinkResult), nil
+}
+
 // ListCommitteeLinks calls the "list-committee-links" endpoint of the
 // "committee-service" service.
 // ListCommitteeLinks may return the following errors:
@@ -496,6 +516,7 @@ func (c *Client) CreateCommitteeLink(ctx context.Context, p *CreateCommitteeLink
 // DeleteCommitteeLink calls the "delete-committee-link" endpoint of the
 // "committee-service" service.
 // DeleteCommitteeLink may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
@@ -503,6 +524,22 @@ func (c *Client) CreateCommitteeLink(ctx context.Context, p *CreateCommitteeLink
 func (c *Client) DeleteCommitteeLink(ctx context.Context, p *DeleteCommitteeLinkPayload) (err error) {
 	_, err = c.DeleteCommitteeLinkEndpoint(ctx, p)
 	return
+}
+
+// GetCommitteeLinkFolder calls the "get-committee-link-folder" endpoint of the
+// "committee-service" service.
+// GetCommitteeLinkFolder may return the following errors:
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeLinkFolder(ctx context.Context, p *GetCommitteeLinkFolderPayload) (res *GetCommitteeLinkFolderResult, err error) {
+	var ires any
+	ires, err = c.GetCommitteeLinkFolderEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GetCommitteeLinkFolderResult), nil
 }
 
 // ListCommitteeLinkFolders calls the "list-committee-link-folders" endpoint of
@@ -542,6 +579,7 @@ func (c *Client) CreateCommitteeLinkFolder(ctx context.Context, p *CreateCommitt
 // DeleteCommitteeLinkFolder calls the "delete-committee-link-folder" endpoint
 // of the "committee-service" service.
 // DeleteCommitteeLinkFolder may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable

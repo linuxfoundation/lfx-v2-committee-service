@@ -3150,6 +3150,122 @@ func EncodeLeaveCommitteeError(encoder func(context.Context, http.ResponseWriter
 	}
 }
 
+// EncodeGetCommitteeLinkResponse returns an encoder for responses returned by
+// the committee-service get-committee-link endpoint.
+func EncodeGetCommitteeLinkResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.GetCommitteeLinkResult)
+		enc := encoder(ctx, w)
+		body := NewGetCommitteeLinkResponseBody(res)
+		if res.Etag != nil {
+			w.Header().Set("Etag", *res.Etag)
+		}
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeGetCommitteeLinkRequest returns a decoder for requests sent to the
+// committee-service get-committee-link endpoint.
+func DecodeGetCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GetCommitteeLinkPayload, error) {
+	return func(r *http.Request) (*committeeservice.GetCommitteeLinkPayload, error) {
+		var (
+			uid         string
+			linkUID     string
+			version     *string
+			bearerToken *string
+			err         error
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		linkUID = params["link_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("link_uid", linkUID, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewGetCommitteeLinkPayload(uid, linkUID, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeGetCommitteeLinkError returns an encoder for errors returned by the
+// get-committee-link committee-service endpoint.
+func EncodeGetCommitteeLinkError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeListCommitteeLinksResponse returns an encoder for responses returned
 // by the committee-service list-committee-links endpoint.
 func EncodeListCommitteeLinksResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -3429,6 +3545,7 @@ func DecodeDeleteCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 			linkUID     string
 			version     *string
 			bearerToken *string
+			ifMatch     *string
 			err         error
 
 			params = mux.Vars(r)
@@ -3450,10 +3567,14 @@ func DecodeDeleteCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeLinkPayload(uid, linkUID, version, bearerToken)
+		payload := NewDeleteCommitteeLinkPayload(uid, linkUID, version, bearerToken, ifMatch)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -3476,6 +3597,19 @@ func EncodeDeleteCommitteeLinkError(encoder func(context.Context, http.ResponseW
 			return encodeError(ctx, w, v)
 		}
 		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewDeleteCommitteeLinkBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
 			errors.As(v, &res)
@@ -3511,6 +3645,122 @@ func EncodeDeleteCommitteeLinkError(encoder func(context.Context, http.ResponseW
 				body = formatter(ctx, res)
 			} else {
 				body = NewDeleteCommitteeLinkServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// EncodeGetCommitteeLinkFolderResponse returns an encoder for responses
+// returned by the committee-service get-committee-link-folder endpoint.
+func EncodeGetCommitteeLinkFolderResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.GetCommitteeLinkFolderResult)
+		enc := encoder(ctx, w)
+		body := NewGetCommitteeLinkFolderResponseBody(res)
+		if res.Etag != nil {
+			w.Header().Set("Etag", *res.Etag)
+		}
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeGetCommitteeLinkFolderRequest returns a decoder for requests sent to
+// the committee-service get-committee-link-folder endpoint.
+func DecodeGetCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GetCommitteeLinkFolderPayload, error) {
+	return func(r *http.Request) (*committeeservice.GetCommitteeLinkFolderPayload, error) {
+		var (
+			uid         string
+			folderUID   string
+			version     *string
+			bearerToken *string
+			err         error
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		folderUID = params["folder_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("folder_uid", folderUID, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewGetCommitteeLinkFolderPayload(uid, folderUID, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeGetCommitteeLinkFolderError returns an encoder for errors returned by
+// the get-committee-link-folder committee-service endpoint.
+func EncodeGetCommitteeLinkFolderError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkFolderInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkFolderNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetCommitteeLinkFolderServiceUnavailableResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -3804,6 +4054,7 @@ func DecodeDeleteCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 			folderUID   string
 			version     *string
 			bearerToken *string
+			ifMatch     *string
 			err         error
 
 			params = mux.Vars(r)
@@ -3825,10 +4076,14 @@ func DecodeDeleteCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeLinkFolderPayload(uid, folderUID, version, bearerToken)
+		payload := NewDeleteCommitteeLinkFolderPayload(uid, folderUID, version, bearerToken, ifMatch)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -3851,6 +4106,19 @@ func EncodeDeleteCommitteeLinkFolderError(encoder func(context.Context, http.Res
 			return encodeError(ctx, w, v)
 		}
 		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewDeleteCommitteeLinkFolderBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
 			errors.As(v, &res)
@@ -3922,11 +4190,13 @@ func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWi
 // *committeeservice.CommitteeLinkFolderWithReadonlyAttributes.
 func marshalCommitteeserviceCommitteeLinkFolderWithReadonlyAttributesToCommitteeLinkFolderWithReadonlyAttributesResponse(v *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *CommitteeLinkFolderWithReadonlyAttributesResponse {
 	res := &CommitteeLinkFolderWithReadonlyAttributesResponse{
-		UID:          v.UID,
-		CommitteeUID: v.CommitteeUID,
-		Name:         v.Name,
-		CreatedAt:    v.CreatedAt,
-		UpdatedAt:    v.UpdatedAt,
+		UID:           v.UID,
+		CommitteeUID:  v.CommitteeUID,
+		Name:          v.Name,
+		CreatedByUID:  v.CreatedByUID,
+		CreatedByName: v.CreatedByName,
+		CreatedAt:     v.CreatedAt,
+		UpdatedAt:     v.UpdatedAt,
 	}
 
 	return res

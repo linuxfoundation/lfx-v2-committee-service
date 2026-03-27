@@ -888,6 +888,12 @@ var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-
 		dsl.MaxLength(200)
 		dsl.Example("Meeting Notes")
 	})
+	dsl.Attribute("created_by_uid", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
+		dsl.Example("alexlee")
+	})
+	dsl.Attribute("created_by_name", dsl.String, "Display name of the user who created the folder (client-provided)", func() {
+		dsl.Example("Alex Lee")
+	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
