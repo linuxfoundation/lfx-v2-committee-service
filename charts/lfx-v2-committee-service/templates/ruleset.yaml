@@ -536,6 +536,170 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
+    # Committee link endpoints
+    - id: "rule:lfx:lfx-v2-committee-service:committee_links:list"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/:uid/links
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: viewer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_links:create"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - POST
+        routes:
+          - path: /committees/:uid/links
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_links:delete"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - DELETE
+        routes:
+          - path: /committees/:uid/links/:link_uid
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    # Committee link folder endpoints
+    - id: "rule:lfx:lfx-v2-committee-service:committee_link_folders:list"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/:uid/folders
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: viewer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_link_folders:create"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - POST
+        routes:
+          - path: /committees/:uid/folders
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    - id: "rule:lfx:lfx-v2-committee-service:committee_link_folders:delete"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - DELETE
+        routes:
+          - path: /committees/:uid/folders/:folder_uid
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
     # Self-join and leave endpoints
     - id: "rule:lfx:lfx-v2-committee-service:committees:join"
       allow_encoded_slashes: 'off'
