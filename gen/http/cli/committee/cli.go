@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder)",
 	}
 }
 
@@ -188,6 +188,55 @@ func ParseEndpoint(
 		committeeServiceLeaveCommitteeVersionFlag     = committeeServiceLeaveCommitteeFlags.String("version", "REQUIRED", "")
 		committeeServiceLeaveCommitteeBearerTokenFlag = committeeServiceLeaveCommitteeFlags.String("bearer-token", "", "")
 		committeeServiceLeaveCommitteeXSyncFlag       = committeeServiceLeaveCommitteeFlags.String("x-sync", "", "")
+
+		committeeServiceGetCommitteeLinkFlags           = flag.NewFlagSet("get-committee-link", flag.ExitOnError)
+		committeeServiceGetCommitteeLinkUIDFlag         = committeeServiceGetCommitteeLinkFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCommitteeLinkLinkUIDFlag     = committeeServiceGetCommitteeLinkFlags.String("link-uid", "REQUIRED", "Committee link UID")
+		committeeServiceGetCommitteeLinkVersionFlag     = committeeServiceGetCommitteeLinkFlags.String("version", "", "")
+		committeeServiceGetCommitteeLinkBearerTokenFlag = committeeServiceGetCommitteeLinkFlags.String("bearer-token", "", "")
+
+		committeeServiceListCommitteeLinksFlags           = flag.NewFlagSet("list-committee-links", flag.ExitOnError)
+		committeeServiceListCommitteeLinksUIDFlag         = committeeServiceListCommitteeLinksFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceListCommitteeLinksVersionFlag     = committeeServiceListCommitteeLinksFlags.String("version", "", "")
+		committeeServiceListCommitteeLinksFolderUIDFlag   = committeeServiceListCommitteeLinksFlags.String("folder-uid", "", "")
+		committeeServiceListCommitteeLinksBearerTokenFlag = committeeServiceListCommitteeLinksFlags.String("bearer-token", "", "")
+
+		committeeServiceCreateCommitteeLinkFlags           = flag.NewFlagSet("create-committee-link", flag.ExitOnError)
+		committeeServiceCreateCommitteeLinkBodyFlag        = committeeServiceCreateCommitteeLinkFlags.String("body", "REQUIRED", "")
+		committeeServiceCreateCommitteeLinkUIDFlag         = committeeServiceCreateCommitteeLinkFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceCreateCommitteeLinkVersionFlag     = committeeServiceCreateCommitteeLinkFlags.String("version", "", "")
+		committeeServiceCreateCommitteeLinkBearerTokenFlag = committeeServiceCreateCommitteeLinkFlags.String("bearer-token", "", "")
+
+		committeeServiceDeleteCommitteeLinkFlags           = flag.NewFlagSet("delete-committee-link", flag.ExitOnError)
+		committeeServiceDeleteCommitteeLinkUIDFlag         = committeeServiceDeleteCommitteeLinkFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeleteCommitteeLinkLinkUIDFlag     = committeeServiceDeleteCommitteeLinkFlags.String("link-uid", "REQUIRED", "Committee link UID")
+		committeeServiceDeleteCommitteeLinkVersionFlag     = committeeServiceDeleteCommitteeLinkFlags.String("version", "", "")
+		committeeServiceDeleteCommitteeLinkBearerTokenFlag = committeeServiceDeleteCommitteeLinkFlags.String("bearer-token", "", "")
+		committeeServiceDeleteCommitteeLinkIfMatchFlag     = committeeServiceDeleteCommitteeLinkFlags.String("if-match", "", "")
+
+		committeeServiceGetCommitteeLinkFolderFlags           = flag.NewFlagSet("get-committee-link-folder", flag.ExitOnError)
+		committeeServiceGetCommitteeLinkFolderUIDFlag         = committeeServiceGetCommitteeLinkFolderFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCommitteeLinkFolderFolderUIDFlag   = committeeServiceGetCommitteeLinkFolderFlags.String("folder-uid", "REQUIRED", "Committee folder UID")
+		committeeServiceGetCommitteeLinkFolderVersionFlag     = committeeServiceGetCommitteeLinkFolderFlags.String("version", "", "")
+		committeeServiceGetCommitteeLinkFolderBearerTokenFlag = committeeServiceGetCommitteeLinkFolderFlags.String("bearer-token", "", "")
+
+		committeeServiceListCommitteeLinkFoldersFlags           = flag.NewFlagSet("list-committee-link-folders", flag.ExitOnError)
+		committeeServiceListCommitteeLinkFoldersUIDFlag         = committeeServiceListCommitteeLinkFoldersFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceListCommitteeLinkFoldersVersionFlag     = committeeServiceListCommitteeLinkFoldersFlags.String("version", "", "")
+		committeeServiceListCommitteeLinkFoldersBearerTokenFlag = committeeServiceListCommitteeLinkFoldersFlags.String("bearer-token", "", "")
+
+		committeeServiceCreateCommitteeLinkFolderFlags           = flag.NewFlagSet("create-committee-link-folder", flag.ExitOnError)
+		committeeServiceCreateCommitteeLinkFolderBodyFlag        = committeeServiceCreateCommitteeLinkFolderFlags.String("body", "REQUIRED", "")
+		committeeServiceCreateCommitteeLinkFolderUIDFlag         = committeeServiceCreateCommitteeLinkFolderFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceCreateCommitteeLinkFolderVersionFlag     = committeeServiceCreateCommitteeLinkFolderFlags.String("version", "", "")
+		committeeServiceCreateCommitteeLinkFolderBearerTokenFlag = committeeServiceCreateCommitteeLinkFolderFlags.String("bearer-token", "", "")
+
+		committeeServiceDeleteCommitteeLinkFolderFlags           = flag.NewFlagSet("delete-committee-link-folder", flag.ExitOnError)
+		committeeServiceDeleteCommitteeLinkFolderUIDFlag         = committeeServiceDeleteCommitteeLinkFolderFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeleteCommitteeLinkFolderFolderUIDFlag   = committeeServiceDeleteCommitteeLinkFolderFlags.String("folder-uid", "REQUIRED", "Committee folder UID")
+		committeeServiceDeleteCommitteeLinkFolderVersionFlag     = committeeServiceDeleteCommitteeLinkFolderFlags.String("version", "", "")
+		committeeServiceDeleteCommitteeLinkFolderBearerTokenFlag = committeeServiceDeleteCommitteeLinkFolderFlags.String("bearer-token", "", "")
+		committeeServiceDeleteCommitteeLinkFolderIfMatchFlag     = committeeServiceDeleteCommitteeLinkFolderFlags.String("if-match", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -213,6 +262,14 @@ func ParseEndpoint(
 	committeeServiceRejectApplicationFlags.Usage = committeeServiceRejectApplicationUsage
 	committeeServiceJoinCommitteeFlags.Usage = committeeServiceJoinCommitteeUsage
 	committeeServiceLeaveCommitteeFlags.Usage = committeeServiceLeaveCommitteeUsage
+	committeeServiceGetCommitteeLinkFlags.Usage = committeeServiceGetCommitteeLinkUsage
+	committeeServiceListCommitteeLinksFlags.Usage = committeeServiceListCommitteeLinksUsage
+	committeeServiceCreateCommitteeLinkFlags.Usage = committeeServiceCreateCommitteeLinkUsage
+	committeeServiceDeleteCommitteeLinkFlags.Usage = committeeServiceDeleteCommitteeLinkUsage
+	committeeServiceGetCommitteeLinkFolderFlags.Usage = committeeServiceGetCommitteeLinkFolderUsage
+	committeeServiceListCommitteeLinkFoldersFlags.Usage = committeeServiceListCommitteeLinkFoldersUsage
+	committeeServiceCreateCommitteeLinkFolderFlags.Usage = committeeServiceCreateCommitteeLinkFolderUsage
+	committeeServiceDeleteCommitteeLinkFolderFlags.Usage = committeeServiceDeleteCommitteeLinkFolderUsage
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return nil, nil, err
@@ -317,6 +374,30 @@ func ParseEndpoint(
 			case "leave-committee":
 				epf = committeeServiceLeaveCommitteeFlags
 
+			case "get-committee-link":
+				epf = committeeServiceGetCommitteeLinkFlags
+
+			case "list-committee-links":
+				epf = committeeServiceListCommitteeLinksFlags
+
+			case "create-committee-link":
+				epf = committeeServiceCreateCommitteeLinkFlags
+
+			case "delete-committee-link":
+				epf = committeeServiceDeleteCommitteeLinkFlags
+
+			case "get-committee-link-folder":
+				epf = committeeServiceGetCommitteeLinkFolderFlags
+
+			case "list-committee-link-folders":
+				epf = committeeServiceListCommitteeLinkFoldersFlags
+
+			case "create-committee-link-folder":
+				epf = committeeServiceCreateCommitteeLinkFolderFlags
+
+			case "delete-committee-link-folder":
+				epf = committeeServiceDeleteCommitteeLinkFolderFlags
+
 			}
 
 		}
@@ -409,6 +490,30 @@ func ParseEndpoint(
 			case "leave-committee":
 				endpoint = c.LeaveCommittee()
 				data, err = committeeservicec.BuildLeaveCommitteePayload(*committeeServiceLeaveCommitteeUIDFlag, *committeeServiceLeaveCommitteeVersionFlag, *committeeServiceLeaveCommitteeBearerTokenFlag, *committeeServiceLeaveCommitteeXSyncFlag)
+			case "get-committee-link":
+				endpoint = c.GetCommitteeLink()
+				data, err = committeeservicec.BuildGetCommitteeLinkPayload(*committeeServiceGetCommitteeLinkUIDFlag, *committeeServiceGetCommitteeLinkLinkUIDFlag, *committeeServiceGetCommitteeLinkVersionFlag, *committeeServiceGetCommitteeLinkBearerTokenFlag)
+			case "list-committee-links":
+				endpoint = c.ListCommitteeLinks()
+				data, err = committeeservicec.BuildListCommitteeLinksPayload(*committeeServiceListCommitteeLinksUIDFlag, *committeeServiceListCommitteeLinksVersionFlag, *committeeServiceListCommitteeLinksFolderUIDFlag, *committeeServiceListCommitteeLinksBearerTokenFlag)
+			case "create-committee-link":
+				endpoint = c.CreateCommitteeLink()
+				data, err = committeeservicec.BuildCreateCommitteeLinkPayload(*committeeServiceCreateCommitteeLinkBodyFlag, *committeeServiceCreateCommitteeLinkUIDFlag, *committeeServiceCreateCommitteeLinkVersionFlag, *committeeServiceCreateCommitteeLinkBearerTokenFlag)
+			case "delete-committee-link":
+				endpoint = c.DeleteCommitteeLink()
+				data, err = committeeservicec.BuildDeleteCommitteeLinkPayload(*committeeServiceDeleteCommitteeLinkUIDFlag, *committeeServiceDeleteCommitteeLinkLinkUIDFlag, *committeeServiceDeleteCommitteeLinkVersionFlag, *committeeServiceDeleteCommitteeLinkBearerTokenFlag, *committeeServiceDeleteCommitteeLinkIfMatchFlag)
+			case "get-committee-link-folder":
+				endpoint = c.GetCommitteeLinkFolder()
+				data, err = committeeservicec.BuildGetCommitteeLinkFolderPayload(*committeeServiceGetCommitteeLinkFolderUIDFlag, *committeeServiceGetCommitteeLinkFolderFolderUIDFlag, *committeeServiceGetCommitteeLinkFolderVersionFlag, *committeeServiceGetCommitteeLinkFolderBearerTokenFlag)
+			case "list-committee-link-folders":
+				endpoint = c.ListCommitteeLinkFolders()
+				data, err = committeeservicec.BuildListCommitteeLinkFoldersPayload(*committeeServiceListCommitteeLinkFoldersUIDFlag, *committeeServiceListCommitteeLinkFoldersVersionFlag, *committeeServiceListCommitteeLinkFoldersBearerTokenFlag)
+			case "create-committee-link-folder":
+				endpoint = c.CreateCommitteeLinkFolder()
+				data, err = committeeservicec.BuildCreateCommitteeLinkFolderPayload(*committeeServiceCreateCommitteeLinkFolderBodyFlag, *committeeServiceCreateCommitteeLinkFolderUIDFlag, *committeeServiceCreateCommitteeLinkFolderVersionFlag, *committeeServiceCreateCommitteeLinkFolderBearerTokenFlag)
+			case "delete-committee-link-folder":
+				endpoint = c.DeleteCommitteeLinkFolder()
+				data, err = committeeservicec.BuildDeleteCommitteeLinkFolderPayload(*committeeServiceDeleteCommitteeLinkFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderVersionFlag, *committeeServiceDeleteCommitteeLinkFolderBearerTokenFlag, *committeeServiceDeleteCommitteeLinkFolderIfMatchFlag)
 			}
 		}
 	}
@@ -448,6 +553,14 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    reject-application: Reject a pending application`)
 	fmt.Fprintln(os.Stderr, `    join-committee: Self-join a committee (only works when join_mode is open)`)
 	fmt.Fprintln(os.Stderr, `    leave-committee: Leave a committee`)
+	fmt.Fprintln(os.Stderr, `    get-committee-link: Get a single link for a committee`)
+	fmt.Fprintln(os.Stderr, `    list-committee-links: List links for a committee, optionally filtered by folder`)
+	fmt.Fprintln(os.Stderr, `    create-committee-link: Add a URL link to a committee`)
+	fmt.Fprintln(os.Stderr, `    delete-committee-link: Delete a link from a committee`)
+	fmt.Fprintln(os.Stderr, `    get-committee-link-folder: Get a single folder for a committee`)
+	fmt.Fprintln(os.Stderr, `    list-committee-link-folders: List all folders for a committee`)
+	fmt.Fprintln(os.Stderr, `    create-committee-link-folder: Create a folder to organize committee links`)
+	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1012,4 +1125,198 @@ func committeeServiceLeaveCommitteeUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service leave-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+}
+
+func committeeServiceGetCommitteeLinkUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-committee-link", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -link-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get a single link for a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -link-uid STRING: Committee link UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-link --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --link-uid \"c1d2e3f4-a5b6-7890-cdef-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceListCommitteeLinksUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-committee-links", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -folder-uid STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `List links for a committee, optionally filtered by folder`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -folder-uid STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66f01-137f-41e2-9c88-e1591ab1d4e2\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceCreateCommitteeLinkUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service create-committee-link", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Add a URL link to a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"zil\",\n      \"folder_uid\": \"6ae48706-1ffe-4123-a3a0-54350d2f7273\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceDeleteCommitteeLinkUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service delete-committee-link", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -link-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -if-match STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Delete a link from a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -link-uid STRING: Committee link UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-link --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --link-uid \"c1d2e3f4-a5b6-7890-cdef-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\"")
+}
+
+func committeeServiceGetCommitteeLinkFolderUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-committee-link-folder", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -folder-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get a single folder for a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -folder-uid STRING: Committee folder UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-link-folder --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --folder-uid \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceListCommitteeLinkFoldersUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-committee-link-folders", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `List all folders for a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-link-folders --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceCreateCommitteeLinkFolderUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service create-committee-link-folder", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Create a folder to organize committee links`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link-folder --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"name\": \"Meeting Notes\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceDeleteCommitteeLinkFolderUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service delete-committee-link-folder", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -folder-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -if-match STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -folder-uid STRING: Committee folder UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-link-folder --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --folder-uid \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\"")
 }

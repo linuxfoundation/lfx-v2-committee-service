@@ -126,3 +126,43 @@ func JoinCommitteeCommitteeServicePath(uid string) string {
 func LeaveCommitteeCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/leave", uid)
 }
+
+// GetCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service get-committee-link HTTP endpoint.
+func GetCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
+	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
+}
+
+// ListCommitteeLinksCommitteeServicePath returns the URL path to the committee-service service list-committee-links HTTP endpoint.
+func ListCommitteeLinksCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/links", uid)
+}
+
+// CreateCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service create-committee-link HTTP endpoint.
+func CreateCommitteeLinkCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/links", uid)
+}
+
+// DeleteCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service delete-committee-link HTTP endpoint.
+func DeleteCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
+	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
+}
+
+// GetCommitteeLinkFolderCommitteeServicePath returns the URL path to the committee-service service get-committee-link-folder HTTP endpoint.
+func GetCommitteeLinkFolderCommitteeServicePath(uid string, folderUID string) string {
+	return fmt.Sprintf("/committees/%v/folders/%v", uid, folderUID)
+}
+
+// ListCommitteeLinkFoldersCommitteeServicePath returns the URL path to the committee-service service list-committee-link-folders HTTP endpoint.
+func ListCommitteeLinkFoldersCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/folders", uid)
+}
+
+// CreateCommitteeLinkFolderCommitteeServicePath returns the URL path to the committee-service service create-committee-link-folder HTTP endpoint.
+func CreateCommitteeLinkFolderCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/folders", uid)
+}
+
+// DeleteCommitteeLinkFolderCommitteeServicePath returns the URL path to the committee-service service delete-committee-link-folder HTTP endpoint.
+func DeleteCommitteeLinkFolderCommitteeServicePath(uid string, folderUID string) string {
+	return fmt.Sprintf("/committees/%v/folders/%v", uid, folderUID)
+}
