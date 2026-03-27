@@ -73,15 +73,17 @@ func (s *storage) ListLinks(ctx context.Context, committeeUID string) ([]*model.
 }
 
 func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error {
-	link, _, errGet := s.GetLink(ctx, committeeUID, linkUID)
-	if errGet != nil {
+	if _, _, errGet := s.GetLink(ctx, committeeUID, linkUID); errGet != nil {
 		return errGet
 	}
-	errPurge := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Purge(ctx, link.UID)
-	if errPurge != nil {
-		return errs.NewUnexpected("failed to delete link", errPurge)
+	errDelete := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Delete(ctx, linkUID, jetstream.LastRevision(revision))
+	if errDelete != nil {
+		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
+			return errs.NewConflict("link has been modified or deleted")
+		}
+		return errs.NewUnexpected("failed to delete link", errDelete)
 	}
-	slog.DebugContext(ctx, "deleted link from NATS storage", "link_uid", linkUID, "committee_uid", committeeUID)
+	slog.DebugContext(ctx, "deleted link from NATS storage", "link_uid", linkUID, "committee_uid", committeeUID, "revision", revision)
 	return nil
 }
 
@@ -111,6 +113,14 @@ func (s *storage) UniqueLinkFolderName(ctx context.Context, folder *model.Commit
 		return uniqueKey, errs.NewUnexpected("failed to create unique key for folder name", errUnique)
 	}
 	return uniqueKey, nil
+}
+
+func (s *storage) DeleteUniqueLinkFolderName(ctx context.Context, uniqueKey string) error {
+	errPurge := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, uniqueKey)
+	if errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+		return errs.NewUnexpected("failed to delete folder name uniqueness key", errPurge)
+	}
+	return nil
 }
 
 func (s *storage) GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error) {
@@ -156,12 +166,19 @@ func (s *storage) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID 
 	if errGet != nil {
 		return errGet
 	}
-	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
-	_ = s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, uniqueKey)
-	errPurge := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, folder.UID)
-	if errPurge != nil {
-		return errs.NewUnexpected("failed to delete folder", errPurge)
+	// Delete the folder record with optimistic locking
+	errDelete := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Delete(ctx, folder.UID, jetstream.LastRevision(revision))
+	if errDelete != nil {
+		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
+			return errs.NewConflict("folder has been modified or deleted")
+		}
+		return errs.NewUnexpected("failed to delete folder", errDelete)
 	}
-	slog.DebugContext(ctx, "deleted folder from NATS storage", "folder_uid", folderUID, "committee_uid", committeeUID)
+	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
+	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
+	if errPurge := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, uniqueKey); errPurge != nil {
+		slog.WarnContext(ctx, "failed to purge folder lookup key", "key", uniqueKey, "error", errPurge)
+	}
+	slog.DebugContext(ctx, "deleted folder from NATS storage", "folder_uid", folderUID, "committee_uid", committeeUID, "revision", revision)
 	return nil
 }

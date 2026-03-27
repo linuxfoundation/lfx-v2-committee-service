@@ -85,6 +85,10 @@ func (m *mockLinkStorage) UniqueLinkFolderName(_ context.Context, _ *model.Commi
 	return "lookup-key", nil
 }
 
+func (m *mockLinkStorage) DeleteUniqueLinkFolderName(_ context.Context, _ string) error {
+	return nil
+}
+
 func newLinkWriterOrch(storage *mockLinkStorage) service.CommitteeLinkDataWriter {
 	return service.NewLinkWriterOrchestrator(
 		service.WithLinkWriter(storage),
