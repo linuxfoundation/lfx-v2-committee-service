@@ -17,6 +17,7 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // type committeeWriterOrchestrator from committee_writer.go
@@ -758,17 +759,37 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Customize the indexer message based on the action
+	var memberData any
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		// Add tags for create/update operations (when we have the full member data)
 		indexerMessage.Tags = data.Member.Tags()
-		indexerMessage.Data = data.Member
+
+		var nameAndAliases []string
+		for _, v := range []string{data.Member.CommitteeName, data.Member.FirstName, data.Member.LastName, data.Member.Username} {
+			if v != "" {
+				nameAndAliases = append(nameAndAliases, v)
+			}
+		}
+		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
+			ObjectID:             data.Member.UID,
+			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+			AccessCheckRelation:  "viewer",
+			HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+			HistoryCheckRelation: "auditor",
+			SortName:             data.Member.FirstName,
+			NameAndAliases:       nameAndAliases,
+			ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
+			Tags:                 data.Member.Tags(),
+			Fulltext:             fmt.Sprintf("%s %s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Email, data.Member.Organization.Name),
+		}
+		memberData = data.Member
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
-		indexerMessage.Data = data.Member.UID
+		memberData = data.Member.UID
 	}
 
-	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
+	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, memberData)
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member indexer message",
 			"error", errBuildIndexerMessage,

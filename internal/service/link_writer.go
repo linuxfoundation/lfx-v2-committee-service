@@ -200,6 +200,10 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		indexerMessage.Tags = link.Tags()
+		parentRefs := []string{fmt.Sprintf("committee:%s", link.CommitteeUID)}
+		if link.FolderUID != nil && *link.FolderUID != "" {
+			parentRefs = append(parentRefs, fmt.Sprintf("committee_link_folder:%s", *link.FolderUID))
+		}
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             link.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", link.CommitteeUID),
@@ -208,7 +212,7 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 			HistoryCheckRelation: "auditor",
 			SortName:             link.Name,
 			NameAndAliases:       []string{link.Name},
-			ParentRefs:           []string{fmt.Sprintf("committee:%s", link.CommitteeUID)},
+			ParentRefs:           parentRefs,
 			Tags:                 link.Tags(),
 			Fulltext:             fmt.Sprintf("%s %s %s", link.Name, link.Description, link.URL),
 		}
