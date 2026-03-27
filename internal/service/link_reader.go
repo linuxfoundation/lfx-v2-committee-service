@@ -35,6 +35,9 @@ func NewLinkReaderOrchestrator(opts ...LinkReaderOption) CommitteeLinkDataReader
 	for _, opt := range opts {
 		opt(o)
 	}
+	if o.linkReader == nil {
+		panic("link reader is required")
+	}
 	return o
 }
 
