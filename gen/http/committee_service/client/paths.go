@@ -127,6 +127,11 @@ func LeaveCommitteeCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/leave", uid)
 }
 
+// GetCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service get-committee-link HTTP endpoint.
+func GetCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
+	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
+}
+
 // ListCommitteeLinksCommitteeServicePath returns the URL path to the committee-service service list-committee-links HTTP endpoint.
 func ListCommitteeLinksCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/links", uid)
@@ -140,6 +145,11 @@ func CreateCommitteeLinkCommitteeServicePath(uid string) string {
 // DeleteCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service delete-committee-link HTTP endpoint.
 func DeleteCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
 	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
+}
+
+// GetCommitteeLinkFolderCommitteeServicePath returns the URL path to the committee-service service get-committee-link-folder HTTP endpoint.
+func GetCommitteeLinkFolderCommitteeServicePath(uid string, folderUID string) string {
+	return fmt.Sprintf("/committees/%v/folders/%v", uid, folderUID)
 }
 
 // ListCommitteeLinkFoldersCommitteeServicePath returns the URL path to the committee-service service list-committee-link-folders HTTP endpoint.

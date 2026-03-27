@@ -889,6 +889,44 @@ var _ = dsl.Service("committee-service", func() {
 
 	// ─── Committee Link endpoints ───
 
+	dsl.Method("get-committee-link", func() {
+		dsl.Description("Get a single link for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link", CommitteeLinkWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	dsl.Method("list-committee-links", func() {
 		dsl.Description("List links for a committee, optionally filtered by folder")
 
@@ -982,10 +1020,12 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
+			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			LinkUIDAttribute()
 		})
 
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Resource not found")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
@@ -996,7 +1036,9 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Param("link_uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
 			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
@@ -1004,6 +1046,44 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	// ─── Committee Folder endpoints ───
+
+	dsl.Method("get-committee-link-folder", func() {
+		dsl.Description("Get a single folder for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link-folder", CommitteeLinkFolderWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link-folder")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link-folder")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
 
 	dsl.Method("list-committee-link-folders", func() {
 		dsl.Description("List all folders for a committee")
@@ -1047,6 +1127,10 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(200)
 				dsl.Example("Meeting Notes")
 			})
+			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Alex Lee")
+			})
 			dsl.Required("name")
 		})
 
@@ -1073,17 +1157,19 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	dsl.Method("delete-committee-link-folder", func() {
-		dsl.Description("Delete a folder from a committee")
+		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links.")
 
 		dsl.Security(JWTAuth)
 
 		dsl.Payload(func() {
 			BearerTokenAttribute()
 			VersionAttribute()
+			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			FolderUIDAttribute()
 		})
 
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Resource not found")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
@@ -1094,7 +1180,9 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Param("folder_uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
 			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)

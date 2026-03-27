@@ -1676,6 +1676,53 @@ func BuildLeaveCommitteePayload(committeeServiceLeaveCommitteeUID string, commit
 	return v, nil
 }
 
+// BuildGetCommitteeLinkPayload builds the payload for the committee-service
+// get-committee-link endpoint from CLI flags.
+func BuildGetCommitteeLinkPayload(committeeServiceGetCommitteeLinkUID string, committeeServiceGetCommitteeLinkLinkUID string, committeeServiceGetCommitteeLinkVersion string, committeeServiceGetCommitteeLinkBearerToken string) (*committeeservice.GetCommitteeLinkPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeLinkUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var linkUID string
+	{
+		linkUID = committeeServiceGetCommitteeLinkLinkUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("link_uid", linkUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGetCommitteeLinkVersion != "" {
+			version = &committeeServiceGetCommitteeLinkVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeLinkBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeLinkBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeLinkPayload{}
+	v.UID = &uid
+	v.LinkUID = &linkUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
 // BuildListCommitteeLinksPayload builds the payload for the committee-service
 // list-committee-links endpoint from CLI flags.
 func BuildListCommitteeLinksPayload(committeeServiceListCommitteeLinksUID string, committeeServiceListCommitteeLinksVersion string, committeeServiceListCommitteeLinksFolderUID string, committeeServiceListCommitteeLinksBearerToken string) (*committeeservice.ListCommitteeLinksPayload, error) {
@@ -1800,7 +1847,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 
 // BuildDeleteCommitteeLinkPayload builds the payload for the committee-service
 // delete-committee-link endpoint from CLI flags.
-func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID string, committeeServiceDeleteCommitteeLinkLinkUID string, committeeServiceDeleteCommitteeLinkVersion string, committeeServiceDeleteCommitteeLinkBearerToken string) (*committeeservice.DeleteCommitteeLinkPayload, error) {
+func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID string, committeeServiceDeleteCommitteeLinkLinkUID string, committeeServiceDeleteCommitteeLinkVersion string, committeeServiceDeleteCommitteeLinkBearerToken string, committeeServiceDeleteCommitteeLinkIfMatch string) (*committeeservice.DeleteCommitteeLinkPayload, error) {
 	var err error
 	var uid string
 	{
@@ -1836,9 +1883,63 @@ func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID stri
 			bearerToken = &committeeServiceDeleteCommitteeLinkBearerToken
 		}
 	}
+	var ifMatch *string
+	{
+		if committeeServiceDeleteCommitteeLinkIfMatch != "" {
+			ifMatch = &committeeServiceDeleteCommitteeLinkIfMatch
+		}
+	}
 	v := &committeeservice.DeleteCommitteeLinkPayload{}
 	v.UID = &uid
 	v.LinkUID = &linkUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+
+	return v, nil
+}
+
+// BuildGetCommitteeLinkFolderPayload builds the payload for the
+// committee-service get-committee-link-folder endpoint from CLI flags.
+func BuildGetCommitteeLinkFolderPayload(committeeServiceGetCommitteeLinkFolderUID string, committeeServiceGetCommitteeLinkFolderFolderUID string, committeeServiceGetCommitteeLinkFolderVersion string, committeeServiceGetCommitteeLinkFolderBearerToken string) (*committeeservice.GetCommitteeLinkFolderPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeLinkFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var folderUID string
+	{
+		folderUID = committeeServiceGetCommitteeLinkFolderFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("folder_uid", folderUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGetCommitteeLinkFolderVersion != "" {
+			version = &committeeServiceGetCommitteeLinkFolderVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeLinkFolderBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeLinkFolderBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeLinkFolderPayload{}
+	v.UID = &uid
+	v.FolderUID = &folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
 
@@ -1891,10 +1992,15 @@ func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFo
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkFolderBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Meeting Notes\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"name\": \"Meeting Notes\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 200, false))
+		}
+		if body.CreatedByName != nil {
+			if utf8.RuneCountInString(*body.CreatedByName) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.created_by_name", *body.CreatedByName, utf8.RuneCountInString(*body.CreatedByName), 200, false))
+			}
 		}
 		if err != nil {
 			return nil, err
@@ -1927,7 +2033,8 @@ func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFo
 		}
 	}
 	v := &committeeservice.CreateCommitteeLinkFolderPayload{
-		Name: body.Name,
+		Name:          body.Name,
+		CreatedByName: body.CreatedByName,
 	}
 	v.UID = &uid
 	v.Version = version
@@ -1938,7 +2045,7 @@ func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFo
 
 // BuildDeleteCommitteeLinkFolderPayload builds the payload for the
 // committee-service delete-committee-link-folder endpoint from CLI flags.
-func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {
+func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string, committeeServiceDeleteCommitteeLinkFolderIfMatch string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {
 	var err error
 	var uid string
 	{
@@ -1974,11 +2081,18 @@ func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFo
 			bearerToken = &committeeServiceDeleteCommitteeLinkFolderBearerToken
 		}
 	}
+	var ifMatch *string
+	{
+		if committeeServiceDeleteCommitteeLinkFolderIfMatch != "" {
+			ifMatch = &committeeServiceDeleteCommitteeLinkFolderIfMatch
+		}
+	}
 	v := &committeeservice.DeleteCommitteeLinkFolderPayload{}
 	v.UID = &uid
 	v.FolderUID = &folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
 
 	return v, nil
 }

@@ -1052,11 +1052,33 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 	return domainLinkToGoa(created), nil
 }
 
+// GetCommitteeLink returns a single link for a committee with an ETag.
+func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committeeservice.GetCommitteeLinkPayload) (res *committeeservice.GetCommitteeLinkResult, err error) {
+	slog.DebugContext(ctx, "committeeService.get-committee-link", "committee_uid", p.UID, "link_uid", p.LinkUID)
+
+	link, revision, err := s.linkReader.GetLink(ctx, *p.UID, *p.LinkUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	revisionStr := fmt.Sprintf("%d", revision)
+	return &committeeservice.GetCommitteeLinkResult{
+		CommitteeLink: domainLinkToGoa(link),
+		Etag:          &revisionStr,
+	}, nil
+}
+
 // DeleteCommitteeLink removes a link from a committee.
 func (s *committeeServicesrvc) DeleteCommitteeLink(ctx context.Context, p *committeeservice.DeleteCommitteeLinkPayload) (err error) {
 	slog.DebugContext(ctx, "committeeService.delete-committee-link", "committee_uid", p.UID, "link_uid", p.LinkUID)
 
-	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID); err != nil {
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "link_uid", p.LinkUID)
+		return wrapError(ctx, err)
+	}
+
+	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID, parsedRevision); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1078,13 +1100,38 @@ func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *
 	return result, nil
 }
 
+// GetCommitteeLinkFolder returns a single link folder for a committee with an ETag.
+func (s *committeeServicesrvc) GetCommitteeLinkFolder(ctx context.Context, p *committeeservice.GetCommitteeLinkFolderPayload) (res *committeeservice.GetCommitteeLinkFolderResult, err error) {
+	slog.DebugContext(ctx, "committeeService.get-committee-link-folder", "committee_uid", p.UID, "folder_uid", p.FolderUID)
+
+	folder, revision, err := s.linkReader.GetLinkFolder(ctx, *p.UID, *p.FolderUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	revisionStr := fmt.Sprintf("%d", revision)
+	return &committeeservice.GetCommitteeLinkFolderResult{
+		CommitteeLinkFolder: domainFolderToGoa(folder),
+		Etag:                &revisionStr,
+	}, nil
+}
+
 // CreateCommitteeLinkFolder creates a new link folder for a committee.
 func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p *committeeservice.CreateCommitteeLinkFolderPayload) (res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.create-committee-link-folder", "committee_uid", p.UID)
 
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, errors.NewValidation("unable to determine user identity from token")
+	}
+
 	folder := &model.CommitteeLinkFolder{
 		CommitteeUID: *p.UID,
 		Name:         p.Name,
+		CreatedByUID: principal,
+	}
+	if p.CreatedByName != nil {
+		folder.CreatedByName = *p.CreatedByName
 	}
 
 	created, err := s.linkWriter.CreateLinkFolder(ctx, folder)
@@ -1098,7 +1145,13 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 func (s *committeeServicesrvc) DeleteCommitteeLinkFolder(ctx context.Context, p *committeeservice.DeleteCommitteeLinkFolderPayload) (err error) {
 	slog.DebugContext(ctx, "committeeService.delete-committee-link-folder", "committee_uid", p.UID, "folder_uid", p.FolderUID)
 
-	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID); err != nil {
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "folder_uid", p.FolderUID)
+		return wrapError(ctx, err)
+	}
+
+	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID, parsedRevision); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1145,11 +1198,20 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 	createdAt := f.CreatedAt.UTC().Format(time.RFC3339)
 	updatedAt := f.UpdatedAt.UTC().Format(time.RFC3339)
 
-	return &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
+	res := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
 		UID:          &uid,
 		CommitteeUID: &committeeUID,
 		Name:         &name,
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
+	if f.CreatedByUID != "" {
+		v := f.CreatedByUID
+		res.CreatedByUID = &v
+	}
+	if f.CreatedByName != "" {
+		v := f.CreatedByName
+		res.CreatedByName = &v
+	}
+	return res
 }

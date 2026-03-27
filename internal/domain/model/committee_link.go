@@ -62,11 +62,13 @@ func (l *CommitteeLink) Tags() []string {
 
 // CommitteeLinkFolder represents an organizational folder for committee links.
 type CommitteeLinkFolder struct {
-	UID          string    `json:"uid"`
-	CommitteeUID string    `json:"committee_uid"`
-	Name         string    `json:"name"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	UID           string    `json:"uid"`
+	CommitteeUID  string    `json:"committee_uid"`
+	Name          string    `json:"name"`
+	CreatedByUID  string    `json:"created_by_uid,omitempty"`
+	CreatedByName string    `json:"created_by_name,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Tags generates a consistent set of tags for the committee link folder.

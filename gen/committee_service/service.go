@@ -62,17 +62,22 @@ type Service interface {
 	JoinCommittee(context.Context, *JoinCommitteePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Leave a committee
 	LeaveCommittee(context.Context, *LeaveCommitteePayload) (err error)
+	// Get a single link for a committee
+	GetCommitteeLink(context.Context, *GetCommitteeLinkPayload) (res *GetCommitteeLinkResult, err error)
 	// List links for a committee, optionally filtered by folder
 	ListCommitteeLinks(context.Context, *ListCommitteeLinksPayload) (res []*CommitteeLinkWithReadonlyAttributes, err error)
 	// Add a URL link to a committee
 	CreateCommitteeLink(context.Context, *CreateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error)
 	// Delete a link from a committee
 	DeleteCommitteeLink(context.Context, *DeleteCommitteeLinkPayload) (err error)
+	// Get a single folder for a committee
+	GetCommitteeLinkFolder(context.Context, *GetCommitteeLinkFolderPayload) (res *GetCommitteeLinkFolderResult, err error)
 	// List all folders for a committee
 	ListCommitteeLinkFolders(context.Context, *ListCommitteeLinkFoldersPayload) (res []*CommitteeLinkFolderWithReadonlyAttributes, err error)
 	// Create a folder to organize committee links
 	CreateCommitteeLinkFolder(context.Context, *CreateCommitteeLinkFolderPayload) (res *CommitteeLinkFolderWithReadonlyAttributes, err error)
-	// Delete a folder from a committee
+	// Delete a folder from a committee. Returns BadRequest if the folder contains
+	// links.
 	DeleteCommitteeLinkFolder(context.Context, *DeleteCommitteeLinkFolderPayload) (err error)
 }
 
@@ -96,7 +101,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [29]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "list-committee-links", "create-committee-link", "delete-committee-link", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder"}
+var MethodNames = [31]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -283,6 +288,10 @@ type CommitteeLinkFolderWithReadonlyAttributes struct {
 	CommitteeUID *string
 	// Folder name
 	Name *string
+	// LF username of the user who created the folder (auto-populated from JWT)
+	CreatedByUID *string
+	// Display name of the user who created the folder (client-provided)
+	CreatedByName *string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -410,6 +419,8 @@ type CreateCommitteeLinkFolderPayload struct {
 	UID *string
 	// Folder name
 	Name string
+	// Display name of the creator (client-provided from user session)
+	CreatedByName *string
 }
 
 // CreateCommitteeLinkPayload is the payload type of the committee-service
@@ -591,6 +602,8 @@ type DeleteCommitteeLinkFolderPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
+	// If-Match header value for conditional requests
+	IfMatch *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Committee folder UID
@@ -604,6 +617,8 @@ type DeleteCommitteeLinkPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
+	// If-Match header value for conditional requests
+	IfMatch *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
 	// Committee link UID
@@ -672,6 +687,48 @@ type GetCommitteeBasePayload struct {
 // get-committee-base method.
 type GetCommitteeBaseResult struct {
 	CommitteeBase *CommitteeBaseWithReadonlyAttributes
+	// ETag header value
+	Etag *string
+}
+
+// GetCommitteeLinkFolderPayload is the payload type of the committee-service
+// service get-committee-link-folder method.
+type GetCommitteeLinkFolderPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee folder UID
+	FolderUID *string
+}
+
+// GetCommitteeLinkFolderResult is the result type of the committee-service
+// service get-committee-link-folder method.
+type GetCommitteeLinkFolderResult struct {
+	CommitteeLinkFolder *CommitteeLinkFolderWithReadonlyAttributes
+	// ETag header value
+	Etag *string
+}
+
+// GetCommitteeLinkPayload is the payload type of the committee-service service
+// get-committee-link method.
+type GetCommitteeLinkPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee link UID
+	LinkUID *string
+}
+
+// GetCommitteeLinkResult is the result type of the committee-service service
+// get-committee-link method.
+type GetCommitteeLinkResult struct {
+	CommitteeLink *CommitteeLinkWithReadonlyAttributes
 	// ETag header value
 	Etag *string
 }

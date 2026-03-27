@@ -278,6 +278,8 @@ type CreateCommitteeLinkRequestBody struct {
 type CreateCommitteeLinkFolderRequestBody struct {
 	// Folder name
 	Name string `form:"name" json:"name" xml:"name"`
+	// Display name of the creator (client-provided from user session)
+	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 }
 
 // CreateCommitteeResponseBody is the type of the "committee-service" service
@@ -837,6 +839,10 @@ type JoinCommitteeResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// GetCommitteeLinkResponseBody is the type of the "committee-service" service
+// "get-committee-link" endpoint HTTP response body.
+type GetCommitteeLinkResponseBody CommitteeLinkWithReadonlyAttributesResponseBody
+
 // ListCommitteeLinksResponseBody is the type of the "committee-service"
 // service "list-committee-links" endpoint HTTP response body.
 type ListCommitteeLinksResponseBody []*CommitteeLinkWithReadonlyAttributesResponse
@@ -866,6 +872,10 @@ type CreateCommitteeLinkResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// GetCommitteeLinkFolderResponseBody is the type of the "committee-service"
+// service "get-committee-link-folder" endpoint HTTP response body.
+type GetCommitteeLinkFolderResponseBody CommitteeLinkFolderWithReadonlyAttributesResponseBody
+
 // ListCommitteeLinkFoldersResponseBody is the type of the "committee-service"
 // service "list-committee-link-folders" endpoint HTTP response body.
 type ListCommitteeLinkFoldersResponseBody []*CommitteeLinkFolderWithReadonlyAttributesResponse
@@ -879,6 +889,10 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// LF username of the user who created the folder (auto-populated from JWT)
+	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
+	// Display name of the user who created the folder (client-provided)
+	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1671,6 +1685,30 @@ type LeaveCommitteeServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// GetCommitteeLinkInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-link" endpoint HTTP response body
+// for the "InternalServerError" error.
+type GetCommitteeLinkInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeLinkNotFoundResponseBody is the type of the "committee-service"
+// service "get-committee-link" endpoint HTTP response body for the "NotFound"
+// error.
+type GetCommitteeLinkNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeLinkServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-link" endpoint HTTP response body
+// for the "ServiceUnavailable" error.
+type GetCommitteeLinkServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // ListCommitteeLinksInternalServerErrorResponseBody is the type of the
 // "committee-service" service "list-committee-links" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -1727,6 +1765,14 @@ type CreateCommitteeLinkServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// DeleteCommitteeLinkBadRequestResponseBody is the type of the
+// "committee-service" service "delete-committee-link" endpoint HTTP response
+// body for the "BadRequest" error.
+type DeleteCommitteeLinkBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // DeleteCommitteeLinkInternalServerErrorResponseBody is the type of the
 // "committee-service" service "delete-committee-link" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -1747,6 +1793,30 @@ type DeleteCommitteeLinkNotFoundResponseBody struct {
 // "committee-service" service "delete-committee-link" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type DeleteCommitteeLinkServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeLinkFolderInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-link-folder" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCommitteeLinkFolderInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeLinkFolderNotFoundResponseBody is the type of the
+// "committee-service" service "get-committee-link-folder" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCommitteeLinkFolderNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeLinkFolderServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-link-folder" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCommitteeLinkFolderServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -1811,6 +1881,14 @@ type CreateCommitteeLinkFolderNotFoundResponseBody struct {
 // "committee-service" service "create-committee-link-folder" endpoint HTTP
 // response body for the "ServiceUnavailable" error.
 type CreateCommitteeLinkFolderServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeLinkFolderBadRequestResponseBody is the type of the
+// "committee-service" service "delete-committee-link-folder" endpoint HTTP
+// response body for the "BadRequest" error.
+type DeleteCommitteeLinkFolderBadRequestResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -1972,6 +2050,31 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// CommitteeLinkWithReadonlyAttributesResponseBody is used to define fields on
+// response body types.
+type CommitteeLinkWithReadonlyAttributesResponseBody struct {
+	// Link UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this link belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+	// Display name for the link
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// The URL this link points to
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// LF username of the user who added the link (auto-populated from JWT)
+	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
+	// Display name of the user who added the link (client-provided)
+	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
 // CommitteeLinkWithReadonlyAttributesResponse is used to define fields on
 // response body types.
 type CommitteeLinkWithReadonlyAttributesResponse struct {
@@ -1997,6 +2100,25 @@ type CommitteeLinkWithReadonlyAttributesResponse struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// CommitteeLinkFolderWithReadonlyAttributesResponseBody is used to define
+// fields on response body types.
+type CommitteeLinkFolderWithReadonlyAttributesResponseBody struct {
+	// Folder UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Folder name
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// LF username of the user who created the folder (auto-populated from JWT)
+	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
+	// Display name of the user who created the folder (client-provided)
+	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
 // CommitteeLinkFolderWithReadonlyAttributesResponse is used to define fields
 // on response body types.
 type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
@@ -2006,6 +2128,10 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// LF username of the user who created the folder (auto-populated from JWT)
+	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
+	// Display name of the user who created the folder (client-provided)
+	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2443,7 +2569,8 @@ func NewCreateCommitteeLinkRequestBody(p *committeeservice.CreateCommitteeLinkPa
 // "committee-service" service.
 func NewCreateCommitteeLinkFolderRequestBody(p *committeeservice.CreateCommitteeLinkFolderPayload) *CreateCommitteeLinkFolderRequestBody {
 	body := &CreateCommitteeLinkFolderRequestBody{
-		Name: p.Name,
+		Name:          p.Name,
+		CreatedByName: p.CreatedByName,
 	}
 	return body
 }
@@ -4387,6 +4514,59 @@ func NewLeaveCommitteeServiceUnavailable(body *LeaveCommitteeServiceUnavailableR
 	return v
 }
 
+// NewGetCommitteeLinkResultOK builds a "committee-service" service
+// "get-committee-link" endpoint result from a HTTP "OK" response.
+func NewGetCommitteeLinkResultOK(body *GetCommitteeLinkResponseBody, etag *string) *committeeservice.GetCommitteeLinkResult {
+	v := &committeeservice.CommitteeLinkWithReadonlyAttributes{
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		FolderUID:     body.FolderUID,
+		Name:          body.Name,
+		URL:           body.URL,
+		Description:   body.Description,
+		CreatedByUID:  body.CreatedByUID,
+		CreatedByName: body.CreatedByName,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
+	}
+	res := &committeeservice.GetCommitteeLinkResult{
+		CommitteeLink: v,
+	}
+	res.Etag = etag
+
+	return res
+}
+
+// NewGetCommitteeLinkInternalServerError builds a committee-service service
+// get-committee-link endpoint InternalServerError error.
+func NewGetCommitteeLinkInternalServerError(body *GetCommitteeLinkInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeLinkNotFound builds a committee-service service
+// get-committee-link endpoint NotFound error.
+func NewGetCommitteeLinkNotFound(body *GetCommitteeLinkNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeLinkServiceUnavailable builds a committee-service service
+// get-committee-link endpoint ServiceUnavailable error.
+func NewGetCommitteeLinkServiceUnavailable(body *GetCommitteeLinkServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewListCommitteeLinksCommitteeLinkWithReadonlyAttributesOK builds a
 // "committee-service" service "list-committee-links" endpoint result from a
 // HTTP "OK" response.
@@ -4489,6 +4669,16 @@ func NewCreateCommitteeLinkServiceUnavailable(body *CreateCommitteeLinkServiceUn
 	return v
 }
 
+// NewDeleteCommitteeLinkBadRequest builds a committee-service service
+// delete-committee-link endpoint BadRequest error.
+func NewDeleteCommitteeLinkBadRequest(body *DeleteCommitteeLinkBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewDeleteCommitteeLinkInternalServerError builds a committee-service service
 // delete-committee-link endpoint InternalServerError error.
 func NewDeleteCommitteeLinkInternalServerError(body *DeleteCommitteeLinkInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -4512,6 +4702,56 @@ func NewDeleteCommitteeLinkNotFound(body *DeleteCommitteeLinkNotFoundResponseBod
 // NewDeleteCommitteeLinkServiceUnavailable builds a committee-service service
 // delete-committee-link endpoint ServiceUnavailable error.
 func NewDeleteCommitteeLinkServiceUnavailable(body *DeleteCommitteeLinkServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeLinkFolderResultOK builds a "committee-service" service
+// "get-committee-link-folder" endpoint result from a HTTP "OK" response.
+func NewGetCommitteeLinkFolderResultOK(body *GetCommitteeLinkFolderResponseBody, etag *string) *committeeservice.GetCommitteeLinkFolderResult {
+	v := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		Name:          body.Name,
+		CreatedByUID:  body.CreatedByUID,
+		CreatedByName: body.CreatedByName,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
+	}
+	res := &committeeservice.GetCommitteeLinkFolderResult{
+		CommitteeLinkFolder: v,
+	}
+	res.Etag = etag
+
+	return res
+}
+
+// NewGetCommitteeLinkFolderInternalServerError builds a committee-service
+// service get-committee-link-folder endpoint InternalServerError error.
+func NewGetCommitteeLinkFolderInternalServerError(body *GetCommitteeLinkFolderInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeLinkFolderNotFound builds a committee-service service
+// get-committee-link-folder endpoint NotFound error.
+func NewGetCommitteeLinkFolderNotFound(body *GetCommitteeLinkFolderNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeLinkFolderServiceUnavailable builds a committee-service
+// service get-committee-link-folder endpoint ServiceUnavailable error.
+func NewGetCommitteeLinkFolderServiceUnavailable(body *GetCommitteeLinkFolderServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -4566,11 +4806,13 @@ func NewListCommitteeLinkFoldersServiceUnavailable(body *ListCommitteeLinkFolder
 // result from a HTTP "Created" response.
 func NewCreateCommitteeLinkFolderCommitteeLinkFolderWithReadonlyAttributesCreated(body *CreateCommitteeLinkFolderResponseBody) *committeeservice.CommitteeLinkFolderWithReadonlyAttributes {
 	v := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
-		UID:          body.UID,
-		CommitteeUID: body.CommitteeUID,
-		Name:         body.Name,
-		CreatedAt:    body.CreatedAt,
-		UpdatedAt:    body.UpdatedAt,
+		UID:           body.UID,
+		CommitteeUID:  body.CommitteeUID,
+		Name:          body.Name,
+		CreatedByUID:  body.CreatedByUID,
+		CreatedByName: body.CreatedByName,
+		CreatedAt:     body.CreatedAt,
+		UpdatedAt:     body.UpdatedAt,
 	}
 
 	return v
@@ -4620,6 +4862,16 @@ func NewCreateCommitteeLinkFolderNotFound(body *CreateCommitteeLinkFolderNotFoun
 // service create-committee-link-folder endpoint ServiceUnavailable error.
 func NewCreateCommitteeLinkFolderServiceUnavailable(body *CreateCommitteeLinkFolderServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeLinkFolderBadRequest builds a committee-service service
+// delete-committee-link-folder endpoint BadRequest error.
+func NewDeleteCommitteeLinkFolderBadRequest(body *DeleteCommitteeLinkFolderBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
 		Message: *body.Message,
 	}
 
@@ -5689,6 +5941,42 @@ func ValidateJoinCommitteeResponseBody(body *JoinCommitteeResponseBody) (err err
 	return
 }
 
+// ValidateGetCommitteeLinkResponseBody runs the validations defined on
+// Get-Committee-LinkResponseBody
+func ValidateGetCommitteeLinkResponseBody(body *GetCommitteeLinkResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateCreateCommitteeLinkResponseBody runs the validations defined on
 // Create-Committee-LinkResponseBody
 func ValidateCreateCommitteeLinkResponseBody(body *CreateCommitteeLinkResponseBody) (err error) {
@@ -5714,6 +6002,29 @@ func ValidateCreateCommitteeLinkResponseBody(body *CreateCommitteeLinkResponseBo
 	if body.Description != nil {
 		if utf8.RuneCountInString(*body.Description) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkFolderResponseBody runs the validations defined on
+// Get-Committee-Link-FolderResponseBody
+func ValidateGetCommitteeLinkFolderResponseBody(body *GetCommitteeLinkFolderResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -6650,6 +6961,33 @@ func ValidateLeaveCommitteeServiceUnavailableResponseBody(body *LeaveCommitteeSe
 	return
 }
 
+// ValidateGetCommitteeLinkInternalServerErrorResponseBody runs the validations
+// defined on get-committee-link_InternalServerError_response_body
+func ValidateGetCommitteeLinkInternalServerErrorResponseBody(body *GetCommitteeLinkInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkNotFoundResponseBody runs the validations defined on
+// get-committee-link_NotFound_response_body
+func ValidateGetCommitteeLinkNotFoundResponseBody(body *GetCommitteeLinkNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkServiceUnavailableResponseBody runs the validations
+// defined on get-committee-link_ServiceUnavailable_response_body
+func ValidateGetCommitteeLinkServiceUnavailableResponseBody(body *GetCommitteeLinkServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateListCommitteeLinksInternalServerErrorResponseBody runs the
 // validations defined on list-committee-links_InternalServerError_response_body
 func ValidateListCommitteeLinksInternalServerErrorResponseBody(body *ListCommitteeLinksInternalServerErrorResponseBody) (err error) {
@@ -6714,6 +7052,15 @@ func ValidateCreateCommitteeLinkServiceUnavailableResponseBody(body *CreateCommi
 	return
 }
 
+// ValidateDeleteCommitteeLinkBadRequestResponseBody runs the validations
+// defined on delete-committee-link_BadRequest_response_body
+func ValidateDeleteCommitteeLinkBadRequestResponseBody(body *DeleteCommitteeLinkBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateDeleteCommitteeLinkInternalServerErrorResponseBody runs the
 // validations defined on
 // delete-committee-link_InternalServerError_response_body
@@ -6736,6 +7083,35 @@ func ValidateDeleteCommitteeLinkNotFoundResponseBody(body *DeleteCommitteeLinkNo
 // ValidateDeleteCommitteeLinkServiceUnavailableResponseBody runs the
 // validations defined on delete-committee-link_ServiceUnavailable_response_body
 func ValidateDeleteCommitteeLinkServiceUnavailableResponseBody(body *DeleteCommitteeLinkServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkFolderInternalServerErrorResponseBody runs the
+// validations defined on
+// get-committee-link-folder_InternalServerError_response_body
+func ValidateGetCommitteeLinkFolderInternalServerErrorResponseBody(body *GetCommitteeLinkFolderInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkFolderNotFoundResponseBody runs the validations
+// defined on get-committee-link-folder_NotFound_response_body
+func ValidateGetCommitteeLinkFolderNotFoundResponseBody(body *GetCommitteeLinkFolderNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeLinkFolderServiceUnavailableResponseBody runs the
+// validations defined on
+// get-committee-link-folder_ServiceUnavailable_response_body
+func ValidateGetCommitteeLinkFolderServiceUnavailableResponseBody(body *GetCommitteeLinkFolderServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -6812,6 +7188,15 @@ func ValidateCreateCommitteeLinkFolderNotFoundResponseBody(body *CreateCommittee
 // validations defined on
 // create-committee-link-folder_ServiceUnavailable_response_body
 func ValidateCreateCommitteeLinkFolderServiceUnavailableResponseBody(body *CreateCommitteeLinkFolderServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeLinkFolderBadRequestResponseBody runs the validations
+// defined on delete-committee-link-folder_BadRequest_response_body
+func ValidateDeleteCommitteeLinkFolderBadRequestResponseBody(body *DeleteCommitteeLinkFolderBadRequestResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -7044,6 +7429,42 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 	return
 }
 
+// ValidateCommitteeLinkWithReadonlyAttributesResponseBody runs the validations
+// defined on committee-link-with-readonly-attributesResponseBody
+func ValidateCommitteeLinkWithReadonlyAttributesResponseBody(body *CommitteeLinkWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateCommitteeLinkWithReadonlyAttributesResponse runs the validations
 // defined on committee-link-with-readonly-attributesResponse
 func ValidateCommitteeLinkWithReadonlyAttributesResponse(body *CommitteeLinkWithReadonlyAttributesResponse) (err error) {
@@ -7069,6 +7490,30 @@ func ValidateCommitteeLinkWithReadonlyAttributesResponse(body *CommitteeLinkWith
 	if body.Description != nil {
 		if utf8.RuneCountInString(*body.Description) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeLinkFolderWithReadonlyAttributesResponseBody runs the
+// validations defined on
+// committee-link-folder-with-readonly-attributesResponseBody
+func ValidateCommitteeLinkFolderWithReadonlyAttributesResponseBody(body *CommitteeLinkFolderWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
 		}
 	}
 	if body.CreatedAt != nil {
