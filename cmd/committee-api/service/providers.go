@@ -313,6 +313,39 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 	return storage
 }
 
+// CommitteeLinkReaderWriterImpl initializes the committee link reader/writer implementation based on the repository source
+func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReaderWriter {
+	// Repository implementation configuration
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock committee link storage")
+		return infrastructure.NewMockLinkRepository()
+
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS committee link storage")
+		s := natsStorageImpl(ctx)
+		if s == nil {
+			log.Fatalf("failed to initialize NATS client for link storage")
+		}
+		linkRW, ok := s.(port.CommitteeLinkReaderWriter)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeLinkReaderWriter")
+		}
+		return linkRW
+
+	default:
+		log.Fatalf("unsupported committee link storage implementation: %s", repoSource)
+	}
+
+	// unreachable
+	return nil
+}
+
 // QueueSubscriptions starts all NATS subscriptions with the provided dependencies
 func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReader) error {
 	slog.InfoContext(ctx, "starting NATS subscriptions")
