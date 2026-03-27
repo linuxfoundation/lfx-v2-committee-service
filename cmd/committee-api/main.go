@@ -118,6 +118,7 @@ func main() {
 	linkWriterUseCase := usecaseSvc.NewLinkWriterOrchestrator(
 		usecaseSvc.WithLinkWriter(linkStorage),
 		usecaseSvc.WithLinkReaderForWriter(linkStorage),
+		usecaseSvc.WithLinkPublisher(committeePublisher),
 	)
 
 	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage, committeePublisher, userReader, linkReaderUseCase, linkWriterUseCase)
