@@ -1675,3 +1675,310 @@ func BuildLeaveCommitteePayload(committeeServiceLeaveCommitteeUID string, commit
 
 	return v, nil
 }
+
+// BuildListCommitteeLinksPayload builds the payload for the committee-service
+// list-committee-links endpoint from CLI flags.
+func BuildListCommitteeLinksPayload(committeeServiceListCommitteeLinksUID string, committeeServiceListCommitteeLinksVersion string, committeeServiceListCommitteeLinksFolderUID string, committeeServiceListCommitteeLinksBearerToken string) (*committeeservice.ListCommitteeLinksPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceListCommitteeLinksUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceListCommitteeLinksVersion != "" {
+			version = &committeeServiceListCommitteeLinksVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var folderUID *string
+	{
+		if committeeServiceListCommitteeLinksFolderUID != "" {
+			folderUID = &committeeServiceListCommitteeLinksFolderUID
+			err = goa.MergeErrors(err, goa.ValidateFormat("folder_uid", *folderUID, goa.FormatUUID))
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceListCommitteeLinksBearerToken != "" {
+			bearerToken = &committeeServiceListCommitteeLinksBearerToken
+		}
+	}
+	v := &committeeservice.ListCommitteeLinksPayload{}
+	v.UID = &uid
+	v.Version = version
+	v.FolderUID = folderUID
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildCreateCommitteeLinkPayload builds the payload for the committee-service
+// create-committee-link endpoint from CLI flags.
+func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody string, committeeServiceCreateCommitteeLinkUID string, committeeServiceCreateCommitteeLinkVersion string, committeeServiceCreateCommitteeLinkBearerToken string) (*committeeservice.CreateCommitteeLinkPayload, error) {
+	var err error
+	var body CreateCommitteeLinkRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"zil\",\n      \"folder_uid\": \"6ae48706-1ffe-4123-a3a0-54350d2f7273\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
+		}
+		if utf8.RuneCountInString(body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", body.URL, utf8.RuneCountInString(body.URL), 2048, false))
+		}
+		if body.Description != nil {
+			if utf8.RuneCountInString(*body.Description) > 2000 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+			}
+		}
+		if body.FolderUID != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+		}
+		if body.CreatedByName != nil {
+			if utf8.RuneCountInString(*body.CreatedByName) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.created_by_name", *body.CreatedByName, utf8.RuneCountInString(*body.CreatedByName), 200, false))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceCreateCommitteeLinkUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceCreateCommitteeLinkVersion != "" {
+			version = &committeeServiceCreateCommitteeLinkVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceCreateCommitteeLinkBearerToken != "" {
+			bearerToken = &committeeServiceCreateCommitteeLinkBearerToken
+		}
+	}
+	v := &committeeservice.CreateCommitteeLinkPayload{
+		Name:          body.Name,
+		URL:           body.URL,
+		Description:   body.Description,
+		FolderUID:     body.FolderUID,
+		CreatedByName: body.CreatedByName,
+	}
+	v.UID = &uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDeleteCommitteeLinkPayload builds the payload for the committee-service
+// delete-committee-link endpoint from CLI flags.
+func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID string, committeeServiceDeleteCommitteeLinkLinkUID string, committeeServiceDeleteCommitteeLinkVersion string, committeeServiceDeleteCommitteeLinkBearerToken string) (*committeeservice.DeleteCommitteeLinkPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDeleteCommitteeLinkUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var linkUID string
+	{
+		linkUID = committeeServiceDeleteCommitteeLinkLinkUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("link_uid", linkUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDeleteCommitteeLinkVersion != "" {
+			version = &committeeServiceDeleteCommitteeLinkVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDeleteCommitteeLinkBearerToken != "" {
+			bearerToken = &committeeServiceDeleteCommitteeLinkBearerToken
+		}
+	}
+	v := &committeeservice.DeleteCommitteeLinkPayload{}
+	v.UID = &uid
+	v.LinkUID = &linkUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildListCommitteeLinkFoldersPayload builds the payload for the
+// committee-service list-committee-link-folders endpoint from CLI flags.
+func BuildListCommitteeLinkFoldersPayload(committeeServiceListCommitteeLinkFoldersUID string, committeeServiceListCommitteeLinkFoldersVersion string, committeeServiceListCommitteeLinkFoldersBearerToken string) (*committeeservice.ListCommitteeLinkFoldersPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceListCommitteeLinkFoldersUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceListCommitteeLinkFoldersVersion != "" {
+			version = &committeeServiceListCommitteeLinkFoldersVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceListCommitteeLinkFoldersBearerToken != "" {
+			bearerToken = &committeeServiceListCommitteeLinkFoldersBearerToken
+		}
+	}
+	v := &committeeservice.ListCommitteeLinkFoldersPayload{}
+	v.UID = &uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildCreateCommitteeLinkFolderPayload builds the payload for the
+// committee-service create-committee-link-folder endpoint from CLI flags.
+func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFolderBody string, committeeServiceCreateCommitteeLinkFolderUID string, committeeServiceCreateCommitteeLinkFolderVersion string, committeeServiceCreateCommitteeLinkFolderBearerToken string) (*committeeservice.CreateCommitteeLinkFolderPayload, error) {
+	var err error
+	var body CreateCommitteeLinkFolderRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkFolderBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Meeting Notes\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Name) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 200, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceCreateCommitteeLinkFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceCreateCommitteeLinkFolderVersion != "" {
+			version = &committeeServiceCreateCommitteeLinkFolderVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceCreateCommitteeLinkFolderBearerToken != "" {
+			bearerToken = &committeeServiceCreateCommitteeLinkFolderBearerToken
+		}
+	}
+	v := &committeeservice.CreateCommitteeLinkFolderPayload{
+		Name: body.Name,
+	}
+	v.UID = &uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDeleteCommitteeLinkFolderPayload builds the payload for the
+// committee-service delete-committee-link-folder endpoint from CLI flags.
+func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDeleteCommitteeLinkFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var folderUID string
+	{
+		folderUID = committeeServiceDeleteCommitteeLinkFolderFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("folder_uid", folderUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDeleteCommitteeLinkFolderVersion != "" {
+			version = &committeeServiceDeleteCommitteeLinkFolderVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDeleteCommitteeLinkFolderBearerToken != "" {
+			bearerToken = &committeeServiceDeleteCommitteeLinkFolderBearerToken
+		}
+	}
+	v := &committeeservice.DeleteCommitteeLinkFolderPayload{}
+	v.UID = &uid
+	v.FolderUID = &folderUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
