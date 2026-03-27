@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // CommitteeLinkDataWriter defines use case operations for writing links and folders.
@@ -194,15 +196,32 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 		Action: action,
 	}
 
+	var data any
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		indexerMessage.Tags = link.Tags()
-		indexerMessage.Data = link
+		parentRefs := []string{fmt.Sprintf("committee:%s", link.CommitteeUID)}
+		if link.FolderUID != nil && *link.FolderUID != "" {
+			parentRefs = append(parentRefs, fmt.Sprintf("committee_link_folder:%s", *link.FolderUID))
+		}
+		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
+			ObjectID:             link.UID,
+			AccessCheckObject:    fmt.Sprintf("committee:%s", link.CommitteeUID),
+			AccessCheckRelation:  "viewer",
+			HistoryCheckObject:   fmt.Sprintf("committee:%s", link.CommitteeUID),
+			HistoryCheckRelation: "auditor",
+			SortName:             link.Name,
+			NameAndAliases:       []string{link.Name},
+			ParentRefs:           parentRefs,
+			Tags:                 link.Tags(),
+			Fulltext:             fmt.Sprintf("%s %s %s", link.Name, link.Description, link.URL),
+		}
+		data = link
 	case model.ActionDeleted:
-		indexerMessage.Data = link.UID
+		data = link.UID
 	}
 
-	built, err := indexerMessage.Build(ctx, indexerMessage.Data)
+	built, err := indexerMessage.Build(ctx, data)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to build link indexer message",
 			"error", err,
@@ -232,15 +251,28 @@ func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Con
 		Action: action,
 	}
 
+	var data any
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		indexerMessage.Tags = folder.Tags()
-		indexerMessage.Data = folder
+		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
+			ObjectID:             folder.UID,
+			AccessCheckObject:    fmt.Sprintf("committee:%s", folder.CommitteeUID),
+			AccessCheckRelation:  "viewer",
+			HistoryCheckObject:   fmt.Sprintf("committee:%s", folder.CommitteeUID),
+			HistoryCheckRelation: "auditor",
+			SortName:             folder.Name,
+			NameAndAliases:       []string{folder.Name},
+			ParentRefs:           []string{fmt.Sprintf("committee:%s", folder.CommitteeUID)},
+			Tags:                 folder.Tags(),
+			Fulltext:             folder.Name,
+		}
+		data = folder
 	case model.ActionDeleted:
-		indexerMessage.Data = folder.UID
+		data = folder.UID
 	}
 
-	built, err := indexerMessage.Build(ctx, indexerMessage.Data)
+	built, err := indexerMessage.Build(ctx, data)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to build link folder indexer message",
 			"error", err,
