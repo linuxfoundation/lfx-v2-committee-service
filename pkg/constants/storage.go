@@ -36,4 +36,13 @@ const (
 	KVLookupSSOGroupNamePrefix = "lookup/committee-sso-groups/%s"
 
 	KVSlugPrefix = "slug/"
+
+	// KVBucketNameCommitteeLinks is the name of the KV bucket for committee links.
+	KVBucketNameCommitteeLinks = "committee-links"
+
+	// KVBucketNameCommitteeFolders is the name of the KV bucket for committee folders.
+	KVBucketNameCommitteeFolders = "committee-folders"
+
+	// KVLookupFolderPrefix is the prefix for folder lookup keys in the KV store.
+	KVLookupFolderPrefix = "lookup/committee-folders/%s"
 )

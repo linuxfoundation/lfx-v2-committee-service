@@ -19,6 +19,7 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	goahttp "goa.design/goa/v3/http"
+	goa "goa.design/goa/v3/pkg"
 )
 
 // BuildCreateCommitteeRequest instantiates a HTTP request object with method
@@ -3624,4 +3625,1276 @@ func DecodeLeaveCommitteeResponse(decoder func(*http.Response) goahttp.Decoder, 
 			return nil, goahttp.ErrInvalidResponse("committee-service", "leave-committee", resp.StatusCode, string(body))
 		}
 	}
+}
+
+// BuildGetCommitteeLinkRequest instantiates a HTTP request object with method
+// and path set to call the "committee-service" service "get-committee-link"
+// endpoint
+func (c *Client) BuildGetCommitteeLinkRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid     string
+		linkUID string
+	)
+	{
+		p, ok := v.(*committeeservice.GetCommitteeLinkPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "get-committee-link", "*committeeservice.GetCommitteeLinkPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+		if p.LinkUID != nil {
+			linkUID = *p.LinkUID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetCommitteeLinkCommitteeServicePath(uid, linkUID)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-committee-link", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGetCommitteeLinkRequest returns an encoder for requests sent to the
+// committee-service get-committee-link server.
+func EncodeGetCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GetCommitteeLinkPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "get-committee-link", "*committeeservice.GetCommitteeLinkPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeGetCommitteeLinkResponse returns a decoder for responses returned by
+// the committee-service get-committee-link endpoint. restoreBody controls
+// whether the response body should be restored after having been read.
+// DecodeGetCommitteeLinkResponse may return the following errors:
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGetCommitteeLinkResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetCommitteeLinkResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link", err)
+			}
+			err = ValidateGetCommitteeLinkResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link", err)
+			}
+			var (
+				etag *string
+			)
+			etagRaw := resp.Header.Get("Etag")
+			if etagRaw != "" {
+				etag = &etagRaw
+			}
+			res := NewGetCommitteeLinkResultOK(&body, etag)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body GetCommitteeLinkInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link", err)
+			}
+			err = ValidateGetCommitteeLinkInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link", err)
+			}
+			return nil, NewGetCommitteeLinkInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body GetCommitteeLinkNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link", err)
+			}
+			err = ValidateGetCommitteeLinkNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link", err)
+			}
+			return nil, NewGetCommitteeLinkNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GetCommitteeLinkServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link", err)
+			}
+			err = ValidateGetCommitteeLinkServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link", err)
+			}
+			return nil, NewGetCommitteeLinkServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-committee-link", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildListCommitteeLinksRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "list-committee-links" endpoint
+func (c *Client) BuildListCommitteeLinksRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.ListCommitteeLinksPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "list-committee-links", "*committeeservice.ListCommitteeLinksPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ListCommitteeLinksCommitteeServicePath(uid)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "list-committee-links", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeListCommitteeLinksRequest returns an encoder for requests sent to the
+// committee-service list-committee-links server.
+func EncodeListCommitteeLinksRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.ListCommitteeLinksPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "list-committee-links", "*committeeservice.ListCommitteeLinksPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		if p.FolderUID != nil {
+			values.Add("folder_uid", *p.FolderUID)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeListCommitteeLinksResponse returns a decoder for responses returned by
+// the committee-service list-committee-links endpoint. restoreBody controls
+// whether the response body should be restored after having been read.
+// DecodeListCommitteeLinksResponse may return the following errors:
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeListCommitteeLinksResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body ListCommitteeLinksResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-links", err)
+			}
+			for _, e := range body {
+				if e != nil {
+					if err2 := ValidateCommitteeLinkWithReadonlyAttributesResponse(e); err2 != nil {
+						err = goa.MergeErrors(err, err2)
+					}
+				}
+			}
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-links", err)
+			}
+			res := NewListCommitteeLinksCommitteeLinkWithReadonlyAttributesOK(body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body ListCommitteeLinksInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-links", err)
+			}
+			err = ValidateListCommitteeLinksInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-links", err)
+			}
+			return nil, NewListCommitteeLinksInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body ListCommitteeLinksNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-links", err)
+			}
+			err = ValidateListCommitteeLinksNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-links", err)
+			}
+			return nil, NewListCommitteeLinksNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body ListCommitteeLinksServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-links", err)
+			}
+			err = ValidateListCommitteeLinksServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-links", err)
+			}
+			return nil, NewListCommitteeLinksServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "list-committee-links", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildCreateCommitteeLinkRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "create-committee-link" endpoint
+func (c *Client) BuildCreateCommitteeLinkRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.CreateCommitteeLinkPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "create-committee-link", "*committeeservice.CreateCommitteeLinkPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateCommitteeLinkCommitteeServicePath(uid)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "create-committee-link", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeCreateCommitteeLinkRequest returns an encoder for requests sent to the
+// committee-service create-committee-link server.
+func EncodeCreateCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.CreateCommitteeLinkPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "create-committee-link", "*committeeservice.CreateCommitteeLinkPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		body := NewCreateCommitteeLinkRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "create-committee-link", err)
+		}
+		return nil
+	}
+}
+
+// DecodeCreateCommitteeLinkResponse returns a decoder for responses returned
+// by the committee-service create-committee-link endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeCreateCommitteeLinkResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeCreateCommitteeLinkResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusCreated:
+			var (
+				body CreateCommitteeLinkResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link", err)
+			}
+			err = ValidateCreateCommitteeLinkResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link", err)
+			}
+			res := NewCreateCommitteeLinkCommitteeLinkWithReadonlyAttributesCreated(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body CreateCommitteeLinkBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link", err)
+			}
+			err = ValidateCreateCommitteeLinkBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link", err)
+			}
+			return nil, NewCreateCommitteeLinkBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body CreateCommitteeLinkInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link", err)
+			}
+			err = ValidateCreateCommitteeLinkInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link", err)
+			}
+			return nil, NewCreateCommitteeLinkInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body CreateCommitteeLinkNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link", err)
+			}
+			err = ValidateCreateCommitteeLinkNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link", err)
+			}
+			return nil, NewCreateCommitteeLinkNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body CreateCommitteeLinkServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link", err)
+			}
+			err = ValidateCreateCommitteeLinkServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link", err)
+			}
+			return nil, NewCreateCommitteeLinkServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "create-committee-link", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildDeleteCommitteeLinkRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "delete-committee-link" endpoint
+func (c *Client) BuildDeleteCommitteeLinkRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid     string
+		linkUID string
+	)
+	{
+		p, ok := v.(*committeeservice.DeleteCommitteeLinkPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "delete-committee-link", "*committeeservice.DeleteCommitteeLinkPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+		if p.LinkUID != nil {
+			linkUID = *p.LinkUID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteCommitteeLinkCommitteeServicePath(uid, linkUID)}
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "delete-committee-link", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeDeleteCommitteeLinkRequest returns an encoder for requests sent to the
+// committee-service delete-committee-link server.
+func EncodeDeleteCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.DeleteCommitteeLinkPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "delete-committee-link", "*committeeservice.DeleteCommitteeLinkPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		if p.IfMatch != nil {
+			head := *p.IfMatch
+			req.Header.Set("If-Match", head)
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeDeleteCommitteeLinkResponse returns a decoder for responses returned
+// by the committee-service delete-committee-link endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeDeleteCommitteeLinkResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeDeleteCommitteeLinkResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusNoContent:
+			return nil, nil
+		case http.StatusBadRequest:
+			var (
+				body DeleteCommitteeLinkBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link", err)
+			}
+			err = ValidateDeleteCommitteeLinkBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
+			}
+			return nil, NewDeleteCommitteeLinkBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body DeleteCommitteeLinkInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link", err)
+			}
+			err = ValidateDeleteCommitteeLinkInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
+			}
+			return nil, NewDeleteCommitteeLinkInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body DeleteCommitteeLinkNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link", err)
+			}
+			err = ValidateDeleteCommitteeLinkNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
+			}
+			return nil, NewDeleteCommitteeLinkNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body DeleteCommitteeLinkServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link", err)
+			}
+			err = ValidateDeleteCommitteeLinkServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
+			}
+			return nil, NewDeleteCommitteeLinkServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "delete-committee-link", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildGetCommitteeLinkFolderRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "get-committee-link-folder" endpoint
+func (c *Client) BuildGetCommitteeLinkFolderRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		folderUID string
+	)
+	{
+		p, ok := v.(*committeeservice.GetCommitteeLinkFolderPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "get-committee-link-folder", "*committeeservice.GetCommitteeLinkFolderPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+		if p.FolderUID != nil {
+			folderUID = *p.FolderUID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetCommitteeLinkFolderCommitteeServicePath(uid, folderUID)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-committee-link-folder", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGetCommitteeLinkFolderRequest returns an encoder for requests sent to
+// the committee-service get-committee-link-folder server.
+func EncodeGetCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GetCommitteeLinkFolderPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "get-committee-link-folder", "*committeeservice.GetCommitteeLinkFolderPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeGetCommitteeLinkFolderResponse returns a decoder for responses
+// returned by the committee-service get-committee-link-folder endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeGetCommitteeLinkFolderResponse may return the following errors:
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGetCommitteeLinkFolderResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetCommitteeLinkFolderResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link-folder", err)
+			}
+			err = ValidateGetCommitteeLinkFolderResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link-folder", err)
+			}
+			var (
+				etag *string
+			)
+			etagRaw := resp.Header.Get("Etag")
+			if etagRaw != "" {
+				etag = &etagRaw
+			}
+			res := NewGetCommitteeLinkFolderResultOK(&body, etag)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body GetCommitteeLinkFolderInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link-folder", err)
+			}
+			err = ValidateGetCommitteeLinkFolderInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link-folder", err)
+			}
+			return nil, NewGetCommitteeLinkFolderInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body GetCommitteeLinkFolderNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link-folder", err)
+			}
+			err = ValidateGetCommitteeLinkFolderNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link-folder", err)
+			}
+			return nil, NewGetCommitteeLinkFolderNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GetCommitteeLinkFolderServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-committee-link-folder", err)
+			}
+			err = ValidateGetCommitteeLinkFolderServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-committee-link-folder", err)
+			}
+			return nil, NewGetCommitteeLinkFolderServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-committee-link-folder", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildListCommitteeLinkFoldersRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "list-committee-link-folders" endpoint
+func (c *Client) BuildListCommitteeLinkFoldersRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.ListCommitteeLinkFoldersPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "list-committee-link-folders", "*committeeservice.ListCommitteeLinkFoldersPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ListCommitteeLinkFoldersCommitteeServicePath(uid)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "list-committee-link-folders", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeListCommitteeLinkFoldersRequest returns an encoder for requests sent
+// to the committee-service list-committee-link-folders server.
+func EncodeListCommitteeLinkFoldersRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.ListCommitteeLinkFoldersPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "list-committee-link-folders", "*committeeservice.ListCommitteeLinkFoldersPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeListCommitteeLinkFoldersResponse returns a decoder for responses
+// returned by the committee-service list-committee-link-folders endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeListCommitteeLinkFoldersResponse may return the following errors:
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeListCommitteeLinkFoldersResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body ListCommitteeLinkFoldersResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-link-folders", err)
+			}
+			for _, e := range body {
+				if e != nil {
+					if err2 := ValidateCommitteeLinkFolderWithReadonlyAttributesResponse(e); err2 != nil {
+						err = goa.MergeErrors(err, err2)
+					}
+				}
+			}
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-link-folders", err)
+			}
+			res := NewListCommitteeLinkFoldersCommitteeLinkFolderWithReadonlyAttributesOK(body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body ListCommitteeLinkFoldersInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-link-folders", err)
+			}
+			err = ValidateListCommitteeLinkFoldersInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-link-folders", err)
+			}
+			return nil, NewListCommitteeLinkFoldersInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body ListCommitteeLinkFoldersNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-link-folders", err)
+			}
+			err = ValidateListCommitteeLinkFoldersNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-link-folders", err)
+			}
+			return nil, NewListCommitteeLinkFoldersNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body ListCommitteeLinkFoldersServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-link-folders", err)
+			}
+			err = ValidateListCommitteeLinkFoldersServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "list-committee-link-folders", err)
+			}
+			return nil, NewListCommitteeLinkFoldersServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "list-committee-link-folders", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildCreateCommitteeLinkFolderRequest instantiates a HTTP request object
+// with method and path set to call the "committee-service" service
+// "create-committee-link-folder" endpoint
+func (c *Client) BuildCreateCommitteeLinkFolderRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.CreateCommitteeLinkFolderPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "create-committee-link-folder", "*committeeservice.CreateCommitteeLinkFolderPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateCommitteeLinkFolderCommitteeServicePath(uid)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "create-committee-link-folder", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeCreateCommitteeLinkFolderRequest returns an encoder for requests sent
+// to the committee-service create-committee-link-folder server.
+func EncodeCreateCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.CreateCommitteeLinkFolderPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "create-committee-link-folder", "*committeeservice.CreateCommitteeLinkFolderPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		body := NewCreateCommitteeLinkFolderRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "create-committee-link-folder", err)
+		}
+		return nil
+	}
+}
+
+// DecodeCreateCommitteeLinkFolderResponse returns a decoder for responses
+// returned by the committee-service create-committee-link-folder endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeCreateCommitteeLinkFolderResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeCreateCommitteeLinkFolderResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusCreated:
+			var (
+				body CreateCommitteeLinkFolderResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			res := NewCreateCommitteeLinkFolderCommitteeLinkFolderWithReadonlyAttributesCreated(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body CreateCommitteeLinkFolderBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			return nil, NewCreateCommitteeLinkFolderBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body CreateCommitteeLinkFolderConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			return nil, NewCreateCommitteeLinkFolderConflict(&body)
+		case http.StatusInternalServerError:
+			var (
+				body CreateCommitteeLinkFolderInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			return nil, NewCreateCommitteeLinkFolderInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body CreateCommitteeLinkFolderNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			return nil, NewCreateCommitteeLinkFolderNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body CreateCommitteeLinkFolderServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "create-committee-link-folder", err)
+			}
+			err = ValidateCreateCommitteeLinkFolderServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "create-committee-link-folder", err)
+			}
+			return nil, NewCreateCommitteeLinkFolderServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "create-committee-link-folder", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildDeleteCommitteeLinkFolderRequest instantiates a HTTP request object
+// with method and path set to call the "committee-service" service
+// "delete-committee-link-folder" endpoint
+func (c *Client) BuildDeleteCommitteeLinkFolderRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		folderUID string
+	)
+	{
+		p, ok := v.(*committeeservice.DeleteCommitteeLinkFolderPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "delete-committee-link-folder", "*committeeservice.DeleteCommitteeLinkFolderPayload", v)
+		}
+		if p.UID != nil {
+			uid = *p.UID
+		}
+		if p.FolderUID != nil {
+			folderUID = *p.FolderUID
+		}
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteCommitteeLinkFolderCommitteeServicePath(uid, folderUID)}
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "delete-committee-link-folder", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeDeleteCommitteeLinkFolderRequest returns an encoder for requests sent
+// to the committee-service delete-committee-link-folder server.
+func EncodeDeleteCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.DeleteCommitteeLinkFolderPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "delete-committee-link-folder", "*committeeservice.DeleteCommitteeLinkFolderPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		if p.IfMatch != nil {
+			head := *p.IfMatch
+			req.Header.Set("If-Match", head)
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeDeleteCommitteeLinkFolderResponse returns a decoder for responses
+// returned by the committee-service delete-committee-link-folder endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeDeleteCommitteeLinkFolderResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeDeleteCommitteeLinkFolderResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusNoContent:
+			return nil, nil
+		case http.StatusBadRequest:
+			var (
+				body DeleteCommitteeLinkFolderBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link-folder", err)
+			}
+			err = ValidateDeleteCommitteeLinkFolderBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
+			}
+			return nil, NewDeleteCommitteeLinkFolderBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body DeleteCommitteeLinkFolderInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link-folder", err)
+			}
+			err = ValidateDeleteCommitteeLinkFolderInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
+			}
+			return nil, NewDeleteCommitteeLinkFolderInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body DeleteCommitteeLinkFolderNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link-folder", err)
+			}
+			err = ValidateDeleteCommitteeLinkFolderNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
+			}
+			return nil, NewDeleteCommitteeLinkFolderNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body DeleteCommitteeLinkFolderServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link-folder", err)
+			}
+			err = ValidateDeleteCommitteeLinkFolderServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
+			}
+			return nil, NewDeleteCommitteeLinkFolderServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "delete-committee-link-folder", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkWithReadonlyAttributes
+// builds a value of type *committeeservice.CommitteeLinkWithReadonlyAttributes
+// from a value of type *CommitteeLinkWithReadonlyAttributesResponse.
+func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkWithReadonlyAttributes(v *CommitteeLinkWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkWithReadonlyAttributes {
+	res := &committeeservice.CommitteeLinkWithReadonlyAttributes{
+		UID:           v.UID,
+		CommitteeUID:  v.CommitteeUID,
+		FolderUID:     v.FolderUID,
+		Name:          v.Name,
+		URL:           v.URL,
+		Description:   v.Description,
+		CreatedByUID:  v.CreatedByUID,
+		CreatedByName: v.CreatedByName,
+		CreatedAt:     v.CreatedAt,
+		UpdatedAt:     v.UpdatedAt,
+	}
+
+	return res
+}
+
+// unmarshalCommitteeLinkFolderWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkFolderWithReadonlyAttributes
+// builds a value of type
+// *committeeservice.CommitteeLinkFolderWithReadonlyAttributes from a value of
+// type *CommitteeLinkFolderWithReadonlyAttributesResponse.
+func unmarshalCommitteeLinkFolderWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkFolderWithReadonlyAttributes(v *CommitteeLinkFolderWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkFolderWithReadonlyAttributes {
+	res := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
+		UID:           v.UID,
+		CommitteeUID:  v.CommitteeUID,
+		Name:          v.Name,
+		CreatedByUID:  v.CreatedByUID,
+		CreatedByName: v.CreatedByName,
+		CreatedAt:     v.CreatedAt,
+		UpdatedAt:     v.UpdatedAt,
+	}
+
+	return res
 }

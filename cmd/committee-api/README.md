@@ -177,7 +177,23 @@ Tags serve multiple important purposes in the LFX system:
    - Prefixed values support field-specific search (e.g., "find members with username 'govofficial4'")
 
 4. **Data Synchronization**: When committees or members are updated, their tags are automatically updated, ensuring search results remain current
-  
+
+### IndexingConfig
+
+Each indexer message also includes an `IndexingConfig` that provides pre-computed metadata for the indexer service. When present, it bypasses server-side enrichers and controls how the document is stored, searched, and access-checked in OpenSearch.
+
+For full field reference and message format details, see the [indexer service client guide](https://github.com/linuxfoundation/lfx-v2-indexer-service/blob/main/docs/client-guide.md).
+
+#### IndexingConfig values per resource type
+
+| Resource | `access_check_object` | `access_check_relation` | `history_check_object` | `history_check_relation` | `parent_refs` | `fulltext` |
+|---|---|---|---|---|---|---|
+| Committee | `committee:<uid>` | `viewer` | `committee:<uid>` | `auditor` | `project:<uid>`, optionally `committee:<parent_uid>` | name, display name, description |
+| Committee Settings | `committee_settings:<uid>` | `auditor` | `committee_settings:<uid>` | `auditor` | _(none)_ | _(none)_ |
+| Committee Member | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>` | first name, last name, email, organization name |
+| Committee Link | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>`, optionally `committee_link_folder:<folder_uid>` | name, description, URL |
+| Committee Link Folder | `committee:<committee_uid>` | `viewer` | `committee:<committee_uid>` | `auditor` | `committee:<committee_uid>` | name |
+
 ## Development
 
 ### Prerequisites
