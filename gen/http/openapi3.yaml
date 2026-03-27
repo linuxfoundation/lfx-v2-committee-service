@@ -294,6 +294,7 @@ paths:
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                join_mode: open
                                 mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -394,6 +395,7 @@ paths:
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
+                            join_mode: open
                             mailing_list: tsc@lists.example.org
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -417,6 +419,7 @@ paths:
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                join_mode: open
                                 mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -2925,7 +2928,6 @@ paths:
                             example:
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
-                                join_mode: open
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
@@ -3016,7 +3018,6 @@ paths:
                                 - auditor_user_id1
                                 - auditor_user_id2
                             business_email_required: false
-                            join_mode: open
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
@@ -3034,7 +3035,6 @@ paths:
                             example:
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
-                                join_mode: open
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
@@ -3215,6 +3215,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -3265,6 +3275,7 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -3332,6 +3343,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -3408,6 +3429,7 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -4527,16 +4549,6 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
-                join_mode:
-                    type: string
-                    description: How new members can join this committee
-                    default: invite_only
-                    example: open
-                    enum:
-                        - open
-                        - invite_only
-                        - application
-                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4562,7 +4574,6 @@ components:
             description: A representation of LF Committee settings.
             example:
                 business_email_required: false
-                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -4580,16 +4591,6 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
-                join_mode:
-                    type: string
-                    description: How new members can join this committee
-                    default: invite_only
-                    example: open
-                    enum:
-                        - open
-                        - invite_only
-                        - application
-                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4626,7 +4627,6 @@ components:
             example:
                 business_email_required: false
                 created_at: "2023-01-15T10:30:00Z"
-                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -5190,6 +5190,16 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                join_mode:
+                    type: string
+                    description: How new members can join this committee
+                    default: invite_only
+                    example: open
+                    enum:
+                        - open
+                        - invite_only
+                        - application
+                        - closed
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -5239,6 +5249,7 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                join_mode: open
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -5268,16 +5279,6 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
-                join_mode:
-                    type: string
-                    description: How new members can join this committee
-                    default: invite_only
-                    example: open
-                    enum:
-                        - open
-                        - invite_only
-                        - application
-                        - closed
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -5314,7 +5315,6 @@ components:
                     - auditor_user_id1
                     - auditor_user_id2
                 business_email_required: false
-                join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
