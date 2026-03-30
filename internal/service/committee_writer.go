@@ -18,7 +18,70 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
+
+// buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
+// It mirrors what the CommitteeEnricher in the indexer service would derive from the data.
+func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
+	var nameAndAliases []string
+	if committee.Name != "" {
+		nameAndAliases = append(nameAndAliases, committee.Name)
+	}
+	if committee.DisplayName != "" && committee.DisplayName != committee.Name {
+		nameAndAliases = append(nameAndAliases, committee.DisplayName)
+	}
+
+	var parentRefs []string
+	if committee.ProjectUID != "" {
+		parentRefs = append(parentRefs, fmt.Sprintf("project:%s", committee.ProjectUID))
+	}
+	if committee.ParentUID != nil && *committee.ParentUID != "" {
+		parentRefs = append(parentRefs, fmt.Sprintf("committee:%s", *committee.ParentUID))
+	}
+
+	var fulltextParts []string
+	seen := make(map[string]bool)
+	for _, part := range nameAndAliases {
+		if !seen[part] {
+			fulltextParts = append(fulltextParts, part)
+			seen[part] = true
+		}
+	}
+	if committee.Description != "" && !seen[committee.Description] {
+		fulltextParts = append(fulltextParts, committee.Description)
+	}
+
+	public := committee.Public
+	return &indexerTypes.IndexingConfig{
+		ObjectID:             committee.CommitteeBase.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+		HistoryCheckRelation: "auditor",
+		SortName:             committee.Name,
+		NameAndAliases:       nameAndAliases,
+		ParentRefs:           parentRefs,
+		Tags:                 committee.Tags(),
+		Fulltext:             strings.Join(fulltextParts, " "),
+		Public:               &public,
+	}
+}
+
+// buildCommitteeSettingsIndexingConfig constructs an IndexingConfig for a CommitteeSettings document.
+// It mirrors what the CommitteeSettingsEnricher in the indexer service would derive from the data.
+func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
+	public := committee.Public
+	return &indexerTypes.IndexingConfig{
+		ObjectID:             committee.CommitteeBase.UID,
+		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
+		AccessCheckRelation:  "auditor",
+		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
+		HistoryCheckRelation: "auditor",
+		Tags:                 committee.Tags(),
+		Public:               &public,
+	}
+}
 
 // CommitteeWriter defines the interface for committee write operations
 type CommitteeWriter interface {
@@ -410,22 +473,24 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
-	for subject, data := range map[string]any{
-		constants.IndexCommitteeSubject:         committee.CommitteeBase,
-		constants.IndexCommitteeSettingsSubject: committee.CommitteeSettings,
-	} {
-		message, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionCreated, data, committee.Tags())
-		if errBuildIndexerMessage != nil {
-			return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
-		}
 
-		localSubject := subject
-		localMessage := message
-
-		messages = append(messages, func() error {
-			return uc.committeePublisher.Indexer(ctx, localSubject, localMessage, sync)
-		})
+	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeBase, committee.Tags())
+	if errBuildCommitteeMsg != nil {
+		return nil, errs.NewUnexpected("failed to build indexer message", errBuildCommitteeMsg)
 	}
+	committeeMsg.IndexingConfig = buildCommitteeIndexingConfig(committee)
+	messages = append(messages, func() error {
+		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, committeeMsg, sync)
+	})
+
+	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeSettings, committee.Tags())
+	if errBuildSettingsMsg != nil {
+		return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+	}
+	settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+	messages = append(messages, func() error {
+		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
+	})
 
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
@@ -622,6 +687,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		)
 		return nil, errBuildIndexerMessage
 	}
+	messageIndexer.IndexingConfig = buildCommitteeIndexingConfig(committee)
 
 	settings, _, errGetSettings := uc.committeeReader.GetSettings(ctx, committee.CommitteeBase.UID)
 	if errGetSettings != nil && !errors.Is(errGetSettings, errs.NotFound{}) {
@@ -744,6 +810,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		)
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 	}
+	messageIndexer.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
 
 	// Build and publish access control message
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)

@@ -17,6 +17,7 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // type committeeWriterOrchestrator from committee_writer.go
@@ -351,10 +352,29 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		"revision", committeeRevision,
 	)
 
-	// Step 3: Validate member against committee requirements (domain validation)
-	// We use empty settings for basic validation since we only need settings for email validation
-	basicSettings := &model.CommitteeSettings{}
-	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: basicSettings}
+	// Step 3: Fetch committee settings and validate member against committee requirements
+	var settings *model.CommitteeSettings
+	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
+	if errSettings != nil {
+		var notFoundErr errs.NotFound
+		if !errors.As(errSettings, &notFoundErr) {
+			slog.ErrorContext(ctx, "failed to retrieve committee settings during member update",
+				"error", errSettings,
+				"committee_uid", member.CommitteeUID,
+			)
+			return nil, errSettings
+		}
+	}
+	if settings == nil {
+		settings = &model.CommitteeSettings{}
+	}
+
+	slog.DebugContext(ctx, "committee settings retrieved for member update",
+		"committee_uid", member.CommitteeUID,
+		"business_email_required", settings.BusinessEmailRequired,
+	)
+
+	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
@@ -373,29 +393,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		slog.DebugContext(ctx, "email change detected",
 			"old_email", redaction.RedactEmail(existing.Email),
 			"new_email", redaction.RedactEmail(member.Email),
-		)
-
-		// Get committee settings to check business email requirements (only when email changes)
-		var settings *model.CommitteeSettings
-		settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
-		if errSettings != nil {
-			var notFoundErr errs.NotFound
-			if !errors.As(errSettings, &notFoundErr) {
-				slog.ErrorContext(ctx, "failed to retrieve committee settings for email validation",
-					"error", errSettings,
-					"committee_uid", member.CommitteeUID,
-				)
-				return nil, errSettings
-			}
-		}
-		// Use empty settings if not found
-		if settings == nil {
-			settings = &model.CommitteeSettings{}
-		}
-
-		slog.DebugContext(ctx, "committee settings retrieved for email validation",
-			"committee_uid", member.CommitteeUID,
-			"business_email_required", settings.BusinessEmailRequired,
 		)
 
 		// Validate business email domain if required
@@ -762,17 +759,37 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Customize the indexer message based on the action
+	var memberData any
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
 		// Add tags for create/update operations (when we have the full member data)
 		indexerMessage.Tags = data.Member.Tags()
-		indexerMessage.Data = data.Member
+
+		var nameAndAliases []string
+		for _, v := range []string{data.Member.CommitteeName, data.Member.FirstName, data.Member.LastName, data.Member.Username} {
+			if v != "" {
+				nameAndAliases = append(nameAndAliases, v)
+			}
+		}
+		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
+			ObjectID:             data.Member.UID,
+			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+			AccessCheckRelation:  "viewer",
+			HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+			HistoryCheckRelation: "auditor",
+			SortName:             data.Member.FirstName,
+			NameAndAliases:       nameAndAliases,
+			ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
+			Tags:                 data.Member.Tags(),
+			Fulltext:             fmt.Sprintf("%s %s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Email, data.Member.Organization.Name),
+		}
+		memberData = data.Member
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
-		indexerMessage.Data = data.Member.UID
+		memberData = data.Member.UID
 	}
 
-	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, indexerMessage.Data)
+	indexerMessageBuild, errBuildIndexerMessage := indexerMessage.Build(ctx, memberData)
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build member indexer message",
 			"error", errBuildIndexerMessage,

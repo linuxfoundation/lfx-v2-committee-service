@@ -1024,13 +1024,13 @@ func (m *MockRepository) GetSettingsPtr(committeeUID string) *model.CommitteeSet
 	return m.committeeSettings[committeeUID]
 }
 
-// SetJoinMode safely updates the join_mode for a committee's settings.
+// SetJoinMode safely updates the join_mode for a committee's base.
 func (m *MockRepository) SetJoinMode(committeeUID, joinMode string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if settings, exists := m.committeeSettings[committeeUID]; exists {
-		settings.JoinMode = joinMode
+	if committee, exists := m.committees[committeeUID]; exists {
+		committee.JoinMode = joinMode
 	}
 }
 
