@@ -593,6 +593,262 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/folders:
+        get:
+            tags:
+                - committee-service
+            summary: list-committee-link-folders committee-service
+            description: List all folders for a committee
+            operationId: committee-service#list-committee-link-folders
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/CommitteeLinkFolderWithReadonlyAttributes'
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+        post:
+            tags:
+                - committee-service
+            summary: create-committee-link-folder committee-service
+            description: Create a folder to organize committee links
+            operationId: committee-service#create-committee-link-folder
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: Create-Committee-Link-FolderRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceCreateCommitteeLinkFolderRequestBody'
+                    required:
+                        - name
+            responses:
+                "201":
+                    description: Created response.
+                    schema:
+                        $ref: '#/definitions/CommitteeLinkFolderWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/folders/{folder_uid}:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-link-folder committee-service
+            description: Get a single folder for a committee
+            operationId: committee-service#get-committee-link-folder
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: folder_uid
+                  in: path
+                  description: Committee folder UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeServiceGetCommitteeLinkFolderResponseBody'
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            type: string
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+        delete:
+            tags:
+                - committee-service
+            summary: delete-committee-link-folder committee-service
+            description: Delete a folder from a committee. Returns BadRequest if the folder contains links.
+            operationId: committee-service#delete-committee-link-folder
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: folder_uid
+                  in: path
+                  description: Committee folder UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  required: false
+                  type: string
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/invites:
         post:
             tags:
@@ -1055,6 +1311,263 @@ paths:
                   required: false
                   type: boolean
                   default: false
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/links:
+        get:
+            tags:
+                - committee-service
+            summary: list-committee-links committee-service
+            description: List links for a committee, optionally filtered by folder
+            operationId: committee-service#list-committee-links
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: folder_uid
+                  in: query
+                  description: Filter links to those inside a specific folder; omit to return all links
+                  required: false
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/CommitteeLinkWithReadonlyAttributes'
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+        post:
+            tags:
+                - committee-service
+            summary: create-committee-link committee-service
+            description: Add a URL link to a committee
+            operationId: committee-service#create-committee-link
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: Create-Committee-LinkRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceCreateCommitteeLinkRequestBody'
+                    required:
+                        - name
+                        - url
+            responses:
+                "201":
+                    description: Created response.
+                    schema:
+                        $ref: '#/definitions/CommitteeLinkWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/links/{link_uid}:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-link committee-service
+            description: Get a single link for a committee
+            operationId: committee-service#get-committee-link
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: link_uid
+                  in: path
+                  description: Committee link UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeServiceGetCommitteeLinkResponseBody'
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            type: string
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+        delete:
+            tags:
+                - committee-service
+            summary: delete-committee-link committee-service
+            description: Delete a link from a committee
+            operationId: committee-service#delete-committee-link
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: link_uid
+                  in: path
+                  description: Committee link UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  required: false
+                  type: string
             responses:
                 "204":
                     description: No Content response.
@@ -1663,6 +2176,16 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            join_mode:
+                type: string
+                description: How new members can join this committee
+                default: invite_only
+                example: open
+                enum:
+                    - open
+                    - invite_only
+                    - application
+                    - closed
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -1739,6 +2262,7 @@ definitions:
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            join_mode: open
             mailing_list: tsc@lists.example.org
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -1760,7 +2284,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Sit nisi culpa alias odit inventore.
+                    example: Accusamus nostrum ut.
                 description: Auditor user IDs who can audit this committee
                 example:
                     - auditor_user_id1
@@ -1924,7 +2448,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Non aliquam est voluptas.
+                    example: Autem sunt fugiat.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -2006,6 +2530,116 @@ definitions:
             role: None
             status: pending
             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    CommitteeLinkFolderWithReadonlyAttributes:
+        title: CommitteeLinkFolderWithReadonlyAttributes
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            created_at:
+                type: string
+                description: The timestamp when the resource was created (read-only)
+                example: "2023-01-15T10:30:00Z"
+                format: date-time
+            created_by_name:
+                type: string
+                description: Display name of the user who created the folder (client-provided)
+                example: Alex Lee
+            created_by_uid:
+                type: string
+                description: LF username of the user who created the folder (auto-populated from JWT)
+                example: alexlee
+            name:
+                type: string
+                description: Folder name
+                example: Meeting Notes
+                maxLength: 200
+            uid:
+                type: string
+                description: Folder UID
+                example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                format: uuid
+            updated_at:
+                type: string
+                description: The timestamp when the resource was last updated (read-only)
+                example: "2023-06-20T14:45:30Z"
+                format: date-time
+        description: A folder for organizing committee links.
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            created_at: "2023-01-15T10:30:00Z"
+            created_by_name: Alex Lee
+            created_by_uid: alexlee
+            name: Meeting Notes
+            uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+            updated_at: "2023-06-20T14:45:30Z"
+    CommitteeLinkWithReadonlyAttributes:
+        title: CommitteeLinkWithReadonlyAttributes
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            created_at:
+                type: string
+                description: The timestamp when the resource was created (read-only)
+                example: "2023-01-15T10:30:00Z"
+                format: date-time
+            created_by_name:
+                type: string
+                description: Display name of the user who added the link (client-provided)
+                example: Alex Lee
+            created_by_uid:
+                type: string
+                description: LF username of the user who added the link (auto-populated from JWT)
+                example: alexlee
+            description:
+                type: string
+                description: Optional description
+                example: Confluence wiki — architecture decisions log
+                maxLength: 2000
+            folder_uid:
+                type: string
+                description: Optional folder UID this link belongs to
+                example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                format: uuid
+            name:
+                type: string
+                description: Display name for the link
+                example: Technical Architecture Decision Records
+                maxLength: 500
+            uid:
+                type: string
+                description: Link UID
+                example: c1d2e3f4-a5b6-7890-cdef-123456789012
+                format: uuid
+            updated_at:
+                type: string
+                description: The timestamp when the resource was last updated (read-only)
+                example: "2023-06-20T14:45:30Z"
+                format: date-time
+            url:
+                type: string
+                description: The URL this link points to
+                example: https://confluence.example.com/architecture-decisions
+                maxLength: 2048
+        description: A URL link associated with a committee.
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            created_at: "2023-01-15T10:30:00Z"
+            created_by_name: Alex Lee
+            created_by_uid: alexlee
+            description: Confluence wiki — architecture decisions log
+            folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+            name: Technical Architecture Decision Records
+            uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+            updated_at: "2023-06-20T14:45:30Z"
+            url: https://confluence.example.com/architecture-decisions
     CommitteeMemberFullWithReadonlyAttributes:
         title: CommitteeMemberFullWithReadonlyAttributes
         type: object
@@ -2225,6 +2859,63 @@ definitions:
                 maxLength: 2000
         example:
             reviewer_notes: Approved based on contribution history.
+    CommitteeServiceCreateCommitteeLinkFolderRequestBody:
+        title: CommitteeServiceCreateCommitteeLinkFolderRequestBody
+        type: object
+        properties:
+            created_by_name:
+                type: string
+                description: Display name of the creator (client-provided from user session)
+                example: Alex Lee
+                maxLength: 200
+            name:
+                type: string
+                description: Folder name
+                example: Meeting Notes
+                maxLength: 200
+        example:
+            created_by_name: Alex Lee
+            name: Meeting Notes
+        required:
+            - name
+    CommitteeServiceCreateCommitteeLinkRequestBody:
+        title: CommitteeServiceCreateCommitteeLinkRequestBody
+        type: object
+        properties:
+            created_by_name:
+                type: string
+                description: Display name of the creator (client-provided from user session)
+                example: Alex Lee
+                maxLength: 200
+            description:
+                type: string
+                description: Optional description
+                example: fi3
+                maxLength: 2000
+            folder_uid:
+                type: string
+                description: Optional folder UID to place this link in
+                example: 9509a22a-60e0-42ed-bc30-2542387c1633
+                format: uuid
+            name:
+                type: string
+                description: Display name for the link
+                example: Technical Architecture Decision Records
+                maxLength: 500
+            url:
+                type: string
+                description: The URL this link points to
+                example: https://confluence.example.com/architecture-decisions
+                maxLength: 2048
+        example:
+            created_by_name: Alex Lee
+            description: k64
+            folder_uid: 955ef4d9-f96b-4705-8d86-a552b00b556f
+            name: Technical Architecture Decision Records
+            url: https://confluence.example.com/architecture-decisions
+        required:
+            - name
+            - url
     CommitteeServiceCreateCommitteeMemberRequestBody:
         title: CommitteeServiceCreateCommitteeMemberRequestBody
         type: object
@@ -2407,7 +3098,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Dolorum aspernatur voluptatem harum veritatis quaerat dolorem.
+                    example: Laborum accusamus.
                 description: Auditor user IDs who can audit this committee
                 example:
                     - auditor_user_id1
@@ -2550,7 +3241,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Vitae sit voluptatem enim esse unde voluptatibus.
+                    example: Possimus in.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -2608,6 +3299,12 @@ definitions:
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
+    CommitteeServiceGetCommitteeLinkFolderResponseBody:
+        title: CommitteeServiceGetCommitteeLinkFolderResponseBody
+        $ref: '#/definitions/CommitteeLinkFolderWithReadonlyAttributes'
+    CommitteeServiceGetCommitteeLinkResponseBody:
+        title: CommitteeServiceGetCommitteeLinkResponseBody
+        $ref: '#/definitions/CommitteeLinkWithReadonlyAttributes'
     CommitteeServiceGetCommitteeMemberResponseBody:
         title: CommitteeServiceGetCommitteeMemberResponseBody
         $ref: '#/definitions/CommitteeMemberFullWithReadonlyAttributes'
@@ -2696,6 +3393,16 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            join_mode:
+                type: string
+                description: How new members can join this committee
+                default: invite_only
+                example: open
+                enum:
+                    - open
+                    - invite_only
+                    - application
+                    - closed
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -2745,6 +3452,7 @@ definitions:
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            join_mode: open
             mailing_list: tsc@lists.example.org
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
@@ -2939,7 +3647,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Debitis labore alias nesciunt quis.
+                    example: Neque autem ullam et voluptatibus.
                 description: Auditor user IDs who can audit this committee
                 example:
                     - auditor_user_id1
@@ -2949,16 +3657,6 @@ definitions:
                 description: Whether business email is required for committee members
                 default: false
                 example: false
-            join_mode:
-                type: string
-                description: How new members can join this committee
-                default: invite_only
-                example: open
-                enum:
-                    - open
-                    - invite_only
-                    - application
-                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -2985,7 +3683,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Qui maxime recusandae et modi.
+                    example: Laudantium commodi qui quia repellendus sit.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -2995,7 +3693,6 @@ definitions:
                 - auditor_user_id1
                 - auditor_user_id2
             business_email_required: false
-            join_mode: open
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
@@ -3019,16 +3716,6 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            join_mode:
-                type: string
-                description: How new members can join this committee
-                default: invite_only
-                example: open
-                enum:
-                    - open
-                    - invite_only
-                    - application
-                    - closed
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -3065,7 +3752,6 @@ definitions:
         example:
             business_email_required: false
             created_at: "2023-01-15T10:30:00Z"
-            join_mode: open
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden

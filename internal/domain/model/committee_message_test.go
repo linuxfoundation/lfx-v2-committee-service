@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -290,6 +291,78 @@ func TestCommitteeIndexerMessage_Build_ContextValues(t *testing.T) {
 			} else {
 				assert.NotContains(t, result.Headers, constants.XOnBehalfOfHeader)
 			}
+		})
+	}
+}
+
+// TestCommitteeIndexerMessage_Build_IndexingConfig verifies that IndexingConfig set
+// before calling Build is preserved unchanged on the returned message.
+func TestCommitteeIndexerMessage_Build_IndexingConfig(t *testing.T) {
+	publicTrue := true
+
+	tests := []struct {
+		name           string
+		action         MessageAction
+		indexingConfig *indexerTypes.IndexingConfig
+	}{
+		{
+			name:   "IndexingConfig preserved on ActionCreated",
+			action: ActionCreated,
+			indexingConfig: &indexerTypes.IndexingConfig{
+				ObjectID:             "committee-uid-123",
+				AccessCheckObject:    "committee:committee-uid-123",
+				AccessCheckRelation:  "viewer",
+				HistoryCheckObject:   "committee:committee-uid-123",
+				HistoryCheckRelation: "auditor",
+				SortName:             "My Committee",
+				NameAndAliases:       []string{"My Committee", "MC"},
+				ParentRefs:           []string{"project:project-uid-456"},
+				Tags:                 []string{"project_uid:project-uid-456"},
+				Fulltext:             "My Committee MC A test committee",
+				Public:               &publicTrue,
+			},
+		},
+		{
+			name:   "IndexingConfig preserved on ActionUpdated",
+			action: ActionUpdated,
+			indexingConfig: &indexerTypes.IndexingConfig{
+				ObjectID:             "member-uid-789",
+				AccessCheckObject:    "committee:committee-uid-123",
+				AccessCheckRelation:  "viewer",
+				HistoryCheckObject:   "committee:committee-uid-123",
+				HistoryCheckRelation: "auditor",
+				SortName:             "Jane",
+				NameAndAliases:       []string{"Jane Doe"},
+				ParentRefs:           []string{"committee:committee-uid-123"},
+				Fulltext:             "Jane Doe jane@example.com Linux Foundation",
+			},
+		},
+		{
+			name:           "nil IndexingConfig remains nil on ActionDeleted",
+			action:         ActionDeleted,
+			indexingConfig: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			message := &CommitteeIndexerMessage{
+				Action:         tt.action,
+				IndexingConfig: tt.indexingConfig,
+			}
+
+			var input any
+			if tt.action == ActionDeleted {
+				input = "some-uid"
+			} else {
+				input = map[string]string{"uid": "some-uid"}
+			}
+
+			result, err := message.Build(context.Background(), input)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.indexingConfig, result.IndexingConfig)
 		})
 	}
 }
