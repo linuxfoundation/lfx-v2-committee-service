@@ -106,7 +106,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `business_email_required` | bool | Whether a business email is required to join |
 | `show_meeting_attendees` | bool | Whether meeting attendees are visible |
 | `member_visibility` | string | Who can see members |
-| `last_reviewed_at` | string (optional) | Timestamp of the last membership review |
+| `last_reviewed_at` | string (optional) | RFC3339 timestamp of the last membership review |
 | `last_reviewed_by` | string (optional) | UID of who performed the last review |
 | `writers` | []string | UIDs of users with write access |
 | `auditors` | []string | UIDs of users with audit access |
@@ -377,6 +377,7 @@ _(none)_
 | `fulltext` | `name`, `description`, `url` |
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
+| `public` | inherits from parent committee |
 
 ### Parent References
 
@@ -429,6 +430,7 @@ _(none)_
 | `fulltext` | `name` |
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
+| `public` | inherits from parent committee |
 
 ### Parent References
 
