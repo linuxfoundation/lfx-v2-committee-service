@@ -81,7 +81,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `fulltext` | `name`, `display_name`, `description` |
 | `name_and_aliases` | `name`, `display_name` (deduplicated) |
 | `sort_name` | `name` |
-| `public` | value of `data.public` |
+| `public` | set from `committee.public` |
 
 ### Parent References
 
