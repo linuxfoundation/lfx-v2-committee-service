@@ -11,6 +11,8 @@ This document is the authoritative reference for all data the committee service 
 - [Committee](#committee)
 - [Committee Settings](#committee-settings)
 - [Committee Member](#committee-member)
+- [Committee Invite](#committee-invite)
+- [Committee Application](#committee-application)
 - [Committee Link](#committee-link)
 - [Committee Link Folder](#committee-link-folder)
 
@@ -30,22 +32,22 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 |---|---|---|
 | `uid` | string | Committee unique identifier |
 | `project_uid` | string | UID of the owning project |
-| `project_name` | string | Name of the owning project |
-| `project_slug` | string | Slug of the owning project |
+| `project_name` | string (optional) | Name of the owning project |
+| `project_slug` | string (optional) | Slug of the owning project |
 | `name` | string | Committee name |
-| `display_name` | string | Display name (may differ from name) |
+| `display_name` | string (optional) | Display name (may differ from name) |
 | `category` | string | Committee category (e.g., `Board`, `TSC`) |
-| `description` | string | Committee description |
+| `description` | string (optional) | Committee description |
 | `website` | string (optional) | Committee website URL |
 | `mailing_list` | string (optional) | Mailing list address |
 | `chat_channel` | string (optional) | Chat channel identifier |
 | `enable_voting` | bool | Whether voting is enabled |
 | `sso_group_enabled` | bool | Whether SSO group is enabled |
-| `sso_group_name` | string | SSO group name |
+| `sso_group_name` | string (optional) | SSO group name |
 | `requires_review` | bool | Whether membership requires review |
 | `public` | bool | Whether the committee is publicly visible |
-| `join_mode` | string | How members can join |
-| `calendar.public` | bool | Whether the committee calendar is public |
+| `join_mode` | string (optional) | How members can join |
+| `calendar.public` | bool (optional) | Whether the committee calendar is public; omitted when the `calendar` object is empty |
 | `parent_uid` | string (optional) | UID of the parent committee (if nested) |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
@@ -207,6 +209,117 @@ _(none)_
 | `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
 | `sort_name` | `first_name` |
 | `public` | inherits from parent committee |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Committee Invite
+
+**Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
+
+**Indexed on:** create, update, delete of a committee invite.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Invite unique identifier |
+| `committee_uid` | string | UID of the committee this invite belongs to |
+| `invitee_email` | string | Email address of the invitee |
+| `role` | string | Role the invitee is being invited to |
+| `status` | string | Invite status (e.g., `Pending`, `Accepted`, `Declined`) |
+| `created_at` | timestamp | Creation time (RFC3339) |
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `{uid}` | `c53dc2b0-...` | Direct lookup by UID |
+| `committee_invite_uid:{uid}` | `committee_invite_uid:c53dc2b0-...` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-...` | Find invites for a committee |
+| `invitee_email:{value}` | `invitee_email:user@example.com` | Find invites by invitee email |
+| `status:{value}` | `status:Pending` | Find invites by status |
+
+> Tags for `invitee_email` and `status` are only emitted when the value is non-empty.
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `viewer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `invitee_email` |
+| `name_and_aliases` | `invitee_email` |
+| `sort_name` | `invitee_email` |
+| `public` | `false` (always) |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Committee Application
+
+**Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
+
+**Indexed on:** create, update, delete of a committee application.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Application unique identifier |
+| `committee_uid` | string | UID of the committee this application belongs to |
+| `applicant_email` | string | Email address of the applicant |
+| `message` | string | Application message from the applicant |
+| `status` | string | Application status (e.g., `Pending`, `Approved`, `Rejected`) |
+| `reviewer_notes` | string | Notes left by the reviewer |
+| `created_at` | timestamp | Creation time (RFC3339) |
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `{uid}` | `a1b2c3d4-...` | Direct lookup by UID |
+| `committee_application_uid:{uid}` | `committee_application_uid:a1b2c3d4-...` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-...` | Find applications for a committee |
+| `applicant_email:{value}` | `applicant_email:user@example.com` | Find applications by applicant email |
+| `status:{value}` | `status:Pending` | Find applications by status |
+
+> Tags for `applicant_email` and `status` are only emitted when the value is non-empty.
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `viewer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `message` |
+| `name_and_aliases` | _(none)_ |
+| `sort_name` | _(none)_ |
+| `public` | `false` (always) |
 
 ### Parent References
 
