@@ -6036,6 +6036,9 @@ components:
                 uploaded_by_name: Alex Lee
             required:
                 - name
+                - file_name
+                - content_type
+                - file
     securitySchemes:
         jwt_header_Authorization:
             type: http

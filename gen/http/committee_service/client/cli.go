@@ -2107,6 +2107,9 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Qui ut error.\",\n      \"description\": \"vxz\",\n      \"file\": \"RGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyIG9tbmlzIHF1YWUu\",\n      \"file_name\": \"Et voluptatibus sit quibusdam.\",\n      \"name\": \"Architecture Decision Record\",\n      \"uploaded_by_name\": \"Alex Lee\"\n   }'")
 		}
+		if body.File == nil {
+			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
+		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
 		}

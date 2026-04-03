@@ -1265,12 +1265,8 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	if p.UploadedByName != nil {
 		doc.UploadedByName = *p.UploadedByName
 	}
-	if p.FileName != nil {
-		doc.FileName = *p.FileName
-	}
-	if p.ContentType != nil {
-		doc.ContentType = *p.ContentType
-	}
+	doc.FileName = p.FileName
+	doc.ContentType = p.ContentType
 
 	created, err := s.docWriter.UploadDocument(ctx, doc, p.File)
 	if err != nil {
