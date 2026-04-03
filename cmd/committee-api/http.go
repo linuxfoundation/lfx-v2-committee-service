@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -155,12 +157,33 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 			v := string(data)
 			payload.UploadedByName = &v
 		case "file":
+			if int64(len(data)) > model.MaxDocumentFileSize {
+				return fmt.Errorf("file size exceeds maximum allowed size of %d bytes", model.MaxDocumentFileSize)
+			}
 			fileName := part.FileName()
 			payload.FileName = &fileName
 			ct := part.Header.Get("Content-Type")
+			// Normalize: strip parameters (e.g. "text/plain; charset=utf-8" → "text/plain")
+			// so the allowlist check in the service layer matches bare MIME types.
+			if mediaType, _, err := mime.ParseMediaType(ct); err == nil {
+				ct = mediaType
+			}
 			payload.ContentType = &ct
 			payload.File = data
 		}
+	}
+	// Validate DSL constraints (MaxLength on name/description/uploaded_by_name)
+	// that the custom multipart decoder bypasses.
+	requestBody := &committeeservicesvr.UploadCommitteeDocumentRequestBody{
+		Name:           &payload.Name,
+		Description:    payload.Description,
+		UploadedByName: payload.UploadedByName,
+		FileName:       payload.FileName,
+		ContentType:    payload.ContentType,
+		File:           payload.File,
+	}
+	if err := committeeservicesvr.ValidateUploadCommitteeDocumentRequestBody(requestBody); err != nil {
+		return err
 	}
 	return nil
 }
