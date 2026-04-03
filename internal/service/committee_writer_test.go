@@ -205,8 +205,8 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					BusinessEmailRequired: true,
-					Writers:               []string{"writer@example.com"},
-					Auditors:              []string{"auditor@example.com"},
+					Writers:               []model.CommitteeUser{{Username: "writer@example.com"}},
+					Auditors:              []model.CommitteeUser{{Username: "auditor@example.com"}},
 				},
 			},
 			expectedError: nil,
@@ -237,7 +237,7 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					BusinessEmailRequired: false,
-					Writers:               []string{"writer@example.com"},
+					Writers:               []model.CommitteeUser{{Username: "writer@example.com"}},
 				},
 			},
 			expectedError: nil,
@@ -287,7 +287,7 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					BusinessEmailRequired: true,
-					Writers:               []string{"writer@example.com"},
+					Writers:               []model.CommitteeUser{{Username: "writer@example.com"}},
 				},
 			},
 			expectedError: nil,
@@ -551,8 +551,8 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					ParentUID:  nil,
 				},
 				CommitteeSettings: &model.CommitteeSettings{
-					Writers:  []string{"writer1@example.com", "writer2@example.com"},
-					Auditors: []string{"auditor1@example.com"},
+					Writers:  []model.CommitteeUser{{Username: "writer1@example.com"}, {Username: "writer2@example.com"}},
+					Auditors: []model.CommitteeUser{{Username: "auditor1@example.com"}},
 				},
 			},
 			expected: &model.CommitteeAccessMessage{
@@ -578,8 +578,8 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					ParentUID:  stringPtr("parent-committee"),
 				},
 				CommitteeSettings: &model.CommitteeSettings{
-					Writers:  []string{"writer@example.com"},
-					Auditors: []string{},
+					Writers:  []model.CommitteeUser{{Username: "writer@example.com"}},
+					Auditors: []model.CommitteeUser{},
 				},
 			},
 			expected: &model.CommitteeAccessMessage{
@@ -1604,8 +1604,8 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_PublishingErrors(t *testing.
 				CommitteeSettings: &model.CommitteeSettings{
 					UID:                   "committee-1",
 					BusinessEmailRequired: false,
-					Writers:               []string{"old-writer@example.com"},
-					Auditors:              []string{"old-auditor@example.com"},
+					Writers:               []model.CommitteeUser{{Username: "old-writer@example.com"}},
+					Auditors:              []model.CommitteeUser{{Username: "old-auditor@example.com"}},
 					CreatedAt:             time.Now().Add(-24 * time.Hour),
 					UpdatedAt:             time.Now().Add(-1 * time.Hour),
 				},
@@ -1632,8 +1632,8 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_PublishingErrors(t *testing.
 			updateSettings := &model.CommitteeSettings{
 				UID:                   "committee-1",
 				BusinessEmailRequired: true,
-				Writers:               []string{"new-writer@example.com"},
-				Auditors:              []string{"new-auditor@example.com"},
+				Writers:               []model.CommitteeUser{{Username: "new-writer@example.com"}},
+				Auditors:              []model.CommitteeUser{{Username: "new-auditor@example.com"}},
 			}
 
 			// Execute
@@ -1646,8 +1646,8 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_PublishingErrors(t *testing.
 				assert.NotNil(t, result)
 				assert.Equal(t, "committee-1", result.UID)
 				assert.True(t, result.BusinessEmailRequired)
-				assert.Equal(t, []string{"new-writer@example.com"}, result.Writers)
-				assert.Equal(t, []string{"new-auditor@example.com"}, result.Auditors)
+				assert.Equal(t, []model.CommitteeUser{{Username: "new-writer@example.com"}}, result.Writers)
+				assert.Equal(t, []model.CommitteeUser{{Username: "new-auditor@example.com"}}, result.Auditors)
 			} else {
 				assert.Error(t, err)
 				assert.Nil(t, result)
@@ -1683,8 +1683,8 @@ func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 					CommitteeSettings: &model.CommitteeSettings{
 						UID:                   "committee-1",
 						BusinessEmailRequired: true,
-						Writers:               []string{"writer1"},
-						Auditors:              []string{"auditor1"},
+						Writers:               []model.CommitteeUser{{Username: "writer1"}},
+						Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 					},
 				}
 				mockRepo.AddCommittee(committee)
@@ -1722,8 +1722,8 @@ func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 					CommitteeSettings: &model.CommitteeSettings{
 						UID:                   "committee-1",
 						BusinessEmailRequired: true,
-						Writers:               []string{"writer1"},
-						Auditors:              []string{"auditor1"},
+						Writers:               []model.CommitteeUser{{Username: "writer1"}},
+						Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 					},
 				}
 				mockRepo.AddCommittee(committee)
@@ -1967,8 +1967,8 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 				CommitteeSettings: &model.CommitteeSettings{
 					UID:                   "committee-1",
 					BusinessEmailRequired: true,
-					Writers:               []string{"writer1"},
-					Auditors:              []string{"auditor1"},
+					Writers:               []model.CommitteeUser{{Username: "writer1"}},
+					Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 				},
 			}
 			mockRepo.AddCommittee(existingCommittee)

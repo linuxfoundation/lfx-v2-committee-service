@@ -84,8 +84,8 @@ func TestMessageHandlerOrchestratorHandleCommitteeGetAttribute(t *testing.T) {
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
 			BusinessEmailRequired: true,
-			Writers:               []string{"writer1", "writer2"},
-			Auditors:              []string{"auditor1"},
+			Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+			Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 			CreatedAt:             time.Now().Add(-24 * time.Hour),
 			UpdatedAt:             time.Now(),
 		},
@@ -444,8 +444,8 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
 			BusinessEmailRequired: false,
-			Writers:               []string{"integration-writer1", "integration-writer2"},
-			Auditors:              []string{"integration-auditor1", "integration-auditor2"},
+			Writers:               []model.CommitteeUser{{Username: "integration-writer1"}, {Username: "integration-writer2"}},
+			Auditors:              []model.CommitteeUser{{Username: "integration-auditor1"}, {Username: "integration-auditor2"}},
 			CreatedAt:             time.Now().Add(-48 * time.Hour),
 			UpdatedAt:             time.Now().Add(-1 * time.Hour),
 		},

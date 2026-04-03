@@ -294,11 +294,11 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 	}
 
 	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
-		message.Relations[constants.RelationWriter] = committee.Writers
+		message.Relations[constants.RelationWriter] = extractUsernames(committee.Writers)
 	}
 
 	if committee.CommitteeSettings != nil && len(committee.Auditors) > 0 {
-		message.Relations[constants.RelationAuditor] = committee.Auditors
+		message.Relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
 	}
 
 	slog.DebugContext(ctx, "building access control message",
@@ -306,6 +306,17 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 	)
 
 	return message
+}
+
+// extractUsernames extracts the Username field from a slice of CommitteeUser for use in access control messages.
+func extractUsernames(users []model.CommitteeUser) []string {
+	result := make([]string, 0, len(users))
+	for _, u := range users {
+		if u.Username != "" {
+			result = append(result, u.Username)
+		}
+	}
+	return result
 }
 
 func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Context, newNameKey string, existing *model.CommitteeBase) string {

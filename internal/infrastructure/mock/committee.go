@@ -77,8 +77,13 @@ func NewMockRepository() *MockRepository {
 				BusinessEmailRequired: true,
 				LastReviewedAt:        stringPtr("2025-08-04T09:00:00Z"),
 				LastReviewedBy:        stringPtr("admin@example.com"),
-				Writers:               []string{"writer1@example.com", "writer2@example.com"},
-				Auditors:              []string{"auditor1@example.com"},
+				Writers: []model.CommitteeUser{
+					{Username: "writer1@example.com", Email: "writer1@example.com"},
+					{Username: "writer2@example.com", Email: "writer2@example.com"},
+				},
+				Auditors: []model.CommitteeUser{
+					{Username: "auditor1@example.com", Email: "auditor1@example.com"},
+				},
 				CreatedAt:             now.Add(-24 * time.Hour),
 				UpdatedAt:             now,
 			},
@@ -117,8 +122,12 @@ func NewMockRepository() *MockRepository {
 			CommitteeSettings: &model.CommitteeSettings{
 				UID:                   "committee-2",
 				BusinessEmailRequired: false,
-				Writers:               []string{"security@example.com"},
-				Auditors:              []string{"auditor1@example.com"},
+				Writers: []model.CommitteeUser{
+					{Username: "security@example.com", Email: "security@example.com"},
+				},
+				Auditors: []model.CommitteeUser{
+					{Username: "auditor1@example.com", Email: "auditor1@example.com"},
+				},
 				CreatedAt:             now.Add(-12 * time.Hour),
 				UpdatedAt:             now,
 			},

@@ -21,17 +21,19 @@ import (
 
 // CommitteeSettings represents the existing committee settings structure
 // This is a copy of the model WITHOUT the member_visibility field
-// to avoid setting it to the Go zero value when unmarshaling
+// to avoid setting it to the Go zero value when unmarshaling.
+// Writers and Auditors use json.RawMessage to handle both the old []string
+// and new []object formats transparently.
 type CommitteeSettings struct {
-	UID                   string    `json:"uid"`
-	BusinessEmailRequired bool      `json:"business_email_required"`
-	ShowMeetingAttendees  bool      `json:"show_meeting_attendees"`
-	LastReviewedAt        *string   `json:"last_reviewed_at,omitempty"`
-	LastReviewedBy        *string   `json:"last_reviewed_by,omitempty"`
-	Writers               []string  `json:"writers"`
-	Auditors              []string  `json:"auditors"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	UID                   string          `json:"uid"`
+	BusinessEmailRequired bool            `json:"business_email_required"`
+	ShowMeetingAttendees  bool            `json:"show_meeting_attendees"`
+	LastReviewedAt        *string         `json:"last_reviewed_at,omitempty"`
+	LastReviewedBy        *string         `json:"last_reviewed_by,omitempty"`
+	Writers               json.RawMessage `json:"writers"`
+	Auditors              json.RawMessage `json:"auditors"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 var (

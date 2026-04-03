@@ -302,10 +302,29 @@ func TotalVotingReposAttribute() {
 	})
 }
 
+// CommitteeUserType is the DSL type for a user object in writers/auditors lists.
+var CommitteeUserType = dsl.Type("committee-user", func() {
+	dsl.Description("A user object stored in writers or auditors lists.")
+	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image", func() {
+		dsl.Example("https://example.com/avatar.jpg")
+	})
+	dsl.Attribute("email", dsl.String, "The user's email address", func() {
+		dsl.Example("alice.johnson@example.com")
+	})
+	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
+		dsl.Example("Alice Johnson")
+	})
+	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
+		dsl.Example("alicejohnson789")
+	})
+})
+
 // WritersAttribute is the DSL attribute for committee writers.
 func WritersAttribute() {
-	dsl.Attribute("writers", dsl.ArrayOf(dsl.String), "Manager user IDs who can edit/modify this committee", func() {
-		dsl.Example([]string{"manager_user_id1", "manager_user_id2"})
+	dsl.Attribute("writers", dsl.ArrayOf(CommitteeUserType), "Users who can edit/modify this committee", func() {
+		dsl.Example([]map[string]interface{}{
+			{"avatar": "https://example.com/avatar.jpg", "email": "alice@example.com", "name": "Alice Johnson", "username": "manager_user_id1"},
+		})
 	})
 }
 
@@ -380,8 +399,10 @@ func LastAuditedTimeAttribute() {
 
 // AuditorsAttribute is the DSL attribute for committee auditors.
 func AuditorsAttribute() {
-	dsl.Attribute("auditors", dsl.ArrayOf(dsl.String), "Auditor user IDs who can audit this committee", func() {
-		dsl.Example([]string{"auditor_user_id1", "auditor_user_id2"})
+	dsl.Attribute("auditors", dsl.ArrayOf(CommitteeUserType), "Users who can audit this committee", func() {
+		dsl.Example([]map[string]interface{}{
+			{"avatar": "https://example.com/avatar.jpg", "email": "john@example.com", "name": "John Doe", "username": "auditor_user_id1"},
+		})
 	})
 }
 

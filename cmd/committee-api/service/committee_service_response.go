@@ -75,8 +75,8 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 	settings := &model.CommitteeSettings{
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               p.Writers,
-		Auditors:              p.Auditors,
+		Writers:               convertPayloadUsersToModel(p.Writers),
+		Auditors:              convertPayloadUsersToModel(p.Auditors),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -155,8 +155,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               p.Writers,
-		Auditors:              p.Auditors,
+		Writers:               convertPayloadUsersToModel(p.Writers),
+		Auditors:              convertPayloadUsersToModel(p.Auditors),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -227,10 +227,10 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 			result.LastReviewedBy = response.LastReviewedBy
 		}
 		if len(response.Writers) > 0 {
-			result.Writers = response.Writers
+			result.Writers = convertModelUsersToResponse(response.Writers)
 		}
 		if len(response.Auditors) > 0 {
-			result.Auditors = response.Auditors
+			result.Auditors = convertModelUsersToResponse(response.Auditors)
 		}
 
 		result.ShowMeetingAttendees = response.ShowMeetingAttendees
@@ -624,6 +624,56 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
+	}
+	return result
+}
+
+// convertPayloadUsersToModel converts Goa payload user objects to domain model CommitteeUser slice.
+func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model.CommitteeUser {
+	if len(users) == 0 {
+		return nil
+	}
+	result := make([]model.CommitteeUser, 0, len(users))
+	for _, u := range users {
+		if u == nil {
+			continue
+		}
+		cu := model.CommitteeUser{}
+		if u.Avatar != nil {
+			cu.Avatar = *u.Avatar
+		}
+		if u.Email != nil {
+			cu.Email = *u.Email
+		}
+		if u.Name != nil {
+			cu.Name = *u.Name
+		}
+		if u.Username != nil {
+			cu.Username = *u.Username
+		}
+		result = append(result, cu)
+	}
+	return result
+}
+
+// convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
+func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservice.CommitteeUser {
+	result := make([]*committeeservice.CommitteeUser, 0, len(users))
+	for _, u := range users {
+		cu := &committeeservice.CommitteeUser{}
+		if u.Avatar != "" {
+			cu.Avatar = &u.Avatar
+		}
+		if u.Email != "" {
+			cu.Email = &u.Email
+		}
+		if u.Name != "" {
+			cu.Name = &u.Name
+		}
+		if u.Username != "" {
+			cu.Username = &u.Username
+		}
+		result = append(result, cu)
 	}
 	return result
 }

@@ -4861,6 +4861,57 @@ func DecodeDeleteCommitteeLinkFolderResponse(decoder func(*http.Response) goahtt
 	}
 }
 
+// marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody builds a
+// value of type *CommitteeUserRequestBody from a value of type
+// *committeeservice.CommitteeUser.
+func marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody(v *committeeservice.CommitteeUser) *CommitteeUserRequestBody {
+	if v == nil {
+		return nil
+	}
+	res := &CommitteeUserRequestBody{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
+// marshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
+// value of type *committeeservice.CommitteeUser from a value of type
+// *CommitteeUserRequestBody.
+func marshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *CommitteeUserRequestBody) *committeeservice.CommitteeUser {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CommitteeUser{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
+// unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser builds a
+// value of type *committeeservice.CommitteeUser from a value of type
+// *CommitteeUserResponseBody.
+func unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(v *CommitteeUserResponseBody) *committeeservice.CommitteeUser {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CommitteeUser{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
 // unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkWithReadonlyAttributes
 // builds a value of type *committeeservice.CommitteeLinkWithReadonlyAttributes
 // from a value of type *CommitteeLinkWithReadonlyAttributesResponse.
