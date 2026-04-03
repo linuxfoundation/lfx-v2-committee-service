@@ -4164,6 +4164,40 @@ func EncodeDeleteCommitteeLinkFolderError(encoder func(context.Context, http.Res
 	}
 }
 
+// unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
+// value of type *committeeservice.CommitteeUser from a value of type
+// *CommitteeUserRequestBody.
+func unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *CommitteeUserRequestBody) *committeeservice.CommitteeUser {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CommitteeUser{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody builds a
+// value of type *CommitteeUserResponseBody from a value of type
+// *committeeservice.CommitteeUser.
+func marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(v *committeeservice.CommitteeUser) *CommitteeUserResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CommitteeUserResponseBody{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
 // marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWithReadonlyAttributesResponse
 // builds a value of type *CommitteeLinkWithReadonlyAttributesResponse from a
 // value of type *committeeservice.CommitteeLinkWithReadonlyAttributes.

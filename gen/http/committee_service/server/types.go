@@ -65,10 +65,10 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
-	// Manager user IDs who can edit/modify this committee
-	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
-	// Auditor user IDs who can audit this committee
-	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Users who can audit this committee
+	Auditors []*CommitteeUserRequestBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 }
 
 // UpdateCommitteeBaseRequestBody is the type of the "committee-service"
@@ -126,10 +126,10 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
-	// Manager user IDs who can edit/modify this committee
-	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
-	// Auditor user IDs who can audit this committee
-	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Users who can audit this committee
+	Auditors []*CommitteeUserRequestBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 }
 
 // CreateCommitteeMemberRequestBody is the type of the "committee-service"
@@ -340,10 +340,10 @@ type CreateCommitteeResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
-	// Manager user IDs who can edit/modify this committee
-	Writers []string `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
-	// Auditor user IDs who can audit this committee
-	Auditors []string `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Users who can audit this committee
+	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -1917,6 +1917,18 @@ type DeleteCommitteeLinkFolderServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// CommitteeUserResponseBody is used to define fields on response body types.
+type CommitteeUserResponseBody struct {
+	// URL to the user's avatar image
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// The user's email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Display name of the user
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User identifier (LF ID / sub)
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+}
+
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
 type CommitteeBaseWithReadonlyAttributesResponseBody struct {
@@ -2138,6 +2150,18 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// CommitteeUserRequestBody is used to define fields on request body types.
+type CommitteeUserRequestBody struct {
+	// URL to the user's avatar image
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// The user's email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Display name of the user
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User identifier (LF ID / sub)
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+}
+
 // NewCreateCommitteeResponseBody builds the HTTP response body from the result
 // of the "create-committee" endpoint of the "committee-service" service.
 func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReadonlyAttributes) *CreateCommitteeResponseBody {
@@ -2229,15 +2253,15 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		}
 	}
 	if res.Writers != nil {
-		body.Writers = make([]string, len(res.Writers))
+		body.Writers = make([]*CommitteeUserResponseBody, len(res.Writers))
 		for i, val := range res.Writers {
-			body.Writers[i] = val
+			body.Writers[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
 		}
 	}
 	if res.Auditors != nil {
-		body.Auditors = make([]string, len(res.Auditors))
+		body.Auditors = make([]*CommitteeUserResponseBody, len(res.Auditors))
 		for i, val := range res.Auditors {
-			body.Auditors[i] = val
+			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
 		}
 	}
 	return body
@@ -4544,15 +4568,15 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 		v.ShowMeetingAttendees = false
 	}
 	if body.Writers != nil {
-		v.Writers = make([]string, len(body.Writers))
+		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
 		for i, val := range body.Writers {
-			v.Writers[i] = val
+			v.Writers[i] = unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(val)
 		}
 	}
 	if body.Auditors != nil {
-		v.Auditors = make([]string, len(body.Auditors))
+		v.Auditors = make([]*committeeservice.CommitteeUser, len(body.Auditors))
 		for i, val := range body.Auditors {
-			v.Auditors[i] = val
+			v.Auditors[i] = unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(val)
 		}
 	}
 	v.Version = version
@@ -4683,15 +4707,15 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 		v.ShowMeetingAttendees = false
 	}
 	if body.Writers != nil {
-		v.Writers = make([]string, len(body.Writers))
+		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
 		for i, val := range body.Writers {
-			v.Writers[i] = val
+			v.Writers[i] = unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(val)
 		}
 	}
 	if body.Auditors != nil {
-		v.Auditors = make([]string, len(body.Auditors))
+		v.Auditors = make([]*committeeservice.CommitteeUser, len(body.Auditors))
 		for i, val := range body.Auditors {
-			v.Auditors[i] = val
+			v.Auditors[i] = unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(val)
 		}
 	}
 	v.UID = &uid
