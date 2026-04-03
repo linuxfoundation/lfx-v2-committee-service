@@ -1144,9 +1144,9 @@ type UploadCommitteeDocumentPayload struct {
 	// Display name of the uploader (client-provided from user session)
 	UploadedByName *string
 	// Original file name (from the uploaded file part)
-	FileName *string
+	FileName string
 	// MIME type of the uploaded file
-	ContentType *string
+	ContentType string
 	// File content
 	File []byte
 }

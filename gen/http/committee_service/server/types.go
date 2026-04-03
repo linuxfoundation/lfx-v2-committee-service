@@ -5648,8 +5648,8 @@ func NewUploadCommitteeDocumentPayload(body *UploadCommitteeDocumentRequestBody,
 		Name:           *body.Name,
 		Description:    body.Description,
 		UploadedByName: body.UploadedByName,
-		FileName:       body.FileName,
-		ContentType:    body.ContentType,
+		FileName:       *body.FileName,
+		ContentType:    *body.ContentType,
 		File:           body.File,
 	}
 	v.UID = uid
@@ -6124,6 +6124,15 @@ func ValidateCreateCommitteeLinkFolderRequestBody(body *CreateCommitteeLinkFolde
 func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentRequestBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.FileName == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("file_name", "body"))
+	}
+	if body.ContentType == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("content_type", "body"))
+	}
+	if body.File == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
 	}
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 500 {

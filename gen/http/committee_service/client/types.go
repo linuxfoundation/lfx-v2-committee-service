@@ -292,11 +292,11 @@ type UploadCommitteeDocumentRequestBody struct {
 	// Display name of the uploader (client-provided from user session)
 	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
 	// Original file name (from the uploaded file part)
-	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	FileName string `form:"file_name" json:"file_name" xml:"file_name"`
 	// MIME type of the uploaded file
-	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	ContentType string `form:"content_type" json:"content_type" xml:"content_type"`
 	// File content
-	File []byte `form:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
+	File []byte `form:"file" json:"file" xml:"file"`
 }
 
 // CreateCommitteeResponseBody is the type of the "committee-service" service

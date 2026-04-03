@@ -37,7 +37,8 @@ func (m *MockDocumentRepository) CreateDocumentMetadata(ctx context.Context, doc
 	slog.DebugContext(ctx, "mock document repository: creating document metadata", "uid", doc.UID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.documents[doc.UID] = doc
+	copied := *doc
+	m.documents[doc.UID] = &copied
 	m.documentRevisions[doc.UID] = 1
 	return nil
 }
@@ -52,7 +53,8 @@ func (m *MockDocumentRepository) GetDocumentMetadata(ctx context.Context, commit
 	if !ok || doc.CommitteeUID != committeeUID {
 		return nil, 0, errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
 	}
-	return doc, m.documentRevisions[documentUID], nil
+	copied := *doc
+	return &copied, m.documentRevisions[documentUID], nil
 }
 
 func (m *MockDocumentRepository) ListDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
@@ -61,7 +63,8 @@ func (m *MockDocumentRepository) ListDocuments(ctx context.Context, committeeUID
 	var result []*model.CommitteeDocument
 	for _, d := range m.documents {
 		if d.CommitteeUID == committeeUID {
-			result = append(result, d)
+			copied := *d
+			result = append(result, &copied)
 		}
 	}
 	return result, nil
@@ -71,7 +74,9 @@ func (m *MockDocumentRepository) PutDocumentFile(ctx context.Context, documentUI
 	slog.DebugContext(ctx, "mock document repository: storing file", "document_uid", documentUID, "size", len(fileData))
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.files[documentUID] = fileData
+	buf := make([]byte, len(fileData))
+	copy(buf, fileData)
+	m.files[documentUID] = buf
 	return nil
 }
 
@@ -82,7 +87,9 @@ func (m *MockDocumentRepository) GetDocumentFile(ctx context.Context, documentUI
 	if !ok {
 		return nil, errs.NewNotFound("document file not found", fmt.Errorf("document UID: %s", documentUID))
 	}
-	return data, nil
+	buf := make([]byte, len(data))
+	copy(buf, data)
+	return buf, nil
 }
 
 func (m *MockDocumentRepository) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {

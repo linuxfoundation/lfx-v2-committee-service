@@ -161,14 +161,14 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 				return fmt.Errorf("file size exceeds maximum allowed size of %d bytes", model.MaxDocumentFileSize)
 			}
 			fileName := part.FileName()
-			payload.FileName = &fileName
+			payload.FileName = fileName
 			ct := part.Header.Get("Content-Type")
 			// Normalize: strip parameters (e.g. "text/plain; charset=utf-8" → "text/plain")
 			// so the allowlist check in the service layer matches bare MIME types.
 			if mediaType, _, err := mime.ParseMediaType(ct); err == nil {
 				ct = mediaType
 			}
-			payload.ContentType = &ct
+			payload.ContentType = ct
 			payload.File = data
 		}
 	}
@@ -178,8 +178,8 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 		Name:           &payload.Name,
 		Description:    payload.Description,
 		UploadedByName: payload.UploadedByName,
-		FileName:       payload.FileName,
-		ContentType:    payload.ContentType,
+		FileName:       &payload.FileName,
+		ContentType:    &payload.ContentType,
 		File:           payload.File,
 	}
 	if err := committeeservicesvr.ValidateUploadCommitteeDocumentRequestBody(requestBody); err != nil {

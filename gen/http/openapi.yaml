@@ -682,6 +682,9 @@ paths:
                     $ref: '#/definitions/CommitteeServiceUploadCommitteeDocumentRequestBody'
                     required:
                         - name
+                        - file_name
+                        - content_type
+                        - file
             responses:
                 "201":
                     description: Created response.
@@ -4201,6 +4204,9 @@ definitions:
             uploaded_by_name: Alex Lee
         required:
             - name
+            - file_name
+            - content_type
+            - file
     CommitteeSettingsWithReadonlyAttributes:
         title: CommitteeSettingsWithReadonlyAttributes
         type: object

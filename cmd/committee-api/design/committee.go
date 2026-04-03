@@ -1217,7 +1217,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")
 			dsl.Attribute("file", dsl.Bytes, "File content")
 
-			dsl.Required("name", "uid")
+			dsl.Required("name", "uid", "file_name", "content_type", "file")
 		})
 
 		dsl.Result(CommitteeDocumentWithReadonlyAttributes)
