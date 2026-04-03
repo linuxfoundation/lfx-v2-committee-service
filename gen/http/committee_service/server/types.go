@@ -421,6 +421,10 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Users who can audit this committee
+	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1996,6 +2000,10 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
+	// Users who can audit this committee
+	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2443,6 +2451,18 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 			body.ShowMeetingAttendees = false
 		}
 	}
+	if res.CommitteeSettings.Writers != nil {
+		body.Writers = make([]*CommitteeUserResponseBody, len(res.CommitteeSettings.Writers))
+		for i, val := range res.CommitteeSettings.Writers {
+			body.Writers[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
+		}
+	}
+	if res.CommitteeSettings.Auditors != nil {
+		body.Auditors = make([]*CommitteeUserResponseBody, len(res.CommitteeSettings.Auditors))
+		for i, val := range res.CommitteeSettings.Auditors {
+			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
+		}
+	}
 	return body
 }
 
@@ -2476,6 +2496,18 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	if res.Writers != nil {
+		body.Writers = make([]*CommitteeUserResponseBody, len(res.Writers))
+		for i, val := range res.Writers {
+			body.Writers[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
+		}
+	}
+	if res.Auditors != nil {
+		body.Auditors = make([]*CommitteeUserResponseBody, len(res.Auditors))
+		for i, val := range res.Auditors {
+			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
 		}
 	}
 	return body

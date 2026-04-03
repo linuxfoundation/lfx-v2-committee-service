@@ -107,6 +107,9 @@ var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-
 
 	CommitteeSettingsAttributes()
 
+	WritersAttribute()
+	AuditorsAttribute()
+
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 

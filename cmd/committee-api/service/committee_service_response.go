@@ -226,10 +226,10 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		if response.LastReviewedBy != nil && *response.LastReviewedBy != "" {
 			result.LastReviewedBy = response.LastReviewedBy
 		}
-		if len(response.Writers) > 0 {
+		if response.Writers != nil {
 			result.Writers = convertModelUsersToResponse(response.Writers)
 		}
-		if len(response.Auditors) > 0 {
+		if response.Auditors != nil {
 			result.Auditors = convertModelUsersToResponse(response.Auditors)
 		}
 
@@ -331,6 +331,9 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 		updatedAt := settings.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.UpdatedAt = &updatedAt
 	}
+
+	result.Writers = convertModelUsersToResponse(settings.Writers)
+	result.Auditors = convertModelUsersToResponse(settings.Auditors)
 
 	return result
 }
@@ -640,7 +643,7 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 	}
 	result := make([]model.CommitteeUser, 0, len(users))
 	for _, u := range users {
-		if u == nil {
+		if u == nil || u.Username == nil || *u.Username == "" {
 			continue
 		}
 		cu := model.CommitteeUser{}
@@ -653,16 +656,18 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 		if u.Name != nil {
 			cu.Name = *u.Name
 		}
-		if u.Username != nil {
-			cu.Username = *u.Username
-		}
+		cu.Username = *u.Username
 		result = append(result, cu)
 	}
 	return result
 }
 
 // convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
+// Returns nil when users is nil so that omitted fields are not serialized as empty arrays.
 func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservice.CommitteeUser {
+	if users == nil {
+		return nil
+	}
 	result := make([]*committeeservice.CommitteeUser, 0, len(users))
 	for _, u := range users {
 		cu := &committeeservice.CommitteeUser{}
