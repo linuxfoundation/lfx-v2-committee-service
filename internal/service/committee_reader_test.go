@@ -43,8 +43,8 @@ func TestCommitteeReaderOrchestratorGetBase(t *testing.T) {
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
 			BusinessEmailRequired: true,
-			Writers:               []string{"writer1", "writer2"},
-			Auditors:              []string{"auditor1"},
+			Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+			Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 			CreatedAt:             time.Now().Add(-24 * time.Hour),
 			UpdatedAt:             time.Now(),
 		},
@@ -163,8 +163,8 @@ func TestCommitteeReaderOrchestratorGetSettings(t *testing.T) {
 			UID:                   testCommitteeUID,
 			BusinessEmailRequired: true,
 			LastReviewedBy:        readerStringPtr("reviewer-uid"),
-			Writers:               []string{"writer1", "writer2"},
-			Auditors:              []string{"auditor1", "auditor2"},
+			Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+			Auditors:              []model.CommitteeUser{{Username: "auditor1"}, {Username: "auditor2"}},
 			CreatedAt:             time.Now().Add(-24 * time.Hour),
 			UpdatedAt:             time.Now(),
 		},
@@ -193,8 +193,8 @@ func TestCommitteeReaderOrchestratorGetSettings(t *testing.T) {
 				assert.True(t, settings.BusinessEmailRequired)
 				assert.NotNil(t, settings.LastReviewedBy)
 				assert.Equal(t, "reviewer-uid", *settings.LastReviewedBy)
-				assert.Equal(t, []string{"writer1", "writer2"}, settings.Writers)
-				assert.Equal(t, []string{"auditor1", "auditor2"}, settings.Auditors)
+				assert.Equal(t, []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}}, settings.Writers)
+				assert.Equal(t, []model.CommitteeUser{{Username: "auditor1"}, {Username: "auditor2"}}, settings.Auditors)
 				assert.NotZero(t, settings.CreatedAt)
 				assert.NotZero(t, settings.UpdatedAt)
 				assert.Equal(t, uint64(1), revision) // Mock returns revision 1
@@ -347,8 +347,8 @@ func TestCommitteeReaderOrchestratorIntegration(t *testing.T) {
 			BusinessEmailRequired: false,
 			LastReviewedAt:        readerStringPtr("2024-01-01T00:00:00Z"),
 			LastReviewedBy:        readerStringPtr("integration-reviewer"),
-			Writers:               []string{"integration-writer1", "integration-writer2", "integration-writer3"},
-			Auditors:              []string{"integration-auditor1", "integration-auditor2"},
+			Writers:               []model.CommitteeUser{{Username: "integration-writer1"}, {Username: "integration-writer2"}, {Username: "integration-writer3"}},
+			Auditors:              []model.CommitteeUser{{Username: "integration-auditor1"}, {Username: "integration-auditor2"}},
 			CreatedAt:             time.Now().Add(-48 * time.Hour),
 			UpdatedAt:             time.Now().Add(-1 * time.Hour),
 		},
@@ -398,8 +398,8 @@ func TestCommitteeReaderOrchestratorIntegration(t *testing.T) {
 		assert.Equal(t, "2024-01-01T00:00:00Z", *settings.LastReviewedAt)
 		assert.NotNil(t, settings.LastReviewedBy)
 		assert.Equal(t, "integration-reviewer", *settings.LastReviewedBy)
-		assert.Equal(t, []string{"integration-writer1", "integration-writer2", "integration-writer3"}, settings.Writers)
-		assert.Equal(t, []string{"integration-auditor1", "integration-auditor2"}, settings.Auditors)
+		assert.Equal(t, []model.CommitteeUser{{Username: "integration-writer1"}, {Username: "integration-writer2"}, {Username: "integration-writer3"}}, settings.Writers)
+		assert.Equal(t, []model.CommitteeUser{{Username: "integration-auditor1"}, {Username: "integration-auditor2"}}, settings.Auditors)
 	})
 }
 
@@ -436,8 +436,8 @@ func TestCommitteeReaderOrchestratorGetBaseAttributeValue(t *testing.T) {
 		CommitteeSettings: &model.CommitteeSettings{
 			UID:                   testCommitteeUID,
 			BusinessEmailRequired: true,
-			Writers:               []string{"writer1", "writer2"},
-			Auditors:              []string{"auditor1"},
+			Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+			Auditors:              []model.CommitteeUser{{Username: "auditor1"}},
 			CreatedAt:             time.Now().Add(-24 * time.Hour),
 			UpdatedAt:             time.Now(),
 		},

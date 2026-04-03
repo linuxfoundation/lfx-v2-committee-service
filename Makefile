@@ -36,6 +36,10 @@ setup-dev: ## Setup development tools
 	@echo "Installing development tools..."
 	@echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@echo "Installing git hooks..."
+	@cp .githooks/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "==> Git hooks installed"
 
 .PHONY: setup
 setup: ## Setup development environment
