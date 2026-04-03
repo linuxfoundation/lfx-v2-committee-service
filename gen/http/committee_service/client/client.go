@@ -10,8 +10,10 @@ package client
 
 import (
 	"context"
+	"mime/multipart"
 	"net/http"
 
+	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	goahttp "goa.design/goa/v3/http"
 	goa "goa.design/goa/v3/pkg"
 )
@@ -140,6 +142,26 @@ type Client struct {
 	// the delete-committee-link-folder endpoint.
 	DeleteCommitteeLinkFolderDoer goahttp.Doer
 
+	// UploadCommitteeDocument Doer is the HTTP client used to make requests to the
+	// upload-committee-document endpoint.
+	UploadCommitteeDocumentDoer goahttp.Doer
+
+	// ListCommitteeDocuments Doer is the HTTP client used to make requests to the
+	// list-committee-documents endpoint.
+	ListCommitteeDocumentsDoer goahttp.Doer
+
+	// GetCommitteeDocument Doer is the HTTP client used to make requests to the
+	// get-committee-document endpoint.
+	GetCommitteeDocumentDoer goahttp.Doer
+
+	// DownloadCommitteeDocument Doer is the HTTP client used to make requests to
+	// the download-committee-document endpoint.
+	DownloadCommitteeDocumentDoer goahttp.Doer
+
+	// DeleteCommitteeDocument Doer is the HTTP client used to make requests to the
+	// delete-committee-document endpoint.
+	DeleteCommitteeDocumentDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -149,6 +171,11 @@ type Client struct {
 	encoder func(*http.Request) goahttp.Encoder
 	decoder func(*http.Response) goahttp.Decoder
 }
+
+// CommitteeServiceUploadCommitteeDocumentEncoderFunc is the type to encode
+// multipart request for the "committee-service" service
+// "upload-committee-document" endpoint.
+type CommitteeServiceUploadCommitteeDocumentEncoderFunc func(*multipart.Writer, *committeeservice.UploadCommitteeDocumentPayload) error
 
 // NewClient instantiates HTTP clients for all the committee-service service
 // servers.
@@ -192,6 +219,11 @@ func NewClient(
 		ListCommitteeLinkFoldersDoer:  doer,
 		CreateCommitteeLinkFolderDoer: doer,
 		DeleteCommitteeLinkFolderDoer: doer,
+		UploadCommitteeDocumentDoer:   doer,
+		ListCommitteeDocumentsDoer:    doer,
+		GetCommitteeDocumentDoer:      doer,
+		DownloadCommitteeDocumentDoer: doer,
+		DeleteCommitteeDocumentDoer:   doer,
 		RestoreResponseBody:           restoreBody,
 		scheme:                        scheme,
 		host:                          host,
@@ -929,6 +961,131 @@ func (c *Client) DeleteCommitteeLinkFolder() goa.Endpoint {
 		resp, err := c.DeleteCommitteeLinkFolderDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-link-folder", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// UploadCommitteeDocument returns an endpoint that makes HTTP requests to the
+// committee-service service upload-committee-document server.
+func (c *Client) UploadCommitteeDocument(committeeServiceUploadCommitteeDocumentEncoderFn CommitteeServiceUploadCommitteeDocumentEncoderFunc) goa.Endpoint {
+	var (
+		encodeRequest  = EncodeUploadCommitteeDocumentRequest(NewCommitteeServiceUploadCommitteeDocumentEncoder(committeeServiceUploadCommitteeDocumentEncoderFn))
+		decodeResponse = DecodeUploadCommitteeDocumentResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildUploadCommitteeDocumentRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.UploadCommitteeDocumentDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "upload-committee-document", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ListCommitteeDocuments returns an endpoint that makes HTTP requests to the
+// committee-service service list-committee-documents server.
+func (c *Client) ListCommitteeDocuments() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeListCommitteeDocumentsRequest(c.encoder)
+		decodeResponse = DecodeListCommitteeDocumentsResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildListCommitteeDocumentsRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ListCommitteeDocumentsDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "list-committee-documents", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetCommitteeDocument returns an endpoint that makes HTTP requests to the
+// committee-service service get-committee-document server.
+func (c *Client) GetCommitteeDocument() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCommitteeDocumentRequest(c.encoder)
+		decodeResponse = DecodeGetCommitteeDocumentResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCommitteeDocumentRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCommitteeDocumentDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-committee-document", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// DownloadCommitteeDocument returns an endpoint that makes HTTP requests to
+// the committee-service service download-committee-document server.
+func (c *Client) DownloadCommitteeDocument() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeDownloadCommitteeDocumentRequest(c.encoder)
+		decodeResponse = DecodeDownloadCommitteeDocumentResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildDownloadCommitteeDocumentRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.DownloadCommitteeDocumentDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "download-committee-document", err)
+		}
+		_, err = decodeResponse(resp)
+		if err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
+		return &committeeservice.DownloadCommitteeDocumentResponseData{Body: resp.Body}, nil
+	}
+}
+
+// DeleteCommitteeDocument returns an endpoint that makes HTTP requests to the
+// committee-service service delete-committee-document server.
+func (c *Client) DeleteCommitteeDocument() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeDeleteCommitteeDocumentRequest(c.encoder)
+		decodeResponse = DecodeDeleteCommitteeDocumentResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildDeleteCommitteeDocumentRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.DeleteCommitteeDocumentDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-document", err)
 		}
 		return decodeResponse(resp)
 	}

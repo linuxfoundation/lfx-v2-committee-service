@@ -18,10 +18,11 @@ import (
 
 // NATSClient wraps the NATS connection and provides access control operations
 type NATSClient struct {
-	conn    *nats.Conn
-	config  Config
-	kvStore map[string]jetstream.KeyValue
-	timeout time.Duration
+	conn     *nats.Conn
+	config   Config
+	kvStore  map[string]jetstream.KeyValue
+	objStore map[string]jetstream.ObjectStore
+	timeout  time.Duration
 }
 
 // NATSClientInterface defines the interface for NATS operations
@@ -74,6 +75,33 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 		c.kvStore = make(map[string]jetstream.KeyValue)
 	}
 	c.kvStore[bucketName] = kvStore
+	return nil
+}
+
+// ObjectStore creates a JetStream client and gets the object store by name.
+func (c *NATSClient) ObjectStore(ctx context.Context, storeName string) error {
+	js, err := jetstream.New(c.conn)
+	if err != nil {
+		slog.ErrorContext(ctx, "error creating NATS JetStream client for object store",
+			"error", err,
+			"nats_url", c.conn.ConnectedUrl(),
+		)
+		return err
+	}
+	objStore, err := js.ObjectStore(ctx, storeName)
+	if err != nil {
+		slog.ErrorContext(ctx, "error getting NATS JetStream object store",
+			"error", err,
+			"nats_url", c.conn.ConnectedUrl(),
+			"store", storeName,
+		)
+		return err
+	}
+
+	if c.objStore == nil {
+		c.objStore = make(map[string]jetstream.ObjectStore)
+	}
+	c.objStore[storeName] = objStore
 	return nil
 }
 
@@ -152,6 +180,7 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		constants.KVBucketNameCommitteeApplications,
 		constants.KVBucketNameCommitteeLinks,
 		constants.KVBucketNameCommitteeFolders,
+		constants.KVBucketNameCommitteeDocuments,
 	} {
 		if err := client.KeyValueStore(ctx, bucketName); err != nil {
 			slog.ErrorContext(ctx, "failed to initialize NATS key-value store",
@@ -162,6 +191,21 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		}
 		slog.InfoContext(ctx, "NATS key-value store initialized",
 			"bucket", bucketName,
+		)
+	}
+
+	for _, storeName := range []string{
+		constants.ObjectStoreNameCommitteeDocuments,
+	} {
+		if err := client.ObjectStore(ctx, storeName); err != nil {
+			slog.ErrorContext(ctx, "failed to initialize NATS object store",
+				"error", err,
+				"store", storeName,
+			)
+			return nil, errors.NewServiceUnavailable("failed to initialize NATS object store", err)
+		}
+		slog.InfoContext(ctx, "NATS object store initialized",
+			"store", storeName,
 		)
 	}
 

@@ -1780,7 +1780,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"zil\",\n      \"folder_uid\": \"6ae48706-1ffe-4123-a3a0-54350d2f7273\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"149\",\n      \"folder_uid\": \"e7b89e2c-8d20-4a1e-92d6-fc9b72ba639c\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2090,6 +2090,258 @@ func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFo
 	v := &committeeservice.DeleteCommitteeLinkFolderPayload{}
 	v.UID = &uid
 	v.FolderUID = &folderUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+
+	return v, nil
+}
+
+// BuildUploadCommitteeDocumentPayload builds the payload for the
+// committee-service upload-committee-document endpoint from CLI flags.
+func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocumentBody string, committeeServiceUploadCommitteeDocumentUID string, committeeServiceUploadCommitteeDocumentVersion string, committeeServiceUploadCommitteeDocumentBearerToken string) (*committeeservice.UploadCommitteeDocumentPayload, error) {
+	var err error
+	var body UploadCommitteeDocumentRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Qui ut error.\",\n      \"description\": \"vxz\",\n      \"file\": \"RGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyIG9tbmlzIHF1YWUu\",\n      \"file_name\": \"Et voluptatibus sit quibusdam.\",\n      \"name\": \"Architecture Decision Record\",\n      \"uploaded_by_name\": \"Alex Lee\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
+		}
+		if body.Description != nil {
+			if utf8.RuneCountInString(*body.Description) > 2000 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+			}
+		}
+		if body.UploadedByName != nil {
+			if utf8.RuneCountInString(*body.UploadedByName) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.uploaded_by_name", *body.UploadedByName, utf8.RuneCountInString(*body.UploadedByName), 200, false))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceUploadCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceUploadCommitteeDocumentVersion != "" {
+			version = &committeeServiceUploadCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceUploadCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceUploadCommitteeDocumentBearerToken
+		}
+	}
+	v := &committeeservice.UploadCommitteeDocumentPayload{
+		Name:           body.Name,
+		Description:    body.Description,
+		UploadedByName: body.UploadedByName,
+		FileName:       body.FileName,
+		ContentType:    body.ContentType,
+		File:           body.File,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildListCommitteeDocumentsPayload builds the payload for the
+// committee-service list-committee-documents endpoint from CLI flags.
+func BuildListCommitteeDocumentsPayload(committeeServiceListCommitteeDocumentsUID string, committeeServiceListCommitteeDocumentsVersion string, committeeServiceListCommitteeDocumentsBearerToken string) (*committeeservice.ListCommitteeDocumentsPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceListCommitteeDocumentsUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceListCommitteeDocumentsVersion != "" {
+			version = &committeeServiceListCommitteeDocumentsVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceListCommitteeDocumentsBearerToken != "" {
+			bearerToken = &committeeServiceListCommitteeDocumentsBearerToken
+		}
+	}
+	v := &committeeservice.ListCommitteeDocumentsPayload{}
+	v.UID = &uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildGetCommitteeDocumentPayload builds the payload for the
+// committee-service get-committee-document endpoint from CLI flags.
+func BuildGetCommitteeDocumentPayload(committeeServiceGetCommitteeDocumentUID string, committeeServiceGetCommitteeDocumentDocumentUID string, committeeServiceGetCommitteeDocumentVersion string, committeeServiceGetCommitteeDocumentBearerToken string) (*committeeservice.GetCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceGetCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGetCommitteeDocumentVersion != "" {
+			version = &committeeServiceGetCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeDocumentBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeDocumentPayload{}
+	v.UID = &uid
+	v.DocumentUID = &documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDownloadCommitteeDocumentPayload builds the payload for the
+// committee-service download-committee-document endpoint from CLI flags.
+func BuildDownloadCommitteeDocumentPayload(committeeServiceDownloadCommitteeDocumentUID string, committeeServiceDownloadCommitteeDocumentDocumentUID string, committeeServiceDownloadCommitteeDocumentVersion string, committeeServiceDownloadCommitteeDocumentBearerToken string) (*committeeservice.DownloadCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDownloadCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceDownloadCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDownloadCommitteeDocumentVersion != "" {
+			version = &committeeServiceDownloadCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDownloadCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceDownloadCommitteeDocumentBearerToken
+		}
+	}
+	v := &committeeservice.DownloadCommitteeDocumentPayload{}
+	v.UID = &uid
+	v.DocumentUID = &documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDeleteCommitteeDocumentPayload builds the payload for the
+// committee-service delete-committee-document endpoint from CLI flags.
+func BuildDeleteCommitteeDocumentPayload(committeeServiceDeleteCommitteeDocumentUID string, committeeServiceDeleteCommitteeDocumentDocumentUID string, committeeServiceDeleteCommitteeDocumentVersion string, committeeServiceDeleteCommitteeDocumentBearerToken string, committeeServiceDeleteCommitteeDocumentIfMatch string) (*committeeservice.DeleteCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDeleteCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceDeleteCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDeleteCommitteeDocumentVersion != "" {
+			version = &committeeServiceDeleteCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDeleteCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceDeleteCommitteeDocumentBearerToken
+		}
+	}
+	var ifMatch string
+	{
+		ifMatch = committeeServiceDeleteCommitteeDocumentIfMatch
+	}
+	v := &committeeservice.DeleteCommitteeDocumentPayload{}
+	v.UID = uid
+	v.DocumentUID = documentUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch

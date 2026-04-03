@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|list-committee-documents|get-committee-document|download-committee-document|delete-committee-document)",
 	}
 }
 
@@ -42,6 +42,7 @@ func ParseEndpoint(
 	enc func(*http.Request) goahttp.Encoder,
 	dec func(*http.Response) goahttp.Decoder,
 	restore bool,
+	committeeServiceUploadCommitteeDocumentEncoderFn committeeservicec.CommitteeServiceUploadCommitteeDocumentEncoderFunc,
 ) (goa.Endpoint, any, error) {
 	var (
 		committeeServiceFlags = flag.NewFlagSet("committee-service", flag.ContinueOnError)
@@ -237,6 +238,36 @@ func ParseEndpoint(
 		committeeServiceDeleteCommitteeLinkFolderVersionFlag     = committeeServiceDeleteCommitteeLinkFolderFlags.String("version", "", "")
 		committeeServiceDeleteCommitteeLinkFolderBearerTokenFlag = committeeServiceDeleteCommitteeLinkFolderFlags.String("bearer-token", "", "")
 		committeeServiceDeleteCommitteeLinkFolderIfMatchFlag     = committeeServiceDeleteCommitteeLinkFolderFlags.String("if-match", "", "")
+
+		committeeServiceUploadCommitteeDocumentFlags           = flag.NewFlagSet("upload-committee-document", flag.ExitOnError)
+		committeeServiceUploadCommitteeDocumentBodyFlag        = committeeServiceUploadCommitteeDocumentFlags.String("body", "REQUIRED", "")
+		committeeServiceUploadCommitteeDocumentUIDFlag         = committeeServiceUploadCommitteeDocumentFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceUploadCommitteeDocumentVersionFlag     = committeeServiceUploadCommitteeDocumentFlags.String("version", "", "")
+		committeeServiceUploadCommitteeDocumentBearerTokenFlag = committeeServiceUploadCommitteeDocumentFlags.String("bearer-token", "", "")
+
+		committeeServiceListCommitteeDocumentsFlags           = flag.NewFlagSet("list-committee-documents", flag.ExitOnError)
+		committeeServiceListCommitteeDocumentsUIDFlag         = committeeServiceListCommitteeDocumentsFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceListCommitteeDocumentsVersionFlag     = committeeServiceListCommitteeDocumentsFlags.String("version", "", "")
+		committeeServiceListCommitteeDocumentsBearerTokenFlag = committeeServiceListCommitteeDocumentsFlags.String("bearer-token", "", "")
+
+		committeeServiceGetCommitteeDocumentFlags           = flag.NewFlagSet("get-committee-document", flag.ExitOnError)
+		committeeServiceGetCommitteeDocumentUIDFlag         = committeeServiceGetCommitteeDocumentFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCommitteeDocumentDocumentUIDFlag = committeeServiceGetCommitteeDocumentFlags.String("document-uid", "REQUIRED", "Committee document UID")
+		committeeServiceGetCommitteeDocumentVersionFlag     = committeeServiceGetCommitteeDocumentFlags.String("version", "", "")
+		committeeServiceGetCommitteeDocumentBearerTokenFlag = committeeServiceGetCommitteeDocumentFlags.String("bearer-token", "", "")
+
+		committeeServiceDownloadCommitteeDocumentFlags           = flag.NewFlagSet("download-committee-document", flag.ExitOnError)
+		committeeServiceDownloadCommitteeDocumentUIDFlag         = committeeServiceDownloadCommitteeDocumentFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDownloadCommitteeDocumentDocumentUIDFlag = committeeServiceDownloadCommitteeDocumentFlags.String("document-uid", "REQUIRED", "Committee document UID")
+		committeeServiceDownloadCommitteeDocumentVersionFlag     = committeeServiceDownloadCommitteeDocumentFlags.String("version", "", "")
+		committeeServiceDownloadCommitteeDocumentBearerTokenFlag = committeeServiceDownloadCommitteeDocumentFlags.String("bearer-token", "", "")
+
+		committeeServiceDeleteCommitteeDocumentFlags           = flag.NewFlagSet("delete-committee-document", flag.ExitOnError)
+		committeeServiceDeleteCommitteeDocumentUIDFlag         = committeeServiceDeleteCommitteeDocumentFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeleteCommitteeDocumentDocumentUIDFlag = committeeServiceDeleteCommitteeDocumentFlags.String("document-uid", "REQUIRED", "Committee document UID")
+		committeeServiceDeleteCommitteeDocumentVersionFlag     = committeeServiceDeleteCommitteeDocumentFlags.String("version", "", "")
+		committeeServiceDeleteCommitteeDocumentBearerTokenFlag = committeeServiceDeleteCommitteeDocumentFlags.String("bearer-token", "", "")
+		committeeServiceDeleteCommitteeDocumentIfMatchFlag     = committeeServiceDeleteCommitteeDocumentFlags.String("if-match", "REQUIRED", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -270,6 +301,11 @@ func ParseEndpoint(
 	committeeServiceListCommitteeLinkFoldersFlags.Usage = committeeServiceListCommitteeLinkFoldersUsage
 	committeeServiceCreateCommitteeLinkFolderFlags.Usage = committeeServiceCreateCommitteeLinkFolderUsage
 	committeeServiceDeleteCommitteeLinkFolderFlags.Usage = committeeServiceDeleteCommitteeLinkFolderUsage
+	committeeServiceUploadCommitteeDocumentFlags.Usage = committeeServiceUploadCommitteeDocumentUsage
+	committeeServiceListCommitteeDocumentsFlags.Usage = committeeServiceListCommitteeDocumentsUsage
+	committeeServiceGetCommitteeDocumentFlags.Usage = committeeServiceGetCommitteeDocumentUsage
+	committeeServiceDownloadCommitteeDocumentFlags.Usage = committeeServiceDownloadCommitteeDocumentUsage
+	committeeServiceDeleteCommitteeDocumentFlags.Usage = committeeServiceDeleteCommitteeDocumentUsage
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return nil, nil, err
@@ -398,6 +434,21 @@ func ParseEndpoint(
 			case "delete-committee-link-folder":
 				epf = committeeServiceDeleteCommitteeLinkFolderFlags
 
+			case "upload-committee-document":
+				epf = committeeServiceUploadCommitteeDocumentFlags
+
+			case "list-committee-documents":
+				epf = committeeServiceListCommitteeDocumentsFlags
+
+			case "get-committee-document":
+				epf = committeeServiceGetCommitteeDocumentFlags
+
+			case "download-committee-document":
+				epf = committeeServiceDownloadCommitteeDocumentFlags
+
+			case "delete-committee-document":
+				epf = committeeServiceDeleteCommitteeDocumentFlags
+
 			}
 
 		}
@@ -514,6 +565,21 @@ func ParseEndpoint(
 			case "delete-committee-link-folder":
 				endpoint = c.DeleteCommitteeLinkFolder()
 				data, err = committeeservicec.BuildDeleteCommitteeLinkFolderPayload(*committeeServiceDeleteCommitteeLinkFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderVersionFlag, *committeeServiceDeleteCommitteeLinkFolderBearerTokenFlag, *committeeServiceDeleteCommitteeLinkFolderIfMatchFlag)
+			case "upload-committee-document":
+				endpoint = c.UploadCommitteeDocument(committeeServiceUploadCommitteeDocumentEncoderFn)
+				data, err = committeeservicec.BuildUploadCommitteeDocumentPayload(*committeeServiceUploadCommitteeDocumentBodyFlag, *committeeServiceUploadCommitteeDocumentUIDFlag, *committeeServiceUploadCommitteeDocumentVersionFlag, *committeeServiceUploadCommitteeDocumentBearerTokenFlag)
+			case "list-committee-documents":
+				endpoint = c.ListCommitteeDocuments()
+				data, err = committeeservicec.BuildListCommitteeDocumentsPayload(*committeeServiceListCommitteeDocumentsUIDFlag, *committeeServiceListCommitteeDocumentsVersionFlag, *committeeServiceListCommitteeDocumentsBearerTokenFlag)
+			case "get-committee-document":
+				endpoint = c.GetCommitteeDocument()
+				data, err = committeeservicec.BuildGetCommitteeDocumentPayload(*committeeServiceGetCommitteeDocumentUIDFlag, *committeeServiceGetCommitteeDocumentDocumentUIDFlag, *committeeServiceGetCommitteeDocumentVersionFlag, *committeeServiceGetCommitteeDocumentBearerTokenFlag)
+			case "download-committee-document":
+				endpoint = c.DownloadCommitteeDocument()
+				data, err = committeeservicec.BuildDownloadCommitteeDocumentPayload(*committeeServiceDownloadCommitteeDocumentUIDFlag, *committeeServiceDownloadCommitteeDocumentDocumentUIDFlag, *committeeServiceDownloadCommitteeDocumentVersionFlag, *committeeServiceDownloadCommitteeDocumentBearerTokenFlag)
+			case "delete-committee-document":
+				endpoint = c.DeleteCommitteeDocument()
+				data, err = committeeservicec.BuildDeleteCommitteeDocumentPayload(*committeeServiceDeleteCommitteeDocumentUIDFlag, *committeeServiceDeleteCommitteeDocumentDocumentUIDFlag, *committeeServiceDeleteCommitteeDocumentVersionFlag, *committeeServiceDeleteCommitteeDocumentBearerTokenFlag, *committeeServiceDeleteCommitteeDocumentIfMatchFlag)
 			}
 		}
 	}
@@ -561,6 +627,11 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    list-committee-link-folders: List all folders for a committee`)
 	fmt.Fprintln(os.Stderr, `    create-committee-link-folder: Create a folder to organize committee links`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
+	fmt.Fprintln(os.Stderr, `    upload-committee-document: Upload a file document to a committee`)
+	fmt.Fprintln(os.Stderr, `    list-committee-documents: List all documents for a committee`)
+	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
+	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
+	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1172,7 +1243,7 @@ func committeeServiceListCommitteeLinksUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66f01-137f-41e2-9c88-e1591ab1d4e2\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66fc4-1bd9-4a88-94c9-076b0db5844c\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateCommitteeLinkUsage() {
@@ -1196,7 +1267,7 @@ func committeeServiceCreateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"zil\",\n      \"folder_uid\": \"6ae48706-1ffe-4123-a3a0-54350d2f7273\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"149\",\n      \"folder_uid\": \"e7b89e2c-8d20-4a1e-92d6-fc9b72ba639c\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceDeleteCommitteeLinkUsage() {
@@ -1319,4 +1390,124 @@ func committeeServiceDeleteCommitteeLinkFolderUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-link-folder --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --folder-uid \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\"")
+}
+
+func committeeServiceUploadCommitteeDocumentUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service upload-committee-document", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Upload a file document to a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Qui ut error.\",\n      \"description\": \"vxz\",\n      \"file\": \"RGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyIG9tbmlzIHF1YWUu\",\n      \"file_name\": \"Et voluptatibus sit quibusdam.\",\n      \"name\": \"Architecture Decision Record\",\n      \"uploaded_by_name\": \"Alex Lee\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceListCommitteeDocumentsUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-committee-documents", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `List all documents for a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-documents --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceGetCommitteeDocumentUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-committee-document", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -document-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get metadata for a single committee document`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -document-uid STRING: Committee document UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-document --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceDownloadCommitteeDocumentUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service download-committee-document", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -document-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Download the file for a committee document`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -document-uid STRING: Committee document UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service download-committee-document --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceDeleteCommitteeDocumentUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service delete-committee-document", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -document-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -if-match STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Delete a document from a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -document-uid STRING: Committee document UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-document --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\"")
 }

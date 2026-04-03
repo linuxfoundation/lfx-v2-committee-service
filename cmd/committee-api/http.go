@@ -5,7 +5,9 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"sync"
@@ -13,6 +15,7 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	committeeservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/middleware"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -62,7 +65,12 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	)
 	{
 		eh := errorHandler(ctx)
-		committeeServiceServer = committeeservicesvr.New(committeeServiceEndpoints, mux, dec, enc, eh, nil, koDataDir, koDataDir, koDataDir, koDataDir)
+		committeeServiceServer = committeeservicesvr.New(
+			committeeServiceEndpoints,
+			mux, dec, enc, eh, nil,
+			uploadCommitteeDocumentDecoder,
+			koDataDir, koDataDir, koDataDir, koDataDir,
+		)
 	}
 
 	// Configure the mux.
@@ -114,6 +122,47 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 			slog.ErrorContext(ctx, "failed to shutdown HTTP server", "error", err)
 		}
 	}()
+}
+
+// uploadCommitteeDocumentDecoder is the multipart decoder for the
+// upload-committee-document endpoint. It reads form parts and populates
+// the payload's File, FileName, ContentType, Name, Description, and
+// UploadedByName fields.
+func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.UploadCommitteeDocumentPayload) error {
+	if *p == nil {
+		*p = &committeeservice.UploadCommitteeDocumentPayload{}
+	}
+	payload := *p
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		data, err := io.ReadAll(io.LimitReader(part, model.MaxDocumentFileSize+1))
+		if err != nil {
+			return err
+		}
+		switch part.FormName() {
+		case "name":
+			payload.Name = string(data)
+		case "description":
+			desc := string(data)
+			payload.Description = &desc
+		case "uploaded_by_name":
+			v := string(data)
+			payload.UploadedByName = &v
+		case "file":
+			fileName := part.FileName()
+			payload.FileName = &fileName
+			ct := part.Header.Get("Content-Type")
+			payload.ContentType = &ct
+			payload.File = data
+		}
+	}
+	return nil
 }
 
 // errorHandler returns a function that writes and logs the given error.

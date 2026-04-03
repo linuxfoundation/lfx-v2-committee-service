@@ -346,6 +346,33 @@ func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReader
 	return nil
 }
 
+// CommitteeDocumentReaderWriterImpl initializes the committee document reader/writer implementation
+// using a dedicated infrastructure adapter (not the shared storage struct) so it can be swapped
+// to S3 or another backend by adding a new case here without touching domain or service code.
+func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocumentReaderWriter {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock committee document storage")
+		return infrastructure.NewMockDocumentRepository()
+
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS committee document storage")
+		natsInit(ctx)
+		return nats.NewDocumentStorage(natsClient)
+
+	default:
+		log.Fatalf("unsupported committee document storage implementation: %s", repoSource)
+	}
+
+	// unreachable
+	return nil
+}
+
 // QueueSubscriptions starts all NATS subscriptions with the provided dependencies
 func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReader) error {
 	slog.InfoContext(ctx, "starting NATS subscriptions")

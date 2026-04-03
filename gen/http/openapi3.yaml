@@ -898,6 +898,546 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/documents:
+        get:
+            tags:
+                - committee-service
+            summary: list-committee-documents committee-service
+            description: List all documents for a committee
+            operationId: committee-service#list-committee-documents
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/CommitteeDocumentWithReadonlyAttributes'
+                                example:
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      content_type: application/pdf
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      description: Technical architecture decisions for Q1 2025
+                                      file_name: architecture-decisions-q1-2025.pdf
+                                      file_size: 204800
+                                      name: Architecture Decision Record
+                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      uploaded_by_name: Alex Lee
+                                      uploaded_by_uid: alexlee
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      content_type: application/pdf
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      description: Technical architecture decisions for Q1 2025
+                                      file_name: architecture-decisions-q1-2025.pdf
+                                      file_size: 204800
+                                      name: Architecture Decision Record
+                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      uploaded_by_name: Alex Lee
+                                      uploaded_by_uid: alexlee
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      content_type: application/pdf
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      description: Technical architecture decisions for Q1 2025
+                                      file_name: architecture-decisions-q1-2025.pdf
+                                      file_size: 204800
+                                      name: Architecture Decision Record
+                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      uploaded_by_name: Alex Lee
+                                      uploaded_by_uid: alexlee
+                            example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  content_type: application/pdf
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  description: Technical architecture decisions for Q1 2025
+                                  file_name: architecture-decisions-q1-2025.pdf
+                                  file_size: 204800
+                                  name: Architecture Decision Record
+                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  uploaded_by_name: Alex Lee
+                                  uploaded_by_uid: alexlee
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  content_type: application/pdf
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  description: Technical architecture decisions for Q1 2025
+                                  file_name: architecture-decisions-q1-2025.pdf
+                                  file_size: 204800
+                                  name: Architecture Decision Record
+                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  uploaded_by_name: Alex Lee
+                                  uploaded_by_uid: alexlee
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  content_type: application/pdf
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  description: Technical architecture decisions for Q1 2025
+                                  file_name: architecture-decisions-q1-2025.pdf
+                                  file_size: 204800
+                                  name: Architecture Decision Record
+                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  uploaded_by_name: Alex Lee
+                                  uploaded_by_uid: alexlee
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        post:
+            tags:
+                - committee-service
+            summary: upload-committee-document committee-service
+            description: Upload a file document to a committee
+            operationId: committee-service#upload-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            requestBody:
+                required: true
+                content:
+                    multipart/form-data:
+                        schema:
+                            $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
+                        example:
+                            content_type: Qui ut error.
+                            description: vxz
+                            file:
+                                - 68
+                                - 101
+                                - 98
+                                - 105
+                                - 116
+                                - 105
+                                - 115
+                                - 32
+                                - 99
+                                - 111
+                                - 114
+                                - 114
+                                - 117
+                                - 112
+                                - 116
+                                - 105
+                                - 32
+                                - 110
+                                - 117
+                                - 109
+                                - 113
+                                - 117
+                                - 97
+                                - 109
+                                - 32
+                                - 99
+                                - 111
+                                - 110
+                                - 115
+                                - 101
+                                - 113
+                                - 117
+                                - 97
+                                - 116
+                                - 117
+                                - 114
+                                - 32
+                                - 111
+                                - 109
+                                - 110
+                                - 105
+                                - 115
+                                - 32
+                                - 113
+                                - 117
+                                - 97
+                                - 101
+                                - 46
+                            file_name: Et voluptatibus sit quibusdam.
+                            name: Architecture Decision Record
+                            uploaded_by_name: Alex Lee
+            responses:
+                "201":
+                    description: Created response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeDocumentWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                content_type: application/pdf
+                                created_at: "2023-01-15T10:30:00Z"
+                                description: Technical architecture decisions for Q1 2025
+                                file_name: architecture-decisions-q1-2025.pdf
+                                file_size: 204800
+                                name: Architecture Decision Record
+                                uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                updated_at: "2023-06-20T14:45:30Z"
+                                uploaded_by_name: Alex Lee
+                                uploaded_by_uid: alexlee
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Document name already exists'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/documents/{document_uid}:
+        delete:
+            tags:
+                - committee-service
+            summary: delete-committee-document committee-service
+            description: Delete a document from a committee
+            operationId: committee-service#delete-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee document UID
+                    example: d1e2f3a4-b5c6-7890-defa-123456789012
+                    format: uuid
+                  example: d1e2f3a4-b5c6-7890-defa-123456789012
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: If-Match header value for conditional requests
+                    example: "123"
+                  example: "123"
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Conflict'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-document committee-service
+            description: Get metadata for a single committee document
+            operationId: committee-service#get-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee document UID
+                    example: d1e2f3a4-b5c6-7890-defa-123456789012
+                    format: uuid
+                  example: d1e2f3a4-b5c6-7890-defa-123456789012
+            responses:
+                "200":
+                    description: OK response.
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            schema:
+                                type: string
+                                description: ETag header value
+                                example: "123"
+                            example: "123"
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeDocumentWithReadonlyAttributes'
+                            example:
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                content_type: application/pdf
+                                created_at: "2023-01-15T10:30:00Z"
+                                description: Technical architecture decisions for Q1 2025
+                                file_name: architecture-decisions-q1-2025.pdf
+                                file_size: 204800
+                                name: Architecture Decision Record
+                                uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                                updated_at: "2023-06-20T14:45:30Z"
+                                uploaded_by_name: Alex Lee
+                                uploaded_by_uid: alexlee
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/documents/{document_uid}/download:
+        get:
+            tags:
+                - committee-service
+            summary: download-committee-document committee-service
+            description: Download the file for a committee document
+            operationId: committee-service#download-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee document UID
+                    example: d1e2f3a4-b5c6-7890-defa-123456789012
+                    format: uuid
+                  example: d1e2f3a4-b5c6-7890-defa-123456789012
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                type: string
+                                format: binary
+                "404":
+                    description: 'NotFound: Resource not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/folders:
         get:
             tags:
@@ -959,6 +1499,20 @@ paths:
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_name: Alex Lee
+                                  created_by_uid: alexlee
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_name: Alex Lee
+                                  created_by_uid: alexlee
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_name: Alex Lee
@@ -1991,9 +2545,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: c0e56ba1-2e0f-4a1e-8222-3c8eb2f69321
+                    example: 44475c5e-00cf-44ad-b6c2-7fcc3e772ecb
                     format: uuid
-                  example: 8269bb57-0ada-4aed-b148-cb457d91690e
+                  example: 44cd642c-a947-4441-bf50-e2b2b42b4578
             responses:
                 "200":
                     description: OK response.
@@ -2024,27 +2578,17 @@ paths:
                                       uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                       updated_at: "2023-06-20T14:45:30Z"
                                       url: https://confluence.example.com/architecture-decisions
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by_name: Alex Lee
+                                      created_by_uid: alexlee
+                                      description: Confluence wiki — architecture decisions log
+                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      name: Technical Architecture Decision Records
+                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      url: https://confluence.example.com/architecture-decisions
                             example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  url: https://confluence.example.com/architecture-decisions
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_name: Alex Lee
@@ -2127,8 +2671,8 @@ paths:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
                             created_by_name: Alex Lee
-                            description: zil
-                            folder_uid: 6ae48706-1ffe-4123-a3a0-54350d2f7273
+                            description: "149"
+                            folder_uid: e7b89e2c-8d20-4a1e-92d6-fc9b72ba639c
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3443,6 +3987,75 @@ components:
                 total_voting_repos: 3
                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 website: https://committee.example.org
+        CommitteeDocumentWithReadonlyAttributes:
+            type: object
+            properties:
+                committee_uid:
+                    type: string
+                    description: Committee UID
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                content_type:
+                    type: string
+                    description: MIME type of the file
+                    example: application/pdf
+                created_at:
+                    type: string
+                    description: The timestamp when the resource was created (read-only)
+                    example: "2023-01-15T10:30:00Z"
+                    format: date-time
+                description:
+                    type: string
+                    description: Optional description
+                    example: Technical architecture decisions for Q1 2025
+                    maxLength: 2000
+                file_name:
+                    type: string
+                    description: Original file name
+                    example: architecture-decisions-q1-2025.pdf
+                    maxLength: 500
+                file_size:
+                    type: integer
+                    description: File size in bytes
+                    example: 204800
+                    format: int64
+                    minimum: 0
+                name:
+                    type: string
+                    description: Display name for the document
+                    example: Architecture Decision Record
+                    maxLength: 500
+                uid:
+                    type: string
+                    description: Document UID
+                    example: d1e2f3a4-b5c6-7890-defa-123456789012
+                    format: uuid
+                updated_at:
+                    type: string
+                    description: The timestamp when the resource was last updated (read-only)
+                    example: "2023-06-20T14:45:30Z"
+                    format: date-time
+                uploaded_by_name:
+                    type: string
+                    description: Display name of the uploader (client-provided)
+                    example: Alex Lee
+                uploaded_by_uid:
+                    type: string
+                    description: LF username of the uploader (auto-populated from JWT)
+                    example: alexlee
+            description: A file document associated with a committee.
+            example:
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                content_type: application/pdf
+                created_at: "2023-01-15T10:30:00Z"
+                description: Technical architecture decisions for Q1 2025
+                file_name: architecture-decisions-q1-2025.pdf
+                file_size: 204800
+                name: Architecture Decision Record
+                uid: d1e2f3a4-b5c6-7890-defa-123456789012
+                updated_at: "2023-06-20T14:45:30Z"
+                uploaded_by_name: Alex Lee
+                uploaded_by_uid: alexlee
         CommitteeFull:
             type: object
             properties:
@@ -3450,7 +4063,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Deleniti magni eveniet accusantium facilis mollitia aperiam.
+                        example: Porro dolor sit iusto iusto et nihil.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -3593,7 +4206,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Eos ea qui voluptas autem odit.
+                        example: Iusto soluta soluta commodi id nesciunt ducimus.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -3634,7 +4247,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Itaque omnis aliquam.
+                        example: Odio maxime.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -3798,7 +4411,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Repudiandae atque quo et.
+                        example: Est laudantium soluta ipsum mollitia eum.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -4673,12 +5286,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: 1ec
+                    example: qy5
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 19ac8c96-5138-471e-8714-823993c29b3d
+                    example: 88f80480-ccf4-43ec-9cbf-3580f99ba9bb
                     format: uuid
                 name:
                     type: string
@@ -4692,8 +5305,8 @@ components:
                     maxLength: 2048
             example:
                 created_by_name: Alex Lee
-                description: rt2
-                folder_uid: 7d87276e-5476-4b63-b0a8-f9edf6c1b596
+                description: f0w
+                folder_uid: bec118ef-4db5-4c27-9525-4dc9b6da9951
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -4879,7 +5492,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Sint qui quam.
+                        example: Occaecati ex a recusandae eos maiores nemo.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -5022,7 +5635,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Quidem perspiciatis.
+                        example: Incidunt nihil ab culpa deleniti labore.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -5269,7 +5882,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Adipisci nisi totam provident veniam assumenda.
+                        example: Animi dicta placeat et quasi.
                     description: Auditor user IDs who can audit this committee
                     example:
                         - auditor_user_id1
@@ -5305,7 +5918,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: Eaque eum placeat soluta facere doloribus autem.
+                        example: Odit sit explicabo ex architecto minima exercitationem.
                     description: Manager user IDs who can edit/modify this committee
                     example:
                         - manager_user_id1
@@ -5324,6 +5937,105 @@ components:
                     - manager_user_id2
             required:
                 - business_email_required
+        UploadCommitteeDocumentRequestBody:
+            type: object
+            properties:
+                content_type:
+                    type: string
+                    description: MIME type of the uploaded file
+                    example: Quam autem quaerat eum.
+                description:
+                    type: string
+                    description: Optional description
+                    example: 8ut
+                    maxLength: 2000
+                file:
+                    type: string
+                    description: File content
+                    example:
+                        - 81
+                        - 117
+                        - 105
+                        - 32
+                        - 110
+                        - 105
+                        - 104
+                        - 105
+                        - 108
+                        - 32
+                        - 101
+                        - 120
+                        - 101
+                        - 114
+                        - 99
+                        - 105
+                        - 116
+                        - 97
+                        - 116
+                        - 105
+                        - 111
+                        - 110
+                        - 101
+                        - 109
+                        - 32
+                        - 100
+                        - 111
+                        - 108
+                        - 111
+                        - 114
+                        - 32
+                        - 97
+                        - 32
+                        - 113
+                        - 117
+                        - 105
+                        - 32
+                        - 110
+                        - 105
+                        - 104
+                        - 105
+                        - 108
+                        - 46
+                    format: binary
+                file_name:
+                    type: string
+                    description: Original file name (from the uploaded file part)
+                    example: Eos velit facere tempore numquam hic et.
+                name:
+                    type: string
+                    description: Display name for the document
+                    example: Architecture Decision Record
+                    maxLength: 500
+                uploaded_by_name:
+                    type: string
+                    description: Display name of the uploader (client-provided from user session)
+                    example: Alex Lee
+                    maxLength: 200
+            example:
+                content_type: Dolores non voluptatibus.
+                description: yxg
+                file:
+                    - 86
+                    - 111
+                    - 108
+                    - 117
+                    - 112
+                    - 116
+                    - 97
+                    - 116
+                    - 117
+                    - 109
+                    - 32
+                    - 102
+                    - 117
+                    - 103
+                    - 97
+                    - 46
+                file_name: Repellat provident.
+                name: Architecture Decision Record
+                uploaded_by_name: Alex Lee
+            required:
+                - name
     securitySchemes:
         jwt_header_Authorization:
             type: http
