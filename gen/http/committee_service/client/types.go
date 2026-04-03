@@ -282,6 +282,23 @@ type CreateCommitteeLinkFolderRequestBody struct {
 	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 }
 
+// UploadCommitteeDocumentRequestBody is the type of the "committee-service"
+// service "upload-committee-document" endpoint HTTP request body.
+type UploadCommitteeDocumentRequestBody struct {
+	// Display name for the document
+	Name string `form:"name" json:"name" xml:"name"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Display name of the uploader (client-provided from user session)
+	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	// Original file name (from the uploaded file part)
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// MIME type of the uploaded file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// File content
+	File []byte `form:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -898,6 +915,41 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
+
+// UploadCommitteeDocumentResponseBody is the type of the "committee-service"
+// service "upload-committee-document" endpoint HTTP response body.
+type UploadCommitteeDocumentResponseBody struct {
+	// Document UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Display name for the document
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Original file name
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// File size in bytes
+	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
+	// MIME type of the file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// LF username of the uploader (auto-populated from JWT)
+	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
+	// Display name of the uploader (client-provided)
+	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// ListCommitteeDocumentsResponseBody is the type of the "committee-service"
+// service "list-committee-documents" endpoint HTTP response body.
+type ListCommitteeDocumentsResponseBody []*CommitteeDocumentWithReadonlyAttributesResponse
+
+// GetCommitteeDocumentResponseBody is the type of the "committee-service"
+// service "get-committee-document" endpoint HTTP response body.
+type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesResponseBody
 
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"
 // service "create-committee" endpoint HTTP response body for the "BadRequest"
@@ -1917,6 +1969,158 @@ type DeleteCommitteeLinkFolderServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// UploadCommitteeDocumentBadRequestResponseBody is the type of the
+// "committee-service" service "upload-committee-document" endpoint HTTP
+// response body for the "BadRequest" error.
+type UploadCommitteeDocumentBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UploadCommitteeDocumentConflictResponseBody is the type of the
+// "committee-service" service "upload-committee-document" endpoint HTTP
+// response body for the "Conflict" error.
+type UploadCommitteeDocumentConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UploadCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "upload-committee-document" endpoint HTTP
+// response body for the "InternalServerError" error.
+type UploadCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UploadCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "upload-committee-document" endpoint HTTP
+// response body for the "NotFound" error.
+type UploadCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UploadCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "upload-committee-document" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type UploadCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeDocumentsInternalServerErrorResponseBody is the type of the
+// "committee-service" service "list-committee-documents" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ListCommitteeDocumentsInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeDocumentsNotFoundResponseBody is the type of the
+// "committee-service" service "list-committee-documents" endpoint HTTP
+// response body for the "NotFound" error.
+type ListCommitteeDocumentsNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeDocumentsServiceUnavailableResponseBody is the type of the
+// "committee-service" service "list-committee-documents" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type ListCommitteeDocumentsServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-document" endpoint HTTP response
+// body for the "InternalServerError" error.
+type GetCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "get-committee-document" endpoint HTTP response
+// body for the "NotFound" error.
+type GetCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-document" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type GetCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DownloadCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "download-committee-document" endpoint HTTP
+// response body for the "InternalServerError" error.
+type DownloadCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DownloadCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "download-committee-document" endpoint HTTP
+// response body for the "NotFound" error.
+type DownloadCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DownloadCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "download-committee-document" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type DownloadCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeDocumentBadRequestResponseBody is the type of the
+// "committee-service" service "delete-committee-document" endpoint HTTP
+// response body for the "BadRequest" error.
+type DeleteCommitteeDocumentBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeDocumentConflictResponseBody is the type of the
+// "committee-service" service "delete-committee-document" endpoint HTTP
+// response body for the "Conflict" error.
+type DeleteCommitteeDocumentConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "delete-committee-document" endpoint HTTP
+// response body for the "InternalServerError" error.
+type DeleteCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "delete-committee-document" endpoint HTTP
+// response body for the "NotFound" error.
+type DeleteCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "delete-committee-document" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type DeleteCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
 type CommitteeBaseWithReadonlyAttributesResponseBody struct {
@@ -2132,6 +2336,60 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
 	// Display name of the user who created the folder (client-provided)
 	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeDocumentWithReadonlyAttributesResponse is used to define fields on
+// response body types.
+type CommitteeDocumentWithReadonlyAttributesResponse struct {
+	// Document UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Display name for the document
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Original file name
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// File size in bytes
+	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
+	// MIME type of the file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// LF username of the uploader (auto-populated from JWT)
+	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
+	// Display name of the uploader (client-provided)
+	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeDocumentWithReadonlyAttributesResponseBody is used to define fields
+// on response body types.
+type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
+	// Document UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Display name for the document
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Original file name
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// File size in bytes
+	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
+	// MIME type of the file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// LF username of the uploader (auto-populated from JWT)
+	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
+	// Display name of the uploader (client-provided)
+	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2571,6 +2829,21 @@ func NewCreateCommitteeLinkFolderRequestBody(p *committeeservice.CreateCommittee
 	body := &CreateCommitteeLinkFolderRequestBody{
 		Name:          p.Name,
 		CreatedByName: p.CreatedByName,
+	}
+	return body
+}
+
+// NewUploadCommitteeDocumentRequestBody builds the HTTP request body from the
+// payload of the "upload-committee-document" endpoint of the
+// "committee-service" service.
+func NewUploadCommitteeDocumentRequestBody(p *committeeservice.UploadCommitteeDocumentPayload) *UploadCommitteeDocumentRequestBody {
+	body := &UploadCommitteeDocumentRequestBody{
+		Name:           p.Name,
+		Description:    p.Description,
+		UploadedByName: p.UploadedByName,
+		FileName:       p.FileName,
+		ContentType:    p.ContentType,
+		File:           p.File,
 	}
 	return body
 }
@@ -4908,6 +5181,253 @@ func NewDeleteCommitteeLinkFolderServiceUnavailable(body *DeleteCommitteeLinkFol
 	return v
 }
 
+// NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated
+// builds a "committee-service" service "upload-committee-document" endpoint
+// result from a HTTP "Created" response.
+func NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated(body *UploadCommitteeDocumentResponseBody) *committeeservice.CommitteeDocumentWithReadonlyAttributes {
+	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		Name:           body.Name,
+		Description:    body.Description,
+		FileName:       body.FileName,
+		FileSize:       body.FileSize,
+		ContentType:    body.ContentType,
+		UploadedByUID:  body.UploadedByUID,
+		UploadedByName: body.UploadedByName,
+		CreatedAt:      body.CreatedAt,
+		UpdatedAt:      body.UpdatedAt,
+	}
+
+	return v
+}
+
+// NewUploadCommitteeDocumentBadRequest builds a committee-service service
+// upload-committee-document endpoint BadRequest error.
+func NewUploadCommitteeDocumentBadRequest(body *UploadCommitteeDocumentBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUploadCommitteeDocumentConflict builds a committee-service service
+// upload-committee-document endpoint Conflict error.
+func NewUploadCommitteeDocumentConflict(body *UploadCommitteeDocumentConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUploadCommitteeDocumentInternalServerError builds a committee-service
+// service upload-committee-document endpoint InternalServerError error.
+func NewUploadCommitteeDocumentInternalServerError(body *UploadCommitteeDocumentInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUploadCommitteeDocumentNotFound builds a committee-service service
+// upload-committee-document endpoint NotFound error.
+func NewUploadCommitteeDocumentNotFound(body *UploadCommitteeDocumentNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUploadCommitteeDocumentServiceUnavailable builds a committee-service
+// service upload-committee-document endpoint ServiceUnavailable error.
+func NewUploadCommitteeDocumentServiceUnavailable(body *UploadCommitteeDocumentServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeDocumentsCommitteeDocumentWithReadonlyAttributesOK builds a
+// "committee-service" service "list-committee-documents" endpoint result from
+// a HTTP "OK" response.
+func NewListCommitteeDocumentsCommitteeDocumentWithReadonlyAttributesOK(body []*CommitteeDocumentWithReadonlyAttributesResponse) []*committeeservice.CommitteeDocumentWithReadonlyAttributes {
+	v := make([]*committeeservice.CommitteeDocumentWithReadonlyAttributes, len(body))
+	for i, val := range body {
+		v[i] = unmarshalCommitteeDocumentWithReadonlyAttributesResponseToCommitteeserviceCommitteeDocumentWithReadonlyAttributes(val)
+	}
+
+	return v
+}
+
+// NewListCommitteeDocumentsInternalServerError builds a committee-service
+// service list-committee-documents endpoint InternalServerError error.
+func NewListCommitteeDocumentsInternalServerError(body *ListCommitteeDocumentsInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeDocumentsNotFound builds a committee-service service
+// list-committee-documents endpoint NotFound error.
+func NewListCommitteeDocumentsNotFound(body *ListCommitteeDocumentsNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeDocumentsServiceUnavailable builds a committee-service
+// service list-committee-documents endpoint ServiceUnavailable error.
+func NewListCommitteeDocumentsServiceUnavailable(body *ListCommitteeDocumentsServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeDocumentResultOK builds a "committee-service" service
+// "get-committee-document" endpoint result from a HTTP "OK" response.
+func NewGetCommitteeDocumentResultOK(body *GetCommitteeDocumentResponseBody, etag *string) *committeeservice.GetCommitteeDocumentResult {
+	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		Name:           body.Name,
+		Description:    body.Description,
+		FileName:       body.FileName,
+		FileSize:       body.FileSize,
+		ContentType:    body.ContentType,
+		UploadedByUID:  body.UploadedByUID,
+		UploadedByName: body.UploadedByName,
+		CreatedAt:      body.CreatedAt,
+		UpdatedAt:      body.UpdatedAt,
+	}
+	res := &committeeservice.GetCommitteeDocumentResult{
+		CommitteeDocument: v,
+	}
+	res.Etag = etag
+
+	return res
+}
+
+// NewGetCommitteeDocumentInternalServerError builds a committee-service
+// service get-committee-document endpoint InternalServerError error.
+func NewGetCommitteeDocumentInternalServerError(body *GetCommitteeDocumentInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeDocumentNotFound builds a committee-service service
+// get-committee-document endpoint NotFound error.
+func NewGetCommitteeDocumentNotFound(body *GetCommitteeDocumentNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeDocumentServiceUnavailable builds a committee-service service
+// get-committee-document endpoint ServiceUnavailable error.
+func NewGetCommitteeDocumentServiceUnavailable(body *GetCommitteeDocumentServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDownloadCommitteeDocumentInternalServerError builds a committee-service
+// service download-committee-document endpoint InternalServerError error.
+func NewDownloadCommitteeDocumentInternalServerError(body *DownloadCommitteeDocumentInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDownloadCommitteeDocumentNotFound builds a committee-service service
+// download-committee-document endpoint NotFound error.
+func NewDownloadCommitteeDocumentNotFound(body *DownloadCommitteeDocumentNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDownloadCommitteeDocumentServiceUnavailable builds a committee-service
+// service download-committee-document endpoint ServiceUnavailable error.
+func NewDownloadCommitteeDocumentServiceUnavailable(body *DownloadCommitteeDocumentServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeDocumentBadRequest builds a committee-service service
+// delete-committee-document endpoint BadRequest error.
+func NewDeleteCommitteeDocumentBadRequest(body *DeleteCommitteeDocumentBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeDocumentConflict builds a committee-service service
+// delete-committee-document endpoint Conflict error.
+func NewDeleteCommitteeDocumentConflict(body *DeleteCommitteeDocumentConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeDocumentInternalServerError builds a committee-service
+// service delete-committee-document endpoint InternalServerError error.
+func NewDeleteCommitteeDocumentInternalServerError(body *DeleteCommitteeDocumentInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeDocumentNotFound builds a committee-service service
+// delete-committee-document endpoint NotFound error.
+func NewDeleteCommitteeDocumentNotFound(body *DeleteCommitteeDocumentNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeDocumentServiceUnavailable builds a committee-service
+// service delete-committee-document endpoint ServiceUnavailable error.
+func NewDeleteCommitteeDocumentServiceUnavailable(body *DeleteCommitteeDocumentServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // ValidateCreateCommitteeResponseBody runs the validations defined on
 // Create-CommitteeResponseBody
 func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err error) {
@@ -6048,6 +6568,82 @@ func ValidateCreateCommitteeLinkFolderResponseBody(body *CreateCommitteeLinkFold
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateUploadCommitteeDocumentResponseBody runs the validations defined on
+// Upload-Committee-DocumentResponseBody
+func ValidateUploadCommitteeDocumentResponseBody(body *UploadCommitteeDocumentResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FileName != nil {
+		if utf8.RuneCountInString(*body.FileName) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
+		}
+	}
+	if body.FileSize != nil {
+		if *body.FileSize < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetCommitteeDocumentResponseBody runs the validations defined on
+// Get-Committee-DocumentResponseBody
+func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FileName != nil {
+		if utf8.RuneCountInString(*body.FileName) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
+		}
+	}
+	if body.FileSize != nil {
+		if *body.FileSize < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -7232,6 +7828,187 @@ func ValidateDeleteCommitteeLinkFolderServiceUnavailableResponseBody(body *Delet
 	return
 }
 
+// ValidateUploadCommitteeDocumentBadRequestResponseBody runs the validations
+// defined on upload-committee-document_BadRequest_response_body
+func ValidateUploadCommitteeDocumentBadRequestResponseBody(body *UploadCommitteeDocumentBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUploadCommitteeDocumentConflictResponseBody runs the validations
+// defined on upload-committee-document_Conflict_response_body
+func ValidateUploadCommitteeDocumentConflictResponseBody(body *UploadCommitteeDocumentConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUploadCommitteeDocumentInternalServerErrorResponseBody runs the
+// validations defined on
+// upload-committee-document_InternalServerError_response_body
+func ValidateUploadCommitteeDocumentInternalServerErrorResponseBody(body *UploadCommitteeDocumentInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUploadCommitteeDocumentNotFoundResponseBody runs the validations
+// defined on upload-committee-document_NotFound_response_body
+func ValidateUploadCommitteeDocumentNotFoundResponseBody(body *UploadCommitteeDocumentNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUploadCommitteeDocumentServiceUnavailableResponseBody runs the
+// validations defined on
+// upload-committee-document_ServiceUnavailable_response_body
+func ValidateUploadCommitteeDocumentServiceUnavailableResponseBody(body *UploadCommitteeDocumentServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeDocumentsInternalServerErrorResponseBody runs the
+// validations defined on
+// list-committee-documents_InternalServerError_response_body
+func ValidateListCommitteeDocumentsInternalServerErrorResponseBody(body *ListCommitteeDocumentsInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeDocumentsNotFoundResponseBody runs the validations
+// defined on list-committee-documents_NotFound_response_body
+func ValidateListCommitteeDocumentsNotFoundResponseBody(body *ListCommitteeDocumentsNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeDocumentsServiceUnavailableResponseBody runs the
+// validations defined on
+// list-committee-documents_ServiceUnavailable_response_body
+func ValidateListCommitteeDocumentsServiceUnavailableResponseBody(body *ListCommitteeDocumentsServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeDocumentInternalServerErrorResponseBody runs the
+// validations defined on
+// get-committee-document_InternalServerError_response_body
+func ValidateGetCommitteeDocumentInternalServerErrorResponseBody(body *GetCommitteeDocumentInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeDocumentNotFoundResponseBody runs the validations
+// defined on get-committee-document_NotFound_response_body
+func ValidateGetCommitteeDocumentNotFoundResponseBody(body *GetCommitteeDocumentNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeDocumentServiceUnavailableResponseBody runs the
+// validations defined on
+// get-committee-document_ServiceUnavailable_response_body
+func ValidateGetCommitteeDocumentServiceUnavailableResponseBody(body *GetCommitteeDocumentServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDownloadCommitteeDocumentInternalServerErrorResponseBody runs the
+// validations defined on
+// download-committee-document_InternalServerError_response_body
+func ValidateDownloadCommitteeDocumentInternalServerErrorResponseBody(body *DownloadCommitteeDocumentInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDownloadCommitteeDocumentNotFoundResponseBody runs the validations
+// defined on download-committee-document_NotFound_response_body
+func ValidateDownloadCommitteeDocumentNotFoundResponseBody(body *DownloadCommitteeDocumentNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDownloadCommitteeDocumentServiceUnavailableResponseBody runs the
+// validations defined on
+// download-committee-document_ServiceUnavailable_response_body
+func ValidateDownloadCommitteeDocumentServiceUnavailableResponseBody(body *DownloadCommitteeDocumentServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeDocumentBadRequestResponseBody runs the validations
+// defined on delete-committee-document_BadRequest_response_body
+func ValidateDeleteCommitteeDocumentBadRequestResponseBody(body *DeleteCommitteeDocumentBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeDocumentConflictResponseBody runs the validations
+// defined on delete-committee-document_Conflict_response_body
+func ValidateDeleteCommitteeDocumentConflictResponseBody(body *DeleteCommitteeDocumentConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeDocumentInternalServerErrorResponseBody runs the
+// validations defined on
+// delete-committee-document_InternalServerError_response_body
+func ValidateDeleteCommitteeDocumentInternalServerErrorResponseBody(body *DeleteCommitteeDocumentInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeDocumentNotFoundResponseBody runs the validations
+// defined on delete-committee-document_NotFound_response_body
+func ValidateDeleteCommitteeDocumentNotFoundResponseBody(body *DeleteCommitteeDocumentNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeDocumentServiceUnavailableResponseBody runs the
+// validations defined on
+// delete-committee-document_ServiceUnavailable_response_body
+func ValidateDeleteCommitteeDocumentServiceUnavailableResponseBody(body *DeleteCommitteeDocumentServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateCommitteeBaseWithReadonlyAttributesResponseBody runs the validations
 // defined on committee-base-with-readonly-attributesResponseBody
 func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBaseWithReadonlyAttributesResponseBody) (err error) {
@@ -7537,6 +8314,83 @@ func ValidateCommitteeLinkFolderWithReadonlyAttributesResponse(body *CommitteeLi
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeDocumentWithReadonlyAttributesResponse runs the validations
+// defined on committee-document-with-readonly-attributesResponse
+func ValidateCommitteeDocumentWithReadonlyAttributesResponse(body *CommitteeDocumentWithReadonlyAttributesResponse) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FileName != nil {
+		if utf8.RuneCountInString(*body.FileName) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
+		}
+	}
+	if body.FileSize != nil {
+		if *body.FileSize < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeDocumentWithReadonlyAttributesResponseBody runs the
+// validations defined on
+// committee-document-with-readonly-attributesResponseBody
+func ValidateCommitteeDocumentWithReadonlyAttributesResponseBody(body *CommitteeDocumentWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FileName != nil {
+		if utf8.RuneCountInString(*body.FileName) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
+		}
+	}
+	if body.FileSize != nil {
+		if *body.FileSize < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
 		}
 	}
 	if body.CreatedAt != nil {
