@@ -75,8 +75,8 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 	settings := &model.CommitteeSettings{
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               p.Writers,
-		Auditors:              p.Auditors,
+		Writers:               convertPayloadUsersToModel(p.Writers),
+		Auditors:              convertPayloadUsersToModel(p.Auditors),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -155,8 +155,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               p.Writers,
-		Auditors:              p.Auditors,
+		Writers:               convertPayloadUsersToModel(p.Writers),
+		Auditors:              convertPayloadUsersToModel(p.Auditors),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -226,11 +226,11 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		if response.LastReviewedBy != nil && *response.LastReviewedBy != "" {
 			result.LastReviewedBy = response.LastReviewedBy
 		}
-		if len(response.Writers) > 0 {
-			result.Writers = response.Writers
+		if response.Writers != nil {
+			result.Writers = convertModelUsersToResponse(response.Writers)
 		}
-		if len(response.Auditors) > 0 {
-			result.Auditors = response.Auditors
+		if response.Auditors != nil {
+			result.Auditors = convertModelUsersToResponse(response.Auditors)
 		}
 
 		result.ShowMeetingAttendees = response.ShowMeetingAttendees
@@ -331,6 +331,9 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 		updatedAt := settings.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.UpdatedAt = &updatedAt
 	}
+
+	result.Writers = convertModelUsersToResponse(settings.Writers)
+	result.Auditors = convertModelUsersToResponse(settings.Auditors)
 
 	return result
 }
@@ -624,6 +627,63 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
+	}
+	return result
+}
+
+// convertPayloadUsersToModel converts Goa payload user objects to domain model CommitteeUser slice.
+// Returns nil when users is nil (field omitted by caller) and an empty non-nil slice when users
+// is an explicit empty array, preserving the caller's intent to clear the list.
+func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model.CommitteeUser {
+	if users == nil {
+		return nil
+	}
+	if len(users) == 0 {
+		return []model.CommitteeUser{}
+	}
+	result := make([]model.CommitteeUser, 0, len(users))
+	for _, u := range users {
+		if u == nil || u.Username == nil || *u.Username == "" {
+			continue
+		}
+		cu := model.CommitteeUser{}
+		if u.Avatar != nil {
+			cu.Avatar = *u.Avatar
+		}
+		if u.Email != nil {
+			cu.Email = *u.Email
+		}
+		if u.Name != nil {
+			cu.Name = *u.Name
+		}
+		cu.Username = *u.Username
+		result = append(result, cu)
+	}
+	return result
+}
+
+// convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
+// Returns nil when users is nil so that omitted fields are not serialized as empty arrays.
+func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservice.CommitteeUser {
+	if users == nil {
+		return nil
+	}
+	result := make([]*committeeservice.CommitteeUser, 0, len(users))
+	for _, u := range users {
+		cu := &committeeservice.CommitteeUser{}
+		if u.Avatar != "" {
+			cu.Avatar = &u.Avatar
+		}
+		if u.Email != "" {
+			cu.Email = &u.Email
+		}
+		if u.Name != "" {
+			cu.Name = &u.Name
+		}
+		if u.Username != "" {
+			cu.Username = &u.Username
+		}
+		result = append(result, cu)
 	}
 	return result
 }

@@ -1,0 +1,11 @@
+#!/bin/sh
+# Format staged Go files and re-stage them, then lint before committing
+echo "Running make fmt..."
+make fmt
+git add -u
+
+echo "Running golangci-lint..."
+if ! make lint; then
+  echo "Lint failed. Fix errors before committing."
+  exit 1
+fi

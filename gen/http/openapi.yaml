@@ -2283,12 +2283,13 @@ definitions:
             auditors:
                 type: array
                 items:
-                    type: string
-                    example: Accusamus nostrum ut.
-                description: Auditor user IDs who can audit this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can audit this committee
                 example:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
             business_email_required:
                 type: boolean
                 description: Whether business email is required for committee members
@@ -2447,16 +2448,19 @@ definitions:
             writers:
                 type: array
                 items:
-                    type: string
-                    example: Autem sunt fugiat.
-                description: Manager user IDs who can edit/modify this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can edit/modify this committee
                 example:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         example:
             auditors:
-                - auditor_user_id1
-                - auditor_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: john@example.com
+                  name: John Doe
+                  username: auditor_user_id1
             business_email_required: false
             calendar:
                 public: true
@@ -2483,8 +2487,10 @@ definitions:
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
             writers:
-                - manager_user_id1
-                - manager_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: alice@example.com
+                  name: Alice Johnson
+                  username: manager_user_id1
     CommitteeInviteWithReadonlyAttributes:
         title: CommitteeInviteWithReadonlyAttributes
         type: object
@@ -2890,12 +2896,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: fi3
+                example: kaj
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 9509a22a-60e0-42ed-bc30-2542387c1633
+                example: 9509a22a-60e0-45d9-ae02-2598a993309d
                 format: uuid
             name:
                 type: string
@@ -2909,8 +2915,8 @@ definitions:
                 maxLength: 2048
         example:
             created_by_name: Alex Lee
-            description: k64
-            folder_uid: 955ef4d9-f96b-4705-8d86-a552b00b556f
+            description: "128"
+            folder_uid: d154ebd0-cc20-4205-a53e-6fe527ee147a
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -3097,12 +3103,13 @@ definitions:
             auditors:
                 type: array
                 items:
-                    type: string
-                    example: Laborum accusamus.
-                description: Auditor user IDs who can audit this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can audit this committee
                 example:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
             business_email_required:
                 type: boolean
                 description: Whether business email is required for committee members
@@ -3240,16 +3247,19 @@ definitions:
             writers:
                 type: array
                 items:
-                    type: string
-                    example: Possimus in.
-                description: Manager user IDs who can edit/modify this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can edit/modify this committee
                 example:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         example:
             auditors:
-                - auditor_user_id1
-                - auditor_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: john@example.com
+                  name: John Doe
+                  username: auditor_user_id1
             business_email_required: false
             calendar:
                 public: true
@@ -3272,8 +3282,10 @@ definitions:
             sso_group_enabled: true
             website: https://committee.example.org
             writers:
-                - manager_user_id1
-                - manager_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: alice@example.com
+                  name: Alice Johnson
+                  username: manager_user_id1
         required:
             - name
             - category
@@ -3646,12 +3658,13 @@ definitions:
             auditors:
                 type: array
                 items:
-                    type: string
-                    example: Neque autem ullam et voluptatibus.
-                description: Auditor user IDs who can audit this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can audit this committee
                 example:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
             business_email_required:
                 type: boolean
                 description: Whether business email is required for committee members
@@ -3682,30 +3695,45 @@ definitions:
             writers:
                 type: array
                 items:
-                    type: string
-                    example: Laudantium commodi qui quia repellendus sit.
-                description: Manager user IDs who can edit/modify this committee
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can edit/modify this committee
                 example:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         example:
             auditors:
-                - auditor_user_id1
-                - auditor_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: john@example.com
+                  name: John Doe
+                  username: auditor_user_id1
             business_email_required: false
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
             show_meeting_attendees: false
             writers:
-                - manager_user_id1
-                - manager_user_id2
+                - avatar: https://example.com/avatar.jpg
+                  email: alice@example.com
+                  name: Alice Johnson
+                  username: manager_user_id1
         required:
             - business_email_required
     CommitteeSettingsWithReadonlyAttributes:
         title: CommitteeSettingsWithReadonlyAttributes
         type: object
         properties:
+            auditors:
+                type: array
+                items:
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can audit this committee
+                example:
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
             business_email_required:
                 type: boolean
                 description: Whether business email is required for committee members
@@ -3748,8 +3776,23 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
+            writers:
+                type: array
+                items:
+                    $ref: '#/definitions/CommitteeUser'
+                description: Users who can edit/modify this committee
+                example:
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         description: A representation of LF Committee settings with readonly attributes.
         example:
+            auditors:
+                - avatar: https://example.com/avatar.jpg
+                  email: john@example.com
+                  name: John Doe
+                  username: auditor_user_id1
             business_email_required: false
             created_at: "2023-01-15T10:30:00Z"
             last_reviewed_at: "2025-08-04T09:00:00Z"
@@ -3758,6 +3801,37 @@ definitions:
             show_meeting_attendees: false
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"
+            writers:
+                - avatar: https://example.com/avatar.jpg
+                  email: alice@example.com
+                  name: Alice Johnson
+                  username: manager_user_id1
+    CommitteeUser:
+        title: CommitteeUser
+        type: object
+        properties:
+            avatar:
+                type: string
+                description: URL to the user's avatar image
+                example: https://example.com/avatar.jpg
+            email:
+                type: string
+                description: The user's email address
+                example: alice.johnson@example.com
+            name:
+                type: string
+                description: Display name of the user
+                example: Alice Johnson
+            username:
+                type: string
+                description: User identifier (LF ID / sub)
+                example: alicejohnson789
+        description: A user object stored in writers or auditors lists.
+        example:
+            avatar: https://example.com/avatar.jpg
+            email: alice.johnson@example.com
+            name: Alice Johnson
+            username: alicejohnson789
     ConflictError:
         title: ConflictError
         type: object
