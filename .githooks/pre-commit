@@ -1,0 +1,15 @@
+#!/bin/sh
+# Run gofmt and golangci-lint before every commit
+echo "Running gofmt..."
+gofmt -l ./... | grep -v "^vendor/" | grep "\.go$"
+if [ $? -eq 0 ]; then
+  echo "The above files are not properly formatted. Run 'make fmt' to fix."
+  exit 1
+fi
+
+echo "Running golangci-lint..."
+make lint
+if [ $? -ne 0 ]; then
+  echo "Lint failed. Fix errors before committing."
+  exit 1
+fi

@@ -15,17 +15,21 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 var (
-	natsURL           = flag.String("nats-url", getEnvOrDefault("NATS_URL", "nats://localhost:4222"), "NATS server URL")
-	settingsBucketName = flag.String("settings-bucket-name", constants.KVBucketNameCommitteeSettings, "NATS KV bucket name for committee settings")
-	indexSubject      = flag.String("index-subject", constants.IndexCommitteeSettingsSubject, "NATS subject for index messages")
-	dryRun            = flag.Bool("dry-run", false, "Preview changes without applying them")
-	debug             = flag.Bool("debug", false, "Enable debug logging")
+	natsURL      = flag.String("nats-url", getEnvOrDefault("NATS_URL", "nats://localhost:4222"), "NATS server URL")
+	dryRun       = flag.Bool("dry-run", false, "Preview changes without applying them")
+	debug        = flag.Bool("debug", false, "Enable debug logging")
+	forceReindex = flag.Bool("force-reindex", false, "Republish indexer messages for all records without modifying KV data (use when data is already migrated but OpenSearch needs updating)")
 )
+
+// authToken is read from AUTH_TOKEN env var only — not a flag, to avoid leaking tokens in shell history.
+// Set AUTH_TOKEN=<bearer-token> before running.
+var authToken = os.Getenv("AUTH_TOKEN")
 
 type migrationStats struct {
 	Total   int
@@ -40,6 +44,14 @@ type committeeUserObject struct {
 	Email    string `json:"email,omitempty"`
 	Name     string `json:"name,omitempty"`
 	Username string `json:"username,omitempty"`
+}
+
+// indexerMessage mirrors the CommitteeIndexerMessage envelope expected by the indexer service.
+type indexerMessage struct {
+	Action         string                       `json:"action"`
+	Headers        map[string]string            `json:"headers"`
+	Data           any                          `json:"data"`
+	IndexingConfig *indexerTypes.IndexingConfig `json:"indexing_config,omitempty"`
 }
 
 func main() {
@@ -64,7 +76,6 @@ func run() error {
 
 	slog.InfoContext(ctx, "Starting writers/auditors migration: []string -> []object",
 		"nats_url", *natsURL,
-		"settings_bucket", *settingsBucketName,
 		"dry_run", *dryRun,
 	)
 
@@ -85,12 +96,17 @@ func run() error {
 		return fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	settingsKV, err := js.KeyValue(ctx, *settingsBucketName)
+	settingsKV, err := js.KeyValue(ctx, constants.KVBucketNameCommitteeSettings)
 	if err != nil {
-		return fmt.Errorf("failed to get KV store for bucket %s: %w", *settingsBucketName, err)
+		return fmt.Errorf("failed to get KV store for bucket %s: %w", constants.KVBucketNameCommitteeSettings, err)
 	}
 
-	slog.InfoContext(ctx, "Listing all keys in bucket", "bucket", *settingsBucketName)
+	baseKV, err := js.KeyValue(ctx, constants.KVBucketNameCommittees)
+	if err != nil {
+		return fmt.Errorf("failed to get KV store for bucket %s: %w", constants.KVBucketNameCommittees, err)
+	}
+
+	slog.InfoContext(ctx, "Listing all keys in bucket", "bucket", constants.KVBucketNameCommitteeSettings)
 	keys, err := settingsKV.ListKeys(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list keys: %w", err)
@@ -114,7 +130,7 @@ func run() error {
 	startTime := time.Now()
 
 	for i, uid := range uids {
-		err := processRecord(ctx, settingsKV, uid, *dryRun, *indexSubject, nc)
+		err := processRecord(ctx, settingsKV, baseKV, uid, *dryRun, *forceReindex, nc)
 		if err != nil {
 			if strings.Contains(err.Error(), "already migrated") {
 				stats.Skipped++
@@ -170,7 +186,7 @@ func run() error {
 // processRecord migrates a single committee settings entry.
 // It converts writers and auditors from []string to []committeeUserObject if needed.
 // Returns "already migrated" error if the record is already in the new format.
-func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, uid string, dryRun bool, idxSubject string, nc *nats.Conn) error {
+func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, baseKV jetstream.KeyValue, uid string, dryRun bool, forceReindex bool, nc *nats.Conn) error {
 	entry, err := settingsKV.Get(ctx, uid)
 	if err != nil {
 		return fmt.Errorf("failed to get settings entry: %w", err)
@@ -179,6 +195,24 @@ func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, uid strin
 	var settingsMap map[string]interface{}
 	if err := json.Unmarshal(entry.Value(), &settingsMap); err != nil {
 		return fmt.Errorf("failed to unmarshal settings: %w", err)
+	}
+
+	// In force-reindex mode, skip migration checks and just republish the
+	// current data to the indexer without modifying KV.
+	if forceReindex {
+		msg, err := buildIndexerMessage(ctx, uid, settingsMap, baseKV)
+		if err != nil {
+			return fmt.Errorf("failed to build indexer message: %w", err)
+		}
+		msgBytes, err := json.Marshal(msg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal indexer message: %w", err)
+		}
+		if err := nc.Publish(constants.IndexCommitteeSettingsSubject, msgBytes); err != nil {
+			return fmt.Errorf("failed to publish index message: %w", err)
+		}
+		slog.DebugContext(ctx, "reindexed record", "uid", uid)
+		return nil
 	}
 
 	writersNeedsMigration := needsMigration(settingsMap, "writers")
@@ -242,8 +276,12 @@ func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, uid strin
 				return fmt.Errorf("failed to unmarshal refetched settings: %w", err)
 			}
 
-			// Re-check if already migrated by a concurrent process
-			if !needsMigration(settingsMap, "writers") && !needsMigration(settingsMap, "auditors") {
+			// Recompute per-field flags from the refetched data — a concurrent
+			// process may have migrated one or both fields since the last attempt.
+			writersNeedsMigration = needsMigration(settingsMap, "writers")
+			auditorsNeedsMigration = needsMigration(settingsMap, "auditors")
+
+			if !writersNeedsMigration && !auditorsNeedsMigration {
 				slog.DebugContext(ctx, "already migrated by concurrent process", "uid", uid)
 				return fmt.Errorf("already migrated")
 			}
@@ -268,15 +306,104 @@ func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, uid strin
 
 	slog.DebugContext(ctx, "successfully migrated record", "uid", uid)
 
-	if err := nc.Publish(idxSubject, updatedData); err != nil {
+	// Build and publish a proper indexer message envelope so OpenSearch gets
+	// the correct tags, access config, and updated data — matching what the
+	// service publishes on every settings write.
+	msg, err := buildIndexerMessage(ctx, uid, settingsMap, baseKV)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build indexer message, skipping reindex",
+			"uid", uid,
+			"error", err,
+		)
+		return nil
+	}
+
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to marshal indexer message",
+			"uid", uid,
+			"error", err,
+		)
+		return nil
+	}
+
+	if err := nc.Publish(constants.IndexCommitteeSettingsSubject, msgBytes); err != nil {
 		slog.WarnContext(ctx, "failed to publish index message",
 			"uid", uid,
-			"subject", idxSubject,
+			"subject", constants.IndexCommitteeSettingsSubject,
 			"error", err,
 		)
 	}
 
 	return nil
+}
+
+// buildIndexerMessage constructs the full indexer message envelope for a settings record,
+// including tags and IndexingConfig derived from the committee base record.
+// This mirrors what buildCommitteeSettingsIndexingConfig does in the service layer.
+func buildIndexerMessage(ctx context.Context, uid string, settingsMap map[string]interface{}, baseKV jetstream.KeyValue) (*indexerMessage, error) {
+	tags := buildTags(ctx, uid, baseKV)
+
+	falseVal := false
+	cfg := &indexerTypes.IndexingConfig{
+		ObjectID:             uid,
+		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", uid),
+		AccessCheckRelation:  "auditor",
+		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", uid),
+		HistoryCheckRelation: "writer",
+		Tags:                 tags,
+		Public:               &falseVal,
+	}
+
+	return &indexerMessage{
+		Action:         "updated",
+		Headers:        map[string]string{constants.AuthorizationHeader: authToken},
+		Data:           settingsMap,
+		IndexingConfig: cfg,
+	}, nil
+}
+
+// buildTags fetches the committee base record and assembles the same tags that
+// Committee.Tags() returns in the domain model.
+func buildTags(ctx context.Context, uid string, baseKV jetstream.KeyValue) []string {
+	baseEntry, err := baseKV.Get(ctx, uid)
+	if err != nil {
+		slog.WarnContext(ctx, "could not fetch base committee for tags, indexing without full tags",
+			"uid", uid,
+			"error", err,
+		)
+		return []string{uid, fmt.Sprintf("committee_uid:%s", uid)}
+	}
+
+	var base map[string]interface{}
+	if err := json.Unmarshal(baseEntry.Value(), &base); err != nil {
+		slog.WarnContext(ctx, "could not unmarshal base committee for tags",
+			"uid", uid,
+			"error", err,
+		)
+		return []string{uid, fmt.Sprintf("committee_uid:%s", uid)}
+	}
+
+	var tags []string
+
+	if v, ok := base["project_uid"].(string); ok && v != "" {
+		tags = append(tags, fmt.Sprintf("project_uid:%s", v))
+	}
+	if v, ok := base["project_slug"].(string); ok && v != "" {
+		tags = append(tags, fmt.Sprintf("project_slug:%s", v))
+	}
+	if v, ok := base["parent_uid"].(string); ok && v != "" {
+		tags = append(tags, fmt.Sprintf("parent_uid:%s", v))
+	}
+	if v, ok := base["category"].(string); ok && v != "" {
+		tags = append(tags, fmt.Sprintf("category:%s", v))
+	}
+
+	// uid appears twice — once bare, once prefixed — matching Committee.Tags()
+	tags = append(tags, uid)
+	tags = append(tags, fmt.Sprintf("committee_uid:%s", uid))
+
+	return tags
 }
 
 // needsMigration returns true if the given field in the settings map contains a non-empty

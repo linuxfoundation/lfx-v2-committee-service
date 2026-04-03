@@ -629,9 +629,14 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 }
 
 // convertPayloadUsersToModel converts Goa payload user objects to domain model CommitteeUser slice.
+// Returns nil when users is nil (field omitted by caller) and an empty non-nil slice when users
+// is an explicit empty array, preserving the caller's intent to clear the list.
 func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model.CommitteeUser {
-	if len(users) == 0 {
+	if users == nil {
 		return nil
+	}
+	if len(users) == 0 {
+		return []model.CommitteeUser{}
 	}
 	result := make([]model.CommitteeUser, 0, len(users))
 	for _, u := range users {

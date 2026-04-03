@@ -84,8 +84,8 @@ func NewMockRepository() *MockRepository {
 				Auditors: []model.CommitteeUser{
 					{Username: "auditor1@example.com", Email: "auditor1@example.com"},
 				},
-				CreatedAt:             now.Add(-24 * time.Hour),
-				UpdatedAt:             now,
+				CreatedAt: now.Add(-24 * time.Hour),
+				UpdatedAt: now,
 			},
 		}
 
@@ -128,8 +128,8 @@ func NewMockRepository() *MockRepository {
 				Auditors: []model.CommitteeUser{
 					{Username: "auditor1@example.com", Email: "auditor1@example.com"},
 				},
-				CreatedAt:             now.Add(-12 * time.Hour),
-				UpdatedAt:             now,
+				CreatedAt: now.Add(-12 * time.Hour),
+				UpdatedAt: now,
 			},
 		}
 
