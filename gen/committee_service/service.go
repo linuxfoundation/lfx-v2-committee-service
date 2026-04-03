@@ -402,6 +402,10 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUser
+	// Users who can audit this committee
+	Auditors []*CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)

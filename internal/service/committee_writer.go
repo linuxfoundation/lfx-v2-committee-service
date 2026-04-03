@@ -787,6 +787,16 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	settings.CreatedAt = existingSettings.CreatedAt
 	settings.UpdatedAt = time.Now().UTC()
 
+	// Preserve writers/auditors from existing settings when the caller omits
+	// them (nil = field not sent). An explicit empty slice (non-nil, len 0)
+	// intentionally clears the list and is passed through as-is.
+	if settings.Writers == nil {
+		settings.Writers = existingSettings.Writers
+	}
+	if settings.Auditors == nil {
+		settings.Auditors = existingSettings.Auditors
+	}
+
 	// Step 3: Update the committee settings in storage
 	errUpdate := uc.committeeWriter.UpdateSetting(ctx, settings, revision)
 	if errUpdate != nil {

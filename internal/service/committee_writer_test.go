@@ -1656,6 +1656,93 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_PublishingErrors(t *testing.
 	}
 }
 
+func TestCommitteeWriterOrchestrator_UpdateSettings_WritersAuditorsPreservation(t *testing.T) {
+	tests := []struct {
+		name             string
+		existingWriters  []model.CommitteeUser
+		existingAuditors []model.CommitteeUser
+		updateWriters    []model.CommitteeUser // nil = omitted, []CommitteeUser{} = explicit clear
+		updateAuditors   []model.CommitteeUser
+		wantWriters      []model.CommitteeUser
+		wantAuditors     []model.CommitteeUser
+	}{
+		{
+			name:             "omitting writers/auditors preserves existing values",
+			existingWriters:  []model.CommitteeUser{{Username: "existing-writer"}},
+			existingAuditors: []model.CommitteeUser{{Username: "existing-auditor"}},
+			updateWriters:    nil, // omitted
+			updateAuditors:   nil, // omitted
+			wantWriters:      []model.CommitteeUser{{Username: "existing-writer"}},
+			wantAuditors:     []model.CommitteeUser{{Username: "existing-auditor"}},
+		},
+		{
+			name:             "explicit empty slice clears writers/auditors",
+			existingWriters:  []model.CommitteeUser{{Username: "existing-writer"}},
+			existingAuditors: []model.CommitteeUser{{Username: "existing-auditor"}},
+			updateWriters:    []model.CommitteeUser{}, // explicit clear
+			updateAuditors:   []model.CommitteeUser{}, // explicit clear
+			wantWriters:      []model.CommitteeUser{},
+			wantAuditors:     []model.CommitteeUser{},
+		},
+		{
+			name:             "providing new writers replaces existing",
+			existingWriters:  []model.CommitteeUser{{Username: "old-writer"}},
+			existingAuditors: []model.CommitteeUser{{Username: "old-auditor"}},
+			updateWriters:    []model.CommitteeUser{{Username: "new-writer"}},
+			updateAuditors:   []model.CommitteeUser{{Username: "new-auditor"}},
+			wantWriters:      []model.CommitteeUser{{Username: "new-writer"}},
+			wantAuditors:     []model.CommitteeUser{{Username: "new-auditor"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			existingCommittee := &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID:                   "committee-1",
+					BusinessEmailRequired: false,
+					Writers:               tc.existingWriters,
+					Auditors:              tc.existingAuditors,
+					CreatedAt:             time.Now().Add(-24 * time.Hour),
+					UpdatedAt:             time.Now().Add(-1 * time.Hour),
+				},
+			}
+			mockRepo.AddCommittee(existingCommittee)
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			updateSettings := &model.CommitteeSettings{
+				UID:                   "committee-1",
+				BusinessEmailRequired: true,
+				Writers:               tc.updateWriters,
+				Auditors:              tc.updateAuditors,
+			}
+
+			result, err := orchestrator.UpdateSettings(context.Background(), updateSettings, uint64(1), false)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.wantWriters, result.Writers)
+			assert.Equal(t, tc.wantAuditors, result.Auditors)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 	tests := []struct {
 		name           string

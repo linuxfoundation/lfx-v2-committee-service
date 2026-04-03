@@ -208,6 +208,11 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
+	// Validate that every writer/auditor entry has a username
+	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
 	// Convert payload to domain model
 	settings := s.convertPayloadToUpdateSettings(p)
 
@@ -863,6 +868,22 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
+// validateSettingsUsers returns a validation error if any entry in writers or
+// auditors is missing a username, since username is required for access control.
+func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
+	for i, u := range writers {
+		if u == nil || u.Username == nil || *u.Username == "" {
+			return errors.NewValidation(fmt.Sprintf("writers[%d]: username is required", i))
+		}
+	}
+	for i, u := range auditors {
+		if u == nil || u.Username == nil || *u.Username == "" {
+			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username is required", i))
+		}
+	}
+	return nil
+}
+
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
