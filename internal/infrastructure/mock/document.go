@@ -100,6 +100,8 @@ func (m *MockDocumentRepository) DeleteDocumentMetadata(ctx context.Context, com
 	delete(m.nameKeys, nameKey)
 	delete(m.documents, documentUID)
 	delete(m.documentRevisions, documentUID)
+	// Clean up file data (mirrors NATS adapter's fire-and-forget file deletion)
+	delete(m.files, documentUID)
 	return nil
 }
 

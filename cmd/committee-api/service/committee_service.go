@@ -1283,6 +1283,11 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 func (s *committeeServicesrvc) ListCommitteeDocuments(ctx context.Context, p *committeeservice.ListCommitteeDocumentsPayload) (res []*committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.list-committee-documents", "committee_uid", p.UID)
 
+	// Verify committee exists so unknown UIDs return 404, not 200 with empty list.
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
 	docs, err := s.docReader.ListDocuments(ctx, *p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -1414,7 +1419,15 @@ func (b *documentDownloadBody) WriteTo(w io.Writer) (int64, error) {
 			hw.Header().Set("Content-Type", b.contentType)
 		}
 		if b.fileName != "" {
-			hw.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, b.fileName))
+			// Sanitize filename for RFC 6266 compliance: replace characters
+			// that could cause header injection or malformed headers.
+			safeName := strings.Map(func(r rune) rune {
+				if r == '"' || r == '\\' || r == '\n' || r == '\r' {
+					return '_'
+				}
+				return r
+			}, b.fileName)
+			hw.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, safeName))
 		}
 	}
 	n, err := w.Write(b.data)

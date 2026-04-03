@@ -112,6 +112,11 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 	}
 
 	if err := o.docWriter.CreateDocumentMetadata(ctx, doc); err != nil {
+		// NOTE: The file written by PutDocumentFile above is not rolled back here.
+		// This is an accepted trade-off: metadata creation failures are rare, orphaned
+		// files are bounded by the 10 GB object store limit, and normal deletes clean
+		// up files. A DeleteDocumentFile port method could be added if orphan volume
+		// becomes a concern.
 		// Roll back the uniqueness reservation so the name can be reused
 		if errCleanup := o.docWriter.DeleteUniqueDocumentName(ctx, uniqueKey); errCleanup != nil {
 			slog.WarnContext(ctx, "failed to rollback document name reservation",
