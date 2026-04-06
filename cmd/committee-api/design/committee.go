@@ -984,10 +984,6 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this link in", func() {
 				dsl.Format(dsl.FormatUUID)
 			})
-			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
-				dsl.MaxLength(200)
-				dsl.Example("Alex Lee")
-			})
 
 			dsl.Required("name", "url")
 		})
@@ -1127,10 +1123,6 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(200)
 				dsl.Example("Meeting Notes")
 			})
-			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
-				dsl.MaxLength(200)
-				dsl.Example("Alex Lee")
-			})
 			dsl.Required("name")
 		})
 
@@ -1208,10 +1200,6 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("description", dsl.String, "Optional description", func() {
 				dsl.MaxLength(2000)
 			})
-			dsl.Attribute("uploaded_by_name", dsl.String, "Display name of the uploader (client-provided from user session)", func() {
-				dsl.MaxLength(200)
-				dsl.Example("Alex Lee")
-			})
 			// File fields populated by the multipart decoder
 			dsl.Attribute("file_name", dsl.String, "Original file name (from the uploaded file part)")
 			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")
@@ -1237,35 +1225,6 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Conflict", dsl.StatusConflict)
-			dsl.Response("NotFound", dsl.StatusNotFound)
-			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
-			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
-		})
-	})
-
-	dsl.Method("list-committee-documents", func() {
-		dsl.Description("List all documents for a committee")
-
-		dsl.Security(JWTAuth)
-
-		dsl.Payload(func() {
-			BearerTokenAttribute()
-			VersionAttribute()
-			CommitteeUIDAttribute()
-		})
-
-		dsl.Result(dsl.ArrayOf(CommitteeDocumentWithReadonlyAttributes))
-
-		dsl.Error("NotFound", NotFoundError, "Resource not found")
-		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
-		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
-
-		dsl.HTTP(func() {
-			dsl.GET("/committees/{uid}/documents")
-			dsl.Param("version:v")
-			dsl.Param("uid")
-			dsl.Header("bearer_token:Authorization")
-			dsl.Response(dsl.StatusOK)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)

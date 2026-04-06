@@ -57,19 +57,6 @@ func (m *MockDocumentRepository) GetDocumentMetadata(ctx context.Context, commit
 	return &copied, m.documentRevisions[documentUID], nil
 }
 
-func (m *MockDocumentRepository) ListDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var result []*model.CommitteeDocument
-	for _, d := range m.documents {
-		if d.CommitteeUID == committeeUID {
-			copied := *d
-			result = append(result, &copied)
-		}
-	}
-	return result, nil
-}
-
 func (m *MockDocumentRepository) PutDocumentFile(ctx context.Context, documentUID string, fileData []byte) error {
 	slog.DebugContext(ctx, "mock document repository: storing file", "document_uid", documentUID, "size", len(fileData))
 	m.mu.Lock()

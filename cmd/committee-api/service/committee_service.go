@@ -1044,19 +1044,16 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID: *p.UID,
-		Name:         p.Name,
-		URL:          p.URL,
-		CreatedByUID: principal,
+		CommitteeUID:      *p.UID,
+		Name:              p.Name,
+		URL:               p.URL,
+		CreatedByUsername: principal,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description
 	}
 	if p.FolderUID != nil {
 		link.FolderUID = p.FolderUID
-	}
-	if p.CreatedByName != nil {
-		link.CreatedByName = *p.CreatedByName
 	}
 
 	created, err := s.linkWriter.CreateLink(ctx, link)
@@ -1148,12 +1145,9 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		CommitteeUID: *p.UID,
-		Name:         p.Name,
-		CreatedByUID: principal,
-	}
-	if p.CreatedByName != nil {
-		folder.CreatedByName = *p.CreatedByName
+		CommitteeUID:      *p.UID,
+		Name:              p.Name,
+		CreatedByUsername: principal,
 	}
 
 	created, err := s.linkWriter.CreateLinkFolder(ctx, folder)
@@ -1201,13 +1195,9 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		desc := l.Description
 		res.Description = &desc
 	}
-	if l.CreatedByUID != "" {
-		v := l.CreatedByUID
-		res.CreatedByUID = &v
-	}
-	if l.CreatedByName != "" {
-		v := l.CreatedByName
-		res.CreatedByName = &v
+	if l.CreatedByUsername != "" {
+		v := l.CreatedByUsername
+		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -1227,13 +1217,9 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
-	if f.CreatedByUID != "" {
-		v := f.CreatedByUID
-		res.CreatedByUID = &v
-	}
-	if f.CreatedByName != "" {
-		v := f.CreatedByName
-		res.CreatedByName = &v
+	if f.CreatedByUsername != "" {
+		v := f.CreatedByUsername
+		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -1255,15 +1241,12 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 
 	doc := &model.CommitteeDocument{
-		CommitteeUID:  p.UID,
-		Name:          p.Name,
-		UploadedByUID: principal,
+		CommitteeUID:       p.UID,
+		Name:               p.Name,
+		UploadedByUsername: principal,
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
-	}
-	if p.UploadedByName != nil {
-		doc.UploadedByName = *p.UploadedByName
 	}
 	doc.FileName = p.FileName
 	doc.ContentType = p.ContentType
@@ -1273,27 +1256,6 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 	return domainDocumentToGoa(created), nil
-}
-
-// ListCommitteeDocuments returns all documents for a committee.
-func (s *committeeServicesrvc) ListCommitteeDocuments(ctx context.Context, p *committeeservice.ListCommitteeDocumentsPayload) (res []*committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
-	slog.DebugContext(ctx, "committeeService.list-committee-documents", "committee_uid", p.UID)
-
-	// Verify committee exists so unknown UIDs return 404, not 200 with empty list.
-	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, *p.UID); err != nil {
-		return nil, wrapError(ctx, err)
-	}
-
-	docs, err := s.docReader.ListDocuments(ctx, *p.UID)
-	if err != nil {
-		return nil, wrapError(ctx, err)
-	}
-
-	result := make([]*committeeservice.CommitteeDocumentWithReadonlyAttributes, 0, len(docs))
-	for _, d := range docs {
-		result = append(result, domainDocumentToGoa(d))
-	}
-	return result, nil
 }
 
 // GetCommitteeDocument returns metadata for a single committee document with an ETag.
@@ -1376,13 +1338,9 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 		v := d.Description
 		res.Description = &v
 	}
-	if d.UploadedByUID != "" {
-		v := d.UploadedByUID
-		res.UploadedByUID = &v
-	}
-	if d.UploadedByName != "" {
-		v := d.UploadedByName
-		res.UploadedByName = &v
+	if d.UploadedByUsername != "" {
+		v := d.UploadedByUsername
+		res.UploadedByUsername = &v
 	}
 	return res
 }

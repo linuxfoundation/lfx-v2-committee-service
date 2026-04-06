@@ -47,16 +47,6 @@ func (m *mockDocStorage) GetDocumentMetadata(_ context.Context, committeeUID, do
 	return doc, m.revisions[documentUID], nil
 }
 
-func (m *mockDocStorage) ListDocuments(_ context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
-	var result []*model.CommitteeDocument
-	for _, d := range m.documents {
-		if d.CommitteeUID == committeeUID {
-			result = append(result, d)
-		}
-	}
-	return result, nil
-}
-
 func (m *mockDocStorage) PutDocumentFile(_ context.Context, documentUID string, fileData []byte) error {
 	m.files[documentUID] = fileData
 	return nil
@@ -239,11 +229,10 @@ func TestUploadDocument_Success(t *testing.T) {
 
 	fileData := validPDFFileData()
 	doc, err := orch.UploadDocument(context.Background(), &model.CommitteeDocument{
-		Name:           "Architecture Overview",
-		CommitteeUID:   "committee-1",
-		FileName:       "arch.pdf",
-		ContentType:    "application/pdf",
-		UploadedByName: "Alice",
+		Name:         "Architecture Overview",
+		CommitteeUID: "committee-1",
+		FileName:     "arch.pdf",
+		ContentType:  "application/pdf",
 	}, fileData)
 
 	require.NoError(t, err)

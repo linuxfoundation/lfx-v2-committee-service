@@ -4330,116 +4330,6 @@ func EncodeUploadCommitteeDocumentError(encoder func(context.Context, http.Respo
 	}
 }
 
-// EncodeListCommitteeDocumentsResponse returns an encoder for responses
-// returned by the committee-service list-committee-documents endpoint.
-func EncodeListCommitteeDocumentsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
-	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.([]*committeeservice.CommitteeDocumentWithReadonlyAttributes)
-		enc := encoder(ctx, w)
-		body := NewListCommitteeDocumentsResponseBody(res)
-		w.WriteHeader(http.StatusOK)
-		return enc.Encode(body)
-	}
-}
-
-// DecodeListCommitteeDocumentsRequest returns a decoder for requests sent to
-// the committee-service list-committee-documents endpoint.
-func DecodeListCommitteeDocumentsRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ListCommitteeDocumentsPayload, error) {
-	return func(r *http.Request) (*committeeservice.ListCommitteeDocumentsPayload, error) {
-		var (
-			uid         string
-			version     *string
-			bearerToken *string
-			err         error
-
-			params = mux.Vars(r)
-		)
-		uid = params["uid"]
-		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
-		versionRaw := r.URL.Query().Get("v")
-		if versionRaw != "" {
-			version = &versionRaw
-		}
-		if version != nil {
-			if !(*version == "1") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
-			}
-		}
-		bearerTokenRaw := r.Header.Get("Authorization")
-		if bearerTokenRaw != "" {
-			bearerToken = &bearerTokenRaw
-		}
-		if err != nil {
-			return nil, err
-		}
-		payload := NewListCommitteeDocumentsPayload(uid, version, bearerToken)
-		if payload.BearerToken != nil {
-			if strings.Contains(*payload.BearerToken, " ") {
-				// Remove authorization scheme prefix (e.g. "Bearer")
-				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
-				payload.BearerToken = &cred
-			}
-		}
-
-		return payload, nil
-	}
-}
-
-// EncodeListCommitteeDocumentsError returns an encoder for errors returned by
-// the list-committee-documents committee-service endpoint.
-func EncodeListCommitteeDocumentsError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
-	encodeError := goahttp.ErrorEncoder(encoder, formatter)
-	return func(ctx context.Context, w http.ResponseWriter, v error) error {
-		var en goa.GoaErrorNamer
-		if !errors.As(v, &en) {
-			return encodeError(ctx, w, v)
-		}
-		switch en.GoaErrorName() {
-		case "InternalServerError":
-			var res *committeeservice.InternalServerError
-			errors.As(v, &res)
-			enc := encoder(ctx, w)
-			var body any
-			if formatter != nil {
-				body = formatter(ctx, res)
-			} else {
-				body = NewListCommitteeDocumentsInternalServerErrorResponseBody(res)
-			}
-			w.Header().Set("goa-error", res.GoaErrorName())
-			w.WriteHeader(http.StatusInternalServerError)
-			return enc.Encode(body)
-		case "NotFound":
-			var res *committeeservice.NotFoundError
-			errors.As(v, &res)
-			enc := encoder(ctx, w)
-			var body any
-			if formatter != nil {
-				body = formatter(ctx, res)
-			} else {
-				body = NewListCommitteeDocumentsNotFoundResponseBody(res)
-			}
-			w.Header().Set("goa-error", res.GoaErrorName())
-			w.WriteHeader(http.StatusNotFound)
-			return enc.Encode(body)
-		case "ServiceUnavailable":
-			var res *committeeservice.ServiceUnavailableError
-			errors.As(v, &res)
-			enc := encoder(ctx, w)
-			var body any
-			if formatter != nil {
-				body = formatter(ctx, res)
-			} else {
-				body = NewListCommitteeDocumentsServiceUnavailableResponseBody(res)
-			}
-			w.Header().Set("goa-error", res.GoaErrorName())
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return enc.Encode(body)
-		default:
-			return encodeError(ctx, w, v)
-		}
-	}
-}
-
 // EncodeGetCommitteeDocumentResponse returns an encoder for responses returned
 // by the committee-service get-committee-document endpoint.
 func EncodeGetCommitteeDocumentResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -4811,16 +4701,15 @@ func EncodeDeleteCommitteeDocumentError(encoder func(context.Context, http.Respo
 // value of type *committeeservice.CommitteeLinkWithReadonlyAttributes.
 func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWithReadonlyAttributesResponse(v *committeeservice.CommitteeLinkWithReadonlyAttributes) *CommitteeLinkWithReadonlyAttributesResponse {
 	res := &CommitteeLinkWithReadonlyAttributesResponse{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		FolderUID:     v.FolderUID,
-		Name:          v.Name,
-		URL:           v.URL,
-		Description:   v.Description,
-		CreatedByUID:  v.CreatedByUID,
-		CreatedByName: v.CreatedByName,
-		CreatedAt:     v.CreatedAt,
-		UpdatedAt:     v.UpdatedAt,
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		FolderUID:         v.FolderUID,
+		Name:              v.Name,
+		URL:               v.URL,
+		Description:       v.Description,
+		CreatedByUsername: v.CreatedByUsername,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
 	}
 
 	return res
@@ -4832,34 +4721,12 @@ func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWi
 // *committeeservice.CommitteeLinkFolderWithReadonlyAttributes.
 func marshalCommitteeserviceCommitteeLinkFolderWithReadonlyAttributesToCommitteeLinkFolderWithReadonlyAttributesResponse(v *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *CommitteeLinkFolderWithReadonlyAttributesResponse {
 	res := &CommitteeLinkFolderWithReadonlyAttributesResponse{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		Name:          v.Name,
-		CreatedByUID:  v.CreatedByUID,
-		CreatedByName: v.CreatedByName,
-		CreatedAt:     v.CreatedAt,
-		UpdatedAt:     v.UpdatedAt,
-	}
-
-	return res
-}
-
-// marshalCommitteeserviceCommitteeDocumentWithReadonlyAttributesToCommitteeDocumentWithReadonlyAttributesResponse
-// builds a value of type *CommitteeDocumentWithReadonlyAttributesResponse from
-// a value of type *committeeservice.CommitteeDocumentWithReadonlyAttributes.
-func marshalCommitteeserviceCommitteeDocumentWithReadonlyAttributesToCommitteeDocumentWithReadonlyAttributesResponse(v *committeeservice.CommitteeDocumentWithReadonlyAttributes) *CommitteeDocumentWithReadonlyAttributesResponse {
-	res := &CommitteeDocumentWithReadonlyAttributesResponse{
-		UID:            v.UID,
-		CommitteeUID:   v.CommitteeUID,
-		Name:           v.Name,
-		Description:    v.Description,
-		FileName:       v.FileName,
-		FileSize:       v.FileSize,
-		ContentType:    v.ContentType,
-		UploadedByUID:  v.UploadedByUID,
-		UploadedByName: v.UploadedByName,
-		CreatedAt:      v.CreatedAt,
-		UpdatedAt:      v.UpdatedAt,
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		Name:              v.Name,
+		CreatedByUsername: v.CreatedByUsername,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
 	}
 
 	return res

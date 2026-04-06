@@ -50,7 +50,6 @@ type Endpoints struct {
 	CreateCommitteeLinkFolder goa.Endpoint
 	DeleteCommitteeLinkFolder goa.Endpoint
 	UploadCommitteeDocument   goa.Endpoint
-	ListCommitteeDocuments    goa.Endpoint
 	GetCommitteeDocument      goa.Endpoint
 	DownloadCommitteeDocument goa.Endpoint
 	DeleteCommitteeDocument   goa.Endpoint
@@ -101,7 +100,6 @@ func NewEndpoints(s Service) *Endpoints {
 		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		UploadCommitteeDocument:   NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
-		ListCommitteeDocuments:    NewListCommitteeDocumentsEndpoint(s, a.JWTAuth),
 		GetCommitteeDocument:      NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DownloadCommitteeDocument: NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
@@ -143,7 +141,6 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.CreateCommitteeLinkFolder = m(e.CreateCommitteeLinkFolder)
 	e.DeleteCommitteeLinkFolder = m(e.DeleteCommitteeLinkFolder)
 	e.UploadCommitteeDocument = m(e.UploadCommitteeDocument)
-	e.ListCommitteeDocuments = m(e.ListCommitteeDocuments)
 	e.GetCommitteeDocument = m(e.GetCommitteeDocument)
 	e.DownloadCommitteeDocument = m(e.DownloadCommitteeDocument)
 	e.DeleteCommitteeDocument = m(e.DeleteCommitteeDocument)
@@ -852,29 +849,6 @@ func NewUploadCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFun
 			return nil, err
 		}
 		return s.UploadCommitteeDocument(ctx, p)
-	}
-}
-
-// NewListCommitteeDocumentsEndpoint returns an endpoint function that calls
-// the method "list-committee-documents" of service "committee-service".
-func NewListCommitteeDocumentsEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
-	return func(ctx context.Context, req any) (any, error) {
-		p := req.(*ListCommitteeDocumentsPayload)
-		var err error
-		sc := security.JWTScheme{
-			Name:           "jwt",
-			Scopes:         []string{},
-			RequiredScopes: []string{},
-		}
-		var token string
-		if p.BearerToken != nil {
-			token = *p.BearerToken
-		}
-		ctx, err = authJWTFn(ctx, token, &sc)
-		if err != nil {
-			return nil, err
-		}
-		return s.ListCommitteeDocuments(ctx, p)
 	}
 }
 

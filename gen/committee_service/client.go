@@ -49,7 +49,6 @@ type Client struct {
 	CreateCommitteeLinkFolderEndpoint goa.Endpoint
 	DeleteCommitteeLinkFolderEndpoint goa.Endpoint
 	UploadCommitteeDocumentEndpoint   goa.Endpoint
-	ListCommitteeDocumentsEndpoint    goa.Endpoint
 	GetCommitteeDocumentEndpoint      goa.Endpoint
 	DownloadCommitteeDocumentEndpoint goa.Endpoint
 	DeleteCommitteeDocumentEndpoint   goa.Endpoint
@@ -57,7 +56,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, listCommitteeDocuments, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -91,7 +90,6 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		CreateCommitteeLinkFolderEndpoint: createCommitteeLinkFolder,
 		DeleteCommitteeLinkFolderEndpoint: deleteCommitteeLinkFolder,
 		UploadCommitteeDocumentEndpoint:   uploadCommitteeDocument,
-		ListCommitteeDocumentsEndpoint:    listCommitteeDocuments,
 		GetCommitteeDocumentEndpoint:      getCommitteeDocument,
 		DownloadCommitteeDocumentEndpoint: downloadCommitteeDocument,
 		DeleteCommitteeDocumentEndpoint:   deleteCommitteeDocument,
@@ -616,22 +614,6 @@ func (c *Client) UploadCommitteeDocument(ctx context.Context, p *UploadCommittee
 		return
 	}
 	return ires.(*CommitteeDocumentWithReadonlyAttributes), nil
-}
-
-// ListCommitteeDocuments calls the "list-committee-documents" endpoint of the
-// "committee-service" service.
-// ListCommitteeDocuments may return the following errors:
-//   - "NotFound" (type *NotFoundError): Resource not found
-//   - "InternalServerError" (type *InternalServerError): Internal server error
-//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
-//   - error: internal error
-func (c *Client) ListCommitteeDocuments(ctx context.Context, p *ListCommitteeDocumentsPayload) (res []*CommitteeDocumentWithReadonlyAttributes, err error) {
-	var ires any
-	ires, err = c.ListCommitteeDocumentsEndpoint(ctx, p)
-	if err != nil {
-		return
-	}
-	return ires.([]*CommitteeDocumentWithReadonlyAttributes), nil
 }
 
 // GetCommitteeDocument calls the "get-committee-document" endpoint of the

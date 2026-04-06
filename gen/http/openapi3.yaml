@@ -899,137 +899,6 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/documents:
-        get:
-            tags:
-                - committee-service
-            summary: list-committee-documents committee-service
-            description: List all documents for a committee
-            operationId: committee-service#list-committee-documents
-            parameters:
-                - name: v
-                  in: query
-                  description: Version of the API
-                  allowEmptyValue: true
-                  schema:
-                    type: string
-                    description: Version of the API
-                    example: "1"
-                    enum:
-                        - "1"
-                  example: "1"
-                - name: uid
-                  in: path
-                  description: Committee UID -- v2 uid, not related to v1 id directly
-                  required: true
-                  schema:
-                    type: string
-                    description: Committee UID -- v2 uid, not related to v1 id directly
-                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    format: uuid
-                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            responses:
-                "200":
-                    description: OK response.
-                    content:
-                        application/json:
-                            schema:
-                                type: array
-                                items:
-                                    $ref: '#/components/schemas/CommitteeDocumentWithReadonlyAttributes'
-                                example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      content_type: application/pdf
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      description: Technical architecture decisions for Q1 2025
-                                      file_name: architecture-decisions-q1-2025.pdf
-                                      file_size: 204800
-                                      name: Architecture Decision Record
-                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      uploaded_by_name: Alex Lee
-                                      uploaded_by_uid: alexlee
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      content_type: application/pdf
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      description: Technical architecture decisions for Q1 2025
-                                      file_name: architecture-decisions-q1-2025.pdf
-                                      file_size: 204800
-                                      name: Architecture Decision Record
-                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      uploaded_by_name: Alex Lee
-                                      uploaded_by_uid: alexlee
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      content_type: application/pdf
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      description: Technical architecture decisions for Q1 2025
-                                      file_name: architecture-decisions-q1-2025.pdf
-                                      file_size: 204800
-                                      name: Architecture Decision Record
-                                      uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      uploaded_by_name: Alex Lee
-                                      uploaded_by_uid: alexlee
-                            example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  content_type: application/pdf
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  description: Technical architecture decisions for Q1 2025
-                                  file_name: architecture-decisions-q1-2025.pdf
-                                  file_size: 204800
-                                  name: Architecture Decision Record
-                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  uploaded_by_name: Alex Lee
-                                  uploaded_by_uid: alexlee
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  content_type: application/pdf
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  description: Technical architecture decisions for Q1 2025
-                                  file_name: architecture-decisions-q1-2025.pdf
-                                  file_size: 204800
-                                  name: Architecture Decision Record
-                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  uploaded_by_name: Alex Lee
-                                  uploaded_by_uid: alexlee
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  content_type: application/pdf
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  description: Technical architecture decisions for Q1 2025
-                                  file_name: architecture-decisions-q1-2025.pdf
-                                  file_size: 204800
-                                  name: Architecture Decision Record
-                                  uid: d1e2f3a4-b5c6-7890-defa-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  uploaded_by_name: Alex Lee
-                                  uploaded_by_uid: alexlee
-                "404":
-                    description: 'NotFound: Resource not found'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/NotFoundError'
-                            example:
-                                message: The resource was not found.
-                "500":
-                    description: 'InternalServerError: Internal server error'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/InternalServerError'
-                            example:
-                                message: An internal server error occurred.
-                "503":
-                    description: 'ServiceUnavailable: Service unavailable'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ServiceUnavailableError'
-                            example:
-                                message: The service is unavailable.
-            security:
-                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -1065,10 +934,25 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Qui ut error.
-                            description: vxz
+                            content_type: Ea qui.
+                            description: svx
                             file:
-                                - 68
+                                - 69
+                                - 114
+                                - 114
+                                - 111
+                                - 114
+                                - 32
+                                - 112
+                                - 97
+                                - 114
+                                - 105
+                                - 97
+                                - 116
+                                - 117
+                                - 114
+                                - 32
+                                - 100
                                 - 101
                                 - 98
                                 - 105
@@ -1104,21 +988,9 @@ paths:
                                 - 116
                                 - 117
                                 - 114
-                                - 32
-                                - 111
-                                - 109
-                                - 110
-                                - 105
-                                - 115
-                                - 32
-                                - 113
-                                - 117
-                                - 97
-                                - 101
                                 - 46
-                            file_name: Et voluptatibus sit quibusdam.
+                            file_name: Ullam et voluptatibus sit.
                             name: Architecture Decision Record
-                            uploaded_by_name: Alex Lee
             responses:
                 "201":
                     description: Created response.
@@ -1136,8 +1008,7 @@ paths:
                                 name: Architecture Decision Record
                                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
-                                uploaded_by_name: Alex Lee
-                                uploaded_by_uid: alexlee
+                                uploaded_by_username: alexlee
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -1337,8 +1208,7 @@ paths:
                                 name: Architecture Decision Record
                                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
-                                uploaded_by_name: Alex Lee
-                                uploaded_by_uid: alexlee
+                                uploaded_by_username: alexlee
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -1479,51 +1349,32 @@ paths:
                                 example:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
+                                  created_by_username: alexlee
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
-                                  name: Meeting Notes
-                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
-                                  name: Meeting Notes
-                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
+                                  created_by_username: alexlee
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
@@ -1588,7 +1439,6 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkFolderRequestBody'
                         example:
-                            created_by_name: Alex Lee
                             name: Meeting Notes
             responses:
                 "201":
@@ -1600,8 +1450,7 @@ paths:
                             example:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                created_by_name: Alex Lee
-                                created_by_uid: alexlee
+                                created_by_username: alexlee
                                 name: Meeting Notes
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -1788,8 +1637,7 @@ paths:
                             example:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                created_by_name: Alex Lee
-                                created_by_uid: alexlee
+                                created_by_username: alexlee
                                 name: Meeting Notes
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -2545,9 +2393,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 44475c5e-00cf-44ad-b6c2-7fcc3e772ecb
+                    example: 44475c5e-0079-4e65-b56c-da39e384daae
                     format: uuid
-                  example: 44cd642c-a947-4441-bf50-e2b2b42b4578
+                  example: 9bcf8a14-0de2-4654-bd35-2ca947a441ff
             responses:
                 "200":
                     description: OK response.
@@ -2560,8 +2408,7 @@ paths:
                                 example:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2570,8 +2417,7 @@ paths:
                                       url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2580,8 +2426,7 @@ paths:
                                       url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
-                                      created_by_name: Alex Lee
-                                      created_by_uid: alexlee
+                                      created_by_username: alexlee
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2591,8 +2436,7 @@ paths:
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
+                                  created_by_username: alexlee
                                   description: Confluence wiki — architecture decisions log
                                   folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   name: Technical Architecture Decision Records
@@ -2601,8 +2445,7 @@ paths:
                                   url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
-                                  created_by_name: Alex Lee
-                                  created_by_uid: alexlee
+                                  created_by_username: alexlee
                                   description: Confluence wiki — architecture decisions log
                                   folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   name: Technical Architecture Decision Records
@@ -2670,9 +2513,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            created_by_name: Alex Lee
-                            description: "149"
-                            folder_uid: e7b89e2c-8d20-4a1e-92d6-fc9b72ba639c
+                            description: i04
+                            folder_uid: 27355660-a042-4a5b-b89e-2c8d204a1e52
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -2685,8 +2527,7 @@ paths:
                             example:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                created_by_name: Alex Lee
-                                created_by_uid: alexlee
+                                created_by_username: alexlee
                                 description: Confluence wiki — architecture decisions log
                                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 name: Technical Architecture Decision Records
@@ -2868,8 +2709,7 @@ paths:
                             example:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
-                                created_by_name: Alex Lee
-                                created_by_uid: alexlee
+                                created_by_username: alexlee
                                 description: Confluence wiki — architecture decisions log
                                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 name: Technical Architecture Decision Records
@@ -4035,11 +3875,7 @@ components:
                     description: The timestamp when the resource was last updated (read-only)
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
-                uploaded_by_name:
-                    type: string
-                    description: Display name of the uploader (client-provided)
-                    example: Alex Lee
-                uploaded_by_uid:
+                uploaded_by_username:
                     type: string
                     description: LF username of the uploader (auto-populated from JWT)
                     example: alexlee
@@ -4054,8 +3890,7 @@ components:
                 name: Architecture Decision Record
                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                 updated_at: "2023-06-20T14:45:30Z"
-                uploaded_by_name: Alex Lee
-                uploaded_by_uid: alexlee
+                uploaded_by_username: alexlee
         CommitteeFull:
             type: object
             properties:
@@ -4507,11 +4342,7 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
-                created_by_name:
-                    type: string
-                    description: Display name of the user who created the folder (client-provided)
-                    example: Alex Lee
-                created_by_uid:
+                created_by_username:
                     type: string
                     description: LF username of the user who created the folder (auto-populated from JWT)
                     example: alexlee
@@ -4534,8 +4365,7 @@ components:
             example:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
-                created_by_name: Alex Lee
-                created_by_uid: alexlee
+                created_by_username: alexlee
                 name: Meeting Notes
                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 updated_at: "2023-06-20T14:45:30Z"
@@ -4552,11 +4382,7 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
-                created_by_name:
-                    type: string
-                    description: Display name of the user who added the link (client-provided)
-                    example: Alex Lee
-                created_by_uid:
+                created_by_username:
                     type: string
                     description: LF username of the user who added the link (auto-populated from JWT)
                     example: alexlee
@@ -4594,8 +4420,7 @@ components:
             example:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
-                created_by_name: Alex Lee
-                created_by_uid: alexlee
+                created_by_username: alexlee
                 description: Confluence wiki — architecture decisions log
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Technical Architecture Decision Records
@@ -5260,29 +5085,18 @@ components:
         CreateCommitteeLinkFolderRequestBody:
             type: object
             properties:
-                created_by_name:
-                    type: string
-                    description: Display name of the creator (client-provided from user session)
-                    example: Alex Lee
-                    maxLength: 200
                 name:
                     type: string
                     description: Folder name
                     example: Meeting Notes
                     maxLength: 200
             example:
-                created_by_name: Alex Lee
                 name: Meeting Notes
             required:
                 - name
         CreateCommitteeLinkRequestBody:
             type: object
             properties:
-                created_by_name:
-                    type: string
-                    description: Display name of the creator (client-provided from user session)
-                    example: Alex Lee
-                    maxLength: 200
                 description:
                     type: string
                     description: Optional description
@@ -5304,7 +5118,6 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                created_by_name: Alex Lee
                 description: f0w
                 folder_uid: bec118ef-4db5-4c27-9525-4dc9b6da9951
                 name: Technical Architecture Decision Records
@@ -6006,11 +5819,6 @@ components:
                     description: Display name for the document
                     example: Architecture Decision Record
                     maxLength: 500
-                uploaded_by_name:
-                    type: string
-                    description: Display name of the uploader (client-provided from user session)
-                    example: Alex Lee
-                    maxLength: 200
             example:
                 content_type: Dolores non voluptatibus.
                 description: yxg
@@ -6033,7 +5841,6 @@ components:
                     - 46
                 file_name: Repellat provident.
                 name: Architecture Decision Record
-                uploaded_by_name: Alex Lee
             required:
                 - name
                 - file_name

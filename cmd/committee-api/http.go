@@ -128,8 +128,7 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 
 // uploadCommitteeDocumentDecoder is the multipart decoder for the
 // upload-committee-document endpoint. It reads form parts and populates
-// the payload's File, FileName, ContentType, Name, Description, and
-// UploadedByName fields.
+// the payload's File, FileName, ContentType, Name, and Description fields.
 func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.UploadCommitteeDocumentPayload) error {
 	if *p == nil {
 		*p = &committeeservice.UploadCommitteeDocumentPayload{}
@@ -153,9 +152,6 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 		case "description":
 			desc := string(data)
 			payload.Description = &desc
-		case "uploaded_by_name":
-			v := string(data)
-			payload.UploadedByName = &v
 		case "file":
 			if int64(len(data)) > model.MaxDocumentFileSize {
 				return fmt.Errorf("file size exceeds maximum allowed size of %d bytes", model.MaxDocumentFileSize)
@@ -172,15 +168,14 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 			payload.File = data
 		}
 	}
-	// Validate DSL constraints (MaxLength on name/description/uploaded_by_name)
+	// Validate DSL constraints (MaxLength on name/description)
 	// that the custom multipart decoder bypasses.
 	requestBody := &committeeservicesvr.UploadCommitteeDocumentRequestBody{
-		Name:           &payload.Name,
-		Description:    payload.Description,
-		UploadedByName: payload.UploadedByName,
-		FileName:       &payload.FileName,
-		ContentType:    &payload.ContentType,
-		File:           payload.File,
+		Name:        &payload.Name,
+		Description: payload.Description,
+		FileName:    &payload.FileName,
+		ContentType: &payload.ContentType,
+		File:        payload.File,
 	}
 	if err := committeeservicesvr.ValidateUploadCommitteeDocumentRequestBody(requestBody); err != nil {
 		return err

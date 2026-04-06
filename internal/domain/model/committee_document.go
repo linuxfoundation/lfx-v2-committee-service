@@ -36,17 +36,16 @@ var AllowedDocumentContentTypes = map[string]bool{
 // CommitteeDocument represents a file attachment associated with a committee.
 // Metadata is stored in NATS KV; file data is stored in NATS Object Store.
 type CommitteeDocument struct {
-	UID            string    `json:"uid"`
-	CommitteeUID   string    `json:"committee_uid"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description,omitempty"`
-	FileName       string    `json:"file_name"`
-	FileSize       int64     `json:"file_size"`
-	ContentType    string    `json:"content_type"`
-	UploadedByUID  string    `json:"uploaded_by_uid,omitempty"`
-	UploadedByName string    `json:"uploaded_by_name,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	UID                string    `json:"uid"`
+	CommitteeUID       string    `json:"committee_uid"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description,omitempty"`
+	FileName           string    `json:"file_name"`
+	FileSize           int64     `json:"file_size"`
+	ContentType        string    `json:"content_type"`
+	UploadedByUsername string    `json:"uploaded_by_username,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // BuildIndexKey returns a SHA-256 hash of committeeUID|name for document name uniqueness enforcement.
@@ -81,16 +80,8 @@ func (d *CommitteeDocument) Tags() []string {
 		tags = append(tags, fmt.Sprintf("content_type:%s", d.ContentType))
 	}
 
-	if d.FileName != "" {
-		tags = append(tags, fmt.Sprintf("file_name:%s", d.FileName))
-	}
-
-	if d.UploadedByUID != "" {
-		tags = append(tags, fmt.Sprintf("uploaded_by:%s", d.UploadedByUID))
-	}
-
-	if d.Name != "" {
-		tags = append(tags, fmt.Sprintf("name:%s", d.Name))
+	if d.UploadedByUsername != "" {
+		tags = append(tags, fmt.Sprintf("uploaded_by:%s", d.UploadedByUsername))
 	}
 
 	return tags

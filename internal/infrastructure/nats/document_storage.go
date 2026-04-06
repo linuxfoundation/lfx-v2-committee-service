@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -85,35 +84,6 @@ func (ds *documentStorage) GetDocumentMetadata(ctx context.Context, committeeUID
 	return doc, rev, nil
 }
 
-func (ds *documentStorage) ListDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
-	slog.DebugContext(ctx, "listing committee documents from NATS storage", "committee_uid", committeeUID)
-	// NOTE: ListKeys returns all keys in the shared bucket (O(N) total documents across all
-	// committees). Filtering by committeeUID happens in Go after fetching each entry.
-	// This is the same pattern used for members, links, folders, invites, and applications.
-	// A per-committee index key (e.g. "index/committee-docs/{committeeUID}/{documentUID}")
-	// would reduce getMetadata calls to O(committee_docs), but should be added uniformly
-	// across all entity types rather than only here.
-	keys, errKeys := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].ListKeys(ctx)
-	if errKeys != nil {
-		return nil, errs.NewUnexpected("failed to list keys from committee documents bucket", errKeys)
-	}
-	var docs []*model.CommitteeDocument
-	for key := range keys.Keys() {
-		if strings.HasPrefix(key, "lookup/") {
-			continue
-		}
-		doc := &model.CommitteeDocument{}
-		if _, err := ds.getMetadata(ctx, key, doc); err != nil {
-			slog.WarnContext(ctx, "failed to get document during list, skipping", "key", key, "error", err)
-			continue
-		}
-		if doc.CommitteeUID == committeeUID {
-			docs = append(docs, doc)
-		}
-	}
-	return docs, nil
-}
-
 func (ds *documentStorage) PutDocumentFile(ctx context.Context, documentUID string, fileData []byte) error {
 	reader := bytes.NewReader(fileData)
 	_, errPut := ds.client.objStore[constants.ObjectStoreNameCommitteeDocuments].Put(ctx, jetstream.ObjectMeta{
@@ -134,7 +104,7 @@ func (ds *documentStorage) GetDocumentFile(ctx context.Context, documentUID stri
 		}
 		return nil, errs.NewUnexpected("failed to get document file", errGet)
 	}
-	defer result.Close()
+	defer func() { _ = result.Close() }()
 	data, errRead := io.ReadAll(result)
 	if errRead != nil {
 		return nil, errs.NewUnexpected("failed to read document file data", errRead)

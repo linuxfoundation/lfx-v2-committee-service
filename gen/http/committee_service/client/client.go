@@ -146,10 +146,6 @@ type Client struct {
 	// upload-committee-document endpoint.
 	UploadCommitteeDocumentDoer goahttp.Doer
 
-	// ListCommitteeDocuments Doer is the HTTP client used to make requests to the
-	// list-committee-documents endpoint.
-	ListCommitteeDocumentsDoer goahttp.Doer
-
 	// GetCommitteeDocument Doer is the HTTP client used to make requests to the
 	// get-committee-document endpoint.
 	GetCommitteeDocumentDoer goahttp.Doer
@@ -220,7 +216,6 @@ func NewClient(
 		CreateCommitteeLinkFolderDoer: doer,
 		DeleteCommitteeLinkFolderDoer: doer,
 		UploadCommitteeDocumentDoer:   doer,
-		ListCommitteeDocumentsDoer:    doer,
 		GetCommitteeDocumentDoer:      doer,
 		DownloadCommitteeDocumentDoer: doer,
 		DeleteCommitteeDocumentDoer:   doer,
@@ -985,30 +980,6 @@ func (c *Client) UploadCommitteeDocument(committeeServiceUploadCommitteeDocument
 		resp, err := c.UploadCommitteeDocumentDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "upload-committee-document", err)
-		}
-		return decodeResponse(resp)
-	}
-}
-
-// ListCommitteeDocuments returns an endpoint that makes HTTP requests to the
-// committee-service service list-committee-documents server.
-func (c *Client) ListCommitteeDocuments() goa.Endpoint {
-	var (
-		encodeRequest  = EncodeListCommitteeDocumentsRequest(c.encoder)
-		decodeResponse = DecodeListCommitteeDocumentsResponse(c.decoder, c.RestoreResponseBody)
-	)
-	return func(ctx context.Context, v any) (any, error) {
-		req, err := c.BuildListCommitteeDocumentsRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		err = encodeRequest(req, v)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := c.ListCommitteeDocumentsDoer.Do(req)
-		if err != nil {
-			return nil, goahttp.ErrRequestError("committee-service", "list-committee-documents", err)
 		}
 		return decodeResponse(resp)
 	}
