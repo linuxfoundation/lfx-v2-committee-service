@@ -621,6 +621,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Upload-Committee-DocumentRequestBody
                   in: formData
                   required: true
@@ -769,6 +775,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: true
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -943,6 +955,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-Committee-Link-FolderRequestBody
                   in: body
                   required: true
@@ -1088,6 +1106,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -1698,6 +1722,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-Committee-LinkRequestBody
                   in: body
                   required: true
@@ -1838,6 +1868,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.

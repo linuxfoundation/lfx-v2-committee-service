@@ -119,7 +119,7 @@ func newDocWriterOrch(storage *mockDocStorage) service.CommitteeDocumentDataWrit
 func TestUploadDocument_NilDocument_ReturnsError(t *testing.T) {
 	orch := newDocWriterOrch(newMockDocStorage())
 
-	_, err := orch.UploadDocument(context.Background(), nil, validPDFFileData())
+	_, err := orch.UploadDocument(context.Background(), nil, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "document is required")
@@ -132,7 +132,7 @@ func TestUploadDocument_MissingName_ReturnsError(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "report.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
@@ -145,7 +145,7 @@ func TestUploadDocument_MissingCommitteeUID_ReturnsError(t *testing.T) {
 		Name:        "Annual Report",
 		FileName:    "report.pdf",
 		ContentType: "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "committee UID")
@@ -158,7 +158,7 @@ func TestUploadDocument_MissingFileName_ReturnsError(t *testing.T) {
 		Name:         "Annual Report",
 		CommitteeUID: "committee-1",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "file name")
@@ -172,7 +172,7 @@ func TestUploadDocument_EmptyFileData_ReturnsError(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "report.pdf",
 		ContentType:  "application/pdf",
-	}, []byte{})
+	}, []byte{}, false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "file data")
@@ -185,7 +185,7 @@ func TestUploadDocument_MissingContentType_ReturnsError(t *testing.T) {
 		Name:         "Annual Report",
 		CommitteeUID: "committee-1",
 		FileName:     "report.pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "content type")
@@ -199,7 +199,7 @@ func TestUploadDocument_InvalidContentType_ReturnsError(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "script.sh",
 		ContentType:  "application/x-sh",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
@@ -215,7 +215,7 @@ func TestUploadDocument_OversizedFile_ReturnsError(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "big.pdf",
 		ContentType:  "application/pdf",
-	}, oversized)
+	}, oversized, false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds maximum")
@@ -233,7 +233,7 @@ func TestUploadDocument_Success(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "arch.pdf",
 		ContentType:  "application/pdf",
-	}, fileData)
+	}, fileData, false)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, doc.UID)
@@ -265,7 +265,7 @@ func TestUploadDocument_DuplicateName_ReturnsConflict(t *testing.T) {
 		ContentType:  "application/pdf",
 	}
 
-	_, err := orch.UploadDocument(context.Background(), doc, validPDFFileData())
+	_, err := orch.UploadDocument(context.Background(), doc, validPDFFileData(), false)
 	require.NoError(t, err)
 
 	// Second upload with same name (different file) must be rejected
@@ -275,7 +275,7 @@ func TestUploadDocument_DuplicateName_ReturnsConflict(t *testing.T) {
 		FileName:     "arch-v2.pdf",
 		ContentType:  "application/pdf",
 	}
-	_, err = orch.UploadDocument(context.Background(), doc2, validPDFFileData())
+	_, err = orch.UploadDocument(context.Background(), doc2, validPDFFileData(), false)
 
 	require.Error(t, err)
 	var conflictErr errs.Conflict
@@ -292,7 +292,7 @@ func TestUploadDocument_DuplicateName_DifferentCommittee_Succeeds(t *testing.T) 
 			CommitteeUID: committeeUID,
 			FileName:     "arch.pdf",
 			ContentType:  "application/pdf",
-		}, validPDFFileData())
+		}, validPDFFileData(), false)
 		require.NoError(t, err, "upload for committee %s should succeed", committeeUID)
 	}
 }
@@ -310,7 +310,7 @@ func TestUploadDocument_PublisherErrors_DoNotFail(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "test.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 
 	// Publisher errors are fire-and-forget; the upload must succeed.
 	require.NoError(t, err)
@@ -329,13 +329,13 @@ func TestDeleteDocument_Success(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "delete-me.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 	require.NoError(t, err)
 
 	// Retrieve the current revision from storage.
 	revision := storage.revisions[uploaded.UID]
 
-	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision)
+	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision, false)
 
 	require.NoError(t, err)
 	_, exists := storage.documents[uploaded.UID]
@@ -345,7 +345,7 @@ func TestDeleteDocument_Success(t *testing.T) {
 func TestDeleteDocument_NotFound_ReturnsError(t *testing.T) {
 	orch := newDocWriterOrch(newMockDocStorage())
 
-	err := orch.DeleteDocument(context.Background(), "committee-1", "nonexistent-uid", 1)
+	err := orch.DeleteDocument(context.Background(), "committee-1", "nonexistent-uid", 1, false)
 
 	assert.Error(t, err)
 }
@@ -359,11 +359,11 @@ func TestDeleteDocument_WrongRevision_ReturnsConflict(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "conflict.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 	require.NoError(t, err)
 
 	wrongRevision := storage.revisions[uploaded.UID] + 99
-	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, wrongRevision)
+	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, wrongRevision, false)
 
 	require.Error(t, err)
 	var conflictErr errs.Conflict
@@ -379,11 +379,11 @@ func TestDeleteDocument_NameReusableAfterDelete(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "doc.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 	require.NoError(t, err)
 
 	revision := storage.revisions[uploaded.UID]
-	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision)
+	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision, false)
 	require.NoError(t, err)
 
 	// Re-upload with the same name must succeed after delete
@@ -392,7 +392,7 @@ func TestDeleteDocument_NameReusableAfterDelete(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "doc-v2.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 	require.NoError(t, err)
 }
 
@@ -409,12 +409,12 @@ func TestDeleteDocument_PublisherErrors_DoNotFail(t *testing.T) {
 		CommitteeUID: "committee-1",
 		FileName:     "pub-test.pdf",
 		ContentType:  "application/pdf",
-	}, validPDFFileData())
+	}, validPDFFileData(), false)
 	require.NoError(t, err)
 
 	revision := storage.revisions[uploaded.UID]
 
-	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision)
+	err = orch.DeleteDocument(context.Background(), "committee-1", uploaded.UID, revision, false)
 
 	// Publisher errors are fire-and-forget; the delete must succeed.
 	require.NoError(t, err)

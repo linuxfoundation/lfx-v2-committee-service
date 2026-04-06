@@ -19,8 +19,8 @@ import (
 
 // CommitteeDocumentDataWriter defines use case operations for writing documents.
 type CommitteeDocumentDataWriter interface {
-	UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte) (*model.CommitteeDocument, error)
-	DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64) error
+	UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte, sync bool) (*model.CommitteeDocument, error)
+	DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64, sync bool) error
 }
 
 type documentWriterOrchestrator struct {
@@ -63,7 +63,7 @@ func NewDocumentWriterOrchestrator(opts ...DocumentWriterOption) CommitteeDocume
 	return o
 }
 
-func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte) (*model.CommitteeDocument, error) {
+func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte, sync bool) (*model.CommitteeDocument, error) {
 	if doc == nil {
 		return nil, errs.NewValidation("document is required")
 	}
@@ -134,12 +134,12 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 		"file_size", doc.FileSize,
 	)
 
-	o.publishDocumentIndexerMessage(ctx, model.ActionCreated, doc)
+	o.publishDocumentIndexerMessage(ctx, model.ActionCreated, doc, sync)
 
 	return doc, nil
 }
 
-func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64) error {
+func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64, sync bool) error {
 	doc, _, err := o.docReader.GetDocumentMetadata(ctx, committeeUID, documentUID)
 	if err != nil {
 		return err
@@ -152,14 +152,14 @@ func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committ
 	// File deletion is handled fire-and-forget inside DeleteDocumentMetadata in the NATS adapter.
 	// FGA tuples and index entries are cleaned up via fire-and-forget messages below.
 
-	o.publishDocumentIndexerMessage(ctx, model.ActionDeleted, doc)
+	o.publishDocumentIndexerMessage(ctx, model.ActionDeleted, doc, sync)
 
 	return nil
 }
 
 // publishDocumentIndexerMessage publishes an indexer message for a committee document.
 // Errors are logged and do not fail the operation.
-func (o *documentWriterOrchestrator) publishDocumentIndexerMessage(ctx context.Context, action model.MessageAction, doc *model.CommitteeDocument) {
+func (o *documentWriterOrchestrator) publishDocumentIndexerMessage(ctx context.Context, action model.MessageAction, doc *model.CommitteeDocument, sync bool) {
 	if o.committeePublisher == nil {
 		return
 	}
@@ -199,7 +199,7 @@ func (o *documentWriterOrchestrator) publishDocumentIndexerMessage(ctx context.C
 		return
 	}
 
-	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeDocumentSubject, built, false); err != nil {
+	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeDocumentSubject, built, sync); err != nil {
 		slog.WarnContext(ctx, "failed to publish document indexer message",
 			"error", err,
 			"action", action,

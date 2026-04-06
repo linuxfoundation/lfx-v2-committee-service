@@ -1056,7 +1056,7 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 		link.FolderUID = p.FolderUID
 	}
 
-	created, err := s.linkWriter.CreateLink(ctx, link)
+	created, err := s.linkWriter.CreateLink(ctx, link, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1089,7 +1089,7 @@ func (s *committeeServicesrvc) DeleteCommitteeLink(ctx context.Context, p *commi
 		return wrapError(ctx, err)
 	}
 
-	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID, parsedRevision); err != nil {
+	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID, parsedRevision, p.XSync); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1150,7 +1150,7 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 		CreatedByUsername: principal,
 	}
 
-	created, err := s.linkWriter.CreateLinkFolder(ctx, folder)
+	created, err := s.linkWriter.CreateLinkFolder(ctx, folder, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1167,7 +1167,7 @@ func (s *committeeServicesrvc) DeleteCommitteeLinkFolder(ctx context.Context, p 
 		return wrapError(ctx, err)
 	}
 
-	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID, parsedRevision); err != nil {
+	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID, parsedRevision, p.XSync); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1251,7 +1251,7 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	doc.FileName = p.FileName
 	doc.ContentType = p.ContentType
 
-	created, err := s.docWriter.UploadDocument(ctx, doc, p.File)
+	created, err := s.docWriter.UploadDocument(ctx, doc, p.File, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1307,7 +1307,7 @@ func (s *committeeServicesrvc) DeleteCommitteeDocument(ctx context.Context, p *c
 		return wrapError(ctx, err)
 	}
 
-	if err := s.docWriter.DeleteDocument(ctx, p.UID, p.DocumentUID, revision); err != nil {
+	if err := s.docWriter.DeleteDocument(ctx, p.UID, p.DocumentUID, revision, p.XSync); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
