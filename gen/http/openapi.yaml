@@ -594,60 +594,6 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/documents:
-        get:
-            tags:
-                - committee-service
-            summary: list-committee-documents committee-service
-            description: List all documents for a committee
-            operationId: committee-service#list-committee-documents
-            parameters:
-                - name: v
-                  in: query
-                  description: Version of the API
-                  required: false
-                  type: string
-                  enum:
-                    - "1"
-                - name: uid
-                  in: path
-                  description: Committee UID -- v2 uid, not related to v1 id directly
-                  required: true
-                  type: string
-                  format: uuid
-                - name: Authorization
-                  in: header
-                  description: JWT token issued by Heimdall
-                  required: false
-                  type: string
-            responses:
-                "200":
-                    description: OK response.
-                    schema:
-                        type: array
-                        items:
-                            $ref: '#/definitions/CommitteeDocumentWithReadonlyAttributes'
-                "404":
-                    description: Not Found response.
-                    schema:
-                        $ref: '#/definitions/NotFoundError'
-                        required:
-                            - message
-                "500":
-                    description: Internal Server Error response.
-                    schema:
-                        $ref: '#/definitions/InternalServerError'
-                        required:
-                            - message
-                "503":
-                    description: Service Unavailable response.
-                    schema:
-                        $ref: '#/definitions/ServiceUnavailableError'
-                        required:
-                            - message
-            schemes:
-                - http
-            security:
-                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -2649,11 +2595,7 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
-            uploaded_by_name:
-                type: string
-                description: Display name of the uploader (client-provided)
-                example: Alex Lee
-            uploaded_by_uid:
+            uploaded_by_username:
                 type: string
                 description: LF username of the uploader (auto-populated from JWT)
                 example: alexlee
@@ -2667,8 +2609,7 @@ definitions:
             name: Architecture Decision Record
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
-            uploaded_by_name: Alex Lee
-            uploaded_by_uid: alexlee
+            uploaded_by_username: alexlee
     CommitteeFullWithReadonlyAttributes:
         title: CommitteeFullWithReadonlyAttributes
         type: object
@@ -2677,7 +2618,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Et omnis.
+                    example: Ullam totam quo consequatur.
                 description: Auditor user IDs who can audit this committee
                 example:
                     - auditor_user_id1
@@ -2841,7 +2782,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Totam quo consequatur natus.
+                    example: Quae velit voluptate.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -2937,11 +2878,7 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_name:
-                type: string
-                description: Display name of the user who created the folder (client-provided)
-                example: Alex Lee
-            created_by_uid:
+            created_by_username:
                 type: string
                 description: LF username of the user who created the folder (auto-populated from JWT)
                 example: alexlee
@@ -2964,8 +2901,7 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_name: Alex Lee
-            created_by_uid: alexlee
+            created_by_username: alexlee
             name: Meeting Notes
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
@@ -2983,11 +2919,7 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_name:
-                type: string
-                description: Display name of the user who added the link (client-provided)
-                example: Alex Lee
-            created_by_uid:
+            created_by_username:
                 type: string
                 description: LF username of the user who added the link (auto-populated from JWT)
                 example: alexlee
@@ -3025,8 +2957,7 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_name: Alex Lee
-            created_by_uid: alexlee
+            created_by_username: alexlee
             description: Confluence wiki — architecture decisions log
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Technical Architecture Decision Records
@@ -3256,18 +3187,12 @@ definitions:
         title: CommitteeServiceCreateCommitteeLinkFolderRequestBody
         type: object
         properties:
-            created_by_name:
-                type: string
-                description: Display name of the creator (client-provided from user session)
-                example: Alex Lee
-                maxLength: 200
             name:
                 type: string
                 description: Folder name
                 example: Meeting Notes
                 maxLength: 200
         example:
-            created_by_name: Alex Lee
             name: Meeting Notes
         required:
             - name
@@ -3275,11 +3200,6 @@ definitions:
         title: CommitteeServiceCreateCommitteeLinkRequestBody
         type: object
         properties:
-            created_by_name:
-                type: string
-                description: Display name of the creator (client-provided from user session)
-                example: Alex Lee
-                maxLength: 200
             description:
                 type: string
                 description: Optional description
@@ -3288,7 +3208,7 @@ definitions:
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: ff7cc935-e169-4e79-9f02-f987ce16e2ed
+                example: d6fc9b72-ba63-4e79-9f02-f987ce16e2ed
                 format: uuid
             name:
                 type: string
@@ -3301,7 +3221,6 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            created_by_name: Alex Lee
             description: z4l
             folder_uid: e14ad063-7e5e-48d2-aa82-df6530448662
             name: Technical Architecture Decision Records
@@ -3634,7 +3553,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Labore quidem.
+                    example: Omnis et omnis accusamus labore quidem.
                 description: Manager user IDs who can edit/modify this committee
                 example:
                     - manager_user_id1
@@ -4152,11 +4071,6 @@ definitions:
                 description: Display name for the document
                 example: Architecture Decision Record
                 maxLength: 500
-            uploaded_by_name:
-                type: string
-                description: Display name of the uploader (client-provided from user session)
-                example: Alex Lee
-                maxLength: 200
         example:
             content_type: Culpa neque a.
             description: sfo
@@ -4201,7 +4115,6 @@ definitions:
                 - 46
             file_name: Et voluptas pariatur quo laboriosam quisquam harum.
             name: Architecture Decision Record
-            uploaded_by_name: Alex Lee
         required:
             - name
             - file_name

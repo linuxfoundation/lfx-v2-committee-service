@@ -14,7 +14,6 @@ import (
 // CommitteeDocumentDataReader defines use case operations for reading documents.
 type CommitteeDocumentDataReader interface {
 	GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error)
-	ListDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error)
 	GetDocumentFile(ctx context.Context, documentUID string) ([]byte, error)
 }
 
@@ -64,28 +63,6 @@ func (o *documentReaderOrchestrator) GetDocumentMetadata(ctx context.Context, co
 	)
 
 	return doc, revision, nil
-}
-
-func (o *documentReaderOrchestrator) ListDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
-	slog.DebugContext(ctx, "executing list documents use case",
-		"committee_uid", committeeUID,
-	)
-
-	docs, err := o.docReader.ListDocuments(ctx, committeeUID)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to list documents",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
-		return nil, err
-	}
-
-	slog.DebugContext(ctx, "documents listed successfully",
-		"committee_uid", committeeUID,
-		"document_count", len(docs),
-	)
-
-	return docs, nil
 }
 
 func (o *documentReaderOrchestrator) GetDocumentFile(ctx context.Context, documentUID string) ([]byte, error) {

@@ -172,11 +172,6 @@ func UploadCommitteeDocumentCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/documents", uid)
 }
 
-// ListCommitteeDocumentsCommitteeServicePath returns the URL path to the committee-service service list-committee-documents HTTP endpoint.
-func ListCommitteeDocumentsCommitteeServicePath(uid string) string {
-	return fmt.Sprintf("/committees/%v/documents", uid)
-}
-
 // GetCommitteeDocumentCommitteeServicePath returns the URL path to the committee-service service get-committee-document HTTP endpoint.
 func GetCommitteeDocumentCommitteeServicePath(uid string, documentUID string) string {
 	return fmt.Sprintf("/committees/%v/documents/%v", uid, documentUID)

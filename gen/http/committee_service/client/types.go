@@ -269,8 +269,6 @@ type CreateCommitteeLinkRequestBody struct {
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// Optional folder UID to place this link in
 	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
-	// Display name of the creator (client-provided from user session)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 }
 
 // CreateCommitteeLinkFolderRequestBody is the type of the "committee-service"
@@ -278,8 +276,6 @@ type CreateCommitteeLinkRequestBody struct {
 type CreateCommitteeLinkFolderRequestBody struct {
 	// Folder name
 	Name string `form:"name" json:"name" xml:"name"`
-	// Display name of the creator (client-provided from user session)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
 }
 
 // UploadCommitteeDocumentRequestBody is the type of the "committee-service"
@@ -289,8 +285,6 @@ type UploadCommitteeDocumentRequestBody struct {
 	Name string `form:"name" json:"name" xml:"name"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// Display name of the uploader (client-provided from user session)
-	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
 	// Original file name (from the uploaded file part)
 	FileName string `form:"file_name" json:"file_name" xml:"file_name"`
 	// MIME type of the uploaded file
@@ -880,9 +874,7 @@ type CreateCommitteeLinkResponseBody struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who added the link (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -907,9 +899,7 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who created the folder (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -934,18 +924,12 @@ type UploadCommitteeDocumentResponseBody struct {
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
 	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
-	// Display name of the uploader (client-provided)
-	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
-
-// ListCommitteeDocumentsResponseBody is the type of the "committee-service"
-// service "list-committee-documents" endpoint HTTP response body.
-type ListCommitteeDocumentsResponseBody []*CommitteeDocumentWithReadonlyAttributesResponse
 
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
 // service "get-committee-document" endpoint HTTP response body.
@@ -2009,30 +1993,6 @@ type UploadCommitteeDocumentServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
-// ListCommitteeDocumentsInternalServerErrorResponseBody is the type of the
-// "committee-service" service "list-committee-documents" endpoint HTTP
-// response body for the "InternalServerError" error.
-type ListCommitteeDocumentsInternalServerErrorResponseBody struct {
-	// Error message
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-}
-
-// ListCommitteeDocumentsNotFoundResponseBody is the type of the
-// "committee-service" service "list-committee-documents" endpoint HTTP
-// response body for the "NotFound" error.
-type ListCommitteeDocumentsNotFoundResponseBody struct {
-	// Error message
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-}
-
-// ListCommitteeDocumentsServiceUnavailableResponseBody is the type of the
-// "committee-service" service "list-committee-documents" endpoint HTTP
-// response body for the "ServiceUnavailable" error.
-type ListCommitteeDocumentsServiceUnavailableResponseBody struct {
-	// Error message
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-}
-
 // GetCommitteeDocumentInternalServerErrorResponseBody is the type of the
 // "committee-service" service "get-committee-document" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -2270,9 +2230,7 @@ type CommitteeLinkWithReadonlyAttributesResponseBody struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who added the link (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2295,9 +2253,7 @@ type CommitteeLinkWithReadonlyAttributesResponse struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who added the link (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2314,9 +2270,7 @@ type CommitteeLinkFolderWithReadonlyAttributesResponseBody struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who created the folder (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2333,36 +2287,7 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUID *string `form:"created_by_uid,omitempty" json:"created_by_uid,omitempty" xml:"created_by_uid,omitempty"`
-	// Display name of the user who created the folder (client-provided)
-	CreatedByName *string `form:"created_by_name,omitempty" json:"created_by_name,omitempty" xml:"created_by_name,omitempty"`
-	// The timestamp when the resource was created (read-only)
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	// The timestamp when the resource was last updated (read-only)
-	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-}
-
-// CommitteeDocumentWithReadonlyAttributesResponse is used to define fields on
-// response body types.
-type CommitteeDocumentWithReadonlyAttributesResponse struct {
-	// Document UID
-	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
-	// Committee UID
-	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Display name for the document
-	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// Optional description
-	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// Original file name
-	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
-	// File size in bytes
-	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
-	// MIME type of the file
-	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
-	// Display name of the uploader (client-provided)
-	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2387,9 +2312,7 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
 	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUID *string `form:"uploaded_by_uid,omitempty" json:"uploaded_by_uid,omitempty" xml:"uploaded_by_uid,omitempty"`
-	// Display name of the uploader (client-provided)
-	UploadedByName *string `form:"uploaded_by_name,omitempty" json:"uploaded_by_name,omitempty" xml:"uploaded_by_name,omitempty"`
+	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2813,11 +2736,10 @@ func NewRejectApplicationRequestBody(p *committeeservice.RejectApplicationPayloa
 // service.
 func NewCreateCommitteeLinkRequestBody(p *committeeservice.CreateCommitteeLinkPayload) *CreateCommitteeLinkRequestBody {
 	body := &CreateCommitteeLinkRequestBody{
-		Name:          p.Name,
-		URL:           p.URL,
-		Description:   p.Description,
-		FolderUID:     p.FolderUID,
-		CreatedByName: p.CreatedByName,
+		Name:        p.Name,
+		URL:         p.URL,
+		Description: p.Description,
+		FolderUID:   p.FolderUID,
 	}
 	return body
 }
@@ -2827,8 +2749,7 @@ func NewCreateCommitteeLinkRequestBody(p *committeeservice.CreateCommitteeLinkPa
 // "committee-service" service.
 func NewCreateCommitteeLinkFolderRequestBody(p *committeeservice.CreateCommitteeLinkFolderPayload) *CreateCommitteeLinkFolderRequestBody {
 	body := &CreateCommitteeLinkFolderRequestBody{
-		Name:          p.Name,
-		CreatedByName: p.CreatedByName,
+		Name: p.Name,
 	}
 	return body
 }
@@ -2838,12 +2759,11 @@ func NewCreateCommitteeLinkFolderRequestBody(p *committeeservice.CreateCommittee
 // "committee-service" service.
 func NewUploadCommitteeDocumentRequestBody(p *committeeservice.UploadCommitteeDocumentPayload) *UploadCommitteeDocumentRequestBody {
 	body := &UploadCommitteeDocumentRequestBody{
-		Name:           p.Name,
-		Description:    p.Description,
-		UploadedByName: p.UploadedByName,
-		FileName:       p.FileName,
-		ContentType:    p.ContentType,
-		File:           p.File,
+		Name:        p.Name,
+		Description: p.Description,
+		FileName:    p.FileName,
+		ContentType: p.ContentType,
+		File:        p.File,
 	}
 	return body
 }
@@ -4791,16 +4711,15 @@ func NewLeaveCommitteeServiceUnavailable(body *LeaveCommitteeServiceUnavailableR
 // "get-committee-link" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeLinkResultOK(body *GetCommitteeLinkResponseBody, etag *string) *committeeservice.GetCommitteeLinkResult {
 	v := &committeeservice.CommitteeLinkWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		FolderUID:     body.FolderUID,
-		Name:          body.Name,
-		URL:           body.URL,
-		Description:   body.Description,
-		CreatedByUID:  body.CreatedByUID,
-		CreatedByName: body.CreatedByName,
-		CreatedAt:     body.CreatedAt,
-		UpdatedAt:     body.UpdatedAt,
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		FolderUID:         body.FolderUID,
+		Name:              body.Name,
+		URL:               body.URL,
+		Description:       body.Description,
+		CreatedByUsername: body.CreatedByUsername,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
 	}
 	res := &committeeservice.GetCommitteeLinkResult{
 		CommitteeLink: v,
@@ -4887,16 +4806,15 @@ func NewListCommitteeLinksServiceUnavailable(body *ListCommitteeLinksServiceUnav
 // HTTP "Created" response.
 func NewCreateCommitteeLinkCommitteeLinkWithReadonlyAttributesCreated(body *CreateCommitteeLinkResponseBody) *committeeservice.CommitteeLinkWithReadonlyAttributes {
 	v := &committeeservice.CommitteeLinkWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		FolderUID:     body.FolderUID,
-		Name:          body.Name,
-		URL:           body.URL,
-		Description:   body.Description,
-		CreatedByUID:  body.CreatedByUID,
-		CreatedByName: body.CreatedByName,
-		CreatedAt:     body.CreatedAt,
-		UpdatedAt:     body.UpdatedAt,
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		FolderUID:         body.FolderUID,
+		Name:              body.Name,
+		URL:               body.URL,
+		Description:       body.Description,
+		CreatedByUsername: body.CreatedByUsername,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
 	}
 
 	return v
@@ -4986,13 +4904,12 @@ func NewDeleteCommitteeLinkServiceUnavailable(body *DeleteCommitteeLinkServiceUn
 // "get-committee-link-folder" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeLinkFolderResultOK(body *GetCommitteeLinkFolderResponseBody, etag *string) *committeeservice.GetCommitteeLinkFolderResult {
 	v := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		Name:          body.Name,
-		CreatedByUID:  body.CreatedByUID,
-		CreatedByName: body.CreatedByName,
-		CreatedAt:     body.CreatedAt,
-		UpdatedAt:     body.UpdatedAt,
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		Name:              body.Name,
+		CreatedByUsername: body.CreatedByUsername,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
 	}
 	res := &committeeservice.GetCommitteeLinkFolderResult{
 		CommitteeLinkFolder: v,
@@ -5079,13 +4996,12 @@ func NewListCommitteeLinkFoldersServiceUnavailable(body *ListCommitteeLinkFolder
 // result from a HTTP "Created" response.
 func NewCreateCommitteeLinkFolderCommitteeLinkFolderWithReadonlyAttributesCreated(body *CreateCommitteeLinkFolderResponseBody) *committeeservice.CommitteeLinkFolderWithReadonlyAttributes {
 	v := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
-		UID:           body.UID,
-		CommitteeUID:  body.CommitteeUID,
-		Name:          body.Name,
-		CreatedByUID:  body.CreatedByUID,
-		CreatedByName: body.CreatedByName,
-		CreatedAt:     body.CreatedAt,
-		UpdatedAt:     body.UpdatedAt,
+		UID:               body.UID,
+		CommitteeUID:      body.CommitteeUID,
+		Name:              body.Name,
+		CreatedByUsername: body.CreatedByUsername,
+		CreatedAt:         body.CreatedAt,
+		UpdatedAt:         body.UpdatedAt,
 	}
 
 	return v
@@ -5186,17 +5102,16 @@ func NewDeleteCommitteeLinkFolderServiceUnavailable(body *DeleteCommitteeLinkFol
 // result from a HTTP "Created" response.
 func NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated(body *UploadCommitteeDocumentResponseBody) *committeeservice.CommitteeDocumentWithReadonlyAttributes {
 	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
-		UID:            body.UID,
-		CommitteeUID:   body.CommitteeUID,
-		Name:           body.Name,
-		Description:    body.Description,
-		FileName:       body.FileName,
-		FileSize:       body.FileSize,
-		ContentType:    body.ContentType,
-		UploadedByUID:  body.UploadedByUID,
-		UploadedByName: body.UploadedByName,
-		CreatedAt:      body.CreatedAt,
-		UpdatedAt:      body.UpdatedAt,
+		UID:                body.UID,
+		CommitteeUID:       body.CommitteeUID,
+		Name:               body.Name,
+		Description:        body.Description,
+		FileName:           body.FileName,
+		FileSize:           body.FileSize,
+		ContentType:        body.ContentType,
+		UploadedByUsername: body.UploadedByUsername,
+		CreatedAt:          body.CreatedAt,
+		UpdatedAt:          body.UpdatedAt,
 	}
 
 	return v
@@ -5252,63 +5167,20 @@ func NewUploadCommitteeDocumentServiceUnavailable(body *UploadCommitteeDocumentS
 	return v
 }
 
-// NewListCommitteeDocumentsCommitteeDocumentWithReadonlyAttributesOK builds a
-// "committee-service" service "list-committee-documents" endpoint result from
-// a HTTP "OK" response.
-func NewListCommitteeDocumentsCommitteeDocumentWithReadonlyAttributesOK(body []*CommitteeDocumentWithReadonlyAttributesResponse) []*committeeservice.CommitteeDocumentWithReadonlyAttributes {
-	v := make([]*committeeservice.CommitteeDocumentWithReadonlyAttributes, len(body))
-	for i, val := range body {
-		v[i] = unmarshalCommitteeDocumentWithReadonlyAttributesResponseToCommitteeserviceCommitteeDocumentWithReadonlyAttributes(val)
-	}
-
-	return v
-}
-
-// NewListCommitteeDocumentsInternalServerError builds a committee-service
-// service list-committee-documents endpoint InternalServerError error.
-func NewListCommitteeDocumentsInternalServerError(body *ListCommitteeDocumentsInternalServerErrorResponseBody) *committeeservice.InternalServerError {
-	v := &committeeservice.InternalServerError{
-		Message: *body.Message,
-	}
-
-	return v
-}
-
-// NewListCommitteeDocumentsNotFound builds a committee-service service
-// list-committee-documents endpoint NotFound error.
-func NewListCommitteeDocumentsNotFound(body *ListCommitteeDocumentsNotFoundResponseBody) *committeeservice.NotFoundError {
-	v := &committeeservice.NotFoundError{
-		Message: *body.Message,
-	}
-
-	return v
-}
-
-// NewListCommitteeDocumentsServiceUnavailable builds a committee-service
-// service list-committee-documents endpoint ServiceUnavailable error.
-func NewListCommitteeDocumentsServiceUnavailable(body *ListCommitteeDocumentsServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
-	v := &committeeservice.ServiceUnavailableError{
-		Message: *body.Message,
-	}
-
-	return v
-}
-
 // NewGetCommitteeDocumentResultOK builds a "committee-service" service
 // "get-committee-document" endpoint result from a HTTP "OK" response.
 func NewGetCommitteeDocumentResultOK(body *GetCommitteeDocumentResponseBody, etag *string) *committeeservice.GetCommitteeDocumentResult {
 	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
-		UID:            body.UID,
-		CommitteeUID:   body.CommitteeUID,
-		Name:           body.Name,
-		Description:    body.Description,
-		FileName:       body.FileName,
-		FileSize:       body.FileSize,
-		ContentType:    body.ContentType,
-		UploadedByUID:  body.UploadedByUID,
-		UploadedByName: body.UploadedByName,
-		CreatedAt:      body.CreatedAt,
-		UpdatedAt:      body.UpdatedAt,
+		UID:                body.UID,
+		CommitteeUID:       body.CommitteeUID,
+		Name:               body.Name,
+		Description:        body.Description,
+		FileName:           body.FileName,
+		FileSize:           body.FileSize,
+		ContentType:        body.ContentType,
+		UploadedByUsername: body.UploadedByUsername,
+		CreatedAt:          body.CreatedAt,
+		UpdatedAt:          body.UpdatedAt,
 	}
 	res := &committeeservice.GetCommitteeDocumentResult{
 		CommitteeDocument: v,
@@ -7875,35 +7747,6 @@ func ValidateUploadCommitteeDocumentServiceUnavailableResponseBody(body *UploadC
 	return
 }
 
-// ValidateListCommitteeDocumentsInternalServerErrorResponseBody runs the
-// validations defined on
-// list-committee-documents_InternalServerError_response_body
-func ValidateListCommitteeDocumentsInternalServerErrorResponseBody(body *ListCommitteeDocumentsInternalServerErrorResponseBody) (err error) {
-	if body.Message == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
-	}
-	return
-}
-
-// ValidateListCommitteeDocumentsNotFoundResponseBody runs the validations
-// defined on list-committee-documents_NotFound_response_body
-func ValidateListCommitteeDocumentsNotFoundResponseBody(body *ListCommitteeDocumentsNotFoundResponseBody) (err error) {
-	if body.Message == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
-	}
-	return
-}
-
-// ValidateListCommitteeDocumentsServiceUnavailableResponseBody runs the
-// validations defined on
-// list-committee-documents_ServiceUnavailable_response_body
-func ValidateListCommitteeDocumentsServiceUnavailableResponseBody(body *ListCommitteeDocumentsServiceUnavailableResponseBody) (err error) {
-	if body.Message == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
-	}
-	return
-}
-
 // ValidateGetCommitteeDocumentInternalServerErrorResponseBody runs the
 // validations defined on
 // get-committee-document_InternalServerError_response_body
@@ -8314,44 +8157,6 @@ func ValidateCommitteeLinkFolderWithReadonlyAttributesResponse(body *CommitteeLi
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
-		}
-	}
-	if body.CreatedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
-	}
-	if body.UpdatedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
-	}
-	return
-}
-
-// ValidateCommitteeDocumentWithReadonlyAttributesResponse runs the validations
-// defined on committee-document-with-readonly-attributesResponse
-func ValidateCommitteeDocumentWithReadonlyAttributesResponse(body *CommitteeDocumentWithReadonlyAttributesResponse) (err error) {
-	if body.UID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
-	}
-	if body.CommitteeUID != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
-	}
-	if body.Name != nil {
-		if utf8.RuneCountInString(*body.Name) > 500 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
-		}
-	}
-	if body.Description != nil {
-		if utf8.RuneCountInString(*body.Description) > 2000 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
-		}
-	}
-	if body.FileName != nil {
-		if utf8.RuneCountInString(*body.FileName) > 500 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
-		}
-	}
-	if body.FileSize != nil {
-		if *body.FileSize < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
 		}
 	}
 	if body.CreatedAt != nil {

@@ -5053,153 +5053,6 @@ func DecodeUploadCommitteeDocumentResponse(decoder func(*http.Response) goahttp.
 	}
 }
 
-// BuildListCommitteeDocumentsRequest instantiates a HTTP request object with
-// method and path set to call the "committee-service" service
-// "list-committee-documents" endpoint
-func (c *Client) BuildListCommitteeDocumentsRequest(ctx context.Context, v any) (*http.Request, error) {
-	var (
-		uid string
-	)
-	{
-		p, ok := v.(*committeeservice.ListCommitteeDocumentsPayload)
-		if !ok {
-			return nil, goahttp.ErrInvalidType("committee-service", "list-committee-documents", "*committeeservice.ListCommitteeDocumentsPayload", v)
-		}
-		if p.UID != nil {
-			uid = *p.UID
-		}
-	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ListCommitteeDocumentsCommitteeServicePath(uid)}
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, goahttp.ErrInvalidURL("committee-service", "list-committee-documents", u.String(), err)
-	}
-	if ctx != nil {
-		req = req.WithContext(ctx)
-	}
-
-	return req, nil
-}
-
-// EncodeListCommitteeDocumentsRequest returns an encoder for requests sent to
-// the committee-service list-committee-documents server.
-func EncodeListCommitteeDocumentsRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
-	return func(req *http.Request, v any) error {
-		p, ok := v.(*committeeservice.ListCommitteeDocumentsPayload)
-		if !ok {
-			return goahttp.ErrInvalidType("committee-service", "list-committee-documents", "*committeeservice.ListCommitteeDocumentsPayload", v)
-		}
-		if p.BearerToken != nil {
-			head := *p.BearerToken
-			if !strings.Contains(head, " ") {
-				req.Header.Set("Authorization", "Bearer "+head)
-			} else {
-				req.Header.Set("Authorization", head)
-			}
-		}
-		values := req.URL.Query()
-		if p.Version != nil {
-			values.Add("v", *p.Version)
-		}
-		req.URL.RawQuery = values.Encode()
-		return nil
-	}
-}
-
-// DecodeListCommitteeDocumentsResponse returns a decoder for responses
-// returned by the committee-service list-committee-documents endpoint.
-// restoreBody controls whether the response body should be restored after
-// having been read.
-// DecodeListCommitteeDocumentsResponse may return the following errors:
-//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
-//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
-//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
-//   - error: internal error
-func DecodeListCommitteeDocumentsResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
-	return func(resp *http.Response) (any, error) {
-		if restoreBody {
-			b, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, err
-			}
-			resp.Body = io.NopCloser(bytes.NewBuffer(b))
-			defer func() {
-				resp.Body = io.NopCloser(bytes.NewBuffer(b))
-			}()
-		} else {
-			defer resp.Body.Close()
-		}
-		switch resp.StatusCode {
-		case http.StatusOK:
-			var (
-				body ListCommitteeDocumentsResponseBody
-				err  error
-			)
-			err = decoder(resp).Decode(&body)
-			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-documents", err)
-			}
-			for _, e := range body {
-				if e != nil {
-					if err2 := ValidateCommitteeDocumentWithReadonlyAttributesResponse(e); err2 != nil {
-						err = goa.MergeErrors(err, err2)
-					}
-				}
-			}
-			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-committee-documents", err)
-			}
-			res := NewListCommitteeDocumentsCommitteeDocumentWithReadonlyAttributesOK(body)
-			return res, nil
-		case http.StatusInternalServerError:
-			var (
-				body ListCommitteeDocumentsInternalServerErrorResponseBody
-				err  error
-			)
-			err = decoder(resp).Decode(&body)
-			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-documents", err)
-			}
-			err = ValidateListCommitteeDocumentsInternalServerErrorResponseBody(&body)
-			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-committee-documents", err)
-			}
-			return nil, NewListCommitteeDocumentsInternalServerError(&body)
-		case http.StatusNotFound:
-			var (
-				body ListCommitteeDocumentsNotFoundResponseBody
-				err  error
-			)
-			err = decoder(resp).Decode(&body)
-			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-documents", err)
-			}
-			err = ValidateListCommitteeDocumentsNotFoundResponseBody(&body)
-			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-committee-documents", err)
-			}
-			return nil, NewListCommitteeDocumentsNotFound(&body)
-		case http.StatusServiceUnavailable:
-			var (
-				body ListCommitteeDocumentsServiceUnavailableResponseBody
-				err  error
-			)
-			err = decoder(resp).Decode(&body)
-			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "list-committee-documents", err)
-			}
-			err = ValidateListCommitteeDocumentsServiceUnavailableResponseBody(&body)
-			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "list-committee-documents", err)
-			}
-			return nil, NewListCommitteeDocumentsServiceUnavailable(&body)
-		default:
-			body, _ := io.ReadAll(resp.Body)
-			return nil, goahttp.ErrInvalidResponse("committee-service", "list-committee-documents", resp.StatusCode, string(body))
-		}
-	}
-}
-
 // BuildGetCommitteeDocumentRequest instantiates a HTTP request object with
 // method and path set to call the "committee-service" service
 // "get-committee-document" endpoint
@@ -5648,16 +5501,15 @@ func DecodeDeleteCommitteeDocumentResponse(decoder func(*http.Response) goahttp.
 // from a value of type *CommitteeLinkWithReadonlyAttributesResponse.
 func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkWithReadonlyAttributes(v *CommitteeLinkWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkWithReadonlyAttributes {
 	res := &committeeservice.CommitteeLinkWithReadonlyAttributes{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		FolderUID:     v.FolderUID,
-		Name:          v.Name,
-		URL:           v.URL,
-		Description:   v.Description,
-		CreatedByUID:  v.CreatedByUID,
-		CreatedByName: v.CreatedByName,
-		CreatedAt:     v.CreatedAt,
-		UpdatedAt:     v.UpdatedAt,
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		FolderUID:         v.FolderUID,
+		Name:              v.Name,
+		URL:               v.URL,
+		Description:       v.Description,
+		CreatedByUsername: v.CreatedByUsername,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
 	}
 
 	return res
@@ -5669,35 +5521,12 @@ func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommi
 // type *CommitteeLinkFolderWithReadonlyAttributesResponse.
 func unmarshalCommitteeLinkFolderWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkFolderWithReadonlyAttributes(v *CommitteeLinkFolderWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkFolderWithReadonlyAttributes {
 	res := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
-		UID:           v.UID,
-		CommitteeUID:  v.CommitteeUID,
-		Name:          v.Name,
-		CreatedByUID:  v.CreatedByUID,
-		CreatedByName: v.CreatedByName,
-		CreatedAt:     v.CreatedAt,
-		UpdatedAt:     v.UpdatedAt,
-	}
-
-	return res
-}
-
-// unmarshalCommitteeDocumentWithReadonlyAttributesResponseToCommitteeserviceCommitteeDocumentWithReadonlyAttributes
-// builds a value of type
-// *committeeservice.CommitteeDocumentWithReadonlyAttributes from a value of
-// type *CommitteeDocumentWithReadonlyAttributesResponse.
-func unmarshalCommitteeDocumentWithReadonlyAttributesResponseToCommitteeserviceCommitteeDocumentWithReadonlyAttributes(v *CommitteeDocumentWithReadonlyAttributesResponse) *committeeservice.CommitteeDocumentWithReadonlyAttributes {
-	res := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
-		UID:            v.UID,
-		CommitteeUID:   v.CommitteeUID,
-		Name:           v.Name,
-		Description:    v.Description,
-		FileName:       v.FileName,
-		FileSize:       v.FileSize,
-		ContentType:    v.ContentType,
-		UploadedByUID:  v.UploadedByUID,
-		UploadedByName: v.UploadedByName,
-		CreatedAt:      v.CreatedAt,
-		UpdatedAt:      v.UpdatedAt,
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		Name:              v.Name,
+		CreatedByUsername: v.CreatedByUsername,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
 	}
 
 	return res

@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|list-committee-documents|get-committee-document|download-committee-document|delete-committee-document)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document)",
 	}
 }
 
@@ -245,11 +245,6 @@ func ParseEndpoint(
 		committeeServiceUploadCommitteeDocumentVersionFlag     = committeeServiceUploadCommitteeDocumentFlags.String("version", "", "")
 		committeeServiceUploadCommitteeDocumentBearerTokenFlag = committeeServiceUploadCommitteeDocumentFlags.String("bearer-token", "", "")
 
-		committeeServiceListCommitteeDocumentsFlags           = flag.NewFlagSet("list-committee-documents", flag.ExitOnError)
-		committeeServiceListCommitteeDocumentsUIDFlag         = committeeServiceListCommitteeDocumentsFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
-		committeeServiceListCommitteeDocumentsVersionFlag     = committeeServiceListCommitteeDocumentsFlags.String("version", "", "")
-		committeeServiceListCommitteeDocumentsBearerTokenFlag = committeeServiceListCommitteeDocumentsFlags.String("bearer-token", "", "")
-
 		committeeServiceGetCommitteeDocumentFlags           = flag.NewFlagSet("get-committee-document", flag.ExitOnError)
 		committeeServiceGetCommitteeDocumentUIDFlag         = committeeServiceGetCommitteeDocumentFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceGetCommitteeDocumentDocumentUIDFlag = committeeServiceGetCommitteeDocumentFlags.String("document-uid", "REQUIRED", "Committee document UID")
@@ -302,7 +297,6 @@ func ParseEndpoint(
 	committeeServiceCreateCommitteeLinkFolderFlags.Usage = committeeServiceCreateCommitteeLinkFolderUsage
 	committeeServiceDeleteCommitteeLinkFolderFlags.Usage = committeeServiceDeleteCommitteeLinkFolderUsage
 	committeeServiceUploadCommitteeDocumentFlags.Usage = committeeServiceUploadCommitteeDocumentUsage
-	committeeServiceListCommitteeDocumentsFlags.Usage = committeeServiceListCommitteeDocumentsUsage
 	committeeServiceGetCommitteeDocumentFlags.Usage = committeeServiceGetCommitteeDocumentUsage
 	committeeServiceDownloadCommitteeDocumentFlags.Usage = committeeServiceDownloadCommitteeDocumentUsage
 	committeeServiceDeleteCommitteeDocumentFlags.Usage = committeeServiceDeleteCommitteeDocumentUsage
@@ -437,9 +431,6 @@ func ParseEndpoint(
 			case "upload-committee-document":
 				epf = committeeServiceUploadCommitteeDocumentFlags
 
-			case "list-committee-documents":
-				epf = committeeServiceListCommitteeDocumentsFlags
-
 			case "get-committee-document":
 				epf = committeeServiceGetCommitteeDocumentFlags
 
@@ -568,9 +559,6 @@ func ParseEndpoint(
 			case "upload-committee-document":
 				endpoint = c.UploadCommitteeDocument(committeeServiceUploadCommitteeDocumentEncoderFn)
 				data, err = committeeservicec.BuildUploadCommitteeDocumentPayload(*committeeServiceUploadCommitteeDocumentBodyFlag, *committeeServiceUploadCommitteeDocumentUIDFlag, *committeeServiceUploadCommitteeDocumentVersionFlag, *committeeServiceUploadCommitteeDocumentBearerTokenFlag)
-			case "list-committee-documents":
-				endpoint = c.ListCommitteeDocuments()
-				data, err = committeeservicec.BuildListCommitteeDocumentsPayload(*committeeServiceListCommitteeDocumentsUIDFlag, *committeeServiceListCommitteeDocumentsVersionFlag, *committeeServiceListCommitteeDocumentsBearerTokenFlag)
 			case "get-committee-document":
 				endpoint = c.GetCommitteeDocument()
 				data, err = committeeservicec.BuildGetCommitteeDocumentPayload(*committeeServiceGetCommitteeDocumentUIDFlag, *committeeServiceGetCommitteeDocumentDocumentUIDFlag, *committeeServiceGetCommitteeDocumentVersionFlag, *committeeServiceGetCommitteeDocumentBearerTokenFlag)
@@ -628,7 +616,6 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    create-committee-link-folder: Create a folder to organize committee links`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
 	fmt.Fprintln(os.Stderr, `    upload-committee-document: Upload a file document to a committee`)
-	fmt.Fprintln(os.Stderr, `    list-committee-documents: List all documents for a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
 	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
@@ -1243,7 +1230,7 @@ func committeeServiceListCommitteeLinksUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66fc4-1bd9-4a88-94c9-076b0db5844c\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66fe5-ce63-4a68-b5ce-d0ffcfb3f430\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateCommitteeLinkUsage() {
@@ -1267,7 +1254,7 @@ func committeeServiceCreateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"149\",\n      \"folder_uid\": \"e7b89e2c-8d20-4a1e-92d6-fc9b72ba639c\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"i04\",\n      \"folder_uid\": \"27355660-a042-4a5b-b89e-2c8d204a1e52\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceDeleteCommitteeLinkUsage() {
@@ -1363,7 +1350,7 @@ func committeeServiceCreateCommitteeLinkFolderUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link-folder --body '{\n      \"created_by_name\": \"Alex Lee\",\n      \"name\": \"Meeting Notes\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link-folder --body '{\n      \"name\": \"Meeting Notes\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceDeleteCommitteeLinkFolderUsage() {
@@ -1413,29 +1400,7 @@ func committeeServiceUploadCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Qui ut error.\",\n      \"description\": \"vxz\",\n      \"file\": \"RGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyIG9tbmlzIHF1YWUu\",\n      \"file_name\": \"Et voluptatibus sit quibusdam.\",\n      \"name\": \"Architecture Decision Record\",\n      \"uploaded_by_name\": \"Alex Lee\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
-}
-
-func committeeServiceListCommitteeDocumentsUsage() {
-	// Header with flags
-	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-committee-documents", os.Args[0])
-	fmt.Fprint(os.Stderr, " -uid STRING")
-	fmt.Fprint(os.Stderr, " -version STRING")
-	fmt.Fprint(os.Stderr, " -bearer-token STRING")
-	fmt.Fprintln(os.Stderr)
-
-	// Description
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `List all documents for a committee`)
-
-	// Flags list
-	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
-	fmt.Fprintln(os.Stderr, `    -version STRING: `)
-	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
-
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-documents --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceGetCommitteeDocumentUsage() {

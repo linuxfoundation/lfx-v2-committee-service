@@ -888,11 +888,8 @@ var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-
 		dsl.MaxLength(200)
 		dsl.Example("Meeting Notes")
 	})
-	dsl.Attribute("created_by_uid", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
+	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
 		dsl.Example("alexlee")
-	})
-	dsl.Attribute("created_by_name", dsl.String, "Display name of the user who created the folder (client-provided)", func() {
-		dsl.Example("Alex Lee")
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
@@ -926,11 +923,8 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 		dsl.MaxLength(2000)
 		dsl.Example("Confluence wiki — architecture decisions log")
 	})
-	dsl.Attribute("created_by_uid", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
+	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
 		dsl.Example("alexlee")
-	})
-	dsl.Attribute("created_by_name", dsl.String, "Display name of the user who added the link (client-provided)", func() {
-		dsl.Example("Alex Lee")
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
@@ -977,11 +971,8 @@ var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-
 	dsl.Attribute("content_type", dsl.String, "MIME type of the file", func() {
 		dsl.Example("application/pdf")
 	})
-	dsl.Attribute("uploaded_by_uid", dsl.String, "LF username of the uploader (auto-populated from JWT)", func() {
+	dsl.Attribute("uploaded_by_username", dsl.String, "LF username of the uploader (auto-populated from JWT)", func() {
 		dsl.Example("alexlee")
-	})
-	dsl.Attribute("uploaded_by_name", dsl.String, "Display name of the uploader (client-provided)", func() {
-		dsl.Example("Alex Lee")
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
