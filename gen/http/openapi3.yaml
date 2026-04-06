@@ -43,8 +43,10 @@ paths:
                             $ref: '#/components/schemas/CreateCommitteeRequestBody'
                         example:
                             auditors:
-                                - auditor_user_id1
-                                - auditor_user_id2
+                                - avatar: https://example.com/avatar.jpg
+                                  email: john@example.com
+                                  name: John Doe
+                                  username: auditor_user_id1
                             business_email_required: false
                             calendar:
                                 public: true
@@ -67,8 +69,10 @@ paths:
                             sso_group_enabled: true
                             website: https://committee.example.org
                             writers:
-                                - manager_user_id1
-                                - manager_user_id2
+                                - avatar: https://example.com/avatar.jpg
+                                  email: alice@example.com
+                                  name: Alice Johnson
+                                  username: manager_user_id1
             responses:
                 "201":
                     description: Created response.
@@ -78,8 +82,10 @@ paths:
                                 $ref: '#/components/schemas/CommitteeFullWithReadonlyAttributes'
                             example:
                                 auditors:
-                                    - auditor_user_id1
-                                    - auditor_user_id2
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: john@example.com
+                                      name: John Doe
+                                      username: auditor_user_id1
                                 business_email_required: false
                                 calendar:
                                     public: true
@@ -106,8 +112,10 @@ paths:
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 website: https://committee.example.org
                                 writers:
-                                    - manager_user_id1
-                                    - manager_user_id2
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: alice@example.com
+                                      name: Alice Johnson
+                                      username: manager_user_id1
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -1379,12 +1387,6 @@ paths:
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by_username: alexlee
-                                      name: Meeting Notes
-                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      updated_at: "2023-06-20T14:45:30Z"
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
@@ -2433,9 +2435,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 44475c5e-0079-4e65-b56c-da39e384daae
+                    example: dc747fd1-cae5-4ec1-8538-284467f10db1
                     format: uuid
-                  example: 9bcf8a14-0de2-4654-bd35-2ca947a441ff
+                  example: ed9733f2-4008-450e-baf2-bb7eeebbb80f
             responses:
                 "200":
                     description: OK response.
@@ -2464,16 +2466,25 @@ paths:
                                       uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                       updated_at: "2023-06-20T14:45:30Z"
                                       url: https://confluence.example.com/architecture-decisions
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by_username: alexlee
-                                      description: Confluence wiki — architecture decisions log
-                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      name: Technical Architecture Decision Records
-                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      url: https://confluence.example.com/architecture-decisions
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  url: https://confluence.example.com/architecture-decisions
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_username: alexlee
@@ -3370,6 +3381,11 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeSettingsWithReadonlyAttributes'
                             example:
+                                auditors:
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: john@example.com
+                                      name: John Doe
+                                      username: auditor_user_id1
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
@@ -3378,6 +3394,11 @@ paths:
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
+                                writers:
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: alice@example.com
+                                      name: Alice Johnson
+                                      username: manager_user_id1
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -3459,16 +3480,20 @@ paths:
                             $ref: '#/components/schemas/UpdateCommitteeSettingsRequestBody'
                         example:
                             auditors:
-                                - auditor_user_id1
-                                - auditor_user_id2
+                                - avatar: https://example.com/avatar.jpg
+                                  email: john@example.com
+                                  name: John Doe
+                                  username: auditor_user_id1
                             business_email_required: false
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
                             show_meeting_attendees: false
                             writers:
-                                - manager_user_id1
-                                - manager_user_id2
+                                - avatar: https://example.com/avatar.jpg
+                                  email: alice@example.com
+                                  name: Alice Johnson
+                                  username: manager_user_id1
             responses:
                 "200":
                     description: OK response.
@@ -3477,6 +3502,11 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/CommitteeSettingsWithReadonlyAttributes'
                             example:
+                                auditors:
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: john@example.com
+                                      name: John Doe
+                                      username: auditor_user_id1
                                 business_email_required: false
                                 created_at: "2023-01-15T10:30:00Z"
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
@@ -3485,6 +3515,11 @@ paths:
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
+                                writers:
+                                    - avatar: https://example.com/avatar.jpg
+                                      email: alice@example.com
+                                      name: Alice Johnson
+                                      username: manager_user_id1
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -3957,12 +3992,13 @@ components:
                 auditors:
                     type: array
                     items:
-                        type: string
-                        example: Porro dolor sit iusto iusto et nihil.
-                    description: Auditor user IDs who can audit this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can audit this committee
                     example:
-                        - auditor_user_id1
-                        - auditor_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: john@example.com
+                          name: John Doe
+                          username: auditor_user_id1
                 business_email_required:
                     type: boolean
                     description: Whether business email is required for committee members
@@ -4100,17 +4136,20 @@ components:
                 writers:
                     type: array
                     items:
-                        type: string
-                        example: Iusto soluta soluta commodi id nesciunt ducimus.
-                    description: Manager user IDs who can edit/modify this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can edit/modify this committee
                     example:
-                        - manager_user_id1
-                        - manager_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: alice@example.com
+                          name: Alice Johnson
+                          username: manager_user_id1
             description: A full representation of LFX committees with sub-objects.
             example:
                 auditors:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
                 business_email_required: false
                 calendar:
                     public: true
@@ -4133,20 +4172,23 @@ components:
                 sso_group_enabled: true
                 website: https://committee.example.org
                 writers:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         CommitteeFullWithReadonlyAttributes:
             type: object
             properties:
                 auditors:
                     type: array
                     items:
-                        type: string
-                        example: Odio maxime.
-                    description: Auditor user IDs who can audit this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can audit this committee
                     example:
-                        - auditor_user_id1
-                        - auditor_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: john@example.com
+                          name: John Doe
+                          username: auditor_user_id1
                 business_email_required:
                     type: boolean
                     description: Whether business email is required for committee members
@@ -4305,17 +4347,20 @@ components:
                 writers:
                     type: array
                     items:
-                        type: string
-                        example: Est laudantium soluta ipsum mollitia eum.
-                    description: Manager user IDs who can edit/modify this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can edit/modify this committee
                     example:
-                        - manager_user_id1
-                        - manager_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: alice@example.com
+                          name: Alice Johnson
+                          username: manager_user_id1
             description: A complete representation of LFX committees with base, settings and readonly attributes.
             example:
                 auditors:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
                 business_email_required: false
                 calendar:
                     public: true
@@ -4342,8 +4387,10 @@ components:
                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 website: https://committee.example.org
                 writers:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
         CommitteeInviteWithReadonlyAttributes:
             type: object
             properties:
@@ -5079,6 +5126,16 @@ components:
         CommitteeSettingsWithReadonlyAttributes:
             type: object
             properties:
+                auditors:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can audit this committee
+                    example:
+                        - avatar: https://example.com/avatar.jpg
+                          email: john@example.com
+                          name: John Doe
+                          username: auditor_user_id1
                 business_email_required:
                     type: boolean
                     description: Whether business email is required for committee members
@@ -5121,8 +5178,23 @@ components:
                     description: The timestamp when the resource was last updated (read-only)
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
+                writers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can edit/modify this committee
+                    example:
+                        - avatar: https://example.com/avatar.jpg
+                          email: alice@example.com
+                          name: Alice Johnson
+                          username: manager_user_id1
             description: A representation of LF Committee settings with readonly attributes.
             example:
+                auditors:
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
                 business_email_required: false
                 created_at: "2023-01-15T10:30:00Z"
                 last_reviewed_at: "2025-08-04T09:00:00Z"
@@ -5131,6 +5203,36 @@ components:
                 show_meeting_attendees: false
                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 updated_at: "2023-06-20T14:45:30Z"
+                writers:
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
+        CommitteeUser:
+            type: object
+            properties:
+                avatar:
+                    type: string
+                    description: URL to the user's avatar image
+                    example: https://example.com/avatar.jpg
+                email:
+                    type: string
+                    description: The user's email address
+                    example: alice.johnson@example.com
+                name:
+                    type: string
+                    description: Display name of the user
+                    example: Alice Johnson
+                username:
+                    type: string
+                    description: User identifier (LF ID / sub)
+                    example: alicejohnson789
+            description: A user object stored in writers or auditors lists.
+            example:
+                avatar: https://example.com/avatar.jpg
+                email: alice.johnson@example.com
+                name: Alice Johnson
+                username: alicejohnson789
         ConflictError:
             type: object
             properties:
@@ -5160,12 +5262,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: qy5
+                    example: npl
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 88f80480-ccf4-43ec-9cbf-3580f99ba9bb
+                    example: 85eb66a2-f269-47b8-9677-fd6445077287
                     format: uuid
                 name:
                     type: string
@@ -5178,8 +5280,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: f0w
-                folder_uid: bec118ef-4db5-4c27-9525-4dc9b6da9951
+                description: soc
+                folder_uid: f23ac321-fc85-4bf2-b8e8-2505f74cb0bf
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -5364,12 +5466,13 @@ components:
                 auditors:
                     type: array
                     items:
-                        type: string
-                        example: Occaecati ex a recusandae eos maiores nemo.
-                    description: Auditor user IDs who can audit this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can audit this committee
                     example:
-                        - auditor_user_id1
-                        - auditor_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: john@example.com
+                          name: John Doe
+                          username: auditor_user_id1
                 business_email_required:
                     type: boolean
                     description: Whether business email is required for committee members
@@ -5507,16 +5610,19 @@ components:
                 writers:
                     type: array
                     items:
-                        type: string
-                        example: Incidunt nihil ab culpa deleniti labore.
-                    description: Manager user IDs who can edit/modify this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can edit/modify this committee
                     example:
-                        - manager_user_id1
-                        - manager_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: alice@example.com
+                          name: Alice Johnson
+                          username: manager_user_id1
             example:
                 auditors:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
                 business_email_required: false
                 calendar:
                     public: true
@@ -5539,8 +5645,10 @@ components:
                 sso_group_enabled: true
                 website: https://committee.example.org
                 writers:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
             required:
                 - name
                 - category
@@ -5754,12 +5862,13 @@ components:
                 auditors:
                     type: array
                     items:
-                        type: string
-                        example: Animi dicta placeat et quasi.
-                    description: Auditor user IDs who can audit this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can audit this committee
                     example:
-                        - auditor_user_id1
-                        - auditor_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: john@example.com
+                          name: John Doe
+                          username: auditor_user_id1
                 business_email_required:
                     type: boolean
                     description: Whether business email is required for committee members
@@ -5790,24 +5899,29 @@ components:
                 writers:
                     type: array
                     items:
-                        type: string
-                        example: Odit sit explicabo ex architecto minima exercitationem.
-                    description: Manager user IDs who can edit/modify this committee
+                        $ref: '#/components/schemas/CommitteeUser'
+                    description: Users who can edit/modify this committee
                     example:
-                        - manager_user_id1
-                        - manager_user_id2
+                        - avatar: https://example.com/avatar.jpg
+                          email: alice@example.com
+                          name: Alice Johnson
+                          username: manager_user_id1
             example:
                 auditors:
-                    - auditor_user_id1
-                    - auditor_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: john@example.com
+                      name: John Doe
+                      username: auditor_user_id1
                 business_email_required: false
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
                 show_meeting_attendees: false
                 writers:
-                    - manager_user_id1
-                    - manager_user_id2
+                    - avatar: https://example.com/avatar.jpg
+                      email: alice@example.com
+                      name: Alice Johnson
+                      username: manager_user_id1
             required:
                 - business_email_required
         UploadCommitteeDocumentRequestBody:
@@ -5816,90 +5930,88 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Quam autem quaerat eum.
+                    example: Quas enim eveniet et numquam aut.
                 description:
                     type: string
                     description: Optional description
-                    example: 8ut
+                    example: zem
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 81
-                        - 117
-                        - 105
+                        - 85
+                        - 116
                         - 32
-                        - 110
-                        - 105
-                        - 104
-                        - 105
-                        - 108
-                        - 32
-                        - 101
-                        - 120
-                        - 101
                         - 114
+                        - 101
+                        - 105
                         - 99
                         - 105
-                        - 116
-                        - 97
-                        - 116
-                        - 105
-                        - 111
-                        - 110
                         - 101
-                        - 109
+                        - 110
+                        - 100
+                        - 105
+                        - 115
                         - 32
                         - 100
                         - 111
                         - 108
                         - 111
                         - 114
-                        - 32
-                        - 97
-                        - 32
+                        - 101
+                        - 109
                         - 113
                         - 117
-                        - 105
+                        - 101
                         - 32
+                        - 101
+                        - 116
+                        - 32
+                        - 99
+                        - 111
                         - 110
-                        - 105
-                        - 104
-                        - 105
-                        - 108
+                        - 115
+                        - 101
+                        - 113
+                        - 117
+                        - 97
+                        - 116
+                        - 117
+                        - 114
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Eos velit facere tempore numquam hic et.
+                    example: Repellat exercitationem tempore.
                 name:
                     type: string
                     description: Display name for the document
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Dolores non voluptatibus.
-                description: yxg
+                content_type: Sint nesciunt minima.
+                description: jtk
                 file:
-                    - 86
+                    - 76
+                    - 97
+                    - 98
                     - 111
-                    - 108
-                    - 117
-                    - 112
-                    - 116
-                    - 97
-                    - 116
-                    - 117
-                    - 109
+                    - 114
+                    - 101
                     - 32
-                    - 102
-                    - 117
-                    - 103
                     - 97
+                    - 116
+                    - 113
+                    - 117
+                    - 101
+                    - 32
+                    - 118
+                    - 101
+                    - 108
                     - 46
-                file_name: Repellat provident.
+                file_name: Quaerat ipsam consequatur vel dolores itaque ut.
                 name: Architecture Decision Record
             required:
                 - name
