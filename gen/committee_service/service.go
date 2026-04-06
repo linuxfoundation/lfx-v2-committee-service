@@ -296,10 +296,10 @@ type CommitteeFullWithReadonlyAttributes struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Manager user IDs who can edit/modify this committee
-	Writers []string
-	// Auditor user IDs who can audit this committee
-	Auditors []string
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUser
+	// Users who can audit this committee
+	Auditors []*CommitteeUser
 }
 
 // CommitteeInviteWithReadonlyAttributes is the result type of the
@@ -436,10 +436,26 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUser
+	// Users who can audit this committee
+	Auditors []*CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
+}
+
+// A user object stored in writers or auditors lists.
+type CommitteeUser struct {
+	// URL to the user's avatar image
+	Avatar *string
+	// The user's email address
+	Email *string
+	// Display name of the user
+	Name *string
+	// User identifier (LF ID / sub)
+	Username *string
 }
 
 // CreateCommitteeLinkFolderPayload is the payload type of the
@@ -594,10 +610,10 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Manager user IDs who can edit/modify this committee
-	Writers []string
-	// Auditor user IDs who can audit this committee
-	Auditors []string
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUser
+	// Users who can audit this committee
+	Auditors []*CommitteeUser
 }
 
 // CreateInvitePayload is the payload type of the committee-service service
@@ -1114,10 +1130,10 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Manager user IDs who can edit/modify this committee
-	Writers []string
-	// Auditor user IDs who can audit this committee
-	Auditors []string
+	// Users who can edit/modify this committee
+	Writers []*CommitteeUser
+	// Users who can audit this committee
+	Auditors []*CommitteeUser
 }
 
 // UploadCommitteeDocumentPayload is the payload type of the committee-service

@@ -144,6 +144,7 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 		}
 		data, err := io.ReadAll(io.LimitReader(part, model.MaxDocumentFileSize+1))
 		if err != nil {
+			_ = part.Close()
 			return err
 		}
 		switch part.FormName() {
