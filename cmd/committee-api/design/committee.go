@@ -984,6 +984,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this link in", func() {
 				dsl.Format(dsl.FormatUUID)
 			})
+			XSyncAttribute()
 
 			dsl.Required("name", "url")
 		})
@@ -1000,6 +1001,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -1019,6 +1021,7 @@ var _ = dsl.Service("committee-service", func() {
 			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			LinkUIDAttribute()
+			XSyncAttribute()
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
@@ -1033,6 +1036,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("link_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -1123,6 +1127,7 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(200)
 				dsl.Example("Meeting Notes")
 			})
+			XSyncAttribute()
 			dsl.Required("name")
 		})
 
@@ -1139,6 +1144,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Conflict", dsl.StatusConflict)
@@ -1159,6 +1165,7 @@ var _ = dsl.Service("committee-service", func() {
 			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			FolderUIDAttribute()
+			XSyncAttribute()
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
@@ -1173,6 +1180,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("folder_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -1204,6 +1212,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("file_name", dsl.String, "Original file name (from the uploaded file part)")
 			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")
 			dsl.Attribute("file", dsl.Bytes, "File content")
+			XSyncAttribute()
 
 			dsl.Required("name", "uid", "file_name", "content_type", "file")
 		})
@@ -1221,6 +1230,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.MultipartRequest()
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
@@ -1310,6 +1320,7 @@ var _ = dsl.Service("committee-service", func() {
 			CommitteeUIDAttribute()
 			DocumentUIDAttribute()
 			IfMatchAttribute()
+			XSyncAttribute()
 
 			dsl.Required("uid", "document_uid", "if_match")
 		})
@@ -1327,6 +1338,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("document_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)

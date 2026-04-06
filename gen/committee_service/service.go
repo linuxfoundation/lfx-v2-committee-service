@@ -453,6 +453,9 @@ type CreateCommitteeLinkFolderPayload struct {
 	UID *string
 	// Folder name
 	Name string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // CreateCommitteeLinkPayload is the payload type of the committee-service
@@ -472,6 +475,9 @@ type CreateCommitteeLinkPayload struct {
 	Description *string
 	// Optional folder UID to place this link in
 	FolderUID *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // CreateCommitteeMemberPayload is the payload type of the committee-service
@@ -638,6 +644,9 @@ type DeleteCommitteeDocumentPayload struct {
 	DocumentUID string
 	// If-Match header value for conditional requests
 	IfMatch string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // DeleteCommitteeLinkFolderPayload is the payload type of the
@@ -653,6 +662,9 @@ type DeleteCommitteeLinkFolderPayload struct {
 	UID *string
 	// Committee folder UID
 	FolderUID *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // DeleteCommitteeLinkPayload is the payload type of the committee-service
@@ -668,6 +680,9 @@ type DeleteCommitteeLinkPayload struct {
 	UID *string
 	// Committee link UID
 	LinkUID *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // DeleteCommitteeMemberPayload is the payload type of the committee-service
@@ -1124,6 +1139,9 @@ type UploadCommitteeDocumentPayload struct {
 	ContentType string
 	// File content
 	File []byte
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 type BadRequestError struct {

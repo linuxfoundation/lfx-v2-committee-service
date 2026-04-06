@@ -3972,6 +3972,11 @@ func EncodeCreateCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encode
 				req.Header.Set("Authorization", head)
 			}
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		if p.Version != nil {
 			values.Add("v", *p.Version)
@@ -4138,6 +4143,11 @@ func EncodeDeleteCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encode
 		if p.IfMatch != nil {
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -4580,6 +4590,11 @@ func EncodeCreateCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.
 				req.Header.Set("Authorization", head)
 			}
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		if p.Version != nil {
 			values.Add("v", *p.Version)
@@ -4763,6 +4778,11 @@ func EncodeDeleteCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.
 			head := *p.IfMatch
 			req.Header.Set("If-Match", head)
 		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
+		}
 		values := req.URL.Query()
 		if p.Version != nil {
 			values.Add("v", *p.Version)
@@ -4903,6 +4923,11 @@ func EncodeUploadCommitteeDocumentRequest(encoder func(*http.Request) goahttp.En
 			} else {
 				req.Header.Set("Authorization", head)
 			}
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {
@@ -5381,6 +5406,11 @@ func EncodeDeleteCommitteeDocumentRequest(encoder func(*http.Request) goahttp.En
 		{
 			head := p.IfMatch
 			req.Header.Set("If-Match", head)
+		}
+		{
+			head := p.XSync
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Sync", headStr)
 		}
 		values := req.URL.Query()
 		if p.Version != nil {

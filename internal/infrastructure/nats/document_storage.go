@@ -140,7 +140,7 @@ func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committee
 	errDelete := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Delete(ctx, documentUID, jetstream.LastRevision(revision))
 	if errDelete != nil {
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
-			return errs.NewConflict("document has been modified or deleted")
+			return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
 		}
 		var jsErr jetstream.JetStreamError
 		if errors.As(errDelete, &jsErr) {

@@ -5439,7 +5439,7 @@ func NewListCommitteeLinksPayload(uid string, version *string, folderUID *string
 
 // NewCreateCommitteeLinkPayload builds a committee-service service
 // create-committee-link endpoint payload.
-func NewCreateCommitteeLinkPayload(body *CreateCommitteeLinkRequestBody, uid string, version *string, bearerToken *string) *committeeservice.CreateCommitteeLinkPayload {
+func NewCreateCommitteeLinkPayload(body *CreateCommitteeLinkRequestBody, uid string, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteeLinkPayload {
 	v := &committeeservice.CreateCommitteeLinkPayload{
 		Name:        *body.Name,
 		URL:         *body.URL,
@@ -5449,19 +5449,21 @@ func NewCreateCommitteeLinkPayload(body *CreateCommitteeLinkRequestBody, uid str
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }
 
 // NewDeleteCommitteeLinkPayload builds a committee-service service
 // delete-committee-link endpoint payload.
-func NewDeleteCommitteeLinkPayload(uid string, linkUID string, version *string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteeLinkPayload {
+func NewDeleteCommitteeLinkPayload(uid string, linkUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeLinkPayload {
 	v := &committeeservice.DeleteCommitteeLinkPayload{}
 	v.UID = &uid
 	v.LinkUID = &linkUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
@@ -5491,33 +5493,35 @@ func NewListCommitteeLinkFoldersPayload(uid string, version *string, bearerToken
 
 // NewCreateCommitteeLinkFolderPayload builds a committee-service service
 // create-committee-link-folder endpoint payload.
-func NewCreateCommitteeLinkFolderPayload(body *CreateCommitteeLinkFolderRequestBody, uid string, version *string, bearerToken *string) *committeeservice.CreateCommitteeLinkFolderPayload {
+func NewCreateCommitteeLinkFolderPayload(body *CreateCommitteeLinkFolderRequestBody, uid string, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteeLinkFolderPayload {
 	v := &committeeservice.CreateCommitteeLinkFolderPayload{
 		Name: *body.Name,
 	}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }
 
 // NewDeleteCommitteeLinkFolderPayload builds a committee-service service
 // delete-committee-link-folder endpoint payload.
-func NewDeleteCommitteeLinkFolderPayload(uid string, folderUID string, version *string, bearerToken *string, ifMatch *string) *committeeservice.DeleteCommitteeLinkFolderPayload {
+func NewDeleteCommitteeLinkFolderPayload(uid string, folderUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeLinkFolderPayload {
 	v := &committeeservice.DeleteCommitteeLinkFolderPayload{}
 	v.UID = &uid
 	v.FolderUID = &folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }
 
 // NewUploadCommitteeDocumentPayload builds a committee-service service
 // upload-committee-document endpoint payload.
-func NewUploadCommitteeDocumentPayload(body *UploadCommitteeDocumentRequestBody, uid string, version *string, bearerToken *string) *committeeservice.UploadCommitteeDocumentPayload {
+func NewUploadCommitteeDocumentPayload(body *UploadCommitteeDocumentRequestBody, uid string, version *string, bearerToken *string, xSync bool) *committeeservice.UploadCommitteeDocumentPayload {
 	v := &committeeservice.UploadCommitteeDocumentPayload{
 		Name:        *body.Name,
 		Description: body.Description,
@@ -5528,6 +5532,7 @@ func NewUploadCommitteeDocumentPayload(body *UploadCommitteeDocumentRequestBody,
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v
 }
@@ -5558,13 +5563,14 @@ func NewDownloadCommitteeDocumentPayload(uid string, documentUID string, version
 
 // NewDeleteCommitteeDocumentPayload builds a committee-service service
 // delete-committee-document endpoint payload.
-func NewDeleteCommitteeDocumentPayload(uid string, documentUID string, version *string, bearerToken *string, ifMatch string) *committeeservice.DeleteCommitteeDocumentPayload {
+func NewDeleteCommitteeDocumentPayload(uid string, documentUID string, version *string, bearerToken *string, ifMatch string, xSync bool) *committeeservice.DeleteCommitteeDocumentPayload {
 	v := &committeeservice.DeleteCommitteeDocumentPayload{}
 	v.UID = uid
 	v.DocumentUID = documentUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v
 }

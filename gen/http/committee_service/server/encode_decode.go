@@ -3425,6 +3425,7 @@ func DecodeCreateCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 			uid         string
 			version     *string
 			bearerToken *string
+			xSync       bool
 
 			params = mux.Vars(r)
 		)
@@ -3443,10 +3444,20 @@ func DecodeCreateCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeLinkPayload(&body, uid, version, bearerToken)
+		payload := NewCreateCommitteeLinkPayload(&body, uid, version, bearerToken, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -3546,6 +3557,7 @@ func DecodeDeleteCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 			version     *string
 			bearerToken *string
 			ifMatch     *string
+			xSync       bool
 			err         error
 
 			params = mux.Vars(r)
@@ -3571,10 +3583,20 @@ func DecodeDeleteCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Requ
 		if ifMatchRaw != "" {
 			ifMatch = &ifMatchRaw
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeLinkPayload(uid, linkUID, version, bearerToken, ifMatch)
+		payload := NewDeleteCommitteeLinkPayload(uid, linkUID, version, bearerToken, ifMatch, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -3921,6 +3943,7 @@ func DecodeCreateCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 			uid         string
 			version     *string
 			bearerToken *string
+			xSync       bool
 
 			params = mux.Vars(r)
 		)
@@ -3939,10 +3962,20 @@ func DecodeCreateCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeLinkFolderPayload(&body, uid, version, bearerToken)
+		payload := NewCreateCommitteeLinkFolderPayload(&body, uid, version, bearerToken, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -4055,6 +4088,7 @@ func DecodeDeleteCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 			version     *string
 			bearerToken *string
 			ifMatch     *string
+			xSync       bool
 			err         error
 
 			params = mux.Vars(r)
@@ -4080,10 +4114,20 @@ func DecodeDeleteCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 		if ifMatchRaw != "" {
 			ifMatch = &ifMatchRaw
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeLinkFolderPayload(uid, folderUID, version, bearerToken, ifMatch)
+		payload := NewDeleteCommitteeLinkFolderPayload(uid, folderUID, version, bearerToken, ifMatch, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -4219,6 +4263,7 @@ func NewCommitteeServiceUploadCommitteeDocumentDecoder(mux goahttp.Muxer, commit
 				uid         string
 				version     *string
 				bearerToken *string
+				xSync       bool
 				err         error
 
 				params = mux.Vars(r)
@@ -4238,12 +4283,23 @@ func NewCommitteeServiceUploadCommitteeDocumentDecoder(mux goahttp.Muxer, commit
 			if bearerTokenRaw != "" {
 				bearerToken = &bearerTokenRaw
 			}
+			{
+				xSyncRaw := r.Header.Get("X-Sync")
+				if xSyncRaw != "" {
+					v, err2 := strconv.ParseBool(xSyncRaw)
+					if err2 != nil {
+						err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+					}
+					xSync = v
+				}
+			}
 			if err != nil {
 				return err
 			}
 			(*p).UID = uid
 			(*p).Version = version
 			(*p).BearerToken = bearerToken
+			(*p).XSync = xSync
 			return nil
 		})
 	}
@@ -4574,6 +4630,7 @@ func DecodeDeleteCommitteeDocumentRequest(mux goahttp.Muxer, decoder func(*http.
 			version     *string
 			bearerToken *string
 			ifMatch     string
+			xSync       bool
 			err         error
 
 			params = mux.Vars(r)
@@ -4599,10 +4656,20 @@ func DecodeDeleteCommitteeDocumentRequest(mux goahttp.Muxer, decoder func(*http.
 		if ifMatch == "" {
 			err = goa.MergeErrors(err, goa.MissingFieldError("if_match", "header"))
 		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeDocumentPayload(uid, documentUID, version, bearerToken, ifMatch)
+		payload := NewDeleteCommitteeDocumentPayload(uid, documentUID, version, bearerToken, ifMatch, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

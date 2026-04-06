@@ -154,6 +154,7 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 			payload.Description = &desc
 		case "file":
 			if int64(len(data)) > model.MaxDocumentFileSize {
+				_ = part.Close()
 				return fmt.Errorf("file size exceeds maximum allowed size of %d bytes", model.MaxDocumentFileSize)
 			}
 			fileName := part.FileName()
@@ -167,6 +168,7 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 			payload.ContentType = ct
 			payload.File = data
 		}
+		_ = part.Close()
 	}
 	// Validate DSL constraints (MaxLength on name/description)
 	// that the custom multipart decoder bypasses.
