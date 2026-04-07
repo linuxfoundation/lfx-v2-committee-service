@@ -724,35 +724,35 @@ func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, ema
 	return sub, nil
 }
 
-// buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member_put operation.
-// For create/update, it adds the user to the "member" relation.
-// For delete, it removes the user by sending an empty relations list with mutually_exclusive_with.
+// buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member operation.
+// For create/update, it sends member_put to add the user to the "member" relation.
+// For delete, it sends member_remove with empty relations to remove all tuples for the user.
 func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) model.GenericFGAMessage {
-	var relations []string
-	var mutuallyExclusiveWith []string
-
-	switch action {
-	case model.ActionCreated, model.ActionUpdated:
-		relations = []string{constants.RelationMember}
-	case model.ActionDeleted:
-		relations = []string{}
-		mutuallyExclusiveWith = []string{constants.RelationMember}
-	}
-
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),
 		"committee_uid", member.CommitteeUID,
 		"action", action,
 	)
 
+	if action == model.ActionDeleted {
+		return model.GenericFGAMessage{
+			ObjectType: "committee",
+			Operation:  "member_remove",
+			Data: model.FGAMemberPutData{
+				UID:       member.CommitteeUID,
+				Username:  member.Username,
+				Relations: []string{},
+			},
+		}
+	}
+
 	return model.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "member_put",
 		Data: model.FGAMemberPutData{
-			UID:                   member.CommitteeUID,
-			Username:              member.Username,
-			Relations:             relations,
-			MutuallyExclusiveWith: mutuallyExclusiveWith,
+			UID:       member.CommitteeUID,
+			Username:  member.Username,
+			Relations: []string{constants.RelationMember},
 		},
 	}
 }
@@ -854,7 +854,11 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				)
 				return nil
 			}
-			return uc.committeePublisher.Access(ctx, constants.FGASyncMemberPutSubject, accessControlMessage, sync)
+			subject := constants.FGASyncMemberPutSubject
+			if action == model.ActionDeleted {
+				subject = constants.FGASyncMemberRemoveSubject
+			}
+			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
 		},
 	}
 

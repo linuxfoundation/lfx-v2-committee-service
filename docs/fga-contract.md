@@ -22,7 +22,8 @@ All messages use the generic FGA message format on the following NATS subjects:
 |---|---|
 | `lfx.fga-sync.update_access` | Create and update operations |
 | `lfx.fga-sync.delete_access` | Delete operations |
-| `lfx.fga-sync.member_put` | Add or remove individual committee members |
+| `lfx.fga-sync.member_put` | Add or update individual committee members |
+| `lfx.fga-sync.member_remove` | Remove individual committee members |
 
 Each message carries `object_type`, `operation`, and a `data` map. The sections below describe the `data` contents for each operation.
 
@@ -73,9 +74,9 @@ These fields are carried inside the message `data` object.
 
 `exclude_relations: ["member"]` — always set. Individual committee members are managed via `member_put` and must not be overwritten by the `update_access` handler.
 
-### member_put (Committee Member)
+### member_put (Committee Member Create/Update)
 
-Published to `lfx.fga-sync.member_put` when a committee member is created, updated, or deleted and the member has a non-empty `Username`.
+Published to `lfx.fga-sync.member_put` when a committee member is created or updated and the member has a non-empty `Username`.
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
@@ -86,9 +87,20 @@ The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UI
 | `object_type` | `committee` | Always |
 | `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
 | `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
-| `relations` | `["member"]` | When action is create or update |
-| `relations` | `[]` (empty) | When action is delete |
-| `mutually_exclusive_with` | `["member"]` | Only when action is delete |
+| `relations` | `["member"]` | Always |
+
+### member_remove (Committee Member Delete)
+
+Published to `lfx.fga-sync.member_remove` when a committee member is deleted and the member has a non-empty `Username`. Sends an empty `relations` array, which instructs fga-sync to remove all tuples for that user on the committee object.
+
+#### Member Data
+
+| Field | Value | Condition |
+|---|---|---|
+| `object_type` | `committee` | Always |
+| `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
+| `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
+| `relations` | `[]` (empty — remove all) | Always |
 
 ### Delete
 
@@ -106,4 +118,4 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 | Delete committee | `committee` | `lfx.fga-sync.delete_access` | Always sent |
 | Create committee member (with username) | `committee` | `lfx.fga-sync.member_put` | Skipped if `Username` is empty |
 | Update committee member (with username) | `committee` | `lfx.fga-sync.member_put` | Skipped if `Username` is empty |
-| Delete committee member (with username) | `committee` | `lfx.fga-sync.member_put` | Skipped if `Username` is empty; sends empty relations to remove |
+| Delete committee member (with username) | `committee` | `lfx.fga-sync.member_remove` | Skipped if `Username` is empty; empty relations removes all tuples for the user |
