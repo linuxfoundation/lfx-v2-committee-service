@@ -5,7 +5,11 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"sync"
@@ -13,6 +17,7 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	committeeservicesvr "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/middleware"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -62,7 +67,12 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	)
 	{
 		eh := errorHandler(ctx)
-		committeeServiceServer = committeeservicesvr.New(committeeServiceEndpoints, mux, dec, enc, eh, nil, koDataDir, koDataDir, koDataDir, koDataDir)
+		committeeServiceServer = committeeservicesvr.New(
+			committeeServiceEndpoints,
+			mux, dec, enc, eh, nil,
+			uploadCommitteeDocumentDecoder,
+			koDataDir, koDataDir, koDataDir, koDataDir,
+		)
 	}
 
 	// Configure the mux.
@@ -114,6 +124,66 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 			slog.ErrorContext(ctx, "failed to shutdown HTTP server", "error", err)
 		}
 	}()
+}
+
+// uploadCommitteeDocumentDecoder is the multipart decoder for the
+// upload-committee-document endpoint. It reads form parts and populates
+// the payload's File, FileName, ContentType, Name, and Description fields.
+func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.UploadCommitteeDocumentPayload) error {
+	if *p == nil {
+		*p = &committeeservice.UploadCommitteeDocumentPayload{}
+	}
+	payload := *p
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		data, err := io.ReadAll(io.LimitReader(part, model.MaxDocumentFileSize+1))
+		if err != nil {
+			_ = part.Close()
+			return err
+		}
+		switch part.FormName() {
+		case "name":
+			payload.Name = string(data)
+		case "description":
+			desc := string(data)
+			payload.Description = &desc
+		case "file":
+			if int64(len(data)) > model.MaxDocumentFileSize {
+				_ = part.Close()
+				return fmt.Errorf("file size exceeds maximum allowed size of %d bytes", model.MaxDocumentFileSize)
+			}
+			fileName := part.FileName()
+			payload.FileName = fileName
+			ct := part.Header.Get("Content-Type")
+			// Normalize: strip parameters (e.g. "text/plain; charset=utf-8" → "text/plain")
+			// so the allowlist check in the service layer matches bare MIME types.
+			if mediaType, _, err := mime.ParseMediaType(ct); err == nil {
+				ct = mediaType
+			}
+			payload.ContentType = ct
+			payload.File = data
+		}
+		_ = part.Close()
+	}
+	// Validate DSL constraints (MaxLength on name/description)
+	// that the custom multipart decoder bypasses.
+	requestBody := &committeeservicesvr.UploadCommitteeDocumentRequestBody{
+		Name:        &payload.Name,
+		Description: payload.Description,
+		FileName:    &payload.FileName,
+		ContentType: &payload.ContentType,
+		File:        payload.File,
+	}
+	if err := committeeservicesvr.ValidateUploadCommitteeDocumentRequestBody(requestBody); err != nil {
+		return err
+	}
+	return nil
 }
 
 // errorHandler returns a function that writes and logs the given error.

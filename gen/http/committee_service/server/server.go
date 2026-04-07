@@ -9,7 +9,10 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"path"
 
@@ -52,6 +55,10 @@ type Server struct {
 	ListCommitteeLinkFolders  http.Handler
 	CreateCommitteeLinkFolder http.Handler
 	DeleteCommitteeLinkFolder http.Handler
+	UploadCommitteeDocument   http.Handler
+	GetCommitteeDocument      http.Handler
+	DownloadCommitteeDocument http.Handler
+	DeleteCommitteeDocument   http.Handler
 	GenHTTPOpenapiJSON        http.Handler
 	GenHTTPOpenapiYaml        http.Handler
 	GenHTTPOpenapi3JSON       http.Handler
@@ -69,6 +76,11 @@ type MountPoint struct {
 	Pattern string
 }
 
+// CommitteeServiceUploadCommitteeDocumentDecoderFunc is the type to decode
+// multipart request for the "committee-service" service
+// "upload-committee-document" endpoint.
+type CommitteeServiceUploadCommitteeDocumentDecoderFunc func(*multipart.Reader, **committeeservice.UploadCommitteeDocumentPayload) error
+
 // New instantiates HTTP handlers for all the committee-service service
 // endpoints using the provided encoder and decoder. The handlers are mounted
 // on the given mux using the HTTP verb and path defined in the design.
@@ -82,6 +94,7 @@ func New(
 	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
 	errhandler func(context.Context, http.ResponseWriter, error),
 	formatter func(ctx context.Context, err error) goahttp.Statuser,
+	committeeServiceUploadCommitteeDocumentDecoderFn CommitteeServiceUploadCommitteeDocumentDecoderFunc,
 	fileSystemGenHTTPOpenapiJSON http.FileSystem,
 	fileSystemGenHTTPOpenapiYaml http.FileSystem,
 	fileSystemGenHTTPOpenapi3JSON http.FileSystem,
@@ -136,6 +149,10 @@ func New(
 			{"ListCommitteeLinkFolders", "GET", "/committees/{uid}/folders"},
 			{"CreateCommitteeLinkFolder", "POST", "/committees/{uid}/folders"},
 			{"DeleteCommitteeLinkFolder", "DELETE", "/committees/{uid}/folders/{folder_uid}"},
+			{"UploadCommitteeDocument", "POST", "/committees/{uid}/documents"},
+			{"GetCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}"},
+			{"DownloadCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}/download"},
+			{"DeleteCommitteeDocument", "DELETE", "/committees/{uid}/documents/{document_uid}"},
 			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
 			{"Serve gen/http/openapi.yaml", "GET", "/_committees/openapi.yaml"},
 			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
@@ -172,6 +189,10 @@ func New(
 		ListCommitteeLinkFolders:  NewListCommitteeLinkFoldersHandler(e.ListCommitteeLinkFolders, mux, decoder, encoder, errhandler, formatter),
 		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderHandler(e.CreateCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderHandler(e.DeleteCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
+		UploadCommitteeDocument:   NewUploadCommitteeDocumentHandler(e.UploadCommitteeDocument, mux, NewCommitteeServiceUploadCommitteeDocumentDecoder(mux, committeeServiceUploadCommitteeDocumentDecoderFn), encoder, errhandler, formatter),
+		GetCommitteeDocument:      NewGetCommitteeDocumentHandler(e.GetCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		DownloadCommitteeDocument: NewDownloadCommitteeDocumentHandler(e.DownloadCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentHandler(e.DeleteCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		GenHTTPOpenapiJSON:        http.FileServer(fileSystemGenHTTPOpenapiJSON),
 		GenHTTPOpenapiYaml:        http.FileServer(fileSystemGenHTTPOpenapiYaml),
 		GenHTTPOpenapi3JSON:       http.FileServer(fileSystemGenHTTPOpenapi3JSON),
@@ -215,6 +236,10 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.ListCommitteeLinkFolders = m(s.ListCommitteeLinkFolders)
 	s.CreateCommitteeLinkFolder = m(s.CreateCommitteeLinkFolder)
 	s.DeleteCommitteeLinkFolder = m(s.DeleteCommitteeLinkFolder)
+	s.UploadCommitteeDocument = m(s.UploadCommitteeDocument)
+	s.GetCommitteeDocument = m(s.GetCommitteeDocument)
+	s.DownloadCommitteeDocument = m(s.DownloadCommitteeDocument)
+	s.DeleteCommitteeDocument = m(s.DeleteCommitteeDocument)
 }
 
 // MethodNames returns the methods served.
@@ -253,6 +278,10 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountListCommitteeLinkFoldersHandler(mux, h.ListCommitteeLinkFolders)
 	MountCreateCommitteeLinkFolderHandler(mux, h.CreateCommitteeLinkFolder)
 	MountDeleteCommitteeLinkFolderHandler(mux, h.DeleteCommitteeLinkFolder)
+	MountUploadCommitteeDocumentHandler(mux, h.UploadCommitteeDocument)
+	MountGetCommitteeDocumentHandler(mux, h.GetCommitteeDocument)
+	MountDownloadCommitteeDocumentHandler(mux, h.DownloadCommitteeDocument)
+	MountDeleteCommitteeDocumentHandler(mux, h.DeleteCommitteeDocument)
 	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
 	MountGenHTTPOpenapiYaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiYaml))
 	MountGenHTTPOpenapi3JSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3JSON))
@@ -1891,6 +1920,257 @@ func NewDeleteCommitteeLinkFolderHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "delete-committee-link-folder")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountUploadCommitteeDocumentHandler configures the mux to serve the
+// "committee-service" service "upload-committee-document" endpoint.
+func MountUploadCommitteeDocumentHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/documents", f)
+}
+
+// NewUploadCommitteeDocumentHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "upload-committee-document" endpoint.
+func NewUploadCommitteeDocumentHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeUploadCommitteeDocumentRequest(mux, decoder)
+		encodeResponse = EncodeUploadCommitteeDocumentResponse(encoder)
+		encodeError    = EncodeUploadCommitteeDocumentError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "upload-committee-document")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountGetCommitteeDocumentHandler configures the mux to serve the
+// "committee-service" service "get-committee-document" endpoint.
+func MountGetCommitteeDocumentHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/{uid}/documents/{document_uid}", f)
+}
+
+// NewGetCommitteeDocumentHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "get-committee-document"
+// endpoint.
+func NewGetCommitteeDocumentHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeGetCommitteeDocumentRequest(mux, decoder)
+		encodeResponse = EncodeGetCommitteeDocumentResponse(encoder)
+		encodeError    = EncodeGetCommitteeDocumentError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "get-committee-document")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountDownloadCommitteeDocumentHandler configures the mux to serve the
+// "committee-service" service "download-committee-document" endpoint.
+func MountDownloadCommitteeDocumentHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/{uid}/documents/{document_uid}/download", f)
+}
+
+// NewDownloadCommitteeDocumentHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "download-committee-document" endpoint.
+func NewDownloadCommitteeDocumentHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeDownloadCommitteeDocumentRequest(mux, decoder)
+		encodeResponse = EncodeDownloadCommitteeDocumentResponse(encoder)
+		encodeError    = EncodeDownloadCommitteeDocumentError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "download-committee-document")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		o := res.(*committeeservice.DownloadCommitteeDocumentResponseData)
+		defer o.Body.Close()
+		if wt, ok := o.Body.(io.WriterTo); ok {
+			if err := encodeResponse(ctx, w, res); err != nil {
+				if errhandler != nil {
+					errhandler(ctx, w, err)
+				}
+				return
+			}
+			n, err := wt.WriteTo(w)
+			if err != nil {
+				if n == 0 {
+					if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+						errhandler(ctx, w, err)
+					}
+				} else {
+					http.NewResponseController(w).Flush()
+					panic(http.ErrAbortHandler) // too late to write an error
+				}
+			}
+			return
+		}
+		// handle immediate read error like a returned error
+		buf := bufio.NewReader(o.Body)
+		if _, err := buf.Peek(1); err != nil && err != io.EOF {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if _, err := io.Copy(w, buf); err != nil {
+			http.NewResponseController(w).Flush()
+			panic(http.ErrAbortHandler) // too late to write an error
+		}
+	})
+}
+
+// MountDeleteCommitteeDocumentHandler configures the mux to serve the
+// "committee-service" service "delete-committee-document" endpoint.
+func MountDeleteCommitteeDocumentHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("DELETE", "/committees/{uid}/documents/{document_uid}", f)
+}
+
+// NewDeleteCommitteeDocumentHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "delete-committee-document" endpoint.
+func NewDeleteCommitteeDocumentHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeDeleteCommitteeDocumentRequest(mux, decoder)
+		encodeResponse = EncodeDeleteCommitteeDocumentResponse(encoder)
+		encodeError    = EncodeDeleteCommitteeDocumentError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "delete-committee-document")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

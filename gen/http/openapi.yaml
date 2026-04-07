@@ -593,6 +593,288 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/documents:
+        post:
+            tags:
+                - committee-service
+            summary: upload-committee-document committee-service
+            description: Upload a file document to a committee
+            operationId: committee-service#upload-committee-document
+            consumes:
+                - multipart/form-data
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
+                - name: Upload-Committee-DocumentRequestBody
+                  in: formData
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceUploadCommitteeDocumentRequestBody'
+                    required:
+                        - name
+                        - file_name
+                        - content_type
+                        - file
+            responses:
+                "201":
+                    description: Created response.
+                    schema:
+                        $ref: '#/definitions/CommitteeDocumentWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/documents/{document_uid}:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-document committee-service
+            description: Get metadata for a single committee document
+            operationId: committee-service#get-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeServiceGetCommitteeDocumentResponseBody'
+                    headers:
+                        ETag:
+                            description: ETag header value
+                            type: string
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+        delete:
+            tags:
+                - committee-service
+            summary: delete-committee-document committee-service
+            description: Delete a document from a committee
+            operationId: committee-service#delete-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  required: true
+                  type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/documents/{document_uid}/download:
+        get:
+            tags:
+                - committee-service
+            summary: download-committee-document committee-service
+            description: Download the file for a committee document
+            operationId: committee-service#download-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/folders:
         get:
             tags:
@@ -673,6 +955,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-Committee-Link-FolderRequestBody
                   in: body
                   required: true
@@ -818,6 +1106,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -1428,6 +1722,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
                 - name: Create-Committee-LinkRequestBody
                   in: body
                   required: true
@@ -1568,6 +1868,12 @@ paths:
                   description: If-Match header value for conditional requests
                   required: false
                   type: string
+                - name: X-Sync
+                  in: header
+                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.
@@ -2276,6 +2582,70 @@ definitions:
             total_voting_repos: 3
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
+    CommitteeDocumentWithReadonlyAttributes:
+        title: CommitteeDocumentWithReadonlyAttributes
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            content_type:
+                type: string
+                description: MIME type of the file
+                example: application/pdf
+            created_at:
+                type: string
+                description: The timestamp when the resource was created (read-only)
+                example: "2023-01-15T10:30:00Z"
+                format: date-time
+            description:
+                type: string
+                description: Optional description
+                example: Technical architecture decisions for Q1 2025
+                maxLength: 2000
+            file_name:
+                type: string
+                description: Original file name
+                example: architecture-decisions-q1-2025.pdf
+                maxLength: 500
+            file_size:
+                type: integer
+                description: File size in bytes
+                example: 204800
+                format: int64
+                minimum: 0
+            name:
+                type: string
+                description: Display name for the document
+                example: Architecture Decision Record
+                maxLength: 500
+            uid:
+                type: string
+                description: Document UID
+                example: d1e2f3a4-b5c6-7890-defa-123456789012
+                format: uuid
+            updated_at:
+                type: string
+                description: The timestamp when the resource was last updated (read-only)
+                example: "2023-06-20T14:45:30Z"
+                format: date-time
+            uploaded_by_username:
+                type: string
+                description: LF username of the uploader (auto-populated from JWT)
+                example: alexlee
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            content_type: application/pdf
+            created_at: "2023-01-15T10:30:00Z"
+            description: Technical architecture decisions for Q1 2025
+            file_name: architecture-decisions-q1-2025.pdf
+            file_size: 204800
+            name: Architecture Decision Record
+            uid: d1e2f3a4-b5c6-7890-defa-123456789012
+            updated_at: "2023-06-20T14:45:30Z"
+            uploaded_by_username: alexlee
     CommitteeFullWithReadonlyAttributes:
         title: CommitteeFullWithReadonlyAttributes
         type: object
@@ -2550,11 +2920,7 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_name:
-                type: string
-                description: Display name of the user who created the folder (client-provided)
-                example: Alex Lee
-            created_by_uid:
+            created_by_username:
                 type: string
                 description: LF username of the user who created the folder (auto-populated from JWT)
                 example: alexlee
@@ -2577,8 +2943,7 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_name: Alex Lee
-            created_by_uid: alexlee
+            created_by_username: alexlee
             name: Meeting Notes
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
@@ -2596,11 +2961,7 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_name:
-                type: string
-                description: Display name of the user who added the link (client-provided)
-                example: Alex Lee
-            created_by_uid:
+            created_by_username:
                 type: string
                 description: LF username of the user who added the link (auto-populated from JWT)
                 example: alexlee
@@ -2638,8 +2999,7 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_name: Alex Lee
-            created_by_uid: alexlee
+            created_by_username: alexlee
             description: Confluence wiki — architecture decisions log
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Technical Architecture Decision Records
@@ -2869,18 +3229,12 @@ definitions:
         title: CommitteeServiceCreateCommitteeLinkFolderRequestBody
         type: object
         properties:
-            created_by_name:
-                type: string
-                description: Display name of the creator (client-provided from user session)
-                example: Alex Lee
-                maxLength: 200
             name:
                 type: string
                 description: Folder name
                 example: Meeting Notes
                 maxLength: 200
         example:
-            created_by_name: Alex Lee
             name: Meeting Notes
         required:
             - name
@@ -2888,20 +3242,15 @@ definitions:
         title: CommitteeServiceCreateCommitteeLinkRequestBody
         type: object
         properties:
-            created_by_name:
-                type: string
-                description: Display name of the creator (client-provided from user session)
-                example: Alex Lee
-                maxLength: 200
             description:
                 type: string
                 description: Optional description
-                example: kaj
+                example: qxz
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 9509a22a-60e0-45d9-ae02-2598a993309d
+                example: d6fc9b72-ba63-4dd4-90db-5ada12d48ed2
                 format: uuid
             name:
                 type: string
@@ -2914,9 +3263,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            created_by_name: Alex Lee
-            description: "128"
-            folder_uid: d154ebd0-cc20-4205-a53e-6fe527ee147a
+            description: 7cs
+            folder_uid: a7860d96-d93c-47fa-a309-9b278f2c3e25
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -3311,6 +3659,9 @@ definitions:
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'
+    CommitteeServiceGetCommitteeDocumentResponseBody:
+        title: CommitteeServiceGetCommitteeDocumentResponseBody
+        $ref: '#/definitions/CommitteeDocumentWithReadonlyAttributes'
     CommitteeServiceGetCommitteeLinkFolderResponseBody:
         title: CommitteeServiceGetCommitteeLinkFolderResponseBody
         $ref: '#/definitions/CommitteeLinkFolderWithReadonlyAttributes'
@@ -3720,6 +4071,98 @@ definitions:
                   username: manager_user_id1
         required:
             - business_email_required
+    CommitteeServiceUploadCommitteeDocumentRequestBody:
+        title: CommitteeServiceUploadCommitteeDocumentRequestBody
+        type: object
+        properties:
+            content_type:
+                type: string
+                description: MIME type of the uploaded file
+                example: Itaque omnis aliquam.
+            description:
+                type: string
+                description: Optional description
+                example: cjv
+                maxLength: 2000
+            file:
+                type: string
+                description: File content
+                example:
+                    - 81
+                    - 117
+                    - 105
+                    - 100
+                    - 101
+                    - 109
+                    - 32
+                    - 112
+                    - 101
+                    - 114
+                    - 115
+                    - 112
+                    - 105
+                    - 99
+                    - 105
+                    - 97
+                    - 116
+                    - 105
+                    - 115
+                    - 46
+                format: byte
+            file_name:
+                type: string
+                description: Original file name (from the uploaded file part)
+                example: Aperiam labore repudiandae atque quo et.
+            name:
+                type: string
+                description: Display name for the document
+                example: Architecture Decision Record
+                maxLength: 500
+        example:
+            content_type: Adipisci nisi totam provident veniam assumenda.
+            description: bzo
+            file:
+                - 70
+                - 97
+                - 99
+                - 101
+                - 114
+                - 101
+                - 32
+                - 97
+                - 100
+                - 105
+                - 112
+                - 105
+                - 115
+                - 99
+                - 105
+                - 32
+                - 97
+                - 114
+                - 99
+                - 104
+                - 105
+                - 116
+                - 101
+                - 99
+                - 116
+                - 111
+                - 32
+                - 108
+                - 97
+                - 98
+                - 111
+                - 114
+                - 101
+                - 46
+            file_name: Eaque eum placeat soluta facere doloribus autem.
+            name: Architecture Decision Record
+        required:
+            - name
+            - file_name
+            - content_type
+            - file
     CommitteeSettingsWithReadonlyAttributes:
         title: CommitteeSettingsWithReadonlyAttributes
         type: object

@@ -10,6 +10,7 @@ package committeeservice
 
 import (
 	"context"
+	"io"
 
 	"goa.design/goa/v3/security"
 )
@@ -79,6 +80,18 @@ type Service interface {
 	// Delete a folder from a committee. Returns BadRequest if the folder contains
 	// links.
 	DeleteCommitteeLinkFolder(context.Context, *DeleteCommitteeLinkFolderPayload) (err error)
+	// Upload a file document to a committee
+	UploadCommitteeDocument(context.Context, *UploadCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error)
+	// Get metadata for a single committee document
+	GetCommitteeDocument(context.Context, *GetCommitteeDocumentPayload) (res *GetCommitteeDocumentResult, err error)
+	// Download the file for a committee document
+
+	// If body implements [io.WriterTo], that implementation will be used instead.
+	// Consider [goa.design/goa/v3/pkg.SkipResponseWriter] to adapt existing
+	// implementations.
+	DownloadCommitteeDocument(context.Context, *DownloadCommitteeDocumentPayload) (body io.ReadCloser, err error)
+	// Delete a document from a committee
+	DeleteCommitteeDocument(context.Context, *DeleteCommitteeDocumentPayload) (err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -101,7 +114,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [31]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder"}
+var MethodNames = [35]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -200,6 +213,31 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	TotalVotingRepos *int
 }
 
+// CommitteeDocumentWithReadonlyAttributes is the result type of the
+// committee-service service upload-committee-document method.
+type CommitteeDocumentWithReadonlyAttributes struct {
+	// Document UID
+	UID *string
+	// Committee UID
+	CommitteeUID *string
+	// Display name for the document
+	Name *string
+	// Optional description
+	Description *string
+	// Original file name
+	FileName *string
+	// File size in bytes
+	FileSize *int64
+	// MIME type of the file
+	ContentType *string
+	// LF username of the uploader (auto-populated from JWT)
+	UploadedByUsername *string
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string
+}
+
 // CommitteeFullWithReadonlyAttributes is the result type of the
 // committee-service service create-committee method.
 type CommitteeFullWithReadonlyAttributes struct {
@@ -291,9 +329,7 @@ type CommitteeLinkFolderWithReadonlyAttributes struct {
 	// Folder name
 	Name *string
 	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUID *string
-	// Display name of the user who created the folder (client-provided)
-	CreatedByName *string
+	CreatedByUsername *string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -316,9 +352,7 @@ type CommitteeLinkWithReadonlyAttributes struct {
 	// Optional description
 	Description *string
 	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUID *string
-	// Display name of the user who added the link (client-provided)
-	CreatedByName *string
+	CreatedByUsername *string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -435,8 +469,9 @@ type CreateCommitteeLinkFolderPayload struct {
 	UID *string
 	// Folder name
 	Name string
-	// Display name of the creator (client-provided from user session)
-	CreatedByName *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // CreateCommitteeLinkPayload is the payload type of the committee-service
@@ -456,8 +491,9 @@ type CreateCommitteeLinkPayload struct {
 	Description *string
 	// Optional folder UID to place this link in
 	FolderUID *string
-	// Display name of the creator (client-provided from user session)
-	CreatedByName *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // CreateCommitteeMemberPayload is the payload type of the committee-service
@@ -611,6 +647,24 @@ type DeclineInvitePayload struct {
 	InviteUID string
 }
 
+// DeleteCommitteeDocumentPayload is the payload type of the committee-service
+// service delete-committee-document method.
+type DeleteCommitteeDocumentPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee document UID
+	DocumentUID string
+	// If-Match header value for conditional requests
+	IfMatch string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
+}
+
 // DeleteCommitteeLinkFolderPayload is the payload type of the
 // committee-service service delete-committee-link-folder method.
 type DeleteCommitteeLinkFolderPayload struct {
@@ -624,6 +678,9 @@ type DeleteCommitteeLinkFolderPayload struct {
 	UID *string
 	// Committee folder UID
 	FolderUID *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // DeleteCommitteeLinkPayload is the payload type of the committee-service
@@ -639,6 +696,9 @@ type DeleteCommitteeLinkPayload struct {
 	UID *string
 	// Committee link UID
 	LinkUID *string
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 // DeleteCommitteeMemberPayload is the payload type of the committee-service
@@ -675,6 +735,19 @@ type DeleteCommitteePayload struct {
 	UID *string
 }
 
+// DownloadCommitteeDocumentPayload is the payload type of the
+// committee-service service download-committee-document method.
+type DownloadCommitteeDocumentPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee document UID
+	DocumentUID *string
+}
+
 // GetApplicationPayload is the payload type of the committee-service service
 // get-application method.
 type GetApplicationPayload struct {
@@ -703,6 +776,27 @@ type GetCommitteeBasePayload struct {
 // get-committee-base method.
 type GetCommitteeBaseResult struct {
 	CommitteeBase *CommitteeBaseWithReadonlyAttributes
+	// ETag header value
+	Etag *string
+}
+
+// GetCommitteeDocumentPayload is the payload type of the committee-service
+// service get-committee-document method.
+type GetCommitteeDocumentPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee document UID
+	DocumentUID *string
+}
+
+// GetCommitteeDocumentResult is the result type of the committee-service
+// service get-committee-document method.
+type GetCommitteeDocumentResult struct {
+	CommitteeDocument *CommitteeDocumentWithReadonlyAttributes
 	// ETag header value
 	Etag *string
 }
@@ -1040,6 +1134,30 @@ type UpdateCommitteeSettingsPayload struct {
 	Writers []*CommitteeUser
 	// Users who can audit this committee
 	Auditors []*CommitteeUser
+}
+
+// UploadCommitteeDocumentPayload is the payload type of the committee-service
+// service upload-committee-document method.
+type UploadCommitteeDocumentPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Display name for the document
+	Name string
+	// Optional description
+	Description *string
+	// Original file name (from the uploaded file part)
+	FileName string
+	// MIME type of the uploaded file
+	ContentType string
+	// File content
+	File []byte
+	// Determines if the operation should be synchronous (true) or asynchronous
+	// (false, default)
+	XSync bool
 }
 
 type BadRequestError struct {

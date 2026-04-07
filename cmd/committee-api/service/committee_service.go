@@ -7,7 +7,9 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -34,6 +36,8 @@ type committeeServicesrvc struct {
 	userReader                  port.UserReader
 	linkReader                  service.CommitteeLinkDataReader
 	linkWriter                  service.CommitteeLinkDataWriter
+	docReader                   service.CommitteeDocumentDataReader
+	docWriter                   service.CommitteeDocumentDataWriter
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1009,7 +1013,7 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter) committeeservice.Service {
+func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
@@ -1019,6 +1023,8 @@ func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCom
 		userReader:                  userReader,
 		linkReader:                  linkReader,
 		linkWriter:                  linkWriter,
+		docReader:                   docReader,
+		docWriter:                   docWriter,
 	}
 }
 
@@ -1059,10 +1065,10 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID: *p.UID,
-		Name:         p.Name,
-		URL:          p.URL,
-		CreatedByUID: principal,
+		CommitteeUID:      *p.UID,
+		Name:              p.Name,
+		URL:               p.URL,
+		CreatedByUsername: principal,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description
@@ -1070,11 +1076,8 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 	if p.FolderUID != nil {
 		link.FolderUID = p.FolderUID
 	}
-	if p.CreatedByName != nil {
-		link.CreatedByName = *p.CreatedByName
-	}
 
-	created, err := s.linkWriter.CreateLink(ctx, link)
+	created, err := s.linkWriter.CreateLink(ctx, link, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1107,7 +1110,7 @@ func (s *committeeServicesrvc) DeleteCommitteeLink(ctx context.Context, p *commi
 		return wrapError(ctx, err)
 	}
 
-	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID, parsedRevision); err != nil {
+	if err := s.linkWriter.DeleteLink(ctx, *p.UID, *p.LinkUID, parsedRevision, p.XSync); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1163,15 +1166,12 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		CommitteeUID: *p.UID,
-		Name:         p.Name,
-		CreatedByUID: principal,
-	}
-	if p.CreatedByName != nil {
-		folder.CreatedByName = *p.CreatedByName
+		CommitteeUID:      *p.UID,
+		Name:              p.Name,
+		CreatedByUsername: principal,
 	}
 
-	created, err := s.linkWriter.CreateLinkFolder(ctx, folder)
+	created, err := s.linkWriter.CreateLinkFolder(ctx, folder, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1188,7 +1188,7 @@ func (s *committeeServicesrvc) DeleteCommitteeLinkFolder(ctx context.Context, p 
 		return wrapError(ctx, err)
 	}
 
-	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID, parsedRevision); err != nil {
+	if err := s.linkWriter.DeleteLinkFolder(ctx, *p.UID, *p.FolderUID, parsedRevision, p.XSync); err != nil {
 		return wrapError(ctx, err)
 	}
 	return nil
@@ -1216,13 +1216,9 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		desc := l.Description
 		res.Description = &desc
 	}
-	if l.CreatedByUID != "" {
-		v := l.CreatedByUID
-		res.CreatedByUID = &v
-	}
-	if l.CreatedByName != "" {
-		v := l.CreatedByName
-		res.CreatedByName = &v
+	if l.CreatedByUsername != "" {
+		v := l.CreatedByUsername
+		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -1242,13 +1238,173 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
-	if f.CreatedByUID != "" {
-		v := f.CreatedByUID
-		res.CreatedByUID = &v
-	}
-	if f.CreatedByName != "" {
-		v := f.CreatedByName
-		res.CreatedByName = &v
+	if f.CreatedByUsername != "" {
+		v := f.CreatedByUsername
+		res.CreatedByUsername = &v
 	}
 	return res
+}
+
+// ─── Committee Document Endpoints ───
+
+// UploadCommitteeDocument handles multipart file upload for a committee document.
+func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *committeeservice.UploadCommitteeDocumentPayload) (res *committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeService.upload-committee-document", "committee_uid", p.UID)
+
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return nil, errors.NewValidation("unable to determine user identity from token")
+	}
+
+	// Verify committee exists before attaching a document to it.
+	if _, _, err := s.storage.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	doc := &model.CommitteeDocument{
+		CommitteeUID:       p.UID,
+		Name:               p.Name,
+		UploadedByUsername: principal,
+	}
+	if p.Description != nil {
+		doc.Description = *p.Description
+	}
+	doc.FileName = p.FileName
+	doc.ContentType = p.ContentType
+
+	created, err := s.docWriter.UploadDocument(ctx, doc, p.File, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	return domainDocumentToGoa(created), nil
+}
+
+// GetCommitteeDocument returns metadata for a single committee document with an ETag.
+func (s *committeeServicesrvc) GetCommitteeDocument(ctx context.Context, p *committeeservice.GetCommitteeDocumentPayload) (res *committeeservice.GetCommitteeDocumentResult, err error) {
+	slog.DebugContext(ctx, "committeeService.get-committee-document", "committee_uid", p.UID, "document_uid", p.DocumentUID)
+
+	doc, revision, err := s.docReader.GetDocumentMetadata(ctx, *p.UID, *p.DocumentUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	revisionStr := fmt.Sprintf("%d", revision)
+	return &committeeservice.GetCommitteeDocumentResult{
+		CommitteeDocument: domainDocumentToGoa(doc),
+		Etag:              &revisionStr,
+	}, nil
+}
+
+// DownloadCommitteeDocument returns the raw file data for a committee document.
+// The returned io.ReadCloser also implements io.WriterTo so it can set
+// Content-Type and Content-Disposition headers before writing bytes to the
+// http.ResponseWriter (Goa calls WriteTo after the empty EncodeResponse no-op).
+func (s *committeeServicesrvc) DownloadCommitteeDocument(ctx context.Context, p *committeeservice.DownloadCommitteeDocumentPayload) (body io.ReadCloser, err error) {
+	slog.DebugContext(ctx, "committeeService.download-committee-document", "committee_uid", p.UID, "document_uid", p.DocumentUID)
+
+	doc, _, err := s.docReader.GetDocumentMetadata(ctx, *p.UID, *p.DocumentUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	fileData, err := s.docReader.GetDocumentFile(ctx, *p.DocumentUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return &documentDownloadBody{
+		data:        fileData,
+		contentType: doc.ContentType,
+		fileName:    doc.FileName,
+	}, nil
+}
+
+// DeleteCommitteeDocument deletes a committee document using optimistic locking via If-Match.
+func (s *committeeServicesrvc) DeleteCommitteeDocument(ctx context.Context, p *committeeservice.DeleteCommitteeDocumentPayload) (err error) {
+	slog.DebugContext(ctx, "committeeService.delete-committee-document", "committee_uid", p.UID, "document_uid", p.DocumentUID)
+
+	revision, err := etagValidator(&p.IfMatch)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+
+	if err := s.docWriter.DeleteDocument(ctx, p.UID, p.DocumentUID, revision, p.XSync); err != nil {
+		return wrapError(ctx, err)
+	}
+	return nil
+}
+
+// domainDocumentToGoa converts a domain CommitteeDocument to its Goa result type.
+func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.CommitteeDocumentWithReadonlyAttributes {
+	uid := d.UID
+	committeeUID := d.CommitteeUID
+	name := d.Name
+	fileName := d.FileName
+	fileSize := d.FileSize
+	contentType := d.ContentType
+	createdAt := d.CreatedAt.UTC().Format(time.RFC3339)
+	updatedAt := d.UpdatedAt.UTC().Format(time.RFC3339)
+
+	res := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
+		UID:          &uid,
+		CommitteeUID: &committeeUID,
+		Name:         &name,
+		FileName:     &fileName,
+		FileSize:     &fileSize,
+		ContentType:  &contentType,
+		CreatedAt:    &createdAt,
+		UpdatedAt:    &updatedAt,
+	}
+	if d.Description != "" {
+		v := d.Description
+		res.Description = &v
+	}
+	if d.UploadedByUsername != "" {
+		v := d.UploadedByUsername
+		res.UploadedByUsername = &v
+	}
+	return res
+}
+
+// documentDownloadBody is an io.ReadCloser that also implements io.WriterTo.
+// When Goa calls WriteTo(w) with the http.ResponseWriter, it sets the
+// Content-Type and Content-Disposition headers before writing file bytes,
+// ensuring headers are sent before the body without touching generated code.
+type documentDownloadBody struct {
+	data        []byte
+	contentType string
+	fileName    string
+	offset      int
+}
+
+func (b *documentDownloadBody) Read(p []byte) (n int, err error) {
+	if b.offset >= len(b.data) {
+		return 0, io.EOF
+	}
+	n = copy(p, b.data[b.offset:])
+	b.offset += n
+	return n, nil
+}
+
+func (b *documentDownloadBody) Close() error { return nil }
+
+func (b *documentDownloadBody) WriteTo(w io.Writer) (int64, error) {
+	if hw, ok := w.(http.ResponseWriter); ok {
+		if b.contentType != "" {
+			hw.Header().Set("Content-Type", b.contentType)
+		}
+		if b.fileName != "" {
+			// Sanitize filename for RFC 6266 compliance: replace characters
+			// that could cause header injection or malformed headers.
+			safeName := strings.Map(func(r rune) rune {
+				if r == '"' || r == '\\' || r == '\n' || r == '\r' {
+					return '_'
+				}
+				return r
+			}, b.fileName)
+			hw.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, safeName))
+		}
+	}
+	n, err := w.Write(b.data)
+	return int64(n), err
 }
