@@ -724,27 +724,37 @@ func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, ema
 	return sub, nil
 }
 
-// committeeMemberStub represents the minimal data needed for FGA member access control
-type committeeMemberStub struct {
-	// Username is the username (i.e. LFID) of the member. This is the identity of the user object in FGA.
-	Username string `json:"username"`
-	// CommitteeUID is the committee ID for the committee the member belongs to.
-	CommitteeUID string `json:"committee_uid"`
-}
+// buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member_put operation.
+// For create/update, it adds the user to the "member" relation.
+// For delete, it removes the user by sending an empty relations list with mutually_exclusive_with.
+func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) model.GenericFGAMessage {
+	var relations []string
+	var mutuallyExclusiveWith []string
 
-// buildMemberAccessControlMessage builds an access control message for a committee member
-func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember) *committeeMemberStub {
-	message := &committeeMemberStub{
-		Username:     member.Username,
-		CommitteeUID: member.CommitteeUID,
+	switch action {
+	case model.ActionCreated, model.ActionUpdated:
+		relations = []string{"member"}
+	case model.ActionDeleted:
+		relations = []string{}
+		mutuallyExclusiveWith = []string{"member"}
 	}
 
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),
 		"committee_uid", member.CommitteeUID,
+		"action", action,
 	)
 
-	return message
+	return model.GenericFGAMessage{
+		ObjectType: "committee",
+		Operation:  "member_put",
+		Data: model.FGAMemberPutData{
+			UID:                   member.CommitteeUID,
+			Username:              member.Username,
+			Relations:             relations,
+			MutuallyExclusiveWith: mutuallyExclusiveWith,
+		},
+	}
 }
 
 // publishMemberMessages publishes indexer and access control messages for committee member operations
@@ -824,16 +834,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Build access control message for the member
-	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member)
-
-	// Determine the access control subject based on action
-	var accessSubject string
-	switch action {
-	case model.ActionCreated, model.ActionUpdated:
-		accessSubject = constants.PutMemberCommitteeSubject
-	case model.ActionDeleted:
-		accessSubject = constants.RemoveMemberCommitteeSubject
-	}
+	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member, action)
 
 	// Publish messages concurrently
 	messages := []func() error{
@@ -853,7 +854,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				)
 				return nil
 			}
-			return uc.committeePublisher.Access(ctx, accessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.Access(ctx, constants.FGASyncMemberPutSubject, accessControlMessage, sync)
 		},
 	}
 

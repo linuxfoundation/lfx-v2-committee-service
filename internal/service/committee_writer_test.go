@@ -539,7 +539,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
 		name      string
 		committee *model.Committee
-		expected  *model.CommitteeAccessMessage
+		expected  model.GenericFGAMessage
 	}{
 		{
 			name: "committee without parent",
@@ -555,16 +555,20 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{{Username: "auditor1@example.com"}},
 				},
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-1",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     true,
-				Relations: map[string][]string{
-					"writer":  {"writer1@example.com", "writer2@example.com"},
-					"auditor": {"auditor1@example.com"},
-				},
-				References: map[string]string{
-					"project": "project-1",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-1",
+					Public: true,
+					Relations: map[string][]string{
+						"writer":  {"writer1@example.com", "writer2@example.com"},
+						"auditor": {"auditor1@example.com"},
+					},
+					References: map[string][]string{
+						"project": {"project-1"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
@@ -582,15 +586,19 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{},
 				},
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-2",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     false,
-				Relations: map[string][]string{
-					"writer": {"writer@example.com"},
-				},
-				References: map[string]string{
-					"project": "project-2",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-2",
+					Public: false,
+					Relations: map[string][]string{
+						"writer": {"writer@example.com"},
+					},
+					References: map[string][]string{
+						"project": {"project-2"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
@@ -605,13 +613,16 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				},
 				CommitteeSettings: nil,
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-3",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     true,
-				Relations:  map[string][]string{},
-				References: map[string]string{
-					"project": "project-3",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-3",
+					Public: true,
+					References: map[string][]string{
+						"project": {"project-3"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
