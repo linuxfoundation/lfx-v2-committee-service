@@ -1774,13 +1774,13 @@ func BuildListCommitteeLinksPayload(committeeServiceListCommitteeLinksUID string
 
 // BuildCreateCommitteeLinkPayload builds the payload for the committee-service
 // create-committee-link endpoint from CLI flags.
-func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody string, committeeServiceCreateCommitteeLinkUID string, committeeServiceCreateCommitteeLinkVersion string, committeeServiceCreateCommitteeLinkBearerToken string) (*committeeservice.CreateCommitteeLinkPayload, error) {
+func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody string, committeeServiceCreateCommitteeLinkUID string, committeeServiceCreateCommitteeLinkVersion string, committeeServiceCreateCommitteeLinkBearerToken string, committeeServiceCreateCommitteeLinkXSync string) (*committeeservice.CreateCommitteeLinkPayload, error) {
 	var err error
 	var body CreateCommitteeLinkRequestBody
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"description\": \"zil\",\n      \"folder_uid\": \"6ae48706-1ffe-4123-a3a0-54350d2f7273\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"i04\",\n      \"folder_uid\": \"27355660-a042-4a5b-b89e-2c8d204a1e52\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -1795,11 +1795,6 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 		}
 		if body.FolderUID != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
-		}
-		if body.CreatedByName != nil {
-			if utf8.RuneCountInString(*body.CreatedByName) > 200 {
-				err = goa.MergeErrors(err, goa.InvalidLengthError("body.created_by_name", *body.CreatedByName, utf8.RuneCountInString(*body.CreatedByName), 200, false))
-			}
 		}
 		if err != nil {
 			return nil, err
@@ -1831,23 +1826,32 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 			bearerToken = &committeeServiceCreateCommitteeLinkBearerToken
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceCreateCommitteeLinkXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceCreateCommitteeLinkXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeLinkPayload{
-		Name:          body.Name,
-		URL:           body.URL,
-		Description:   body.Description,
-		FolderUID:     body.FolderUID,
-		CreatedByName: body.CreatedByName,
+		Name:        body.Name,
+		URL:         body.URL,
+		Description: body.Description,
+		FolderUID:   body.FolderUID,
 	}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v, nil
 }
 
 // BuildDeleteCommitteeLinkPayload builds the payload for the committee-service
 // delete-committee-link endpoint from CLI flags.
-func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID string, committeeServiceDeleteCommitteeLinkLinkUID string, committeeServiceDeleteCommitteeLinkVersion string, committeeServiceDeleteCommitteeLinkBearerToken string, committeeServiceDeleteCommitteeLinkIfMatch string) (*committeeservice.DeleteCommitteeLinkPayload, error) {
+func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID string, committeeServiceDeleteCommitteeLinkLinkUID string, committeeServiceDeleteCommitteeLinkVersion string, committeeServiceDeleteCommitteeLinkBearerToken string, committeeServiceDeleteCommitteeLinkIfMatch string, committeeServiceDeleteCommitteeLinkXSync string) (*committeeservice.DeleteCommitteeLinkPayload, error) {
 	var err error
 	var uid string
 	{
@@ -1889,12 +1893,22 @@ func BuildDeleteCommitteeLinkPayload(committeeServiceDeleteCommitteeLinkUID stri
 			ifMatch = &committeeServiceDeleteCommitteeLinkIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceDeleteCommitteeLinkXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceDeleteCommitteeLinkXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteeLinkPayload{}
 	v.UID = &uid
 	v.LinkUID = &linkUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }
@@ -1986,21 +2000,16 @@ func BuildListCommitteeLinkFoldersPayload(committeeServiceListCommitteeLinkFolde
 
 // BuildCreateCommitteeLinkFolderPayload builds the payload for the
 // committee-service create-committee-link-folder endpoint from CLI flags.
-func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFolderBody string, committeeServiceCreateCommitteeLinkFolderUID string, committeeServiceCreateCommitteeLinkFolderVersion string, committeeServiceCreateCommitteeLinkFolderBearerToken string) (*committeeservice.CreateCommitteeLinkFolderPayload, error) {
+func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFolderBody string, committeeServiceCreateCommitteeLinkFolderUID string, committeeServiceCreateCommitteeLinkFolderVersion string, committeeServiceCreateCommitteeLinkFolderBearerToken string, committeeServiceCreateCommitteeLinkFolderXSync string) (*committeeservice.CreateCommitteeLinkFolderPayload, error) {
 	var err error
 	var body CreateCommitteeLinkFolderRequestBody
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkFolderBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"created_by_name\": \"Alex Lee\",\n      \"name\": \"Meeting Notes\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Meeting Notes\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 200, false))
-		}
-		if body.CreatedByName != nil {
-			if utf8.RuneCountInString(*body.CreatedByName) > 200 {
-				err = goa.MergeErrors(err, goa.InvalidLengthError("body.created_by_name", *body.CreatedByName, utf8.RuneCountInString(*body.CreatedByName), 200, false))
-			}
 		}
 		if err != nil {
 			return nil, err
@@ -2032,20 +2041,29 @@ func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFo
 			bearerToken = &committeeServiceCreateCommitteeLinkFolderBearerToken
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceCreateCommitteeLinkFolderXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceCreateCommitteeLinkFolderXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeLinkFolderPayload{
-		Name:          body.Name,
-		CreatedByName: body.CreatedByName,
+		Name: body.Name,
 	}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
+	v.XSync = xSync
 
 	return v, nil
 }
 
 // BuildDeleteCommitteeLinkFolderPayload builds the payload for the
 // committee-service delete-committee-link-folder endpoint from CLI flags.
-func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string, committeeServiceDeleteCommitteeLinkFolderIfMatch string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {
+func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string, committeeServiceDeleteCommitteeLinkFolderIfMatch string, committeeServiceDeleteCommitteeLinkFolderXSync string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {
 	var err error
 	var uid string
 	{
@@ -2087,12 +2105,253 @@ func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFo
 			ifMatch = &committeeServiceDeleteCommitteeLinkFolderIfMatch
 		}
 	}
+	var xSync bool
+	{
+		if committeeServiceDeleteCommitteeLinkFolderXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceDeleteCommitteeLinkFolderXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteeLinkFolderPayload{}
 	v.UID = &uid
 	v.FolderUID = &folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
+	v.XSync = xSync
+
+	return v, nil
+}
+
+// BuildUploadCommitteeDocumentPayload builds the payload for the
+// committee-service upload-committee-document endpoint from CLI flags.
+func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocumentBody string, committeeServiceUploadCommitteeDocumentUID string, committeeServiceUploadCommitteeDocumentVersion string, committeeServiceUploadCommitteeDocumentBearerToken string, committeeServiceUploadCommitteeDocumentXSync string) (*committeeservice.UploadCommitteeDocumentPayload, error) {
+	var err error
+	var body UploadCommitteeDocumentRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+		}
+		if body.File == nil {
+			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
+		}
+		if utf8.RuneCountInString(body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
+		}
+		if body.Description != nil {
+			if utf8.RuneCountInString(*body.Description) > 2000 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceUploadCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceUploadCommitteeDocumentVersion != "" {
+			version = &committeeServiceUploadCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceUploadCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceUploadCommitteeDocumentBearerToken
+		}
+	}
+	var xSync bool
+	{
+		if committeeServiceUploadCommitteeDocumentXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceUploadCommitteeDocumentXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
+	v := &committeeservice.UploadCommitteeDocumentPayload{
+		Name:        body.Name,
+		Description: body.Description,
+		FileName:    body.FileName,
+		ContentType: body.ContentType,
+		File:        body.File,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+
+	return v, nil
+}
+
+// BuildGetCommitteeDocumentPayload builds the payload for the
+// committee-service get-committee-document endpoint from CLI flags.
+func BuildGetCommitteeDocumentPayload(committeeServiceGetCommitteeDocumentUID string, committeeServiceGetCommitteeDocumentDocumentUID string, committeeServiceGetCommitteeDocumentVersion string, committeeServiceGetCommitteeDocumentBearerToken string) (*committeeservice.GetCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceGetCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGetCommitteeDocumentVersion != "" {
+			version = &committeeServiceGetCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeDocumentBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeDocumentPayload{}
+	v.UID = &uid
+	v.DocumentUID = &documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDownloadCommitteeDocumentPayload builds the payload for the
+// committee-service download-committee-document endpoint from CLI flags.
+func BuildDownloadCommitteeDocumentPayload(committeeServiceDownloadCommitteeDocumentUID string, committeeServiceDownloadCommitteeDocumentDocumentUID string, committeeServiceDownloadCommitteeDocumentVersion string, committeeServiceDownloadCommitteeDocumentBearerToken string) (*committeeservice.DownloadCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDownloadCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceDownloadCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDownloadCommitteeDocumentVersion != "" {
+			version = &committeeServiceDownloadCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDownloadCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceDownloadCommitteeDocumentBearerToken
+		}
+	}
+	v := &committeeservice.DownloadCommitteeDocumentPayload{}
+	v.UID = &uid
+	v.DocumentUID = &documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildDeleteCommitteeDocumentPayload builds the payload for the
+// committee-service delete-committee-document endpoint from CLI flags.
+func BuildDeleteCommitteeDocumentPayload(committeeServiceDeleteCommitteeDocumentUID string, committeeServiceDeleteCommitteeDocumentDocumentUID string, committeeServiceDeleteCommitteeDocumentVersion string, committeeServiceDeleteCommitteeDocumentBearerToken string, committeeServiceDeleteCommitteeDocumentIfMatch string, committeeServiceDeleteCommitteeDocumentXSync string) (*committeeservice.DeleteCommitteeDocumentPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceDeleteCommitteeDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentUID string
+	{
+		documentUID = committeeServiceDeleteCommitteeDocumentDocumentUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("document_uid", documentUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceDeleteCommitteeDocumentVersion != "" {
+			version = &committeeServiceDeleteCommitteeDocumentVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceDeleteCommitteeDocumentBearerToken != "" {
+			bearerToken = &committeeServiceDeleteCommitteeDocumentBearerToken
+		}
+	}
+	var ifMatch string
+	{
+		ifMatch = committeeServiceDeleteCommitteeDocumentIfMatch
+	}
+	var xSync bool
+	{
+		if committeeServiceDeleteCommitteeDocumentXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceDeleteCommitteeDocumentXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
+	v := &committeeservice.DeleteCommitteeDocumentPayload{}
+	v.UID = uid
+	v.DocumentUID = documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+	v.XSync = xSync
 
 	return v, nil
 }

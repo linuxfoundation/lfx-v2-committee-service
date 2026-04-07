@@ -97,6 +97,7 @@ func main() {
 	authService := service.AuthServiceImpl(ctx)
 	storage := service.CommitteeReaderWriterImpl(ctx)
 	linkStorage := service.CommitteeLinkReaderWriterImpl(ctx)
+	docStorage := service.CommitteeDocumentReaderWriterImpl(ctx)
 
 	// Initialize the service with use cases
 	writeCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
@@ -121,7 +122,17 @@ func main() {
 		usecaseSvc.WithLinkPublisher(committeePublisher),
 	)
 
-	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage, committeePublisher, userReader, linkReaderUseCase, linkWriterUseCase)
+	docReaderUseCase := usecaseSvc.NewDocumentReaderOrchestrator(
+		usecaseSvc.WithDocumentReader(docStorage),
+	)
+
+	docWriterUseCase := usecaseSvc.NewDocumentWriterOrchestrator(
+		usecaseSvc.WithDocumentWriter(docStorage),
+		usecaseSvc.WithDocumentReaderForWriter(docStorage),
+		usecaseSvc.WithDocumentPublisher(committeePublisher),
+	)
+
+	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage, committeePublisher, userReader, linkReaderUseCase, linkWriterUseCase, docReaderUseCase, docWriterUseCase)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.
