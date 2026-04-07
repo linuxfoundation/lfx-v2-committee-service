@@ -2269,7 +2269,7 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 			},
 		},
 		{
-			name: "delete — empty relations with mutually_exclusive_with",
+			name: "delete — member_remove with empty relations",
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-3",
@@ -2279,12 +2279,11 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 			action: model.ActionDeleted,
 			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Operation:  "member_put",
+				Operation:  "member_remove",
 				Data: model.FGAMemberPutData{
-					UID:                   "committee-3",
-					Username:              "user3@example.com",
-					Relations:             []string{},
-					MutuallyExclusiveWith: []string{"member"},
+					UID:       "committee-3",
+					Username:  "user3@example.com",
+					Relations: []string{},
 				},
 			},
 		},
