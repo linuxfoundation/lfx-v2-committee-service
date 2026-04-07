@@ -38,11 +38,20 @@ Each message carries `object_type`, `operation`, and a `data` map. The sections 
 
 Published to `lfx.fga-sync.update_access` on committee create or update (base or settings).
 
-#### Access Config
+#### Message Envelope
 
 | Field | Value |
 |---|---|
 | `object_type` | `committee` |
+| `operation` | `update_access` |
+
+#### Data Fields
+
+These fields are carried inside the message `data` object.
+
+| Field | Value |
+|---|---|
+| `uid` | `CommitteeBase.UID` |
 | `public` | `CommitteeBase.Public` (passed through directly) |
 
 #### Relations
