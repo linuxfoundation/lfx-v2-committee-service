@@ -279,33 +279,40 @@ func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, 
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) *model.CommitteeAccessMessage {
-
-	message := &model.CommitteeAccessMessage{
-		UID:        committee.CommitteeBase.UID,
-		ObjectType: "committee",
-		Public:     committee.Public,
-		// Relations is reserved for future use and is intentionally left empty.
-		Relations: map[string][]string{},
-		References: map[string]string{
-			// project is required in the flow
-			constants.RelationProject: committee.ProjectUID,
-		},
-	}
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) model.GenericFGAMessage {
+	relations := map[string][]string{}
 
 	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
-		message.Relations[constants.RelationWriter] = extractUsernames(committee.Writers)
+		relations[constants.RelationWriter] = extractUsernames(committee.Writers)
 	}
 
 	if committee.CommitteeSettings != nil && len(committee.Auditors) > 0 {
-		message.Relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
+		relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
+	}
+
+	data := model.FGAUpdateAccessData{
+		UID:    committee.CommitteeBase.UID,
+		Public: committee.Public,
+		References: map[string][]string{
+			constants.RelationProject: {committee.ProjectUID},
+		},
+		// member relations are managed separately via member_put and must not be overwritten here
+		ExcludeRelations: []string{"member"},
+	}
+
+	if len(relations) > 0 {
+		data.Relations = relations
 	}
 
 	slog.DebugContext(ctx, "building access control message",
-		"message", message,
+		"committee_uid", committee.CommitteeBase.UID,
 	)
 
-	return message
+	return model.GenericFGAMessage{
+		ObjectType: "committee",
+		Operation:  "update_access",
+		Data:       data,
+	}
 }
 
 // extractUsernames extracts the Username field from a slice of CommitteeUser for use in access control messages.
@@ -506,7 +513,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
+		return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
 	})
 
 	// all messages are executed concurrently
@@ -724,7 +731,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
+			return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -840,7 +847,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.UpdateAccessCommitteeSubject, accessControlMessage, sync)
+			return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -964,8 +971,13 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	}
 
 	// Build access control deletion message
+	deleteMsg := model.GenericFGAMessage{
+		ObjectType: "committee",
+		Operation:  "delete_access",
+		Data:       model.FGADeleteAccessData{UID: uid},
+	}
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.DeleteAllAccessCommitteeSubject, uid, sync)
+		return uc.committeePublisher.Access(ctx, constants.FGASyncDeleteAccessSubject, deleteMsg, sync)
 	})
 
 	// Execute all messages concurrently
