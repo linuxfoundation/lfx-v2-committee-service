@@ -733,10 +733,10 @@ func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx conte
 
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
-		relations = []string{"member"}
+		relations = []string{constants.RelationMember}
 	case model.ActionDeleted:
 		relations = []string{}
-		mutuallyExclusiveWith = []string{"member"}
+		mutuallyExclusiveWith = []string{constants.RelationMember}
 	}
 
 	slog.DebugContext(ctx, "building member access control message",

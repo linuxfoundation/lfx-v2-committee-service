@@ -2222,3 +2222,82 @@ func TestCommitteeWriterOrchestrator_Delete_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.T) {
+	testCases := []struct {
+		name     string
+		member   *model.CommitteeMember
+		action   model.MessageAction
+		expected model.GenericFGAMessage
+	}{
+		{
+			name: "create — adds member relation",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Username:     "user@example.com",
+				},
+			},
+			action: model.ActionCreated,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_put",
+				Data: model.FGAMemberPutData{
+					UID:       "committee-1",
+					Username:  "user@example.com",
+					Relations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "update — adds member relation",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-2",
+					Username:     "user2@example.com",
+				},
+			},
+			action: model.ActionUpdated,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_put",
+				Data: model.FGAMemberPutData{
+					UID:       "committee-2",
+					Username:  "user2@example.com",
+					Relations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "delete — empty relations with mutually_exclusive_with",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-3",
+					Username:     "user3@example.com",
+				},
+			},
+			action: model.ActionDeleted,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_put",
+				Data: model.FGAMemberPutData{
+					UID:                   "committee-3",
+					Username:              "user3@example.com",
+					Relations:             []string{},
+					MutuallyExclusiveWith: []string{"member"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			orchestrator := &committeeWriterOrchestrator{}
+			ctx := context.Background()
+
+			result := orchestrator.buildMemberAccessControlMessage(ctx, tc.member, tc.action)
+
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

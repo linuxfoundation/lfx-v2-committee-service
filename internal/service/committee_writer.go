@@ -297,7 +297,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 			constants.RelationProject: {committee.ProjectUID},
 		},
 		// member relations are managed separately via member_put and must not be overwritten here
-		ExcludeRelations: []string{"member"},
+		ExcludeRelations: []string{constants.RelationMember},
 	}
 
 	if len(relations) > 0 {
