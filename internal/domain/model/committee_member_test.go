@@ -378,9 +378,9 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 				"project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
 				"project_slug:test-project",
+				"email:test@example.com",
 			},
 		},
 		{
@@ -398,8 +398,8 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 				"project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
+				"email:test@example.com",
 			},
 		},
 	}
