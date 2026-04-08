@@ -45,4 +45,13 @@ const (
 
 	// KVLookupFolderPrefix is the prefix for folder lookup keys in the KV store.
 	KVLookupFolderPrefix = "lookup/committee-folders/%s"
+
+	// KVBucketNameCommitteeDocuments is the name of the KV bucket for committee document metadata.
+	KVBucketNameCommitteeDocuments = "committee-documents-metadata"
+
+	// KVLookupDocumentPrefix is the prefix for document name lookup keys in the KV store.
+	KVLookupDocumentPrefix = "lookup/committee-documents/%s"
+
+	// ObjectStoreNameCommitteeDocuments is the name of the Object Store for committee document files.
+	ObjectStoreNameCommitteeDocuments = "committee-documents"
 )

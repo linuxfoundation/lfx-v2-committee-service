@@ -82,7 +82,7 @@ func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, 
 	errDelete := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Delete(ctx, linkUID, jetstream.LastRevision(revision))
 	if errDelete != nil {
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
-			return errs.NewConflict("link has been modified or deleted")
+			return errs.NewNotFound("link not found", fmt.Errorf("link UID: %s", linkUID))
 		}
 		return errs.NewUnexpected("failed to delete link", errDelete)
 	}
@@ -176,7 +176,7 @@ func (s *storage) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID 
 	errDelete := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Delete(ctx, folder.UID, jetstream.LastRevision(revision))
 	if errDelete != nil {
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
-			return errs.NewConflict("folder has been modified or deleted")
+			return errs.NewNotFound("folder not found", fmt.Errorf("folder UID: %s", folderUID))
 		}
 		return errs.NewUnexpected("failed to delete folder", errDelete)
 	}

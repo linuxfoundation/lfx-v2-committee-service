@@ -10,6 +10,7 @@ package committeeservice
 
 import (
 	"context"
+	"io"
 
 	goa "goa.design/goa/v3/pkg"
 	"goa.design/goa/v3/security"
@@ -48,6 +49,17 @@ type Endpoints struct {
 	ListCommitteeLinkFolders  goa.Endpoint
 	CreateCommitteeLinkFolder goa.Endpoint
 	DeleteCommitteeLinkFolder goa.Endpoint
+	UploadCommitteeDocument   goa.Endpoint
+	GetCommitteeDocument      goa.Endpoint
+	DownloadCommitteeDocument goa.Endpoint
+	DeleteCommitteeDocument   goa.Endpoint
+}
+
+// DownloadCommitteeDocumentResponseData holds both the result and the HTTP
+// response body reader of the "download-committee-document" method.
+type DownloadCommitteeDocumentResponseData struct {
+	// Body streams the HTTP response body.
+	Body io.ReadCloser
 }
 
 // NewEndpoints wraps the methods of the "committee-service" service with
@@ -87,6 +99,10 @@ func NewEndpoints(s Service) *Endpoints {
 		ListCommitteeLinkFolders:  NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
 		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
+		UploadCommitteeDocument:   NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
+		GetCommitteeDocument:      NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
+		DownloadCommitteeDocument: NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
+		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -124,6 +140,10 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.ListCommitteeLinkFolders = m(e.ListCommitteeLinkFolders)
 	e.CreateCommitteeLinkFolder = m(e.CreateCommitteeLinkFolder)
 	e.DeleteCommitteeLinkFolder = m(e.DeleteCommitteeLinkFolder)
+	e.UploadCommitteeDocument = m(e.UploadCommitteeDocument)
+	e.GetCommitteeDocument = m(e.GetCommitteeDocument)
+	e.DownloadCommitteeDocument = m(e.DownloadCommitteeDocument)
+	e.DeleteCommitteeDocument = m(e.DeleteCommitteeDocument)
 }
 
 // NewCreateCommitteeEndpoint returns an endpoint function that calls the
@@ -806,5 +826,101 @@ func NewDeleteCommitteeLinkFolderEndpoint(s Service, authJWTFn security.AuthJWTF
 			return nil, err
 		}
 		return nil, s.DeleteCommitteeLinkFolder(ctx, p)
+	}
+}
+
+// NewUploadCommitteeDocumentEndpoint returns an endpoint function that calls
+// the method "upload-committee-document" of service "committee-service".
+func NewUploadCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*UploadCommitteeDocumentPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.UploadCommitteeDocument(ctx, p)
+	}
+}
+
+// NewGetCommitteeDocumentEndpoint returns an endpoint function that calls the
+// method "get-committee-document" of service "committee-service".
+func NewGetCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCommitteeDocumentPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCommitteeDocument(ctx, p)
+	}
+}
+
+// NewDownloadCommitteeDocumentEndpoint returns an endpoint function that calls
+// the method "download-committee-document" of service "committee-service".
+func NewDownloadCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*DownloadCommitteeDocumentPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		body, err := s.DownloadCommitteeDocument(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		return &DownloadCommitteeDocumentResponseData{Body: body}, nil
+	}
+}
+
+// NewDeleteCommitteeDocumentEndpoint returns an endpoint function that calls
+// the method "delete-committee-document" of service "committee-service".
+func NewDeleteCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*DeleteCommitteeDocumentPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.DeleteCommitteeDocument(ctx, p)
 	}
 }

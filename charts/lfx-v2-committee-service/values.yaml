@@ -230,6 +230,44 @@ nats:
     # replicas is the number of replicas for the KV bucket
     replicas: 1
 
+  # committee_documents_metadata_kv_bucket is the configuration for the KV bucket for storing committee document metadata
+  committee_documents_metadata_kv_bucket:
+    # creation is a boolean to determine if the KV bucket should be created via the helm chart.
+    # set it to false if you want to use an existing KV bucket.
+    creation: true
+    # keep is a boolean to determine if the KV bucket should be preserved during helm uninstall
+    # set it to false if you want the bucket to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the KV bucket for storing committee document metadata
+    name: committee-documents-metadata
+    # history is the number of history entries to keep for each key — used for optimistic locking (ETag/If-Match)
+    history: 20
+    # storage is the storage type for the KV bucket
+    storage: file
+    # maxValueSize is the maximum size of a single metadata entry (document metadata JSON)
+    maxValueSize: 10485760  # 10MB
+    # maxBytes is the maximum total size of the KV bucket
+    maxBytes: 1073741824  # 1GB
+    # compression is a boolean to determine if the KV bucket should be compressed
+    compression: true
+    # replicas is the number of replicas for the KV bucket
+    replicas: 1
+
+  # object_store_committee_documents is the configuration for the Object Store for storing committee document files
+  object_store_committee_documents:
+    # creation is a boolean to determine if the Object Store should be created via the helm chart.
+    # set it to false if you want to use an existing Object Store.
+    creation: true
+    # keep is a boolean to determine if the Object Store should be preserved during helm uninstall
+    # set it to false if you want the store to be deleted when the chart is uninstalled
+    keep: true
+    # name is the name of the Object Store for storing committee document files
+    name: committee-documents
+    # storage is the storage type for the Object Store
+    storage: file
+    # maxBytes is the maximum total size of the Object Store across all stored files
+    maxBytes: 10737418240  # 10GB
+
 # openfga is the configuration for the OpenFGA server
 openfga:
   # enabled is a boolean to determine if the OpenFGA server should be enabled for authorization

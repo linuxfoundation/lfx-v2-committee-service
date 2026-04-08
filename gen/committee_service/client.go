@@ -10,6 +10,7 @@ package committeeservice
 
 import (
 	"context"
+	"io"
 
 	goa "goa.design/goa/v3/pkg"
 )
@@ -47,11 +48,15 @@ type Client struct {
 	ListCommitteeLinkFoldersEndpoint  goa.Endpoint
 	CreateCommitteeLinkFolderEndpoint goa.Endpoint
 	DeleteCommitteeLinkFolderEndpoint goa.Endpoint
+	UploadCommitteeDocumentEndpoint   goa.Endpoint
+	GetCommitteeDocumentEndpoint      goa.Endpoint
+	DownloadCommitteeDocumentEndpoint goa.Endpoint
+	DeleteCommitteeDocumentEndpoint   goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -84,6 +89,10 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		ListCommitteeLinkFoldersEndpoint:  listCommitteeLinkFolders,
 		CreateCommitteeLinkFolderEndpoint: createCommitteeLinkFolder,
 		DeleteCommitteeLinkFolderEndpoint: deleteCommitteeLinkFolder,
+		UploadCommitteeDocumentEndpoint:   uploadCommitteeDocument,
+		GetCommitteeDocumentEndpoint:      getCommitteeDocument,
+		DownloadCommitteeDocumentEndpoint: downloadCommitteeDocument,
+		DeleteCommitteeDocumentEndpoint:   deleteCommitteeDocument,
 	}
 }
 
@@ -586,5 +595,70 @@ func (c *Client) CreateCommitteeLinkFolder(ctx context.Context, p *CreateCommitt
 //   - error: internal error
 func (c *Client) DeleteCommitteeLinkFolder(ctx context.Context, p *DeleteCommitteeLinkFolderPayload) (err error) {
 	_, err = c.DeleteCommitteeLinkFolderEndpoint(ctx, p)
+	return
+}
+
+// UploadCommitteeDocument calls the "upload-committee-document" endpoint of
+// the "committee-service" service.
+// UploadCommitteeDocument may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Conflict" (type *ConflictError): Document name already exists
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) UploadCommitteeDocument(ctx context.Context, p *UploadCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.UploadCommitteeDocumentEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeDocumentWithReadonlyAttributes), nil
+}
+
+// GetCommitteeDocument calls the "get-committee-document" endpoint of the
+// "committee-service" service.
+// GetCommitteeDocument may return the following errors:
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeDocument(ctx context.Context, p *GetCommitteeDocumentPayload) (res *GetCommitteeDocumentResult, err error) {
+	var ires any
+	ires, err = c.GetCommitteeDocumentEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GetCommitteeDocumentResult), nil
+}
+
+// DownloadCommitteeDocument calls the "download-committee-document" endpoint
+// of the "committee-service" service.
+// DownloadCommitteeDocument may return the following errors:
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) DownloadCommitteeDocument(ctx context.Context, p *DownloadCommitteeDocumentPayload) (resp io.ReadCloser, err error) {
+	var ires any
+	ires, err = c.DownloadCommitteeDocumentEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	o := ires.(*DownloadCommitteeDocumentResponseData)
+	return o.Body, nil
+}
+
+// DeleteCommitteeDocument calls the "delete-committee-document" endpoint of
+// the "committee-service" service.
+// DeleteCommitteeDocument may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) DeleteCommitteeDocument(ctx context.Context, p *DeleteCommitteeDocumentPayload) (err error) {
+	_, err = c.DeleteCommitteeDocumentEndpoint(ctx, p)
 	return
 }

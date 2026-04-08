@@ -71,6 +71,10 @@ const (
 	// IndexCommitteeLinkFolderSubject is the subject for the committee link folder index.
 	// The subject is of the form: lfx.index.committee_link_folder
 	IndexCommitteeLinkFolderSubject = "lfx.index.committee_link_folder"
+
+	// IndexCommitteeDocumentSubject is the subject for the committee document index.
+	// The subject is of the form: lfx.index.committee_document
+	IndexCommitteeDocumentSubject = "lfx.index.committee_document"
 )
 
 // Event subjects emitted by the committee service for general consumption by any service

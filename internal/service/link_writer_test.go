@@ -104,7 +104,7 @@ func TestCreateLink_Success(t *testing.T) {
 		CommitteeUID: "committee-1",
 		Name:         "Linux Foundation",
 		URL:          "https://linuxfoundation.org",
-	})
+	}, false)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, link.UID)
@@ -119,7 +119,7 @@ func TestCreateLink_MissingName_ReturnsError(t *testing.T) {
 	_, err := orch.CreateLink(context.Background(), &model.CommitteeLink{
 		CommitteeUID: "committee-1",
 		URL:          "https://example.com",
-	})
+	}, false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
@@ -132,7 +132,7 @@ func TestCreateLink_MissingURL_ReturnsError(t *testing.T) {
 	_, err := orch.CreateLink(context.Background(), &model.CommitteeLink{
 		CommitteeUID: "committee-1",
 		Name:         "Some Link",
-	})
+	}, false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "URL")
@@ -145,7 +145,7 @@ func TestCreateLinkFolder_Success(t *testing.T) {
 	folder, err := orch.CreateLinkFolder(context.Background(), &model.CommitteeLinkFolder{
 		CommitteeUID: "committee-1",
 		Name:         "Meeting Notes",
-	})
+	}, false)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, folder.UID)
@@ -159,7 +159,7 @@ func TestCreateLinkFolder_MissingName_ReturnsError(t *testing.T) {
 
 	_, err := orch.CreateLinkFolder(context.Background(), &model.CommitteeLinkFolder{
 		CommitteeUID: "committee-1",
-	})
+	}, false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
