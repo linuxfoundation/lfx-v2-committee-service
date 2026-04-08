@@ -55,7 +55,6 @@ paths:
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
-                            has_mailing_list: true
                             join_mode: open
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
@@ -406,7 +405,6 @@ paths:
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
-                            has_mailing_list: true
                             join_mode: open
                             mailing_list: tsc@lists.example.org
                             name: Technical Steering Committee
@@ -3699,11 +3697,6 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
-                has_mailing_list:
-                    type: boolean
-                    description: Whether the committee has any associated mailing lists
-                    default: false
-                    example: true
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -3764,7 +3757,6 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
-                has_mailing_list: true
                 join_mode: open
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
@@ -4077,11 +4069,6 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
-                has_mailing_list:
-                    type: boolean
-                    description: Whether the committee has any associated mailing lists
-                    default: false
-                    example: true
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -4180,7 +4167,6 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
-                has_mailing_list: true
                 join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
@@ -5563,11 +5549,6 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
-                has_mailing_list:
-                    type: boolean
-                    description: Whether the committee has any associated mailing lists
-                    default: false
-                    example: true
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -5665,7 +5646,6 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
-                has_mailing_list: true
                 join_mode: open
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
@@ -5819,11 +5799,6 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
-                has_mailing_list:
-                    type: boolean
-                    description: Whether the committee has any associated mailing lists
-                    default: false
-                    example: true
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -5883,7 +5858,6 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
-                has_mailing_list: true
                 join_mode: open
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee

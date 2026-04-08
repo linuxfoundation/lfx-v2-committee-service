@@ -23,7 +23,6 @@ func CommitteeBaseAttributes() {
 	DescriptionAttribute()
 	WebsiteAttribute()
 	MailingListAttribute()
-	HasMailingListAttribute()
 	ChatChannelAttribute()
 	EnableVotingAttribute()
 	SSOGroupEnabledAttribute()
@@ -77,6 +76,8 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly
 	TotalMembersAttribute()
 	TotalVotingReposAttribute()
 
+	HasMailingListAttribute()
+
 })
 
 // CommitteeFullWithReadonlyAttributes is the DSL type for a complete committee representation combining base, settings, and readonly attributes.
@@ -97,6 +98,8 @@ var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 
 	WritersAttribute()
 	AuditorsAttribute()
+
+	HasMailingListAttribute()
 
 })
 
