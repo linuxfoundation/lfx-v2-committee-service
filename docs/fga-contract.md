@@ -80,11 +80,17 @@ Published to `lfx.fga-sync.member_put` when a committee member is created or upd
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
-#### Member Data
+#### Message Envelope
+
+| Field | Value |
+|---|---|
+| `object_type` | `committee` |
+| `operation` | `member_put` |
+
+#### Data (`FGAMemberData`)
 
 | Field | Value | Condition |
 |---|---|---|
-| `object_type` | `committee` | Always |
 | `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
 | `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
 | `relations` | `["member"]` | Always |
@@ -93,11 +99,17 @@ The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UI
 
 Published to `lfx.fga-sync.member_remove` when a committee member is deleted and the member has a non-empty `Username`. Sends an empty `relations` array, which instructs fga-sync to remove all tuples for that user on the committee object.
 
-#### Member Data
+#### Message Envelope
+
+| Field | Value |
+|---|---|
+| `object_type` | `committee` |
+| `operation` | `member_remove` |
+
+#### Data (`FGAMemberData`)
 
 | Field | Value | Condition |
 |---|---|---|
-| `object_type` | `committee` | Always |
 | `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
 | `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
 | `relations` | `[]` (empty — remove all) | Always |
