@@ -31,6 +31,8 @@ type CreateCommitteeRequestBody struct {
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
 	// The mailing list email address for the committee
 	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
@@ -87,6 +89,8 @@ type UpdateCommitteeBaseRequestBody struct {
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
 	// The mailing list email address for the committee
 	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
@@ -311,6 +315,8 @@ type CreateCommitteeResponseBody struct {
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
 	// The mailing list email address for the committee
 	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
@@ -379,6 +385,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
 	// The mailing list email address for the committee
 	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
@@ -2127,6 +2135,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	Website *string `form:"website,omitempty" json:"website,omitempty" xml:"website,omitempty"`
 	// The mailing list email address for the committee
 	MailingList *string `form:"mailing_list,omitempty" json:"mailing_list,omitempty" xml:"mailing_list,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string `form:"chat_channel,omitempty" json:"chat_channel,omitempty" xml:"chat_channel,omitempty"`
 	// Whether voting is enabled for this committee
@@ -2361,6 +2371,7 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		Description:           p.Description,
 		Website:               p.Website,
 		MailingList:           p.MailingList,
+		HasMailingList:        p.HasMailingList,
 		ChatChannel:           p.ChatChannel,
 		EnableVoting:          p.EnableVoting,
 		SsoGroupEnabled:       p.SsoGroupEnabled,
@@ -2374,6 +2385,12 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
+	}
+	{
+		var zero bool
+		if body.HasMailingList == zero {
+			body.HasMailingList = false
+		}
 	}
 	{
 		var zero bool
@@ -2463,6 +2480,7 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		Description:     p.Description,
 		Website:         p.Website,
 		MailingList:     p.MailingList,
+		HasMailingList:  p.HasMailingList,
 		ChatChannel:     p.ChatChannel,
 		EnableVoting:    p.EnableVoting,
 		SsoGroupEnabled: p.SsoGroupEnabled,
@@ -2471,6 +2489,12 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		DisplayName:     p.DisplayName,
 		ParentUID:       p.ParentUID,
 		JoinMode:        p.JoinMode,
+	}
+	{
+		var zero bool
+		if body.HasMailingList == zero {
+			body.HasMailingList = false
+		}
 	}
 	{
 		var zero bool
@@ -2821,6 +2845,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 		LastReviewedAt:   body.LastReviewedAt,
 		LastReviewedBy:   body.LastReviewedBy,
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
 	}
@@ -2844,6 +2871,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	}
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
@@ -2966,6 +2996,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
 	}
@@ -2980,6 +3013,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 	}
 	if body.JoinMode != nil {
 		v.JoinMode = *body.JoinMode
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
@@ -3066,6 +3102,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
 	}
@@ -3080,6 +3119,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 	}
 	if body.JoinMode != nil {
 		v.JoinMode = *body.JoinMode
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false

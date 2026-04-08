@@ -49,6 +49,7 @@ type CommitteeBase struct {
 	ParentUID        *string   `json:"parent_uid,omitempty"`
 	TotalMembers     int       `json:"total_members"`
 	TotalVotingRepos int       `json:"total_voting_repos"`
+	HasMailingList   bool      `json:"has_mailing_list"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }

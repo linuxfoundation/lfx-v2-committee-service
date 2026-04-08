@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -15,8 +16,11 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
+
+// ensure constants is used below in TestHandleCommitteeMailingListChanged
 
 // mockTransportMessenger implements port.TransportMessenger for testing
 type mockTransportMessenger struct {
@@ -493,6 +497,142 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 			assert.Nil(t, response, "Call %d should return nil response", i+1)
 		}
 	})
+}
+
+// spyCommitteePublisher records Indexer calls so tests can assert on them.
+type spyCommitteePublisher struct {
+	indexerCallCount int
+	lastSubject      string
+}
+
+func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
+	s.indexerCallCount++
+	s.lastSubject = subject
+	return nil
+}
+func (s *spyCommitteePublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
+	return nil
+}
+func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
+	return nil
+}
+
+func TestHandleCommitteeMailingListChanged(t *testing.T) {
+	ctx := context.Background()
+
+	makeCommittee := func(uid string, hasMailingList bool) *model.Committee {
+		return &model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:            uid,
+				ProjectUID:     "proj-1",
+				Name:           "Test Committee",
+				Category:       "technical",
+				HasMailingList: hasMailingList,
+				CreatedAt:      time.Now().Add(-time.Hour),
+				UpdatedAt:      time.Now(),
+			},
+		}
+	}
+
+	tests := []struct {
+		name                  string
+		messageData           []byte
+		initialHasMailingList bool
+		skipCommitteeSetup    bool // true for "not found" cases — no committee added to mock
+		wantIndexerCalled     bool
+		wantErr               bool
+	}{
+		{
+			name: "flag transitions false→true: UpdateHasMailingList writes and re-index published",
+			messageData: func() []byte {
+				uid := uuid.New().String()
+				b, _ := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: uid, HasMailingList: true})
+				return b
+			}(),
+			initialHasMailingList: false,
+			wantIndexerCalled:     true,
+		},
+		{
+			name: "flag already true: UpdateHasMailingList skips write, no re-index",
+			messageData: func() []byte {
+				uid := uuid.New().String()
+				b, _ := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: uid, HasMailingList: true})
+				return b
+			}(),
+			initialHasMailingList: true,
+			wantIndexerCalled:     false,
+		},
+		{
+			name: "flag transitions true→false: UpdateHasMailingList writes and re-index published",
+			messageData: func() []byte {
+				uid := uuid.New().String()
+				b, _ := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: uid, HasMailingList: false})
+				return b
+			}(),
+			initialHasMailingList: true,
+			wantIndexerCalled:     true,
+		},
+		{
+			name: "empty committee_uid: event discarded silently",
+			messageData: func() []byte {
+				b, _ := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: "", HasMailingList: true})
+				return b
+			}(),
+			wantErr:           false,
+			wantIndexerCalled: false,
+		},
+		{
+			name:        "invalid JSON: unmarshal error returned",
+			messageData: []byte(`not-json`),
+			wantErr:     true,
+		},
+		{
+			name: "committee not found: UpdateHasMailingList returns error",
+			messageData: func() []byte {
+				b, _ := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: uuid.New().String(), HasMailingList: true})
+				return b
+			}(),
+			skipCommitteeSetup: true,
+			wantErr:            true,
+			wantIndexerCalled:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+
+			if !tt.skipCommitteeSetup {
+				var event model.CommitteeMailingListChangedEvent
+				if err := json.Unmarshal(tt.messageData, &event); err == nil && event.CommitteeUID != "" {
+					mockRepo.AddCommittee(makeCommittee(event.CommitteeUID, tt.initialHasMailingList))
+				}
+			}
+
+			spy := &spyCommitteePublisher{}
+
+			handler := NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(
+					NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+				),
+				WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+				WithCommitteePublisherForMessageHandler(spy),
+			)
+
+			msg := newMockTransportMessenger(constants.MailingListCommitteeChangedSubject, tt.messageData)
+			resp, err := handler.HandleCommitteeMailingListChanged(ctx, msg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Nil(t, resp, "fire-and-forget handler must return nil response")
+			}
+
+			assert.Equal(t, tt.wantIndexerCalled, spy.indexerCallCount > 0,
+				"indexer called mismatch: got %d calls", spy.indexerCallCount)
+		})
+	}
 }
 
 // Helper function to create string pointer
