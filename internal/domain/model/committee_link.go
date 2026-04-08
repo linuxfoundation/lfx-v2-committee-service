@@ -13,16 +13,15 @@ import (
 
 // CommitteeLink represents a URL reference associated with a committee.
 type CommitteeLink struct {
-	UID           string    `json:"uid"`
-	CommitteeUID  string    `json:"committee_uid"`
-	FolderUID     *string   `json:"folder_uid,omitempty"`
-	Name          string    `json:"name"`
-	URL           string    `json:"url"`
-	Description   string    `json:"description,omitempty"`
-	CreatedByUID  string    `json:"created_by_uid,omitempty"`
-	CreatedByName string    `json:"created_by_name,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	UID               string    `json:"uid"`
+	CommitteeUID      string    `json:"committee_uid"`
+	FolderUID         *string   `json:"folder_uid,omitempty"`
+	Name              string    `json:"name"`
+	URL               string    `json:"url"`
+	Description       string    `json:"description,omitempty"`
+	CreatedByUsername string    `json:"created_by_username,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // BuildIndexKey returns a SHA-256 hash of committee_uid|uid for use as a storage key.
@@ -62,13 +61,12 @@ func (l *CommitteeLink) Tags() []string {
 
 // CommitteeLinkFolder represents an organizational folder for committee links.
 type CommitteeLinkFolder struct {
-	UID           string    `json:"uid"`
-	CommitteeUID  string    `json:"committee_uid"`
-	Name          string    `json:"name"`
-	CreatedByUID  string    `json:"created_by_uid,omitempty"`
-	CreatedByName string    `json:"created_by_name,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	UID               string    `json:"uid"`
+	CommitteeUID      string    `json:"committee_uid"`
+	Name              string    `json:"name"`
+	CreatedByUsername string    `json:"created_by_username,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // Tags generates a consistent set of tags for the committee link folder.

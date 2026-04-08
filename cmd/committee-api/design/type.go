@@ -912,11 +912,8 @@ var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-
 		dsl.MaxLength(200)
 		dsl.Example("Meeting Notes")
 	})
-	dsl.Attribute("created_by_uid", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
+	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
 		dsl.Example("alexlee")
-	})
-	dsl.Attribute("created_by_name", dsl.String, "Display name of the user who created the folder (client-provided)", func() {
-		dsl.Example("Alex Lee")
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
@@ -950,11 +947,56 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 		dsl.MaxLength(2000)
 		dsl.Example("Confluence wiki — architecture decisions log")
 	})
-	dsl.Attribute("created_by_uid", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
+	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
 		dsl.Example("alexlee")
 	})
-	dsl.Attribute("created_by_name", dsl.String, "Display name of the user who added the link (client-provided)", func() {
-		dsl.Example("Alex Lee")
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// ─── Committee Document Types ───
+
+// DocumentUIDAttribute is the DSL attribute for document UID in URL paths.
+func DocumentUIDAttribute() {
+	dsl.Attribute("document_uid", dsl.String, "Committee document UID", func() {
+		dsl.Example("d1e2f3a4-b5c6-7890-defa-123456789012")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeDocumentWithReadonlyAttributes is the DSL type for a committee document.
+var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-readonly-attributes", func() {
+	dsl.Description("A file document associated with a committee.")
+
+	dsl.Attribute("uid", dsl.String, "Document UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("d1e2f3a4-b5c6-7890-defa-123456789012")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("name", dsl.String, "Display name for the document", func() {
+		dsl.MaxLength(500)
+		dsl.Example("Architecture Decision Record")
+	})
+	dsl.Attribute("description", dsl.String, "Optional description", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Technical architecture decisions for Q1 2025")
+	})
+	dsl.Attribute("file_name", dsl.String, "Original file name", func() {
+		dsl.MaxLength(500)
+		dsl.Example("architecture-decisions-q1-2025.pdf")
+	})
+	dsl.Attribute("file_size", dsl.Int64, "File size in bytes", func() {
+		dsl.Minimum(0)
+		dsl.Example(int64(204800))
+	})
+	dsl.Attribute("content_type", dsl.String, "MIME type of the file", func() {
+		dsl.Example("application/pdf")
+	})
+	dsl.Attribute("uploaded_by_username", dsl.String, "LF username of the uploader (auto-populated from JWT)", func() {
+		dsl.Example("alexlee")
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()

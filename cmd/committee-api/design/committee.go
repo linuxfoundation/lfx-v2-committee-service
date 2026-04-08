@@ -984,10 +984,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this link in", func() {
 				dsl.Format(dsl.FormatUUID)
 			})
-			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
-				dsl.MaxLength(200)
-				dsl.Example("Alex Lee")
-			})
+			XSyncAttribute()
 
 			dsl.Required("name", "url")
 		})
@@ -1004,6 +1001,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -1023,6 +1021,7 @@ var _ = dsl.Service("committee-service", func() {
 			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			LinkUIDAttribute()
+			XSyncAttribute()
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
@@ -1037,6 +1036,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("link_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -1127,10 +1127,7 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(200)
 				dsl.Example("Meeting Notes")
 			})
-			dsl.Attribute("created_by_name", dsl.String, "Display name of the creator (client-provided from user session)", func() {
-				dsl.MaxLength(200)
-				dsl.Example("Alex Lee")
-			})
+			XSyncAttribute()
 			dsl.Required("name")
 		})
 
@@ -1147,6 +1144,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Conflict", dsl.StatusConflict)
@@ -1167,6 +1165,7 @@ var _ = dsl.Service("committee-service", func() {
 			IfMatchAttribute()
 			CommitteeUIDAttribute()
 			FolderUIDAttribute()
+			XSyncAttribute()
 		})
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
@@ -1181,9 +1180,169 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("folder_uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Committee Document Endpoints ───
+
+	dsl.Method("upload-committee-document", func() {
+		dsl.Description("Upload a file document to a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the document", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Architecture Decision Record")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description", func() {
+				dsl.MaxLength(2000)
+			})
+			// File fields populated by the multipart decoder
+			dsl.Attribute("file_name", dsl.String, "Original file name (from the uploaded file part)")
+			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")
+			dsl.Attribute("file", dsl.Bytes, "File content")
+			XSyncAttribute()
+
+			dsl.Required("name", "uid", "file_name", "content_type", "file")
+		})
+
+		dsl.Result(CommitteeDocumentWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Conflict", ConflictError, "Document name already exists")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/documents")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.MultipartRequest()
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("get-committee-document", func() {
+		dsl.Description("Get metadata for a single committee document")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-document", CommitteeDocumentWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-document")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/documents/{document_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-document")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("download-committee-document", func() {
+		dsl.Description("Download the file for a committee document")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/documents/{document_uid}/download")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.SkipResponseBodyEncodeDecode()
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-document", func() {
+		dsl.Description("Delete a document from a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+
+			dsl.Required("uid", "document_uid", "if_match")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/documents/{document_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})

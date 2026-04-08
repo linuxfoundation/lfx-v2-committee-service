@@ -19,10 +19,10 @@ import (
 
 // CommitteeLinkDataWriter defines use case operations for writing links and folders.
 type CommitteeLinkDataWriter interface {
-	CreateLink(ctx context.Context, link *model.CommitteeLink) (*model.CommitteeLink, error)
-	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error
-	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) (*model.CommitteeLinkFolder, error)
-	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error
+	CreateLink(ctx context.Context, link *model.CommitteeLink, sync bool) (*model.CommitteeLink, error)
+	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64, sync bool) error
+	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, sync bool) (*model.CommitteeLinkFolder, error)
+	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64, sync bool) error
 }
 
 type linkWriterOrchestrator struct {
@@ -65,7 +65,7 @@ func NewLinkWriterOrchestrator(opts ...LinkWriterOption) CommitteeLinkDataWriter
 	return o
 }
 
-func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.CommitteeLink) (*model.CommitteeLink, error) {
+func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.CommitteeLink, sync bool) (*model.CommitteeLink, error) {
 	if link == nil {
 		return nil, errs.NewValidation("link is required")
 	}
@@ -98,12 +98,12 @@ func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.Com
 		"committee_uid", link.CommitteeUID,
 	)
 
-	o.publishLinkIndexerMessage(ctx, model.ActionCreated, link)
+	o.publishLinkIndexerMessage(ctx, model.ActionCreated, link, sync)
 
 	return link, nil
 }
 
-func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error {
+func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64, sync bool) error {
 	link, _, err := o.linkReader.GetLink(ctx, committeeUID, linkUID)
 	if err != nil {
 		return err
@@ -112,12 +112,12 @@ func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, l
 		return err
 	}
 
-	o.publishLinkIndexerMessage(ctx, model.ActionDeleted, link)
+	o.publishLinkIndexerMessage(ctx, model.ActionDeleted, link, sync)
 
 	return nil
 }
 
-func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) (*model.CommitteeLinkFolder, error) {
+func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, sync bool) (*model.CommitteeLinkFolder, error) {
 	if folder == nil {
 		return nil, errs.NewValidation("folder is required")
 	}
@@ -154,12 +154,12 @@ func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *m
 		"committee_uid", folder.CommitteeUID,
 	)
 
-	o.publishLinkFolderIndexerMessage(ctx, model.ActionCreated, folder)
+	o.publishLinkFolderIndexerMessage(ctx, model.ActionCreated, folder, sync)
 
 	return folder, nil
 }
 
-func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error {
+func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64, sync bool) error {
 	folder, _, err := o.linkReader.GetLinkFolder(ctx, committeeUID, folderUID)
 	if err != nil {
 		return err
@@ -180,14 +180,14 @@ func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committee
 		return err
 	}
 
-	o.publishLinkFolderIndexerMessage(ctx, model.ActionDeleted, folder)
+	o.publishLinkFolderIndexerMessage(ctx, model.ActionDeleted, folder, sync)
 
 	return nil
 }
 
 // publishLinkIndexerMessage publishes an indexer message for a committee link.
 // Errors are logged and do not fail the operation.
-func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, action model.MessageAction, link *model.CommitteeLink) {
+func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, action model.MessageAction, link *model.CommitteeLink, sync bool) {
 	if o.committeePublisher == nil {
 		return
 	}
@@ -231,7 +231,7 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 		return
 	}
 
-	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeLinkSubject, built, false); err != nil {
+	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeLinkSubject, built, sync); err != nil {
 		slog.WarnContext(ctx, "failed to publish link indexer message",
 			"error", err,
 			"action", action,
@@ -242,7 +242,7 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 
 // publishLinkFolderIndexerMessage publishes an indexer message for a committee link folder.
 // Errors are logged and do not fail the operation.
-func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Context, action model.MessageAction, folder *model.CommitteeLinkFolder) {
+func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Context, action model.MessageAction, folder *model.CommitteeLinkFolder, sync bool) {
 	if o.committeePublisher == nil {
 		return
 	}
@@ -282,7 +282,7 @@ func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Con
 		return
 	}
 
-	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeLinkFolderSubject, built, false); err != nil {
+	if err := o.committeePublisher.Indexer(ctx, constants.IndexCommitteeLinkFolderSubject, built, sync); err != nil {
 		slog.WarnContext(ctx, "failed to publish link folder indexer message",
 			"error", err,
 			"action", action,
