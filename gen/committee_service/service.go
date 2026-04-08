@@ -181,8 +181,6 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
-	// Whether the committee has any associated mailing lists
-	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -213,6 +211,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	TotalMembers *int
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 }
 
 // CommitteeDocumentWithReadonlyAttributes is the result type of the
@@ -258,8 +258,6 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
-	// Whether the committee has any associated mailing lists
-	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -304,6 +302,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Writers []*CommitteeUser
 	// Users who can audit this committee
 	Auditors []*CommitteeUser
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 }
 
 // CommitteeInviteWithReadonlyAttributes is the result type of the
@@ -580,8 +580,6 @@ type CreateCommitteePayload struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
-	// Whether the committee has any associated mailing lists
-	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -1025,8 +1023,6 @@ type UpdateCommitteeBasePayload struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
-	// Whether the committee has any associated mailing lists
-	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee

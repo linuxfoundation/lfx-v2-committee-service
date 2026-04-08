@@ -26,7 +26,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.jpg\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"has_mailing_list\": true,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.jpg\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.jpg\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.jpg\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", body.ProjectUID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Name) > 100 {
@@ -109,7 +109,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		Description:           body.Description,
 		Website:               body.Website,
 		MailingList:           body.MailingList,
-		HasMailingList:        body.HasMailingList,
 		ChatChannel:           body.ChatChannel,
 		EnableVoting:          body.EnableVoting,
 		SsoGroupEnabled:       body.SsoGroupEnabled,
@@ -123,12 +122,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		LastReviewedBy:        body.LastReviewedBy,
 		MemberVisibility:      body.MemberVisibility,
 		ShowMeetingAttendees:  body.ShowMeetingAttendees,
-	}
-	{
-		var zero bool
-		if v.HasMailingList == zero {
-			v.HasMailingList = false
-		}
 	}
 	{
 		var zero bool
@@ -257,7 +250,7 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeBaseBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"has_mailing_list\": true,\n      \"join_mode\": \"open\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", body.ProjectUID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Name) > 100 {
@@ -348,7 +341,6 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		Description:     body.Description,
 		Website:         body.Website,
 		MailingList:     body.MailingList,
-		HasMailingList:  body.HasMailingList,
 		ChatChannel:     body.ChatChannel,
 		EnableVoting:    body.EnableVoting,
 		SsoGroupEnabled: body.SsoGroupEnabled,
@@ -357,12 +349,6 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		DisplayName:     body.DisplayName,
 		ParentUID:       body.ParentUID,
 		JoinMode:        body.JoinMode,
-	}
-	{
-		var zero bool
-		if v.HasMailingList == zero {
-			v.HasMailingList = false
-		}
 	}
 	{
 		var zero bool

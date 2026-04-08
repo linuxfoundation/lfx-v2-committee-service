@@ -20,8 +20,6 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-// ensure constants is used below in TestHandleCommitteeMailingListChanged
-
 // mockTransportMessenger implements port.TransportMessenger for testing
 type mockTransportMessenger struct {
 	subject string

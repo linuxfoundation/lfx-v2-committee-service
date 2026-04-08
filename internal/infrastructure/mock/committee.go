@@ -468,11 +468,11 @@ func (w *MockCommitteeWriter) UpdateHasMailingList(_ context.Context, uid string
 		return nil, false, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
 	}
 
-	if committee.CommitteeBase.HasMailingList == hasMailingList {
+	if committee.HasMailingList == hasMailingList {
 		return nil, false, nil
 	}
 
-	committee.CommitteeBase.HasMailingList = hasMailingList
+	committee.HasMailingList = hasMailingList
 	committee.CommitteeBase.UpdatedAt = time.Now()
 	return &committee.CommitteeBase, true, nil
 }
