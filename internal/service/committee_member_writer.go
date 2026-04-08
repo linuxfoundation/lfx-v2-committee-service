@@ -858,6 +858,17 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				)
 				return nil
 			}
+			// On update, remove old username tuple if identity changed to avoid stale FGA tuples.
+			if action == model.ActionUpdated &&
+				data.OldMember != nil &&
+				data.OldMember.Username != "" &&
+				data.OldMember.Username != data.Member.Username {
+				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
+				if err := uc.committeePublisher.Access(ctx, constants.FGASyncMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+					return err
+				}
+			}
+
 			subject := constants.FGASyncMemberPutSubject
 			if action == model.ActionDeleted {
 				subject = constants.FGASyncMemberRemoveSubject

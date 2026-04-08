@@ -123,13 +123,16 @@ type FGADeleteAccessData struct {
 	UID string `json:"uid"`
 }
 
-// FGAMemberPutData is the data payload for member_put operations.
-type FGAMemberPutData struct {
+// FGAMemberData is the data payload for member FGA operations (member_put and member_remove).
+type FGAMemberData struct {
 	UID                   string   `json:"uid"`
 	Username              string   `json:"username"`
 	Relations             []string `json:"relations"`
 	MutuallyExclusiveWith []string `json:"mutually_exclusive_with,omitempty"`
 }
+
+// FGAMemberPutData is a backward-compatible alias for FGAMemberData.
+type FGAMemberPutData = FGAMemberData
 
 // CommitteeMemberUpdateEventData represents the data structure for committee member update events
 type CommitteeMemberUpdateEventData struct {
