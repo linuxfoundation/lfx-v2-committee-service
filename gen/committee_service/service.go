@@ -181,6 +181,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -256,6 +258,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -576,6 +580,8 @@ type CreateCommitteePayload struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee
@@ -1019,6 +1025,8 @@ type UpdateCommitteeBasePayload struct {
 	Website *string
 	// The mailing list email address for the committee
 	MailingList *string
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
 	// Whether voting is enabled for this committee

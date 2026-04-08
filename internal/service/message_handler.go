@@ -10,14 +10,18 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 )
 
 // messageHandlerOrchestrator orchestrates the message handling process
 type messageHandlerOrchestrator struct {
-	committeeReader CommitteeReader
+	committeeReader    CommitteeReader
+	committeeWriter    port.CommitteeWriter
+	committeePublisher port.CommitteePublisher
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -27,6 +31,20 @@ type messageHandlerOrchestratorOption func(*messageHandlerOrchestrator)
 func WithCommitteeReaderForMessageHandler(reader CommitteeReader) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.committeeReader = reader
+	}
+}
+
+// WithCommitteeWriterForMessageHandler sets the committee writer for message handler
+func WithCommitteeWriterForMessageHandler(writer port.CommitteeWriter) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.committeeWriter = writer
+	}
+}
+
+// WithCommitteePublisherForMessageHandler sets the committee publisher for message handler
+func WithCommitteePublisherForMessageHandler(publisher port.CommitteePublisher) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.committeePublisher = publisher
 	}
 }
 
@@ -133,6 +151,61 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	)
 
 	return membersJSON, nil
+}
+
+// HandleCommitteeMailingListChanged processes a CommitteeMailingListChangedEvent from mailing-list-api.
+// It updates the committee's has_mailing_list flag in KV and re-indexes the committee if the flag changed.
+func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeMailingListChangedEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal CommitteeMailingListChangedEvent", "error", err)
+		return nil, err
+	}
+
+	if event.CommitteeUID == "" {
+		slog.WarnContext(ctx, "CommitteeMailingListChangedEvent received with empty committee_uid — discarding")
+		return nil, nil
+	}
+
+	slog.InfoContext(ctx, "processing committee mailing list change",
+		"committee_uid", event.CommitteeUID,
+		"has_mailing_list", event.HasMailingList,
+	)
+
+	committee, changed, err := m.committeeWriter.UpdateHasMailingList(ctx, event.CommitteeUID, event.HasMailingList)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to update has_mailing_list",
+			"committee_uid", event.CommitteeUID, "error", err)
+		return nil, err
+	}
+	if !changed {
+		slog.DebugContext(ctx, "has_mailing_list already matches — skipping re-index",
+			"committee_uid", event.CommitteeUID,
+			"has_mailing_list", event.HasMailingList,
+		)
+		return nil, nil
+	}
+
+	fullCommittee := &model.Committee{CommitteeBase: *committee}
+	if settings, _, errSettings := m.committeeReader.GetSettings(ctx, event.CommitteeUID); errSettings == nil {
+		fullCommittee.CommitteeSettings = settings
+	}
+
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to build indexer message",
+			"committee_uid", event.CommitteeUID, "error", err)
+		return nil, err
+	}
+	indexerMsg.IndexingConfig = buildCommitteeIndexingConfig(fullCommittee)
+
+	if err := m.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false); err != nil {
+		slog.ErrorContext(ctx, "failed to publish committee indexer update",
+			"committee_uid", event.CommitteeUID, "error", err)
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 // NewMessageHandlerOrchestrator creates a new message handler orchestrator using the option pattern

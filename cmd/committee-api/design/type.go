@@ -23,6 +23,7 @@ func CommitteeBaseAttributes() {
 	DescriptionAttribute()
 	WebsiteAttribute()
 	MailingListAttribute()
+	HasMailingListAttribute()
 	ChatChannelAttribute()
 	EnableVotingAttribute()
 	SSOGroupEnabledAttribute()
@@ -743,6 +744,14 @@ func MailingListAttribute() {
 	dsl.Attribute("mailing_list", dsl.String, "The mailing list email address for the committee", func() {
 		dsl.Format(dsl.FormatEmail)
 		dsl.Example("tsc@lists.example.org")
+	})
+}
+
+// HasMailingListAttribute is the DSL attribute indicating whether a committee has any associated mailing lists.
+func HasMailingListAttribute() {
+	dsl.Attribute("has_mailing_list", dsl.Boolean, "Whether the committee has any associated mailing lists", func() {
+		dsl.Default(false)
+		dsl.Example(true)
 	})
 }
 

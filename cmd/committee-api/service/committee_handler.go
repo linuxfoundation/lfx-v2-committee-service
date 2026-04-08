@@ -26,8 +26,9 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 	slog.DebugContext(ctx, "handling NATS message")
 
 	handlers := map[string]func(ctx context.Context, msg port.TransportMessenger) ([]byte, error){
-		constants.CommitteeGetNameSubject:     mhs.handleCommitteeGetName,
-		constants.CommitteeListMembersSubject: mhs.handleCommitteeListMembers,
+		constants.CommitteeGetNameSubject:            mhs.handleCommitteeGetName,
+		constants.CommitteeListMembersSubject:        mhs.handleCommitteeListMembers,
+		constants.MailingListCommitteeChangedSubject: mhs.handleMailingListChanged,
 	}
 
 	handler, ok := handlers[subject]
@@ -47,6 +48,11 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		return
 	}
 
+	// Skip respond for fire-and-forget events (no reply address)
+	if response == nil {
+		return
+	}
+
 	errRespond := msg.Respond(response)
 	if errRespond != nil {
 		slog.ErrorContext(ctx, "error responding to NATS message", "error", errRespond)
@@ -62,6 +68,10 @@ func (mhs *MessageHandlerService) handleCommitteeGetName(ctx context.Context, ms
 
 func (mhs *MessageHandlerService) handleCommitteeListMembers(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeListMembers(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleMailingListChanged(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeMailingListChanged(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
