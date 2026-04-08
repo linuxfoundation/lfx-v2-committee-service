@@ -20,6 +20,10 @@ This document is the authoritative reference for all data the committee service 
 
 ## Committee
 
+**Object type:** `committee`
+
+**NATS subject:** `lfx.index.committee`
+
 **Source struct:** `internal/domain/model/committee_base.go` — `CommitteeBase`
 
 **Indexed on:** create, update, delete of a committee.
@@ -94,6 +98,10 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 ## Committee Settings
 
+**Object type:** `committee_settings`
+
+**NATS subject:** `lfx.index.committee_settings`
+
 **Source struct:** `internal/domain/model/committee_settings.go` — `CommitteeSettings`
 
 **Indexed on:** create, update, delete of committee settings. Settings share the same UID as their parent committee.
@@ -142,6 +150,10 @@ _(none)_
 ---
 
 ## Committee Member
+
+**Object type:** `committee_member`
+
+**NATS subject:** `lfx.index.committee_member`
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
@@ -220,6 +232,10 @@ _(none)_
 
 ## Committee Invite
 
+**Object type:** `committee_invite`
+
+**NATS subject:** `lfx.index.committee_invite`
+
 **Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
 
 **Indexed on:** create, update, delete of a committee invite.
@@ -274,6 +290,10 @@ _(none)_
 ---
 
 ## Committee Application
+
+**Object type:** `committee_application`
+
+**NATS subject:** `lfx.index.committee_application`
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
@@ -330,6 +350,10 @@ _(none)_
 ---
 
 ## Committee Link
+
+**Object type:** `committee_link`
+
+**NATS subject:** `lfx.index.committee_link`
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
@@ -389,6 +413,10 @@ _(none)_
 ---
 
 ## Committee Link Folder
+
+**Object type:** `committee_link_folder`
+
+**NATS subject:** `lfx.index.committee_link_folder`
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 
