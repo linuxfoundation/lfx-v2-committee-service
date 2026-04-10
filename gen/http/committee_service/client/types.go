@@ -355,6 +355,8 @@ type CreateCommitteeResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -409,6 +411,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 }
 
 // GetCommitteeSettingsResponseBody is the type of the "committee-service"
@@ -2157,6 +2161,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList *bool `form:"has_mailing_list,omitempty" json:"has_mailing_list,omitempty" xml:"has_mailing_list,omitempty"`
 }
 
 // CommitteeSettingsWithReadonlyAttributesResponseBody is used to define fields
@@ -2845,6 +2851,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -2892,6 +2901,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 		for i, val := range body.Auditors {
 			v.Auditors[i] = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(val)
 		}
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 
 	return v
@@ -2981,6 +2993,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 	if body.JoinMode != nil {
 		v.JoinMode = *body.JoinMode
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -3007,6 +3022,9 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 	res := &committeeservice.GetCommitteeBaseResult{
 		CommitteeBase: v,
@@ -3081,6 +3099,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 	if body.JoinMode != nil {
 		v.JoinMode = *body.JoinMode
 	}
+	if body.HasMailingList != nil {
+		v.HasMailingList = *body.HasMailingList
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -3107,6 +3128,9 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.HasMailingList == nil {
+		v.HasMailingList = false
 	}
 
 	return v

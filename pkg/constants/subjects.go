@@ -81,6 +81,13 @@ const (
 	IndexCommitteeDocumentSubject = "lfx.index.committee_document"
 )
 
+// Subjects consumed by the committee service from other services
+const (
+	// MailingListCommitteeChangedSubject is consumed from mailing-list-api when
+	// committee-related mailing list state changes (e.g. has_mailing_list flag).
+	MailingListCommitteeChangedSubject = "lfx.mailing-list-api.committee_mailing_list.changed"
+)
+
 // Event subjects emitted by the committee service for general consumption by any service
 const (
 	// CommitteeMemberCreatedSubject is the subject for committee member creation events.
