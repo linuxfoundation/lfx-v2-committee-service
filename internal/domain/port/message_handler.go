@@ -11,4 +11,6 @@ type MessageHandler interface {
 	HandleCommitteeGetAttribute(ctx context.Context, msg TransportMessenger, attribute string) ([]byte, error)
 	// HandleCommitteeListMembers handles committee list members messages
 	HandleCommitteeListMembers(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeMailingListChanged handles mailing list status change events from mailing-list-api
+	HandleCommitteeMailingListChanged(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }

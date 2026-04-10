@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -187,6 +188,47 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 	)
 
 	return nil
+}
+
+// UpdateHasMailingList implements CommitteeBaseWriter.
+func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error) {
+	committee := &model.CommitteeBase{}
+	rev, err := s.get(ctx, constants.KVBucketNameCommittees, uid, committee, false)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, false, errs.NewUnexpected("failed to get committee", err)
+	}
+
+	if committee.HasMailingList == hasMailingList {
+		return nil, false, nil
+	}
+
+	committee.HasMailingList = hasMailingList
+	committee.UpdatedAt = time.Now()
+
+	data, err := json.Marshal(committee)
+	if err != nil {
+		return nil, false, errs.NewUnexpected("failed to marshal committee", err)
+	}
+
+	newRevision, err := s.client.kvStore[constants.KVBucketNameCommittees].Update(ctx, uid, data, rev)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, false, errs.NewUnexpected("failed to update committee has_mailing_list flag", err)
+	}
+
+	slog.DebugContext(ctx, "updated has_mailing_list in NATS storage",
+		"committee_uid", uid,
+		"has_mailing_list", hasMailingList,
+		"old_revision", rev,
+		"new_revision", newRevision,
+	)
+
+	return committee, true, nil
 }
 
 // UpdateSetting updates a committee's settings in the KV store using optimistic locking via the provided revision.
