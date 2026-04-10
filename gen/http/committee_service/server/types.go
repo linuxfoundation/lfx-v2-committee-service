@@ -355,6 +355,8 @@ type CreateCommitteeResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -409,6 +411,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
 }
 
 // GetCommitteeSettingsResponseBody is the type of the "committee-service"
@@ -2145,6 +2149,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	TotalMembers *int `form:"total_members,omitempty" json:"total_members,omitempty" xml:"total_members,omitempty"`
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
 }
 
 // CommitteeSettingsWithReadonlyAttributesResponseBody is used to define fields
@@ -2378,6 +2384,7 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		LastReviewedBy:        res.LastReviewedBy,
 		MemberVisibility:      res.MemberVisibility,
 		ShowMeetingAttendees:  res.ShowMeetingAttendees,
+		HasMailingList:        res.HasMailingList,
 	}
 	{
 		var zero bool
@@ -2453,6 +2460,12 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
 		}
 	}
+	{
+		var zero bool
+		if body.HasMailingList == zero {
+			body.HasMailingList = false
+		}
+	}
 	return body
 }
 
@@ -2480,6 +2493,7 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 		SsoGroupName:     res.CommitteeBase.SsoGroupName,
 		TotalMembers:     res.CommitteeBase.TotalMembers,
 		TotalVotingRepos: res.CommitteeBase.TotalVotingRepos,
+		HasMailingList:   res.CommitteeBase.HasMailingList,
 	}
 	{
 		var zero bool
@@ -2525,6 +2539,12 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 			body.JoinMode = "invite_only"
 		}
 	}
+	{
+		var zero bool
+		if body.HasMailingList == zero {
+			body.HasMailingList = false
+		}
+	}
 	return body
 }
 
@@ -2552,6 +2572,7 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		SsoGroupName:     res.SsoGroupName,
 		TotalMembers:     res.TotalMembers,
 		TotalVotingRepos: res.TotalVotingRepos,
+		HasMailingList:   res.HasMailingList,
 	}
 	{
 		var zero bool
@@ -2595,6 +2616,12 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	{
+		var zero bool
+		if body.HasMailingList == zero {
+			body.HasMailingList = false
 		}
 	}
 	return body

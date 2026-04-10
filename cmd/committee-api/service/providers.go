@@ -389,6 +389,8 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 					usecaseSvc.WithCommitteeReader(committeeReader),
 				),
 			),
+			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),
+			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 		),
 	}
 
@@ -400,9 +402,9 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 
 	// Start subscriptions for each subject
 	subjects := map[string]func(context.Context, port.TransportMessenger){
-		constants.CommitteeGetNameSubject:     messageHandlerService.HandleMessage,
-		constants.CommitteeListMembersSubject: messageHandlerService.HandleMessage,
-		// Add more subjects here as needed
+		constants.CommitteeGetNameSubject:            messageHandlerService.HandleMessage,
+		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
+		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

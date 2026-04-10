@@ -262,7 +262,13 @@ func (uc *committeeWriterOrchestrator) checkReserveSSOName(ctx context.Context, 
 }
 
 func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, action model.MessageAction, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
+	return buildIndexerMessage(ctx, action, committee, tags)
+}
 
+// buildIndexerMessage is a package-level helper so other handlers in this package
+// (e.g. MailingListEventHandler) can build indexer messages without going through
+// the orchestrator struct.
+func buildIndexerMessage(ctx context.Context, action model.MessageAction, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
 	indexerMessage := model.CommitteeIndexerMessage{
 		Action: action,
 		Tags:   tags,

@@ -25,6 +25,10 @@ type CommitteeBaseWriter interface {
 	UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error
 	Delete(ctx context.Context, uid string, revision uint64) error
 
+	// UpdateHasMailingList atomically reads the committee, sets has_mailing_list, and writes back.
+	// Returns (committee, true, nil) if the flag changed and was written; (nil, false, nil) if already correct (no write).
+	UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error)
+
 	// Checkers for uniqueness
 	UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error)
 	UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error)
