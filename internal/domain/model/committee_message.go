@@ -100,22 +100,39 @@ func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*Commit
 
 }
 
-// CommitteeAccessMessage is the schema for the data in the message sent to the fga-sync service.
-// These are the fields that the fga-sync service needs in order to update the OpenFGA permissions.
-type CommitteeAccessMessage struct {
-	UID string `json:"uid"`
-	// object_type is the type of the object that the message is about, e.g. "committee" or "project".
-	ObjectType string `json:"object_type"`
-	// public is the public flag for the object.
-	Public bool `json:"public"`
-	// relations are used to store the relations of the object, e.g. "writer"
-	// and it's value is a list of principals.
-	Relations map[string][]string `json:"relations"`
-	// references are used to store the references of the object,
-	// e.g. "project" and it's value is the project UID.
-	// e.g. "parent" and it's value is the parent UID.
-	References map[string]string `json:"references"`
+// GenericFGAMessage is the envelope for all FGA sync operations.
+// It uses the generic, resource-agnostic FGA sync handlers.
+type GenericFGAMessage struct {
+	ObjectType string `json:"object_type"` // Resource type, e.g. "committee"
+	Operation  string `json:"operation"`   // Operation name, e.g. "update_access"
+	Data       any    `json:"data"`        // Operation-specific payload
 }
+
+// FGAUpdateAccessData is the data payload for update_access operations.
+// This is a full sync — any relations not listed (and not excluded) will be removed.
+type FGAUpdateAccessData struct {
+	UID              string              `json:"uid"`
+	Public           bool                `json:"public"`
+	Relations        map[string][]string `json:"relations,omitempty"`
+	References       map[string][]string `json:"references,omitempty"`
+	ExcludeRelations []string            `json:"exclude_relations,omitempty"`
+}
+
+// FGADeleteAccessData is the data payload for delete_access operations.
+type FGADeleteAccessData struct {
+	UID string `json:"uid"`
+}
+
+// FGAMemberData is the data payload for member FGA operations (member_put and member_remove).
+type FGAMemberData struct {
+	UID                   string   `json:"uid"`
+	Username              string   `json:"username"`
+	Relations             []string `json:"relations"`
+	MutuallyExclusiveWith []string `json:"mutually_exclusive_with,omitempty"`
+}
+
+// FGAMemberPutData is a backward-compatible alias for FGAMemberData.
+type FGAMemberPutData = FGAMemberData
 
 // CommitteeMemberUpdateEventData represents the data structure for committee member update events
 type CommitteeMemberUpdateEventData struct {

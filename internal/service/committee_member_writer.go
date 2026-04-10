@@ -102,6 +102,8 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 	member.CommitteeName = committee.Name
 	member.CommitteeCategory = committee.Category
+	member.ProjectUID = committee.ProjectUID
+	member.ProjectSlug = committee.ProjectSlug
 
 	slog.DebugContext(ctx, "committee found",
 		"committee_uid", committee.UID,
@@ -344,6 +346,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	}
 	member.CommitteeName = committee.Name
 	member.CommitteeCategory = committee.Category
+	member.ProjectUID = committee.ProjectUID
+	member.ProjectSlug = committee.ProjectSlug
 
 	slog.DebugContext(ctx, "committee found for member update",
 		"committee_uid", committee.UID,
@@ -724,27 +728,37 @@ func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, ema
 	return sub, nil
 }
 
-// committeeMemberStub represents the minimal data needed for FGA member access control
-type committeeMemberStub struct {
-	// Username is the username (i.e. LFID) of the member. This is the identity of the user object in FGA.
-	Username string `json:"username"`
-	// CommitteeUID is the committee ID for the committee the member belongs to.
-	CommitteeUID string `json:"committee_uid"`
-}
-
-// buildMemberAccessControlMessage builds an access control message for a committee member
-func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember) *committeeMemberStub {
-	message := &committeeMemberStub{
-		Username:     member.Username,
-		CommitteeUID: member.CommitteeUID,
-	}
-
+// buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member operation.
+// For create/update, it sends member_put to add the user to the "member" relation.
+// For delete, it sends member_remove with empty relations to remove all tuples for the user.
+func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) model.GenericFGAMessage {
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),
 		"committee_uid", member.CommitteeUID,
+		"action", action,
 	)
 
-	return message
+	if action == model.ActionDeleted {
+		return model.GenericFGAMessage{
+			ObjectType: "committee",
+			Operation:  "member_remove",
+			Data: model.FGAMemberPutData{
+				UID:       member.CommitteeUID,
+				Username:  member.Username,
+				Relations: []string{},
+			},
+		}
+	}
+
+	return model.GenericFGAMessage{
+		ObjectType: "committee",
+		Operation:  "member_put",
+		Data: model.FGAMemberPutData{
+			UID:       member.CommitteeUID,
+			Username:  member.Username,
+			Relations: []string{constants.RelationMember},
+		},
+	}
 }
 
 // publishMemberMessages publishes indexer and access control messages for committee member operations
@@ -824,16 +838,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Build access control message for the member
-	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member)
-
-	// Determine the access control subject based on action
-	var accessSubject string
-	switch action {
-	case model.ActionCreated, model.ActionUpdated:
-		accessSubject = constants.PutMemberCommitteeSubject
-	case model.ActionDeleted:
-		accessSubject = constants.RemoveMemberCommitteeSubject
-	}
+	accessControlMessage := uc.buildMemberAccessControlMessage(ctx, data.Member, action)
 
 	// Publish messages concurrently
 	messages := []func() error{
@@ -853,7 +858,22 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				)
 				return nil
 			}
-			return uc.committeePublisher.Access(ctx, accessSubject, accessControlMessage, sync)
+			// On update, remove old username tuple if identity changed to avoid stale FGA tuples.
+			if action == model.ActionUpdated &&
+				data.OldMember != nil &&
+				data.OldMember.Username != "" &&
+				data.OldMember.Username != data.Member.Username {
+				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
+				if err := uc.committeePublisher.Access(ctx, constants.FGASyncMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+					return err
+				}
+			}
+
+			subject := constants.FGASyncMemberPutSubject
+			if action == model.ActionDeleted {
+				subject = constants.FGASyncMemberRemoveSubject
+			}
+			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
 		},
 	}
 

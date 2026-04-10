@@ -20,6 +20,10 @@ This document is the authoritative reference for all data the committee service 
 
 ## Committee
 
+**Object type:** `committee`
+
+**NATS subject:** `lfx.index.committee`
+
 **Source struct:** `internal/domain/model/committee_base.go` — `CommitteeBase`
 
 **Indexed on:** create, update, delete of a committee.
@@ -94,6 +98,10 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 ## Committee Settings
 
+**Object type:** `committee_settings`
+
+**NATS subject:** `lfx.index.committee_settings`
+
 **Source struct:** `internal/domain/model/committee_settings.go` — `CommitteeSettings`
 
 **Indexed on:** create, update, delete of committee settings. Settings share the same UID as their parent committee.
@@ -143,6 +151,10 @@ _(none)_
 
 ## Committee Member
 
+**Object type:** `committee_member`
+
+**NATS subject:** `lfx.index.committee_member`
+
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
 **Indexed on:** create, update, delete of a committee member.
@@ -155,6 +167,8 @@ _(none)_
 | `committee_uid` | string | UID of the committee this member belongs to |
 | `committee_name` | string | Name of the committee |
 | `committee_category` | string | Category of the committee |
+| `project_uid` | string (optional) | UID of the owning project |
+| `project_slug` | string (optional) | Slug of the owning project |
 | `username` | string | Member's username |
 | `email` | string | Member's email address |
 | `first_name` | string | Member's first name |
@@ -189,8 +203,10 @@ _(none)_
 | `organization_id:{value}` | `organization_id:org-789` | Find members by organization ID |
 | `organization_name:{value}` | `organization_name:The Linux Foundation` | Find members by organization name |
 | `organization_website:{value}` | `organization_website:linuxfoundation.org` | Find members by organization website |
+| `project_uid:{value}` | `project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878` | Find members by project UID |
+| `project_slug:{value}` | `project_slug:test-project` | Find members by project slug |
 
-> Tags for `username`, `email`, `voting_status`, `organization_id`, `organization_name`, and `organization_website` are only emitted when the value is non-empty.
+> Tags for `username`, `email`, `voting_status`, `organization_id`, `organization_name`, `organization_website`, `project_uid`, and `project_slug` are only emitted when the value is non-empty.
 
 ### Access Control (IndexingConfig)
 
@@ -219,6 +235,10 @@ _(none)_
 ---
 
 ## Committee Invite
+
+**Object type:** `committee_invite`
+
+**NATS subject:** `lfx.index.committee_invite`
 
 **Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
 
@@ -275,6 +295,10 @@ _(none)_
 
 ## Committee Application
 
+**Object type:** `committee_application`
+
+**NATS subject:** `lfx.index.committee_application`
+
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
 **Indexed on:** create, update, delete of a committee application.
@@ -330,6 +354,10 @@ _(none)_
 ---
 
 ## Committee Link
+
+**Object type:** `committee_link`
+
+**NATS subject:** `lfx.index.committee_link`
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
@@ -389,6 +417,10 @@ _(none)_
 ---
 
 ## Committee Link Folder
+
+**Object type:** `committee_link_folder`
+
+**NATS subject:** `lfx.index.committee_link_folder`
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 

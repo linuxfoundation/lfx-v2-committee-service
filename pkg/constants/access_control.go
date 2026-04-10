@@ -12,4 +12,6 @@ const (
 	RelationWriter = "writer"
 	// RelationAuditor is the relation name for the auditor of an object.
 	RelationAuditor = "auditor"
+	// RelationMember is the relation name for a member of an object.
+	RelationMember = "member"
 )
