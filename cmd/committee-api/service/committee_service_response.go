@@ -191,6 +191,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	if response.MailingList != nil && *response.MailingList != "" {
 		result.MailingList = response.MailingList
 	}
+	result.HasMailingList = response.HasMailingList
 	if response.ChatChannel != nil && *response.ChatChannel != "" {
 		result.ChatChannel = response.ChatChannel
 	}
@@ -271,6 +272,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	if base.MailingList != nil && *base.MailingList != "" {
 		result.MailingList = base.MailingList
 	}
+	result.HasMailingList = base.HasMailingList
 	if base.ChatChannel != nil && *base.ChatChannel != "" {
 		result.ChatChannel = base.ChatChannel
 	}

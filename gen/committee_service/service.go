@@ -211,6 +211,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	TotalMembers *int
 	// The total number of repositories with voting permissions for this committee
 	TotalVotingRepos *int
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 }
 
 // CommitteeDocumentWithReadonlyAttributes is the result type of the
@@ -300,6 +302,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Writers []*CommitteeUser
 	// Users who can audit this committee
 	Auditors []*CommitteeUser
+	// Whether the committee has any associated mailing lists
+	HasMailingList bool
 }
 
 // CommitteeInviteWithReadonlyAttributes is the result type of the
