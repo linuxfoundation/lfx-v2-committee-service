@@ -544,7 +544,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
 		name      string
 		committee *model.Committee
-		expected  *model.CommitteeAccessMessage
+		expected  model.GenericFGAMessage
 	}{
 		{
 			name: "committee without parent",
@@ -560,16 +560,20 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{{Username: "auditor1@example.com"}},
 				},
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-1",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     true,
-				Relations: map[string][]string{
-					"writer":  {"writer1@example.com", "writer2@example.com"},
-					"auditor": {"auditor1@example.com"},
-				},
-				References: map[string]string{
-					"project": "project-1",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-1",
+					Public: true,
+					Relations: map[string][]string{
+						"writer":  {"writer1@example.com", "writer2@example.com"},
+						"auditor": {"auditor1@example.com"},
+					},
+					References: map[string][]string{
+						"project": {"project-1"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
@@ -587,15 +591,19 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{},
 				},
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-2",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     false,
-				Relations: map[string][]string{
-					"writer": {"writer@example.com"},
-				},
-				References: map[string]string{
-					"project": "project-2",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-2",
+					Public: false,
+					Relations: map[string][]string{
+						"writer": {"writer@example.com"},
+					},
+					References: map[string][]string{
+						"project": {"project-2"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
@@ -610,13 +618,16 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				},
 				CommitteeSettings: nil,
 			},
-			expected: &model.CommitteeAccessMessage{
-				UID:        "committee-3",
+			expected: model.GenericFGAMessage{
 				ObjectType: "committee",
-				Public:     true,
-				Relations:  map[string][]string{},
-				References: map[string]string{
-					"project": "project-3",
+				Operation:  "update_access",
+				Data: model.FGAUpdateAccessData{
+					UID:    "committee-3",
+					Public: true,
+					References: map[string][]string{
+						"project": {"project-3"},
+					},
+					ExcludeRelations: []string{"member"},
 				},
 			},
 		},
@@ -2213,6 +2224,84 @@ func TestCommitteeWriterOrchestrator_Delete_EdgeCases(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.T) {
+	testCases := []struct {
+		name     string
+		member   *model.CommitteeMember
+		action   model.MessageAction
+		expected model.GenericFGAMessage
+	}{
+		{
+			name: "create — adds member relation",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Username:     "user@example.com",
+				},
+			},
+			action: model.ActionCreated,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_put",
+				Data: model.FGAMemberPutData{
+					UID:       "committee-1",
+					Username:  "user@example.com",
+					Relations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "update — adds member relation",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-2",
+					Username:     "user2@example.com",
+				},
+			},
+			action: model.ActionUpdated,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_put",
+				Data: model.FGAMemberPutData{
+					UID:       "committee-2",
+					Username:  "user2@example.com",
+					Relations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "delete — member_remove with empty relations",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-3",
+					Username:     "user3@example.com",
+				},
+			},
+			action: model.ActionDeleted,
+			expected: model.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "member_remove",
+				Data: model.FGAMemberPutData{
+					UID:       "committee-3",
+					Username:  "user3@example.com",
+					Relations: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			orchestrator := &committeeWriterOrchestrator{}
+			ctx := context.Background()
+
+			result := orchestrator.buildMemberAccessControlMessage(ctx, tc.member, tc.action)
+
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

@@ -38,6 +38,8 @@ type CommitteeMemberBase struct {
 	CommitteeUID      string                      `json:"committee_uid"`
 	CommitteeName     string                      `json:"committee_name"`
 	CommitteeCategory string                      `json:"committee_category"`
+	ProjectUID        string                      `json:"project_uid,omitempty"`
+	ProjectSlug       string                      `json:"project_slug,omitempty"`
 	CreatedAt         time.Time                   `json:"created_at"`
 	UpdatedAt         time.Time                   `json:"updated_at"`
 }
@@ -114,6 +116,16 @@ func (cm *CommitteeMember) Tags() []string {
 
 	if cm.CommitteeCategory != "" {
 		tag := fmt.Sprintf("committee_category:%s", cm.CommitteeCategory)
+		tags = append(tags, tag)
+	}
+
+	if cm.ProjectUID != "" {
+		tag := fmt.Sprintf("project_uid:%s", cm.ProjectUID)
+		tags = append(tags, tag)
+	}
+
+	if cm.ProjectSlug != "" {
+		tag := fmt.Sprintf("project_slug:%s", cm.ProjectSlug)
 		tags = append(tags, tag)
 	}
 
