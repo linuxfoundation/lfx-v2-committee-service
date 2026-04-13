@@ -18,6 +18,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
@@ -285,7 +286,7 @@ func buildIndexerMessage(ctx context.Context, action model.MessageAction, commit
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) model.GenericFGAMessage {
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) fgatypes.GenericFGAMessage {
 	relations := map[string][]string{}
 
 	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
@@ -296,7 +297,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
 	}
 
-	data := model.FGAUpdateAccessData{
+	data := fgatypes.GenericAccessData{
 		UID:    committee.CommitteeBase.UID,
 		Public: committee.Public,
 		References: map[string][]string{
@@ -314,7 +315,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		"committee_uid", committee.CommitteeBase.UID,
 	)
 
-	return model.GenericFGAMessage{
+	return fgatypes.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "update_access",
 		Data:       data,
@@ -977,10 +978,10 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	}
 
 	// Build access control deletion message
-	deleteMsg := model.GenericFGAMessage{
+	deleteMsg := fgatypes.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "delete_access",
-		Data:       model.FGADeleteAccessData{UID: uid},
+		Data:       fgatypes.GenericDeleteData{UID: uid},
 	}
 	messages = append(messages, func() error {
 		return uc.committeePublisher.Access(ctx, constants.FGASyncDeleteAccessSubject, deleteMsg, sync)

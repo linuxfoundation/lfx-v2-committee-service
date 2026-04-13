@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
+
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -544,7 +546,7 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
 		name      string
 		committee *model.Committee
-		expected  model.GenericFGAMessage
+		expected  fgatypes.GenericFGAMessage
 	}{
 		{
 			name: "committee without parent",
@@ -560,10 +562,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{{Username: "auditor1@example.com"}},
 				},
 			},
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "update_access",
-				Data: model.FGAUpdateAccessData{
+				Data: fgatypes.GenericAccessData{
 					UID:    "committee-1",
 					Public: true,
 					Relations: map[string][]string{
@@ -591,10 +593,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					Auditors: []model.CommitteeUser{},
 				},
 			},
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "update_access",
-				Data: model.FGAUpdateAccessData{
+				Data: fgatypes.GenericAccessData{
 					UID:    "committee-2",
 					Public: false,
 					Relations: map[string][]string{
@@ -618,10 +620,10 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				},
 				CommitteeSettings: nil,
 			},
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "update_access",
-				Data: model.FGAUpdateAccessData{
+				Data: fgatypes.GenericAccessData{
 					UID:    "committee-3",
 					Public: true,
 					References: map[string][]string{
@@ -2233,7 +2235,7 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 		name     string
 		member   *model.CommitteeMember
 		action   model.MessageAction
-		expected model.GenericFGAMessage
+		expected fgatypes.GenericFGAMessage
 	}{
 		{
 			name: "create — adds member relation",
@@ -2244,10 +2246,10 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 				},
 			},
 			action: model.ActionCreated,
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "member_put",
-				Data: model.FGAMemberPutData{
+				Data: fgatypes.GenericMemberData{
 					UID:       "committee-1",
 					Username:  "user@example.com",
 					Relations: []string{"member"},
@@ -2263,10 +2265,10 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 				},
 			},
 			action: model.ActionUpdated,
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "member_put",
-				Data: model.FGAMemberPutData{
+				Data: fgatypes.GenericMemberData{
 					UID:       "committee-2",
 					Username:  "user2@example.com",
 					Relations: []string{"member"},
@@ -2282,10 +2284,10 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 				},
 			},
 			action: model.ActionDeleted,
-			expected: model.GenericFGAMessage{
+			expected: fgatypes.GenericFGAMessage{
 				ObjectType: "committee",
 				Operation:  "member_remove",
-				Data: model.FGAMemberPutData{
+				Data: fgatypes.GenericMemberData{
 					UID:       "committee-3",
 					Username:  "user3@example.com",
 					Relations: []string{},
