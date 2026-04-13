@@ -17,6 +17,7 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
@@ -865,14 +866,14 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				data.OldMember.Username != "" &&
 				data.OldMember.Username != data.Member.Username {
 				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
-				if err := uc.committeePublisher.Access(ctx, constants.FGASyncMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+				if err := uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync); err != nil {
 					return err
 				}
 			}
 
-			subject := constants.FGASyncMemberPutSubject
+			subject := fgaconstants.GenericMemberPutSubject
 			if action == model.ActionDeleted {
-				subject = constants.FGASyncMemberRemoveSubject
+				subject = fgaconstants.GenericMemberRemoveSubject
 			}
 			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
 		},
