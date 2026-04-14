@@ -44,18 +44,6 @@ const (
 	// The subject is of the form: lfx.index.committee_member
 	IndexCommitteeMemberSubject = "lfx.index.committee_member"
 
-	// FGASyncUpdateAccessSubject is the subject for generic FGA sync update_access operations.
-	FGASyncUpdateAccessSubject = "lfx.fga-sync.update_access"
-
-	// FGASyncDeleteAccessSubject is the subject for generic FGA sync delete_access operations.
-	FGASyncDeleteAccessSubject = "lfx.fga-sync.delete_access"
-
-	// FGASyncMemberPutSubject is the subject for generic FGA sync member_put operations.
-	FGASyncMemberPutSubject = "lfx.fga-sync.member_put"
-
-	// FGASyncMemberRemoveSubject is the subject for generic FGA sync member_remove operations.
-	FGASyncMemberRemoveSubject = "lfx.fga-sync.member_remove"
-
 	// IndexCommitteeInviteSubject is the subject for the committee invite index.
 	// The subject is of the form: lfx.index.committee_invite
 	IndexCommitteeInviteSubject = "lfx.index.committee_invite"

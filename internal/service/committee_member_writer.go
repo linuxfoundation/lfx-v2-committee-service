@@ -17,6 +17,8 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
@@ -731,7 +733,7 @@ func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, ema
 // buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member operation.
 // For create/update, it sends member_put to add the user to the "member" relation.
 // For delete, it sends member_remove with empty relations to remove all tuples for the user.
-func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) model.GenericFGAMessage {
+func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) fgatypes.GenericFGAMessage {
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),
 		"committee_uid", member.CommitteeUID,
@@ -739,10 +741,10 @@ func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx conte
 	)
 
 	if action == model.ActionDeleted {
-		return model.GenericFGAMessage{
+		return fgatypes.GenericFGAMessage{
 			ObjectType: "committee",
 			Operation:  "member_remove",
-			Data: model.FGAMemberPutData{
+			Data: fgatypes.GenericMemberData{
 				UID:       member.CommitteeUID,
 				Username:  member.Username,
 				Relations: []string{},
@@ -750,10 +752,10 @@ func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx conte
 		}
 	}
 
-	return model.GenericFGAMessage{
+	return fgatypes.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "member_put",
-		Data: model.FGAMemberPutData{
+		Data: fgatypes.GenericMemberData{
 			UID:       member.CommitteeUID,
 			Username:  member.Username,
 			Relations: []string{constants.RelationMember},
@@ -864,14 +866,14 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				data.OldMember.Username != "" &&
 				data.OldMember.Username != data.Member.Username {
 				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
-				if err := uc.committeePublisher.Access(ctx, constants.FGASyncMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+				if err := uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync); err != nil {
 					return err
 				}
 			}
 
-			subject := constants.FGASyncMemberPutSubject
+			subject := fgaconstants.GenericMemberPutSubject
 			if action == model.ActionDeleted {
-				subject = constants.FGASyncMemberRemoveSubject
+				subject = fgaconstants.GenericMemberRemoveSubject
 			}
 			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
 		},
