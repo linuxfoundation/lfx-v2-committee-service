@@ -10,7 +10,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
-	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17-0.20260413222802-7f3a6be4424e
+	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17
 	github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16
 	github.com/nats-io/nats.go v1.47.0
 	github.com/remychantenay/slog-otel v1.3.4

@@ -49,6 +49,8 @@ github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17-0.20260413213503-19b4156d3291
 github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17-0.20260413213503-19b4156d3291/go.mod h1:075J7/39UbsuLsJCXgVkbpKK1VIuPa7gbyhLsoTBAXo=
 github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17-0.20260413222802-7f3a6be4424e h1:eJ/pvsGP+Vpd7akqGItLjRi622DyY6zIj8ZFvNouCKc=
 github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17-0.20260413222802-7f3a6be4424e/go.mod h1:075J7/39UbsuLsJCXgVkbpKK1VIuPa7gbyhLsoTBAXo=
+github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17 h1:ZW2PyrEPB6SmT14qa3qlrcU4rB/eKRumPUOwaoS5or4=
+github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17/go.mod h1:075J7/39UbsuLsJCXgVkbpKK1VIuPa7gbyhLsoTBAXo=
 github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16 h1:pOcjVN+KQo2h80je1glL0p69aekwpxmzcTE0VHDwQ/8=
 github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16/go.mod h1:hLf2Hl39PsUg2qtl5os0noXxCXWHrkO26EPT+G0RhmA=
 github.com/manveru/faker v0.0.0-20171103152722-9fbc68a78c4d h1:Zj+PHjnhRYWBK6RqCDBcAhLXoi3TzC27Zad/Vn+gnVQ=
