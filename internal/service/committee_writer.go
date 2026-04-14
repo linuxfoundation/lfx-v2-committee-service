@@ -18,6 +18,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
@@ -285,7 +287,7 @@ func buildIndexerMessage(ctx context.Context, action model.MessageAction, commit
 	return messageIndexer, nil
 }
 
-func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) model.GenericFGAMessage {
+func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Context, committee *model.Committee) fgatypes.GenericFGAMessage {
 	relations := map[string][]string{}
 
 	if committee.CommitteeSettings != nil && len(committee.Writers) > 0 {
@@ -296,7 +298,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
 	}
 
-	data := model.FGAUpdateAccessData{
+	data := fgatypes.GenericAccessData{
 		UID:    committee.CommitteeBase.UID,
 		Public: committee.Public,
 		References: map[string][]string{
@@ -314,7 +316,7 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		"committee_uid", committee.CommitteeBase.UID,
 	)
 
-	return model.GenericFGAMessage{
+	return fgatypes.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "update_access",
 		Data:       data,
@@ -519,7 +521,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
+		return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
 	})
 
 	// all messages are executed concurrently
@@ -737,7 +739,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -853,7 +855,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, constants.FGASyncUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
 		},
 	}
 
@@ -977,13 +979,13 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	}
 
 	// Build access control deletion message
-	deleteMsg := model.GenericFGAMessage{
+	deleteMsg := fgatypes.GenericFGAMessage{
 		ObjectType: "committee",
 		Operation:  "delete_access",
-		Data:       model.FGADeleteAccessData{UID: uid},
+		Data:       fgatypes.GenericDeleteData{UID: uid},
 	}
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, constants.FGASyncDeleteAccessSubject, deleteMsg, sync)
+		return uc.committeePublisher.Access(ctx, fgaconstants.GenericDeleteAccessSubject, deleteMsg, sync)
 	})
 
 	// Execute all messages concurrently
