@@ -309,10 +309,17 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 	}
 
 	// Set self-referential pointers based on member_visibility:
-	//   basic_profile  → roster access only (names & roles, no emails)
-	//   full_profile   → roster access + email access
+	//   hidden (default) → no self-referential references; members cannot see each other.
+	//                      This is the safe default for existing committees that predate the
+	//                      feature (stored as "" or "hidden" — both are treated identically).
+	//   basic_profile    → roster access only (names & roles, no emails)
+	//   full_profile     → roster access + email access
 	if committee.CommitteeSettings != nil {
 		switch committee.MemberVisibility {
+		case constants.MemberVisibilityHidden, "":
+			// Intentionally no self-referential references. Members cannot see each other's
+			// roster or email addresses. This is the explicit safe default: empty string
+			// (from pre-feature records) and "hidden" are equivalent.
 		case constants.MemberVisibilityBasicProfile:
 			references[constants.RelationCommitteeForMemberRosterAccess] = []string{
 				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
