@@ -421,7 +421,7 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			// SHA-256 of "committee-123|test@example.com"
-			expected: "c7c8e1a1e1e8e6c8a6b8f5c7e1e8e6c8a6b8f5c7e1e8e6c8a6b8f5c7e1e8e6c8",
+			expected: "93548eeb4f04488dfe77d98d56f0642fff5e1c9637314866d07e9f289cc4343a",
 		},
 		{
 			name: "different committee same email",
@@ -431,8 +431,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 				},
 				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
-			// Should produce different hash than above
-			expected: "different-hash-expected",
+			// SHA-256 of "committee-456|test@example.com"
+			expected: "5281cc60c1a073d75d5acf4ced91d0d454fc9889d9e6fd2606b31b82b5e49c4c",
 		},
 		{
 			name: "same committee different email",
@@ -442,8 +442,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 				},
 				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "different@example.com"},
 			},
-			// Should produce different hash than first test
-			expected: "another-different-hash-expected",
+			// SHA-256 of "committee-123|different@example.com"
+			expected: "ea78a994c26a7504ee1329d68db5081cda3eae3cad7e55a86f3d9ce981c5912f",
 		},
 		{
 			name: "empty fields",
@@ -454,7 +454,7 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: ""},
 			},
 			// SHA-256 of "|"
-			expected: "hash-of-empty-fields",
+			expected: "cbe5cfdf7c2118a9c3d78ef1d684f3afa089201352886449a06a6511cfef74a7",
 		},
 	}
 
@@ -462,16 +462,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.member.BuildIndexKey(ctx)
 
-			// Check that result is a valid SHA-256 hash (64 hex characters)
-			if len(result) != 64 {
-				t.Errorf("BuildIndexKey() returned hash with length %d, expected 64", len(result))
-			}
-
-			// Check that it's a valid hex string
-			for _, r := range result {
-				if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-					t.Errorf("BuildIndexKey() returned non-hex character: %c", r)
-				}
+			if result != tt.expected {
+				t.Errorf("BuildIndexKey() = %s, want %s", result, tt.expected)
 			}
 
 			// Test consistency - same input should produce same hash
