@@ -819,8 +819,15 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	var sensitiveIndexerMessageBuild *model.CommitteeIndexerMessage
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
+		sensitiveMemberTags := []string{
+			data.Member.UID,
+			fmt.Sprintf("committee_member_uid:%s", data.Member.UID),
+			fmt.Sprintf("committee_uid:%s", data.Member.CommitteeUID),
+			fmt.Sprintf("email:%s", data.Member.Email),
+		}
 		sensitiveIndexerMessage := model.CommitteeIndexerMessage{
 			Action: action,
+			Tags:   sensitiveMemberTags,
 			IndexingConfig: &indexerTypes.IndexingConfig{
 				ObjectID:             data.Member.UID,
 				AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
@@ -830,13 +837,8 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				SortName:             data.Member.Email,
 				NameAndAliases:       []string{data.Member.Email},
 				Fulltext:             data.Member.Email,
-				Tags: []string{
-					data.Member.UID,
-					fmt.Sprintf("committee_member_uid:%s", data.Member.UID),
-					fmt.Sprintf("committee_uid:%s", data.Member.CommitteeUID),
-					fmt.Sprintf("email:%s", data.Member.Email),
-				},
-				ParentRefs: []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
+				Tags:                 sensitiveMemberTags,
+				ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
 			},
 		}
 		sensitivePayload := struct {

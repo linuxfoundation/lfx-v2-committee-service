@@ -1566,6 +1566,7 @@ func TestGetCommitteeMemberContact(t *testing.T) {
 		{
 			name: "returns email from CommitteeMemberSensitive",
 			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
 				UID:       "committee-123",
 				MemberUID: "member-456",
 			},
@@ -1602,6 +1603,7 @@ func TestGetCommitteeMemberContact(t *testing.T) {
 		{
 			name: "propagates not-found error from GetMember",
 			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
 				UID:       "committee-123",
 				MemberUID: "nonexistent-member",
 			},
@@ -1621,6 +1623,7 @@ func TestGetCommitteeMemberContact(t *testing.T) {
 		{
 			name: "propagates unexpected error from GetMember",
 			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
 				UID:       "committee-abc",
 				MemberUID: "member-xyz",
 			},
