@@ -72,9 +72,14 @@ These fields are carried inside the message `data` object.
 | Reference | Value | Condition |
 |---|---|---|
 | `project` | `CommitteeBase.ProjectUID` | Always |
-| `committee_for_member_roster_access` | `committee:{CommitteeBase.UID}` (self) | Only when `CommitteeSettings.MemberVisibility == "basic_profile"` |
+| `committee_for_member_roster_access` | `committee:{CommitteeBase.UID}` (self) | Only when `CommitteeSettings.MemberVisibility` is `"basic_profile"` or `"full_profile"` |
+| `committee_for_member_email_access` | `committee:{CommitteeBase.UID}` (self) | Only when `CommitteeSettings.MemberVisibility == "full_profile"` |
 
-> `committee_for_member_roster_access` is a self-referential pointer. When set to the committee itself, the FGA model grants all `member`s of the committee `roster_viewer` and `email_viewer` access to each other — enabling members to see names, roles, and email addresses of fellow members. When `MemberVisibility` is `"hidden"` (default), this reference is omitted and members cannot see each other.
+> `committee_for_member_roster_access` is a self-referential pointer. When set to the committee itself, the FGA model grants all `member`s of the committee `roster_viewer` access to each other — enabling members to see names and roles of fellow members.
+>
+> `committee_for_member_email_access` is a separate self-referential pointer. When set to the committee itself, the FGA model grants all `member`s of the committee `email_viewer` access to each other — enabling members to see fellow members' email addresses. This reference is only included when `MemberVisibility` is `"full_profile"`.
+>
+> When `MemberVisibility` is `"hidden"` (default), both references are omitted and members cannot see each other.
 
 #### Exclude Relations
 

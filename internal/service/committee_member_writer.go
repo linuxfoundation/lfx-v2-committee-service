@@ -816,9 +816,9 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	}
 
 	// Build sensitive indexer message (email only), gated by email_viewer.
-	// This is only published for create/update operations since email is not present on delete.
 	var sensitiveIndexerMessageBuild *model.CommitteeIndexerMessage
-	if action == model.ActionCreated || action == model.ActionUpdated {
+	switch action {
+	case model.ActionCreated, model.ActionUpdated:
 		sensitiveIndexerMessage := model.CommitteeIndexerMessage{
 			Action: action,
 			IndexingConfig: &indexerTypes.IndexingConfig{
@@ -844,6 +844,19 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				"action", action,
 			)
 			return errs.NewUnexpected("failed to build sensitive member indexer message", errBuildSensitive)
+		}
+		sensitiveIndexerMessageBuild = built
+	case model.ActionDeleted:
+		// Publish a delete event to the sensitive subject so the email document
+		// is removed from the index and does not remain accessible to email_viewer.
+		sensitiveDeleteMsg := model.CommitteeIndexerMessage{Action: action}
+		built, errBuildSensitive := sensitiveDeleteMsg.Build(ctx, data.Member.UID)
+		if errBuildSensitive != nil {
+			slog.ErrorContext(ctx, "failed to build sensitive member delete indexer message",
+				"error", errBuildSensitive,
+				"action", action,
+			)
+			return errs.NewUnexpected("failed to build sensitive member delete indexer message", errBuildSensitive)
 		}
 		sensitiveIndexerMessageBuild = built
 	}
