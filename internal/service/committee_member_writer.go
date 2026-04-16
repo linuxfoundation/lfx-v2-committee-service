@@ -822,10 +822,21 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		sensitiveIndexerMessage := model.CommitteeIndexerMessage{
 			Action: action,
 			IndexingConfig: &indexerTypes.IndexingConfig{
-				ObjectID:            data.Member.UID,
-				AccessCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
-				AccessCheckRelation: constants.RelationEmailViewer,
-				ParentRefs:          []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
+				ObjectID:             data.Member.UID,
+				AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+				AccessCheckRelation:  constants.RelationEmailViewer,
+				HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+				HistoryCheckRelation: constants.RelationAuditor,
+				SortName:             data.Member.Email,
+				NameAndAliases:       []string{data.Member.Email},
+				Fulltext:             data.Member.Email,
+				Tags: []string{
+					data.Member.UID,
+					fmt.Sprintf("committee_member_uid:%s", data.Member.UID),
+					fmt.Sprintf("committee_uid:%s", data.Member.CommitteeUID),
+					fmt.Sprintf("email:%s", data.Member.Email),
+				},
+				ParentRefs: []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
 			},
 		}
 		sensitivePayload := struct {

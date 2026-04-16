@@ -11,6 +11,7 @@ This document is the authoritative reference for all data the committee service 
 - [Committee](#committee)
 - [Committee Settings](#committee-settings)
 - [Committee Member](#committee-member)
+- [Committee Member Sensitive](#committee-member-sensitive)
 - [Committee Invite](#committee-invite)
 - [Committee Application](#committee-application)
 - [Committee Link](#committee-link)
@@ -155,9 +156,11 @@ _(none)_
 
 **NATS subject:** `lfx.index.committee_member`
 
-**Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
+**Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMemberBase` (email excluded)
 
 **Indexed on:** create, update, delete of a committee member.
+
+> Email is intentionally excluded from this index. It is stored separately in `lfx.index.committee_member_sensitive` (see [Committee Member Sensitive](#committee-member-sensitive)), which is gated by the `email_viewer` relation.
 
 ### Data Schema
 
@@ -170,7 +173,6 @@ _(none)_
 | `project_uid` | string (optional) | UID of the owning project |
 | `project_slug` | string (optional) | Slug of the owning project |
 | `username` | string | Member's username |
-| `email` | string | Member's email address |
 | `first_name` | string | Member's first name |
 | `last_name` | string | Member's last name |
 | `job_title` | string (optional) | Member's job title |
@@ -198,7 +200,6 @@ _(none)_
 | `committee_uid:{value}` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find members of a committee |
 | `committee_category:{value}` | `committee_category:Board` | Find members by committee category |
 | `username:{value}` | `username:govofficial4` | Find members by username |
-| `email:{value}` | `email:gac010@example.com` | Find members by email |
 | `voting_status:{value}` | `voting_status:Voting Rep` | Find members by voting status |
 | `organization_id:{value}` | `organization_id:org-789` | Find members by organization ID |
 | `organization_name:{value}` | `organization_name:The Linux Foundation` | Find members by organization name |
@@ -206,7 +207,7 @@ _(none)_
 | `project_uid:{value}` | `project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878` | Find members by project UID |
 | `project_slug:{value}` | `project_slug:test-project` | Find members by project slug |
 
-> Tags for `username`, `email`, `voting_status`, `organization_id`, `organization_name`, `organization_website`, `project_uid`, and `project_slug` are only emitted when the value is non-empty.
+> Tags for `username`, `voting_status`, `organization_id`, `organization_name`, `organization_website`, `project_uid`, and `project_slug` are only emitted when the value is non-empty.
 
 ### Access Control (IndexingConfig)
 
@@ -217,7 +218,7 @@ _(none)_
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
 
-> **Why `roster_viewer` instead of `viewer`:** The FGA model now has three scopes on the `committee` type — `viewer` (committee details), `roster_viewer` (member names & roles), and `email_viewer` (member emails). Since committee members are indexed at the roster level and this document is visible to anyone who passes the access check, `email` is intentionally excluded from `fulltext` to prevent public committees from leaking member email addresses via search. Email remains in the indexed data schema for auditor-gated access paths.
+> **Why `roster_viewer`:** The FGA model has three scopes on the `committee` type — `viewer` (committee details), `roster_viewer` (member names & roles), and `email_viewer` (member emails). This index is gated at the roster level so that on public committees, the member list is visible without exposing email addresses.
 
 ### Search Behavior
 
@@ -227,6 +228,61 @@ _(none)_
 | `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
 | `sort_name` | `first_name` |
 | `public` | inherits from parent committee |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Committee Member Sensitive
+
+**Object type:** `committee_member_sensitive`
+
+**NATS subject:** `lfx.index.committee_member_sensitive`
+
+**Source struct:** inline struct `{uid, committee_uid, email}` — no other fields
+
+**Indexed on:** create, update, delete of a committee member (always, in parallel with the roster index).
+
+> This index stores only the email address, gated by `email_viewer` so email is never accessible to callers who only hold `roster_viewer`. On member deletion, a delete event is published to this subject so the email document is removed and does not remain accessible.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Member unique identifier (same UID as the roster index document) |
+| `committee_uid` | string | UID of the committee this member belongs to |
+| `email` | string | Member's email address |
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `{uid}` | `c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Direct lookup by UID |
+| `committee_member_uid:{uid}` | `committee_member_uid:c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find sensitive documents for a committee |
+| `email:{value}` | `email:user@example.com` | Find member by email address |
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `email_viewer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `email` |
+| `name_and_aliases` | `email` |
+| `sort_name` | `email` |
+| `public` | `false` (always) |
 
 ### Parent References
 
