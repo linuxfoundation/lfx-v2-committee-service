@@ -28,6 +28,7 @@ type Endpoints struct {
 	Livez                     goa.Endpoint
 	CreateCommitteeMember     goa.Endpoint
 	GetCommitteeMember        goa.Endpoint
+	GetCommitteeMemberContact goa.Endpoint
 	UpdateCommitteeMember     goa.Endpoint
 	DeleteCommitteeMember     goa.Endpoint
 	GetInvite                 goa.Endpoint
@@ -78,6 +79,7 @@ func NewEndpoints(s Service) *Endpoints {
 		Livez:                     NewLivezEndpoint(s),
 		CreateCommitteeMember:     NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
 		GetCommitteeMember:        NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetCommitteeMemberContact: NewGetCommitteeMemberContactEndpoint(s, a.JWTAuth),
 		UpdateCommitteeMember:     NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
 		DeleteCommitteeMember:     NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
 		GetInvite:                 NewGetInviteEndpoint(s, a.JWTAuth),
@@ -119,6 +121,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Livez = m(e.Livez)
 	e.CreateCommitteeMember = m(e.CreateCommitteeMember)
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
+	e.GetCommitteeMemberContact = m(e.GetCommitteeMemberContact)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
 	e.DeleteCommitteeMember = m(e.DeleteCommitteeMember)
 	e.GetInvite = m(e.GetInvite)
@@ -343,6 +346,29 @@ func NewGetCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc) go
 			return nil, err
 		}
 		return s.GetCommitteeMember(ctx, p)
+	}
+}
+
+// NewGetCommitteeMemberContactEndpoint returns an endpoint function that calls
+// the method "get-committee-member-contact" of service "committee-service".
+func NewGetCommitteeMemberContactEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCommitteeMemberContactPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCommitteeMemberContact(ctx, p)
 	}
 }
 

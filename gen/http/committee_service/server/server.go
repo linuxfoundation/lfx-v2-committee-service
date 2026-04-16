@@ -34,6 +34,7 @@ type Server struct {
 	Livez                     http.Handler
 	CreateCommitteeMember     http.Handler
 	GetCommitteeMember        http.Handler
+	GetCommitteeMemberContact http.Handler
 	UpdateCommitteeMember     http.Handler
 	DeleteCommitteeMember     http.Handler
 	GetInvite                 http.Handler
@@ -128,6 +129,7 @@ func New(
 			{"Livez", "GET", "/livez"},
 			{"CreateCommitteeMember", "POST", "/committees/{uid}/members"},
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
+			{"GetCommitteeMemberContact", "GET", "/committees/{uid}/members/{member_uid}/contact"},
 			{"UpdateCommitteeMember", "PUT", "/committees/{uid}/members/{member_uid}"},
 			{"DeleteCommitteeMember", "DELETE", "/committees/{uid}/members/{member_uid}"},
 			{"GetInvite", "GET", "/committees/{uid}/invites/{invite_uid}"},
@@ -168,6 +170,7 @@ func New(
 		Livez:                     NewLivezHandler(e.Livez, mux, decoder, encoder, errhandler, formatter),
 		CreateCommitteeMember:     NewCreateCommitteeMemberHandler(e.CreateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		GetCommitteeMember:        NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeMemberContact: NewGetCommitteeMemberContactHandler(e.GetCommitteeMemberContact, mux, decoder, encoder, errhandler, formatter),
 		UpdateCommitteeMember:     NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeMember:     NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		GetInvite:                 NewGetInviteHandler(e.GetInvite, mux, decoder, encoder, errhandler, formatter),
@@ -215,6 +218,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Livez = m(s.Livez)
 	s.CreateCommitteeMember = m(s.CreateCommitteeMember)
 	s.GetCommitteeMember = m(s.GetCommitteeMember)
+	s.GetCommitteeMemberContact = m(s.GetCommitteeMemberContact)
 	s.UpdateCommitteeMember = m(s.UpdateCommitteeMember)
 	s.DeleteCommitteeMember = m(s.DeleteCommitteeMember)
 	s.GetInvite = m(s.GetInvite)
@@ -257,6 +261,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountLivezHandler(mux, h.Livez)
 	MountCreateCommitteeMemberHandler(mux, h.CreateCommitteeMember)
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
+	MountGetCommitteeMemberContactHandler(mux, h.GetCommitteeMemberContact)
 	MountUpdateCommitteeMemberHandler(mux, h.UpdateCommitteeMember)
 	MountDeleteCommitteeMemberHandler(mux, h.DeleteCommitteeMember)
 	MountGetInviteHandler(mux, h.GetInvite)
@@ -794,6 +799,60 @@ func NewGetCommitteeMemberHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "get-committee-member")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountGetCommitteeMemberContactHandler configures the mux to serve the
+// "committee-service" service "get-committee-member-contact" endpoint.
+func MountGetCommitteeMemberContactHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/{uid}/members/{member_uid}/contact", f)
+}
+
+// NewGetCommitteeMemberContactHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "get-committee-member-contact" endpoint.
+func NewGetCommitteeMemberContactHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeGetCommitteeMemberContactRequest(mux, decoder)
+		encodeResponse = EncodeGetCommitteeMemberContactResponse(encoder)
+		encodeError    = EncodeGetCommitteeMemberContactError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "get-committee-member-contact")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

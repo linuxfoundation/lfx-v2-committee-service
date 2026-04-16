@@ -59,12 +59,12 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "nil committee",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email:    "test@example.com",
 					Username: "testuser",
 					Organization: CommitteeMemberOrganization{
 						Name: "Test Org",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			committee:     nil,
 			expectError:   true,
@@ -87,9 +87,8 @@ func TestCommitteeMember_Validate(t *testing.T) {
 		{
 			name: "business email required - missing org info",
 			member: &CommitteeMember{
-				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
-				},
+				CommitteeMemberBase:      CommitteeMemberBase{},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:     committeeWithBusinessEmail,
 			expectError:   true,
@@ -99,11 +98,11 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "business email required - org id satisfies requirement",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						ID: "org-123",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:   committeeWithBusinessEmail,
 			expectError: false,
@@ -112,12 +111,12 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "business email required - org name and domain satisfies requirement",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						Name:    "Acme Corp",
 						Website: "https://acme.com",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:   committeeWithBusinessEmail,
 			expectError: false,
@@ -126,11 +125,11 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "business email required - org name only is insufficient",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						Name: "Acme Corp",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:     committeeWithBusinessEmail,
 			expectError:   true,
@@ -139,9 +138,8 @@ func TestCommitteeMember_Validate(t *testing.T) {
 		{
 			name: "voting enabled - missing org info",
 			member: &CommitteeMember{
-				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
-				},
+				CommitteeMemberBase:      CommitteeMemberBase{},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:     committeeWithVoting,
 			expectError:   true,
@@ -151,11 +149,11 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "voting enabled - org id satisfies requirement",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						ID: "org-456",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:   committeeWithVoting,
 			expectError: false,
@@ -164,12 +162,12 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "voting enabled - org name and domain satisfies requirement",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						Name:    "Acme Corp",
 						Website: "https://acme.com",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:   committeeWithVoting,
 			expectError: false,
@@ -178,11 +176,11 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			name: "both flags set - org id satisfies requirement",
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@corp.com",
 					Organization: CommitteeMemberOrganization{
 						ID: "org-789",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@corp.com"},
 			},
 			committee:   committeeWithBoth,
 			expectError: false,
@@ -190,9 +188,8 @@ func TestCommitteeMember_Validate(t *testing.T) {
 		{
 			name: "no restrictions - no org info is fine",
 			member: &CommitteeMember{
-				CommitteeMemberBase: CommitteeMemberBase{
-					Email: "user@example.com",
-				},
+				CommitteeMemberBase:      CommitteeMemberBase{},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "user@example.com"},
 			},
 			committee:   nonGacCommittee,
 			expectError: false,
@@ -250,15 +247,14 @@ func TestCommitteeMember_Tags(t *testing.T) {
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
 					Username:     "testuser",
-					Email:        "test@example.com",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
 				"username:testuser",
-				"email:test@example.com",
 			},
 		},
 		{
@@ -268,18 +264,17 @@ func TestCommitteeMember_Tags(t *testing.T) {
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
 					Username:     "testuser",
-					Email:        "test@example.com",
 					Voting: CommitteeMemberVotingInfo{
 						Status: "Voting Rep",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
 				"username:testuser",
-				"email:test@example.com",
 				"voting_status:Voting Rep",
 			},
 		},
@@ -289,15 +284,14 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					// Missing Username, and Voting.Status
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 			},
 		},
 		{
@@ -306,14 +300,13 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 			},
 		},
 		{
@@ -322,19 +315,18 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					Organization: CommitteeMemberOrganization{
 						ID:      "org-789",
 						Name:    "The Linux Foundation",
 						Website: "https://linuxfoundation.org",
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 				"organization_id:org-789",
 				"organization_name:The Linux Foundation",
 				"organization_website:https://linuxfoundation.org",
@@ -346,19 +338,18 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					Organization: CommitteeMemberOrganization{
 						ID:   "org-789",
 						Name: "The Linux Foundation",
 						// Missing Website
 					},
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
-				"email:test@example.com",
 				"organization_id:org-789",
 				"organization_name:The Linux Foundation",
 			},
@@ -369,10 +360,10 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					ProjectUID:   "cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
 					ProjectSlug:  "test-project",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
@@ -380,7 +371,6 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				"committee_uid:committee-456",
 				"project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
 				"project_slug:test-project",
-				"email:test@example.com",
 			},
 		},
 		{
@@ -389,17 +379,16 @@ func TestCommitteeMember_Tags(t *testing.T) {
 				CommitteeMemberBase: CommitteeMemberBase{
 					UID:          "member-123",
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 					ProjectUID:   "cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
 					// Missing ProjectSlug
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			expected: []string{
 				"member-123",
 				"committee_member_uid:member-123",
 				"committee_uid:committee-456",
 				"project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878",
-				"email:test@example.com",
 			},
 		},
 	}
@@ -428,8 +417,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			// SHA-256 of "committee-123|test@example.com"
 			expected: "c7c8e1a1e1e8e6c8a6b8f5c7e1e8e6c8a6b8f5c7e1e8e6c8a6b8f5c7e1e8e6c8",
@@ -439,8 +428,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-456",
-					Email:        "test@example.com",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 			// Should produce different hash than above
 			expected: "different-hash-expected",
@@ -450,8 +439,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "different@example.com",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "different@example.com"},
 			},
 			// Should produce different hash than first test
 			expected: "another-different-hash-expected",
@@ -461,8 +450,8 @@ func TestCommitteeMember_BuildIndexKey(t *testing.T) {
 			member: &CommitteeMember{
 				CommitteeMemberBase: CommitteeMemberBase{
 					CommitteeUID: "",
-					Email:        "",
 				},
+				CommitteeMemberSensitive: CommitteeMemberSensitive{Email: ""},
 			},
 			// SHA-256 of "|"
 			expected: "hash-of-empty-fields",
@@ -500,22 +489,22 @@ func TestCommitteeMember_BuildIndexKey_Uniqueness(t *testing.T) {
 	member1 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-123",
-			Email:        "test@example.com",
 		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 	}
 
 	member2 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-456",
-			Email:        "test@example.com",
 		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "test@example.com"},
 	}
 
 	member3 := &CommitteeMember{
 		CommitteeMemberBase: CommitteeMemberBase{
 			CommitteeUID: "committee-123",
-			Email:        "different@example.com",
 		},
+		CommitteeMemberSensitive: CommitteeMemberSensitive{Email: "different@example.com"},
 	}
 
 	key1 := member1.BuildIndexKey(ctx)

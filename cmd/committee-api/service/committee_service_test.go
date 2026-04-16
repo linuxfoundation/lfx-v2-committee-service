@@ -380,12 +380,12 @@ func TestUpdateCommitteeMember(t *testing.T) {
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
 						Username:     "testuser",
-						Email:        "test@example.com",
 						FirstName:    "John",
 						LastName:     "Doe",
 						AppointedBy:  "admin",
 						Status:       "active",
 					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 				}
 				mock.updateMemberErr = nil
 			},
@@ -401,7 +401,6 @@ func TestUpdateCommitteeMember(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "member-456", *result.UID)
 				assert.Equal(t, "committee-123", *result.CommitteeUID)
-				assert.Equal(t, "test@example.com", *result.Email)
 			},
 		},
 		{
@@ -871,9 +870,9 @@ func TestAcceptInvite(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "new-member-uid",
 					CommitteeUID: "committee-1",
-					Email:        "accept@example.com",
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "accept@example.com"},
 			}
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
@@ -1262,9 +1261,9 @@ func TestApproveApplication(t *testing.T) {
 			mockOrch.createMember = &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-1",
-					Email:        "user@example.com",
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "user@example.com"},
 			}
 
 			notes := "Welcome aboard"
@@ -1426,9 +1425,9 @@ func TestJoinCommittee(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "new-member-uid",
 					CommitteeUID: "committee-1",
-					Email:        tt.email,
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: tt.email},
 			}
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
@@ -1493,9 +1492,9 @@ func TestLeaveCommittee(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          tt.seedMemberUID,
 						CommitteeUID: "committee-1",
-						Email:        tt.principal,
 						Status:       "Active",
 					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: tt.principal},
 				})
 				mockOrch.deleteError = nil
 			}

@@ -675,7 +675,6 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-123",
-					Email:        "john.doe@example.com",
 					Username:     "johndoe",
 					FirstName:    "John",
 					LastName:     "Doe",
@@ -698,6 +697,7 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 						Website: "https://test-org.com",
 					},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "john.doe@example.com"},
 			},
 		},
 		{
@@ -711,10 +711,10 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-456",
-					Email:        "minimal@example.com",
 					AppointedBy:  "chair",
 					Status:       "pending",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "minimal@example.com"},
 			},
 		},
 		{
@@ -735,10 +735,10 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-789",
-					Email:        "test@example.com",
 					AppointedBy:  "chair",
 					Status:       "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 		},
 		{
@@ -761,7 +761,6 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-abc",
-					Email:        "partial@example.com",
 					AppointedBy:  "chair",
 					Status:       "active",
 					Role: model.CommitteeMemberRole{
@@ -770,6 +769,7 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 						EndDate:   "",
 					},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "partial@example.com"},
 			},
 		},
 		{
@@ -791,7 +791,6 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-def",
-					Email:        "org@example.com",
 					AppointedBy:  "chair",
 					Status:       "active",
 					Organization: model.CommitteeMemberOrganization{
@@ -799,6 +798,7 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 						Website: "",
 					},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "org@example.com"},
 			},
 		},
 	}
@@ -833,7 +833,6 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:         "member-123",
 					Username:    "johndoe",
-					Email:       "john.doe@example.com",
 					FirstName:   "John",
 					LastName:    "Doe",
 					JobTitle:    "Senior Software Engineer",
@@ -858,12 +857,12 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 					CreatedAt:    createdAt,
 					UpdatedAt:    updatedAt,
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "john.doe@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-123"),
 				CommitteeUID: stringPtr("committee-123"),
 				Username:     stringPtr("johndoe"),
-				Email:        stringPtr("john.doe@example.com"),
 				FirstName:    stringPtr("John"),
 				LastName:     stringPtr("Doe"),
 				JobTitle:     stringPtr("Senior Software Engineer"),
@@ -905,16 +904,15 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "member-456",
-					Email:        "minimal@example.com",
 					AppointedBy:  "chair",
 					Status:       "pending",
 					CommitteeUID: "committee-456",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "minimal@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-456"),
 				CommitteeUID: stringPtr("committee-456"),
-				Email:        stringPtr("minimal@example.com"),
 				AppointedBy:  "chair",
 				Status:       "pending",
 				// Optional fields with empty values should be nil
@@ -932,18 +930,17 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "member-789",
-					Email:        "timestamps@example.com",
 					AppointedBy:  "chair",
 					Status:       "active",
 					CommitteeUID: "committee-789",
 					CreatedAt:    time.Time{},
 					UpdatedAt:    time.Time{},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "timestamps@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-789"),
 				CommitteeUID: stringPtr("committee-789"),
-				Email:        stringPtr("timestamps@example.com"),
 				AppointedBy:  "chair",
 				Status:       "active",
 				// Optional fields with empty values should be nil
@@ -964,7 +961,6 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:         "member-partial",
-					Email:       "partial@example.com",
 					AppointedBy: "chair",
 					Status:      "active",
 					Role: model.CommitteeMemberRole{
@@ -978,11 +974,11 @@ func TestConvertMemberDomainToFullResponse(t *testing.T) {
 					},
 					CommitteeUID: "committee-partial",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "partial@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:          stringPtr("member-partial"),
 				CommitteeUID: stringPtr("committee-partial"),
-				Email:        stringPtr("partial@example.com"),
 				AppointedBy:  "chair",
 				Status:       "active",
 				// Optional fields with empty values should be nil
@@ -1073,7 +1069,6 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 					UID:          "member-456",
 					CommitteeUID: "committee-123",
 					Username:     "testuser",
-					Email:        "test@example.com",
 					FirstName:    "John",
 					LastName:     "Doe",
 					JobTitle:     "Engineer",
@@ -1095,6 +1090,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 						Website: "https://testorg.com",
 					},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 		},
 		{
@@ -1110,10 +1106,10 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "member-456",
 					CommitteeUID: "committee-123",
-					Email:        "minimal@example.com",
 					AppointedBy:  "admin",
 					Status:       "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "minimal@example.com"},
 			},
 		},
 		{
@@ -1141,10 +1137,10 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "member-456",
 					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
 					AppointedBy:  "admin",
 					Status:       "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 		},
 		{
@@ -1169,7 +1165,6 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "member-456",
 					CommitteeUID: "committee-123",
-					Email:        "test@example.com",
 					AppointedBy:  "admin",
 					Status:       "active",
 					Organization: model.CommitteeMemberOrganization{
@@ -1177,6 +1172,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 						Name: "Partial Org",
 					},
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 		},
 	}
@@ -1209,12 +1205,12 @@ func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID:    "committee-123",
-					Email:           "john@example.com",
 					Username:        "johndoe",
 					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
 					AppointedBy:     "chair",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "john@example.com"},
 			},
 		},
 		{
@@ -1230,12 +1226,12 @@ func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID:    "committee-123",
-					Email:           "jane@example.com",
 					Username:        "janedoe",
 					LinkedInProfile: "linkedin.com/in/janedoe",
 					AppointedBy:     "chair",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "jane@example.com"},
 			},
 		},
 		{
@@ -1251,12 +1247,12 @@ func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID:    "committee-123",
-					Email:           "bob@example.com",
 					Username:        "bobsmith",
 					LinkedInProfile: "https://uk.linkedin.com/in/bobsmith",
 					AppointedBy:     "chair",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "bob@example.com"},
 			},
 		},
 		{
@@ -1272,12 +1268,12 @@ func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID:    "committee-123",
-					Email:           "nolinkedin@example.com",
 					Username:        "nolinkedin",
 					LinkedInProfile: "",
 					AppointedBy:     "chair",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "nolinkedin@example.com"},
 			},
 		},
 		{
@@ -1293,12 +1289,12 @@ func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
 			expected: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID:    "committee-123",
-					Email:           "emptylinkedin@example.com",
 					Username:        "emptylinkedin",
 					LinkedInProfile: "",
 					AppointedBy:     "chair",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "emptylinkedin@example.com"},
 			},
 		},
 	}
@@ -1328,7 +1324,6 @@ func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:             "member-123",
 					Username:        "johndoe",
-					Email:           "john@example.com",
 					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
 					AppointedBy:     "chair",
 					Status:          "active",
@@ -1336,12 +1331,12 @@ func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
 					CreatedAt:       createdAt,
 					UpdatedAt:       updatedAt,
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "john@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:             stringPtr("member-123"),
 				CommitteeUID:    stringPtr("committee-123"),
 				Username:        stringPtr("johndoe"),
-				Email:           stringPtr("john@example.com"),
 				LinkedinProfile: stringPtr("https://www.linkedin.com/in/johndoe"),
 				AppointedBy:     "chair",
 				Status:          "active",
@@ -1354,7 +1349,6 @@ func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
 			member: &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:             "member-456",
-					Email:           "nolinkedin@example.com",
 					LinkedInProfile: "",
 					AppointedBy:     "chair",
 					Status:          "active",
@@ -1362,11 +1356,11 @@ func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
 					CreatedAt:       createdAt,
 					UpdatedAt:       updatedAt,
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "nolinkedin@example.com"},
 			},
 			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 				UID:             stringPtr("member-456"),
 				CommitteeUID:    stringPtr("committee-456"),
-				Email:           stringPtr("nolinkedin@example.com"),
 				LinkedinProfile: nil, // Empty string should result in nil
 				AppointedBy:     "chair",
 				Status:          "active",
@@ -1405,11 +1399,11 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:             "member-456",
 					CommitteeUID:    "committee-123",
-					Email:           "test@example.com",
 					LinkedInProfile: "https://www.linkedin.com/in/testuser",
 					AppointedBy:     "admin",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 			},
 		},
 		{
@@ -1426,11 +1420,11 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:             "member-789",
 					CommitteeUID:    "committee-123",
-					Email:           "nolinkedin@example.com",
 					LinkedInProfile: "",
 					AppointedBy:     "admin",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "nolinkedin@example.com"},
 			},
 		},
 		{
@@ -1447,11 +1441,11 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:             "member-999",
 					CommitteeUID:    "committee-123",
-					Email:           "clear@example.com",
 					LinkedInProfile: "",
 					AppointedBy:     "admin",
 					Status:          "active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "clear@example.com"},
 			},
 		},
 	}

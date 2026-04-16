@@ -350,9 +350,11 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: p.Email,
 		},
 	}
 
@@ -434,9 +436,11 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          p.MemberUID, // Member UID is required for updates
 			CommitteeUID: p.UID,       // Committee UID from path parameter
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: p.Email,
 		},
 	}
 
@@ -516,7 +520,6 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 		CommitteeUID: &member.CommitteeUID,
 		UID:          &member.UID,
-		Email:        &member.Email,
 		AppointedBy:  member.AppointedBy,
 		Status:       member.Status,
 	}
@@ -611,6 +614,21 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	}
 
 	return result
+}
+
+// convertMemberDomainToContactResponse converts domain CommitteeMember to a contact-only GOA response.
+// Returns only the member UID, committee UID, and email address.
+// This response is gated by the email_viewer relation.
+func (s *committeeServicesrvc) convertMemberDomainToContactResponse(member *model.CommitteeMember) *committeeservice.CommitteeMemberContactWithReadonlyAttributes {
+	if member == nil {
+		return nil
+	}
+
+	return &committeeservice.CommitteeMemberContactWithReadonlyAttributes{
+		UID:          &member.UID,
+		CommitteeUID: &member.CommitteeUID,
+		Email:        &member.Email,
+	}
 }
 
 func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.CommitteeInvite) *committeeservice.CommitteeInviteWithReadonlyAttributes {

@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|get-committee-member-contact|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document)",
 	}
 }
 
@@ -102,6 +102,12 @@ func ParseEndpoint(
 		committeeServiceGetCommitteeMemberMemberUIDFlag   = committeeServiceGetCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeServiceGetCommitteeMemberVersionFlag     = committeeServiceGetCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeServiceGetCommitteeMemberBearerTokenFlag = committeeServiceGetCommitteeMemberFlags.String("bearer-token", "", "")
+
+		committeeServiceGetCommitteeMemberContactFlags           = flag.NewFlagSet("get-committee-member-contact", flag.ExitOnError)
+		committeeServiceGetCommitteeMemberContactUIDFlag         = committeeServiceGetCommitteeMemberContactFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCommitteeMemberContactMemberUIDFlag   = committeeServiceGetCommitteeMemberContactFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCommitteeMemberContactVersionFlag     = committeeServiceGetCommitteeMemberContactFlags.String("version", "REQUIRED", "")
+		committeeServiceGetCommitteeMemberContactBearerTokenFlag = committeeServiceGetCommitteeMemberContactFlags.String("bearer-token", "", "")
 
 		committeeServiceUpdateCommitteeMemberFlags           = flag.NewFlagSet("update-committee-member", flag.ExitOnError)
 		committeeServiceUpdateCommitteeMemberBodyFlag        = committeeServiceUpdateCommitteeMemberFlags.String("body", "REQUIRED", "")
@@ -281,6 +287,7 @@ func ParseEndpoint(
 	committeeServiceLivezFlags.Usage = committeeServiceLivezUsage
 	committeeServiceCreateCommitteeMemberFlags.Usage = committeeServiceCreateCommitteeMemberUsage
 	committeeServiceGetCommitteeMemberFlags.Usage = committeeServiceGetCommitteeMemberUsage
+	committeeServiceGetCommitteeMemberContactFlags.Usage = committeeServiceGetCommitteeMemberContactUsage
 	committeeServiceUpdateCommitteeMemberFlags.Usage = committeeServiceUpdateCommitteeMemberUsage
 	committeeServiceDeleteCommitteeMemberFlags.Usage = committeeServiceDeleteCommitteeMemberUsage
 	committeeServiceGetInviteFlags.Usage = committeeServiceGetInviteUsage
@@ -370,6 +377,9 @@ func ParseEndpoint(
 
 			case "get-committee-member":
 				epf = committeeServiceGetCommitteeMemberFlags
+
+			case "get-committee-member-contact":
+				epf = committeeServiceGetCommitteeMemberContactFlags
 
 			case "update-committee-member":
 				epf = committeeServiceUpdateCommitteeMemberFlags
@@ -499,6 +509,9 @@ func ParseEndpoint(
 			case "get-committee-member":
 				endpoint = c.GetCommitteeMember()
 				data, err = committeeservicec.BuildGetCommitteeMemberPayload(*committeeServiceGetCommitteeMemberUIDFlag, *committeeServiceGetCommitteeMemberMemberUIDFlag, *committeeServiceGetCommitteeMemberVersionFlag, *committeeServiceGetCommitteeMemberBearerTokenFlag)
+			case "get-committee-member-contact":
+				endpoint = c.GetCommitteeMemberContact()
+				data, err = committeeservicec.BuildGetCommitteeMemberContactPayload(*committeeServiceGetCommitteeMemberContactUIDFlag, *committeeServiceGetCommitteeMemberContactMemberUIDFlag, *committeeServiceGetCommitteeMemberContactVersionFlag, *committeeServiceGetCommitteeMemberContactBearerTokenFlag)
 			case "update-committee-member":
 				endpoint = c.UpdateCommitteeMember()
 				data, err = committeeservicec.BuildUpdateCommitteeMemberPayload(*committeeServiceUpdateCommitteeMemberBodyFlag, *committeeServiceUpdateCommitteeMemberUIDFlag, *committeeServiceUpdateCommitteeMemberMemberUIDFlag, *committeeServiceUpdateCommitteeMemberVersionFlag, *committeeServiceUpdateCommitteeMemberBearerTokenFlag, *committeeServiceUpdateCommitteeMemberIfMatchFlag, *committeeServiceUpdateCommitteeMemberXSyncFlag)
@@ -600,6 +613,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    livez: Check if the service is alive.`)
 	fmt.Fprintln(os.Stderr, `    create-committee-member: Add a new member to a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-member: Get a specific committee member by UID`)
+	fmt.Fprintln(os.Stderr, `    get-committee-member-contact: Get contact information for a specific committee member`)
 	fmt.Fprintln(os.Stderr, `    update-committee-member: Replace an existing committee member (requires complete resource)`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-member: Remove a member from a committee`)
 	fmt.Fprintln(os.Stderr, `    get-invite: Get a single invite by UID`)
@@ -859,6 +873,30 @@ func committeeServiceGetCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceGetCommitteeMemberContactUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-committee-member-contact", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -member-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get contact information for a specific committee member`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-member-contact --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceUpdateCommitteeMemberUsage() {

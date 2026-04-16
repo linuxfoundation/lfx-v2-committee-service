@@ -27,6 +27,7 @@ type Client struct {
 	LivezEndpoint                     goa.Endpoint
 	CreateCommitteeMemberEndpoint     goa.Endpoint
 	GetCommitteeMemberEndpoint        goa.Endpoint
+	GetCommitteeMemberContactEndpoint goa.Endpoint
 	UpdateCommitteeMemberEndpoint     goa.Endpoint
 	DeleteCommitteeMemberEndpoint     goa.Endpoint
 	GetInviteEndpoint                 goa.Endpoint
@@ -56,7 +57,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getCommitteeMemberContact, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -68,6 +69,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		LivezEndpoint:                     livez,
 		CreateCommitteeMemberEndpoint:     createCommitteeMember,
 		GetCommitteeMemberEndpoint:        getCommitteeMember,
+		GetCommitteeMemberContactEndpoint: getCommitteeMemberContact,
 		UpdateCommitteeMemberEndpoint:     updateCommitteeMember,
 		DeleteCommitteeMemberEndpoint:     deleteCommitteeMember,
 		GetInviteEndpoint:                 getInvite,
@@ -252,6 +254,23 @@ func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPa
 		return
 	}
 	return ires.(*GetCommitteeMemberResult), nil
+}
+
+// GetCommitteeMemberContact calls the "get-committee-member-contact" endpoint
+// of the "committee-service" service.
+// GetCommitteeMemberContact may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Member not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetCommitteeMemberContact(ctx context.Context, p *GetCommitteeMemberContactPayload) (res *CommitteeMemberContactWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.GetCommitteeMemberContactEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberContactWithReadonlyAttributes), nil
 }
 
 // UpdateCommitteeMember calls the "update-committee-member" endpoint of the

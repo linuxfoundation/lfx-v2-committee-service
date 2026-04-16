@@ -283,6 +283,24 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	return res, nil
 }
 
+// GetCommitteeMemberContact retrieves contact information (email) for a specific committee member.
+// This endpoint is gated by the email_viewer relation.
+func (s *committeeServicesrvc) GetCommitteeMemberContact(ctx context.Context, p *committeeservice.GetCommitteeMemberContactPayload) (res *committeeservice.CommitteeMemberContactWithReadonlyAttributes, err error) {
+
+	slog.DebugContext(ctx, "committeeMemberService.get-committee-member-contact",
+		"committee_uid", p.UID,
+		"member_uid", p.MemberUID,
+	)
+
+	// Execute use case — reuse GetMember; we only expose the email from the result
+	committeeMember, _, err := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertMemberDomainToContactResponse(committeeMember), nil
+}
+
 // UpdateCommitteeMember updates an existing committee member
 func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *committeeservice.UpdateCommitteeMemberPayload) (res *committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
 
@@ -510,9 +528,11 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: invite.CommitteeUID,
 			Username:     username,
-			Email:        invite.InviteeEmail,
 			Role:         model.CommitteeMemberRole{Name: invite.Role},
 			Status:       "Active",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: invite.InviteeEmail,
 		},
 	}
 
@@ -705,8 +725,10 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: application.CommitteeUID,
-			Email:        application.ApplicantEmail,
 			Status:       "Active",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: application.ApplicantEmail,
 		},
 	}
 
@@ -795,8 +817,10 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
 			Username:     username,
-			Email:        email,
 			Status:       "Active",
+		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+			Email: email,
 		},
 	}
 
