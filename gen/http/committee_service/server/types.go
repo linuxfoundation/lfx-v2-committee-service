@@ -5808,8 +5808,8 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	return
@@ -5885,8 +5885,8 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	return

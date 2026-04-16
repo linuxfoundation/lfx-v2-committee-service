@@ -308,11 +308,22 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		constants.RelationProject: {committee.ProjectUID},
 	}
 
-	// When member_visibility = "basic_profile", set the self-referential pointer so that
-	// committee members can view each other's roster and emails via the FGA model.
-	if committee.CommitteeSettings != nil && committee.MemberVisibility == constants.MemberVisibilityBasicProfile {
-		references[constants.RelationCommitteeForMemberRosterAccess] = []string{
-			fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+	// Set self-referential pointers based on member_visibility:
+	//   basic_profile  → roster access only (names & roles, no emails)
+	//   full_profile   → roster access + email access
+	if committee.CommitteeSettings != nil {
+		switch committee.MemberVisibility {
+		case constants.MemberVisibilityBasicProfile:
+			references[constants.RelationCommitteeForMemberRosterAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
+		case constants.MemberVisibilityFullProfile:
+			references[constants.RelationCommitteeForMemberRosterAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
+			references[constants.RelationCommitteeForMemberEmailAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
 		}
 	}
 

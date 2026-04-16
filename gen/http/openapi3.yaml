@@ -4180,6 +4180,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 name:
                     type: string
                     description: The name of the committee
@@ -4375,6 +4376,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 name:
                     type: string
                     description: The name of the committee
@@ -5222,6 +5224,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -5274,6 +5277,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -5677,6 +5681,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 name:
                     type: string
                     description: The name of the committee
@@ -6002,6 +6007,7 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                        - full_profile
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
