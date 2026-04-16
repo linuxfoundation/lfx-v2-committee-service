@@ -569,8 +569,9 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					UID:    "committee-1",
 					Public: true,
 					Relations: map[string][]string{
-						"writer":  {"writer1@example.com", "writer2@example.com"},
-						"auditor": {"auditor1@example.com"},
+						"writer":        {"writer1@example.com", "writer2@example.com"},
+						"auditor":       {"auditor1@example.com"},
+						"roster_viewer": {"*"},
 					},
 					References: map[string][]string{
 						"project": {"project-1"},
@@ -626,6 +627,9 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Data: fgatypes.GenericAccessData{
 					UID:    "committee-3",
 					Public: true,
+					Relations: map[string][]string{
+						"roster_viewer": {"*"},
+					},
 					References: map[string][]string{
 						"project": {"project-3"},
 					},
