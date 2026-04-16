@@ -790,14 +790,14 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             data.Member.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
-			AccessCheckRelation:  "viewer",
+			AccessCheckRelation:  constants.RelationRosterViewer,
 			HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
 			HistoryCheckRelation: "auditor",
 			SortName:             data.Member.FirstName,
 			NameAndAliases:       nameAndAliases,
 			ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
 			Tags:                 data.Member.Tags(),
-			Fulltext:             fmt.Sprintf("%s %s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Email, data.Member.Organization.Name),
+			Fulltext:             fmt.Sprintf("%s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Organization.Name),
 		}
 		memberData = data.Member
 	case model.ActionDeleted:

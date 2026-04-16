@@ -61,14 +61,20 @@ These fields are carried inside the message `data` object.
 |---|---|---|
 | `writer` | Usernames from `CommitteeSettings.Writers` | Only when `Writers` is non-empty |
 | `auditor` | Usernames from `CommitteeSettings.Auditors` | Only when `Auditors` is non-empty |
+| `roster_viewer` | `["*"]` (wildcard — expands to `user:*` in fga-sync) | Only when `CommitteeBase.Public` is `true` |
 
 > Usernames are the `Username` field of each `CommitteeUser` entry (Auth0 `sub` values). Users with an empty `Username` are skipped.
+>
+> `roster_viewer: ["*"]` makes the committee's member list (names & roles) publicly readable on public committees. On private committees this relation is omitted and access is inherited via `member from committee_for_member_roster_access` for members, or `auditor` for staff.
 
 #### References
 
 | Reference | Value | Condition |
 |---|---|---|
 | `project` | `CommitteeBase.ProjectUID` | Always |
+| `committee_for_member_roster_access` | `committee:{CommitteeBase.UID}` (self) | Only when `CommitteeSettings.MemberVisibility == "basic_profile"` |
+
+> `committee_for_member_roster_access` is a self-referential pointer. When set to the committee itself, the FGA model grants all `member`s of the committee `roster_viewer` and `email_viewer` access to each other — enabling members to see names, roles, and email addresses of fellow members. When `MemberVisibility` is `"hidden"` (default), this reference is omitted and members cannot see each other.
 
 #### Exclude Relations
 

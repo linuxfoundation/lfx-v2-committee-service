@@ -213,15 +213,17 @@ _(none)_
 | Field | Value |
 |---|---|
 | `access_check_object` | `committee:{committee_uid}` |
-| `access_check_relation` | `viewer` |
+| `access_check_relation` | `roster_viewer` |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
+
+> **Why `roster_viewer` instead of `viewer`:** The FGA model now has three scopes on the `committee` type — `viewer` (committee details), `roster_viewer` (member names & roles), and `email_viewer` (member emails). Since committee members are indexed at the roster level and this document is visible to anyone who passes the access check, `email` is intentionally excluded from `fulltext` to prevent public committees from leaking member email addresses via search. Email remains in the indexed data schema for auditor-gated access paths.
 
 ### Search Behavior
 
 | Field | Value |
 |---|---|
-| `fulltext` | `first_name`, `last_name`, `email`, `organization.name` |
+| `fulltext` | `first_name`, `last_name`, `organization.name` |
 | `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
 | `sort_name` | `first_name` |
 | `public` | inherits from parent committee |

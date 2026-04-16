@@ -298,12 +298,28 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
 	}
 
+	// For public committees, grant user:* roster_viewer so the member list is publicly
+	// visible. Passing "*" is expanded to "user:*" by processStandardAccessUpdate.
+	if committee.Public {
+		relations[constants.RelationRosterViewer] = []string{"*"}
+	}
+
+	references := map[string][]string{
+		constants.RelationProject: {committee.ProjectUID},
+	}
+
+	// When member_visibility = "basic_profile", set the self-referential pointer so that
+	// committee members can view each other's roster and emails via the FGA model.
+	if committee.CommitteeSettings != nil && committee.MemberVisibility == constants.MemberVisibilityBasicProfile {
+		references[constants.RelationCommitteeForMemberRosterAccess] = []string{
+			fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+		}
+	}
+
 	data := fgatypes.GenericAccessData{
-		UID:    committee.CommitteeBase.UID,
-		Public: committee.Public,
-		References: map[string][]string{
-			constants.RelationProject: {committee.ProjectUID},
-		},
+		UID:        committee.CommitteeBase.UID,
+		Public:     committee.Public,
+		References: references,
 		// member relations are managed separately via member_put and must not be overwritten here
 		ExcludeRelations: []string{constants.RelationMember},
 	}
