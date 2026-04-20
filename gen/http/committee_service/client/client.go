@@ -58,6 +58,10 @@ type Client struct {
 	// get-committee-member endpoint.
 	GetCommitteeMemberDoer goahttp.Doer
 
+	// GetCommitteeMemberContact Doer is the HTTP client used to make requests to
+	// the get-committee-member-contact endpoint.
+	GetCommitteeMemberContactDoer goahttp.Doer
+
 	// UpdateCommitteeMember Doer is the HTTP client used to make requests to the
 	// update-committee-member endpoint.
 	UpdateCommitteeMemberDoer goahttp.Doer
@@ -194,6 +198,7 @@ func NewClient(
 		LivezDoer:                     doer,
 		CreateCommitteeMemberDoer:     doer,
 		GetCommitteeMemberDoer:        doer,
+		GetCommitteeMemberContactDoer: doer,
 		UpdateCommitteeMemberDoer:     doer,
 		DeleteCommitteeMemberDoer:     doer,
 		GetInviteDoer:                 doer,
@@ -452,6 +457,30 @@ func (c *Client) GetCommitteeMember() goa.Endpoint {
 		resp, err := c.GetCommitteeMemberDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "get-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetCommitteeMemberContact returns an endpoint that makes HTTP requests to
+// the committee-service service get-committee-member-contact server.
+func (c *Client) GetCommitteeMemberContact() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCommitteeMemberContactRequest(c.encoder)
+		decodeResponse = DecodeGetCommitteeMemberContactResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCommitteeMemberContactRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCommitteeMemberContactDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-committee-member-contact", err)
 		}
 		return decodeResponse(resp)
 	}

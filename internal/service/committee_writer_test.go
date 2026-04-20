@@ -17,6 +17,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -569,8 +570,9 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 					UID:    "committee-1",
 					Public: true,
 					Relations: map[string][]string{
-						"writer":  {"writer1@example.com", "writer2@example.com"},
-						"auditor": {"auditor1@example.com"},
+						"writer":        {"writer1@example.com", "writer2@example.com"},
+						"auditor":       {"auditor1@example.com"},
+						"roster_viewer": {"*"},
 					},
 					References: map[string][]string{
 						"project": {"project-1"},
@@ -626,8 +628,92 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 				Data: fgatypes.GenericAccessData{
 					UID:    "committee-3",
 					Public: true,
+					Relations: map[string][]string{
+						"roster_viewer": {"*"},
+					},
 					References: map[string][]string{
 						"project": {"project-3"},
+					},
+					ExcludeRelations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "hidden (default) sets neither roster nor email access",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-4h",
+					ProjectUID: "project-4h",
+					Public:     false,
+					ParentUID:  nil,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					MemberVisibility: constants.MemberVisibilityHidden,
+				},
+			},
+			expected: fgatypes.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "update_access",
+				Data: fgatypes.GenericAccessData{
+					UID:    "committee-4h",
+					Public: false,
+					References: map[string][]string{
+						"project": {"project-4h"},
+					},
+					ExcludeRelations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "basic_profile sets roster access only",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-4",
+					ProjectUID: "project-4",
+					Public:     false,
+					ParentUID:  nil,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					MemberVisibility: constants.MemberVisibilityBasicProfile,
+				},
+			},
+			expected: fgatypes.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "update_access",
+				Data: fgatypes.GenericAccessData{
+					UID:    "committee-4",
+					Public: false,
+					References: map[string][]string{
+						"project":                            {"project-4"},
+						"committee_for_member_roster_access": {"committee:committee-4"},
+					},
+					ExcludeRelations: []string{"member"},
+				},
+			},
+		},
+		{
+			name: "full_profile sets roster and email access",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-5",
+					ProjectUID: "project-5",
+					Public:     false,
+					ParentUID:  nil,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					MemberVisibility: constants.MemberVisibilityFullProfile,
+				},
+			},
+			expected: fgatypes.GenericFGAMessage{
+				ObjectType: "committee",
+				Operation:  "update_access",
+				Data: fgatypes.GenericAccessData{
+					UID:    "committee-5",
+					Public: false,
+					References: map[string][]string{
+						"project":                            {"project-5"},
+						"committee_for_member_roster_access": {"committee:committee-5"},
+						"committee_for_member_email_access":  {"committee:committee-5"},
 					},
 					ExcludeRelations: []string{"member"},
 				},

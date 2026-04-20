@@ -47,6 +47,40 @@ func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
 
+// mockCommitteeReaderOrchestrator is a configurable mock for service.CommitteeReader.
+type mockCommitteeReaderOrchestrator struct {
+	getMemberResult   *model.CommitteeMember
+	getMemberRevision uint64
+	getMemberErr      error
+	getMemberCalls    []getMemberCall
+}
+
+type getMemberCall struct {
+	committeeUID string
+	memberUID    string
+}
+
+func (m *mockCommitteeReaderOrchestrator) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	return nil, 0, errs.NewUnexpected("not implemented for test")
+}
+
+func (m *mockCommitteeReaderOrchestrator) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	return nil, 0, errs.NewUnexpected("not implemented for test")
+}
+
+func (m *mockCommitteeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error) {
+	return nil, errs.NewUnexpected("not implemented for test")
+}
+
+func (m *mockCommitteeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
+	m.getMemberCalls = append(m.getMemberCalls, getMemberCall{committeeUID: committeeUID, memberUID: memberUID})
+	return m.getMemberResult, m.getMemberRevision, m.getMemberErr
+}
+
+func (m *mockCommitteeReaderOrchestrator) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+	return nil, errs.NewUnexpected("not implemented for test")
+}
+
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
 	deleteError       error
@@ -380,12 +414,12 @@ func TestUpdateCommitteeMember(t *testing.T) {
 						UID:          "member-456",
 						CommitteeUID: "committee-123",
 						Username:     "testuser",
-						Email:        "test@example.com",
 						FirstName:    "John",
 						LastName:     "Doe",
 						AppointedBy:  "admin",
 						Status:       "active",
 					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 				}
 				mock.updateMemberErr = nil
 			},
@@ -401,7 +435,6 @@ func TestUpdateCommitteeMember(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "member-456", *result.UID)
 				assert.Equal(t, "committee-123", *result.CommitteeUID)
-				assert.Equal(t, "test@example.com", *result.Email)
 			},
 		},
 		{
@@ -871,9 +904,9 @@ func TestAcceptInvite(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "new-member-uid",
 					CommitteeUID: "committee-1",
-					Email:        "accept@example.com",
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "accept@example.com"},
 			}
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
@@ -1262,9 +1295,9 @@ func TestApproveApplication(t *testing.T) {
 			mockOrch.createMember = &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					CommitteeUID: "committee-1",
-					Email:        "user@example.com",
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "user@example.com"},
 			}
 
 			notes := "Welcome aboard"
@@ -1426,9 +1459,9 @@ func TestJoinCommittee(t *testing.T) {
 				CommitteeMemberBase: model.CommitteeMemberBase{
 					UID:          "new-member-uid",
 					CommitteeUID: "committee-1",
-					Email:        tt.email,
 					Status:       "Active",
 				},
+				CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: tt.email},
 			}
 
 			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
@@ -1493,9 +1526,9 @@ func TestLeaveCommittee(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          tt.seedMemberUID,
 						CommitteeUID: "committee-1",
-						Email:        tt.principal,
 						Status:       "Active",
 					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: tt.principal},
 				})
 				mockOrch.deleteError = nil
 			}
@@ -1514,6 +1547,127 @@ func TestLeaveCommittee(t *testing.T) {
 				// Verify the orchestrator was called with the correct member UID
 				require.Len(t, mockOrch.deleteCalls, 1)
 				assert.Equal(t, tt.seedMemberUID, mockOrch.deleteCalls[0].uid)
+			}
+		})
+	}
+}
+
+// ==================== GetCommitteeMemberContact Tests ====================
+
+func TestGetCommitteeMemberContact(t *testing.T) {
+	tests := []struct {
+		name           string
+		payload        *committeeservice.GetCommitteeMemberContactPayload
+		setupMock      func(*mockCommitteeReaderOrchestrator)
+		expectError    bool
+		validateResult func(*testing.T, *committeeservice.CommitteeMemberContactWithReadonlyAttributes)
+		validateCalls  func(*testing.T, []getMemberCall)
+	}{
+		{
+			name: "returns email from CommitteeMemberSensitive",
+			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
+				UID:       "committee-123",
+				MemberUID: "member-456",
+			},
+			setupMock: func(m *mockCommitteeReaderOrchestrator) {
+				m.getMemberResult = &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-456",
+						CommitteeUID: "committee-123",
+						FirstName:    "Jane",
+						LastName:     "Doe",
+					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{
+						Email: "jane.doe@example.com",
+					},
+				}
+				m.getMemberRevision = 3
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, res *committeeservice.CommitteeMemberContactWithReadonlyAttributes) {
+				require.NotNil(t, res)
+				require.NotNil(t, res.UID)
+				require.NotNil(t, res.CommitteeUID)
+				require.NotNil(t, res.Email)
+				assert.Equal(t, "member-456", *res.UID)
+				assert.Equal(t, "committee-123", *res.CommitteeUID)
+				assert.Equal(t, "jane.doe@example.com", *res.Email)
+			},
+			validateCalls: func(t *testing.T, calls []getMemberCall) {
+				require.Len(t, calls, 1)
+				assert.Equal(t, "committee-123", calls[0].committeeUID)
+				assert.Equal(t, "member-456", calls[0].memberUID)
+			},
+		},
+		{
+			name: "propagates not-found error from GetMember",
+			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
+				UID:       "committee-123",
+				MemberUID: "nonexistent-member",
+			},
+			setupMock: func(m *mockCommitteeReaderOrchestrator) {
+				m.getMemberErr = errs.NewNotFound("committee member not found")
+			},
+			expectError: true,
+			validateResult: func(t *testing.T, res *committeeservice.CommitteeMemberContactWithReadonlyAttributes) {
+				assert.Nil(t, res)
+			},
+			validateCalls: func(t *testing.T, calls []getMemberCall) {
+				require.Len(t, calls, 1)
+				assert.Equal(t, "committee-123", calls[0].committeeUID)
+				assert.Equal(t, "nonexistent-member", calls[0].memberUID)
+			},
+		},
+		{
+			name: "propagates unexpected error from GetMember",
+			payload: &committeeservice.GetCommitteeMemberContactPayload{
+				Version:   "1",
+				UID:       "committee-abc",
+				MemberUID: "member-xyz",
+			},
+			setupMock: func(m *mockCommitteeReaderOrchestrator) {
+				m.getMemberErr = errs.NewUnexpected("storage unavailable", nil)
+			},
+			expectError: true,
+			validateResult: func(t *testing.T, res *committeeservice.CommitteeMemberContactWithReadonlyAttributes) {
+				assert.Nil(t, res)
+			},
+			validateCalls: func(t *testing.T, calls []getMemberCall) {
+				require.Len(t, calls, 1)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockReader := &mockCommitteeReaderOrchestrator{}
+			tt.setupMock(mockReader)
+
+			svc := &committeeServicesrvc{
+				committeeReaderOrchestrator: mockReader,
+				committeeWriterOrchestrator: &mockCommitteeWriterOrchestrator{},
+				auth:                        mock.NewMockAuthService(),
+				storage:                     mock.NewMockCommitteeReaderWriter(mock.NewMockRepository()),
+				publisher:                   mock.NewMockCommitteePublisher(),
+				userReader:                  newMockUserReader(),
+			}
+
+			ctx := context.Background()
+			result, err := svc.GetCommitteeMemberContact(ctx, tt.payload)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.validateResult != nil {
+				tt.validateResult(t, result)
+			}
+			if tt.validateCalls != nil {
+				tt.validateCalls(t, mockReader.getMemberCalls)
 			}
 		})
 	}

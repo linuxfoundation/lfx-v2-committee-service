@@ -2219,6 +2219,71 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/members/{member_uid}/contact:
+        get:
+            tags:
+                - committee-service
+            summary: get-committee-member-contact committee-service
+            description: Get contact information for a specific committee member
+            operationId: committee-service#get-committee-member-contact
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeMemberContactWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/settings:
         get:
             tags:
@@ -2764,6 +2829,7 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+                    - full_profile
             name:
                 type: string
                 description: The name of the committee
@@ -3018,6 +3084,29 @@ definitions:
             uid: c1d2e3f4-a5b6-7890-cdef-123456789012
             updated_at: "2023-06-20T14:45:30Z"
             url: https://confluence.example.com/architecture-decisions
+    CommitteeMemberContactWithReadonlyAttributes:
+        title: CommitteeMemberContactWithReadonlyAttributes
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID -- v2 uid, not related to v1 id directly
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            email:
+                type: string
+                description: Primary email address
+                example: user@example.com
+                format: email
+            uid:
+                type: string
+                description: Committee member UID -- v2 uid, not related to v1 id directly
+                example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                format: uuid
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            email: user@example.com
+            uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
     CommitteeMemberFullWithReadonlyAttributes:
         title: CommitteeMemberFullWithReadonlyAttributes
         type: object
@@ -3064,11 +3153,6 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            email:
-                type: string
-                description: Primary email address
-                example: user@example.com
-                format: email
             first_name:
                 type: string
                 description: First name
@@ -3205,7 +3289,6 @@ definitions:
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            email: user@example.com
             first_name: John
             job_title: Chief Technology Officer
             last_name: Doe
@@ -3563,6 +3646,7 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+                    - full_profile
             name:
                 type: string
                 description: The name of the committee
@@ -4050,6 +4134,7 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+                    - full_profile
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -4216,6 +4301,7 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+                    - full_profile
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to

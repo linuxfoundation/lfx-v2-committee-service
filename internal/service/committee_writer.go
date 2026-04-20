@@ -298,12 +298,46 @@ func (uc *committeeWriterOrchestrator) buildAccessControlMessage(ctx context.Con
 		relations[constants.RelationAuditor] = extractUsernames(committee.Auditors)
 	}
 
+	// For public committees, grant user:* roster_viewer so the member list is publicly
+	// visible. Passing "*" is expanded to "user:*" by processStandardAccessUpdate.
+	if committee.Public {
+		relations[constants.RelationRosterViewer] = []string{"*"}
+	}
+
+	references := map[string][]string{
+		constants.RelationProject: {committee.ProjectUID},
+	}
+
+	// Set self-referential pointers based on member_visibility:
+	//   hidden (default) → no self-referential references; members cannot see each other.
+	//                      This is the safe default for existing committees that predate the
+	//                      feature (stored as "" or "hidden" — both are treated identically).
+	//   basic_profile    → roster access only (names & roles, no emails)
+	//   full_profile     → roster access + email access
+	if committee.CommitteeSettings != nil {
+		switch committee.MemberVisibility {
+		case constants.MemberVisibilityHidden, "":
+			// Intentionally no self-referential references. Members cannot see each other's
+			// roster or email addresses. This is the explicit safe default: empty string
+			// (from pre-feature records) and "hidden" are equivalent.
+		case constants.MemberVisibilityBasicProfile:
+			references[constants.RelationCommitteeForMemberRosterAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
+		case constants.MemberVisibilityFullProfile:
+			references[constants.RelationCommitteeForMemberRosterAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
+			references[constants.RelationCommitteeForMemberEmailAccess] = []string{
+				fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
+			}
+		}
+	}
+
 	data := fgatypes.GenericAccessData{
-		UID:    committee.CommitteeBase.UID,
-		Public: committee.Public,
-		References: map[string][]string{
-			constants.RelationProject: {committee.ProjectUID},
-		},
+		UID:        committee.CommitteeBase.UID,
+		Public:     committee.Public,
+		References: references,
 		// member relations are managed separately via member_put and must not be overwritten here
 		ExcludeRelations: []string{constants.RelationMember},
 	}

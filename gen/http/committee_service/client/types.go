@@ -459,8 +459,6 @@ type CreateCommitteeMemberResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -510,6 +508,17 @@ type CreateCommitteeMemberResponseBody struct {
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
 
+// GetCommitteeMemberContactResponseBody is the type of the "committee-service"
+// service "get-committee-member-contact" endpoint HTTP response body.
+type GetCommitteeMemberContactResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+}
+
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
 type UpdateCommitteeMemberResponseBody struct {
@@ -523,8 +532,6 @@ type UpdateCommitteeMemberResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -617,8 +624,6 @@ type AcceptInviteResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -732,8 +737,6 @@ type ApproveApplicationResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -811,8 +814,6 @@ type JoinCommitteeResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -1227,6 +1228,38 @@ type GetCommitteeMemberNotFoundResponseBody struct {
 // "committee-service" service "get-committee-member" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GetCommitteeMemberServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactBadRequestResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "BadRequest" error.
+type GetCommitteeMemberContactBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCommitteeMemberContactInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactNotFoundResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCommitteeMemberContactNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCommitteeMemberContactServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-committee-member-contact" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCommitteeMemberContactServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -2205,8 +2238,6 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
 	// User's LF ID
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
-	// Primary email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -3429,7 +3460,6 @@ func NewCreateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesCreated(bo
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -3564,7 +3594,6 @@ func NewGetCommitteeMemberResultOK(body *GetCommitteeMemberResponseBody, etag *s
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -3684,6 +3713,59 @@ func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnav
 	return v
 }
 
+// NewGetCommitteeMemberContactCommitteeMemberContactWithReadonlyAttributesOK
+// builds a "committee-service" service "get-committee-member-contact" endpoint
+// result from a HTTP "OK" response.
+func NewGetCommitteeMemberContactCommitteeMemberContactWithReadonlyAttributesOK(body *GetCommitteeMemberContactResponseBody) *committeeservice.CommitteeMemberContactWithReadonlyAttributes {
+	v := &committeeservice.CommitteeMemberContactWithReadonlyAttributes{
+		UID:          body.UID,
+		CommitteeUID: body.CommitteeUID,
+		Email:        body.Email,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactBadRequest builds a committee-service service
+// get-committee-member-contact endpoint BadRequest error.
+func NewGetCommitteeMemberContactBadRequest(body *GetCommitteeMemberContactBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactInternalServerError builds a committee-service
+// service get-committee-member-contact endpoint InternalServerError error.
+func NewGetCommitteeMemberContactInternalServerError(body *GetCommitteeMemberContactInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactNotFound builds a committee-service service
+// get-committee-member-contact endpoint NotFound error.
+func NewGetCommitteeMemberContactNotFound(body *GetCommitteeMemberContactNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCommitteeMemberContactServiceUnavailable builds a committee-service
+// service get-committee-member-contact endpoint ServiceUnavailable error.
+func NewGetCommitteeMemberContactServiceUnavailable(body *GetCommitteeMemberContactServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK builds a
 // "committee-service" service "update-committee-member" endpoint result from a
 // HTTP "OK" response.
@@ -3694,7 +3776,6 @@ func NewUpdateCommitteeMemberCommitteeMemberFullWithReadonlyAttributesOK(body *U
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -4042,7 +4123,6 @@ func NewAcceptInviteCommitteeMemberFullWithReadonlyAttributesOK(body *AcceptInvi
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -4403,7 +4483,6 @@ func NewApproveApplicationCommitteeMemberFullWithReadonlyAttributesOK(body *Appr
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -4611,7 +4690,6 @@ func NewJoinCommitteeCommitteeMemberFullWithReadonlyAttributesCreated(body *Join
 		CommitteeName:     body.CommitteeName,
 		CommitteeCategory: body.CommitteeCategory,
 		Username:          body.Username,
-		Email:             body.Email,
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
 		JobTitle:          body.JobTitle,
@@ -5445,8 +5523,8 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	return
@@ -5600,8 +5678,8 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -5623,8 +5701,8 @@ func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsRe
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -5659,9 +5737,6 @@ func ValidateCreateCommitteeMemberResponseBody(body *CreateCommitteeMemberRespon
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -5763,9 +5838,6 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
 	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
-	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -5842,6 +5914,21 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 	return
 }
 
+// ValidateGetCommitteeMemberContactResponseBody runs the validations defined
+// on Get-Committee-Member-ContactResponseBody
+func ValidateGetCommitteeMemberContactResponseBody(body *GetCommitteeMemberContactResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	return
+}
+
 // ValidateUpdateCommitteeMemberResponseBody runs the validations defined on
 // Update-Committee-MemberResponseBody
 func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberResponseBody) (err error) {
@@ -5865,9 +5952,6 @@ func ValidateUpdateCommitteeMemberResponseBody(body *UpdateCommitteeMemberRespon
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -6014,9 +6098,6 @@ func ValidateAcceptInviteResponseBody(body *AcceptInviteResponseBody) (err error
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -6201,9 +6282,6 @@ func ValidateApproveApplicationResponseBody(body *ApproveApplicationResponseBody
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
 	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
-	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -6333,9 +6411,6 @@ func ValidateJoinCommitteeResponseBody(body *JoinCommitteeResponseBody) (err err
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -6932,6 +7007,44 @@ func ValidateGetCommitteeMemberNotFoundResponseBody(body *GetCommitteeMemberNotF
 // ValidateGetCommitteeMemberServiceUnavailableResponseBody runs the
 // validations defined on get-committee-member_ServiceUnavailable_response_body
 func ValidateGetCommitteeMemberServiceUnavailableResponseBody(body *GetCommitteeMemberServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactBadRequestResponseBody runs the validations
+// defined on get-committee-member-contact_BadRequest_response_body
+func ValidateGetCommitteeMemberContactBadRequestResponseBody(body *GetCommitteeMemberContactBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactInternalServerErrorResponseBody runs the
+// validations defined on
+// get-committee-member-contact_InternalServerError_response_body
+func ValidateGetCommitteeMemberContactInternalServerErrorResponseBody(body *GetCommitteeMemberContactInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactNotFoundResponseBody runs the validations
+// defined on get-committee-member-contact_NotFound_response_body
+func ValidateGetCommitteeMemberContactNotFoundResponseBody(body *GetCommitteeMemberContactNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCommitteeMemberContactServiceUnavailableResponseBody runs the
+// validations defined on
+// get-committee-member-contact_ServiceUnavailable_response_body
+func ValidateGetCommitteeMemberContactServiceUnavailableResponseBody(body *GetCommitteeMemberContactServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -8012,8 +8125,8 @@ func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *Committee
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
-		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile" || *body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -8049,9 +8162,6 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
 		}
-	}
-	if body.Email != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {

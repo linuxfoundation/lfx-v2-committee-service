@@ -790,16 +790,17 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             data.Member.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
-			AccessCheckRelation:  "viewer",
+			AccessCheckRelation:  constants.RelationRosterViewer,
 			HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
 			HistoryCheckRelation: "auditor",
 			SortName:             data.Member.FirstName,
 			NameAndAliases:       nameAndAliases,
 			ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
 			Tags:                 data.Member.Tags(),
-			Fulltext:             fmt.Sprintf("%s %s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Email, data.Member.Organization.Name),
+			Fulltext:             fmt.Sprintf("%s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Organization.Name),
 		}
-		memberData = data.Member
+		// Use only the base (non-sensitive) fields for the roster index so email is not leaked.
+		memberData = data.Member.CommitteeMemberBase
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
 		memberData = data.Member.UID
@@ -812,6 +813,65 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			"action", action,
 		)
 		return errs.NewUnexpected("failed to build member indexer message", errBuildIndexerMessage)
+	}
+
+	// Build sensitive indexer message (email only), gated by email_viewer.
+	var sensitiveIndexerMessageBuild *model.CommitteeIndexerMessage
+	switch action {
+	case model.ActionCreated, model.ActionUpdated:
+		sensitiveMemberTags := []string{
+			data.Member.UID,
+			fmt.Sprintf("committee_member_uid:%s", data.Member.UID),
+			fmt.Sprintf("committee_uid:%s", data.Member.CommitteeUID),
+			fmt.Sprintf("email:%s", data.Member.Email),
+		}
+		sensitiveIndexerMessage := model.CommitteeIndexerMessage{
+			Action: action,
+			Tags:   sensitiveMemberTags,
+			IndexingConfig: &indexerTypes.IndexingConfig{
+				ObjectID:             data.Member.UID,
+				AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+				AccessCheckRelation:  constants.RelationEmailViewer,
+				HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
+				HistoryCheckRelation: constants.RelationAuditor,
+				SortName:             data.Member.Email,
+				NameAndAliases:       []string{data.Member.Email},
+				Fulltext:             data.Member.Email,
+				Tags:                 sensitiveMemberTags,
+				ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
+			},
+		}
+		sensitivePayload := struct {
+			UID          string `json:"uid"`
+			CommitteeUID string `json:"committee_uid"`
+			Email        string `json:"email"`
+		}{
+			UID:          data.Member.UID,
+			CommitteeUID: data.Member.CommitteeUID,
+			Email:        data.Member.Email,
+		}
+		built, errBuildSensitive := sensitiveIndexerMessage.Build(ctx, sensitivePayload)
+		if errBuildSensitive != nil {
+			slog.ErrorContext(ctx, "failed to build sensitive member indexer message",
+				"error", errBuildSensitive,
+				"action", action,
+			)
+			return errs.NewUnexpected("failed to build sensitive member indexer message", errBuildSensitive)
+		}
+		sensitiveIndexerMessageBuild = built
+	case model.ActionDeleted:
+		// Publish a delete event to the sensitive subject so the email document
+		// is removed from the index and does not remain accessible to email_viewer.
+		sensitiveDeleteMsg := model.CommitteeIndexerMessage{Action: action}
+		built, errBuildSensitive := sensitiveDeleteMsg.Build(ctx, data.Member.UID)
+		if errBuildSensitive != nil {
+			slog.ErrorContext(ctx, "failed to build sensitive member delete indexer message",
+				"error", errBuildSensitive,
+				"action", action,
+			)
+			return errs.NewUnexpected("failed to build sensitive member delete indexer message", errBuildSensitive)
+		}
+		sensitiveIndexerMessageBuild = built
 	}
 
 	// Build event message for the member
@@ -846,6 +906,12 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	messages := []func() error{
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSubject, indexerMessageBuild, sync)
+		},
+		func() error {
+			if sensitiveIndexerMessageBuild == nil {
+				return nil
+			}
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeMemberSensitiveSubject, sensitiveIndexerMessageBuild, sync)
 		},
 		func() error {
 			return uc.committeePublisher.Event(ctx, eventMessageBuild.Subject, eventMessageBuild, false)

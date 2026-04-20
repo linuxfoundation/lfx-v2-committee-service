@@ -44,6 +44,11 @@ const (
 	// The subject is of the form: lfx.index.committee_member
 	IndexCommitteeMemberSubject = "lfx.index.committee_member"
 
+	// IndexCommitteeMemberSensitiveSubject is the subject for the committee member sensitive index.
+	// This indexes only the sensitive fields (email) of a committee member, gated by email_viewer.
+	// The subject is of the form: lfx.index.committee_member_sensitive
+	IndexCommitteeMemberSensitiveSubject = "lfx.index.committee_member_sensitive"
+
 	// IndexCommitteeInviteSubject is the subject for the committee invite index.
 	// The subject is of the form: lfx.index.committee_invite
 	IndexCommitteeInviteSubject = "lfx.index.committee_invite"

@@ -68,8 +68,8 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 		}
-		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile" || body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 		if err != nil {
 			return nil, err
@@ -509,8 +509,8 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 		}
-		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile" || body.MemberVisibility == "full_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile", "full_profile"}))
 		}
 		if err != nil {
 			return nil, err
@@ -830,6 +830,51 @@ func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string
 		}
 	}
 	v := &committeeservice.GetCommitteeMemberPayload{}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildGetCommitteeMemberContactPayload builds the payload for the
+// committee-service get-committee-member-contact endpoint from CLI flags.
+func BuildGetCommitteeMemberContactPayload(committeeServiceGetCommitteeMemberContactUID string, committeeServiceGetCommitteeMemberContactMemberUID string, committeeServiceGetCommitteeMemberContactVersion string, committeeServiceGetCommitteeMemberContactBearerToken string) (*committeeservice.GetCommitteeMemberContactPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCommitteeMemberContactUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceGetCommitteeMemberContactMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceGetCommitteeMemberContactVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCommitteeMemberContactBearerToken != "" {
+			bearerToken = &committeeServiceGetCommitteeMemberContactBearerToken
+		}
+	}
+	v := &committeeservice.GetCommitteeMemberContactPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
 	v.Version = version

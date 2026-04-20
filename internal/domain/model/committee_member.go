@@ -19,13 +19,19 @@ import (
 // CommitteeMember represents the complete committee member business entity
 type CommitteeMember struct {
 	CommitteeMemberBase
+	CommitteeMemberSensitive
 }
 
-// CommitteeMemberBase represents the base committee member attributes
+// CommitteeMemberSensitive holds the sensitive fields for a committee member
+// that are gated behind the email_viewer relation.
+type CommitteeMemberSensitive struct {
+	Email string `json:"email"`
+}
+
+// CommitteeMemberBase represents the base committee member attributes (no sensitive fields)
 type CommitteeMemberBase struct {
 	UID               string                      `json:"uid"`
 	Username          string                      `json:"username"`
-	Email             string                      `json:"email"`
 	FirstName         string                      `json:"first_name"`
 	LastName          string                      `json:"last_name"`
 	JobTitle          string                      `json:"job_title,omitempty"`
@@ -131,11 +137,6 @@ func (cm *CommitteeMember) Tags() []string {
 
 	if cm.Username != "" {
 		tag := fmt.Sprintf("username:%s", cm.Username)
-		tags = append(tags, tag)
-	}
-
-	if cm.Email != "" {
-		tag := fmt.Sprintf("email:%s", cm.Email)
 		tags = append(tags, tag)
 	}
 

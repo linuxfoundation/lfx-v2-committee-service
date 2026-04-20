@@ -701,7 +701,6 @@ func TestCommitteeReaderOrchestratorGetMember(t *testing.T) {
 			UID:          testMemberUID,
 			CommitteeUID: testCommitteeUID,
 			Username:     "testuser",
-			Email:        "test@example.com",
 			FirstName:    "John",
 			LastName:     "Doe",
 			JobTitle:     "Software Engineer",
@@ -724,6 +723,7 @@ func TestCommitteeReaderOrchestratorGetMember(t *testing.T) {
 			CreatedAt: time.Now().Add(-24 * time.Hour),
 			UpdatedAt: time.Now(),
 		},
+		CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 	}
 
 	tests := []struct {
@@ -825,10 +825,10 @@ func TestCommitteeReaderOrchestratorGetMember(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          testMemberUID,
 						CommitteeUID: "different-committee-uid",
-						Email:        "test@example.com",
 						AppointedBy:  "different-chair",
 						Status:       "active",
 					},
+					CommitteeMemberSensitive: model.CommitteeMemberSensitive{Email: "test@example.com"},
 				}
 				mockRepo.AddCommitteeMember("different-committee-uid", differentMember)
 			},

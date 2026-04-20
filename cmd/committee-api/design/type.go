@@ -423,9 +423,25 @@ var CommitteeMemberBase = dsl.Type("committee-member-base", func() {
 })
 
 // CommitteeMemberBaseAttributes defines the base attributes for a committee member.
+// Used for create/update payloads where email is a required input field.
 func CommitteeMemberBaseAttributes() {
 	UsernameAttribute()
 	EmailAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	JobTitleAttribute()
+	LinkedInProfileAttribute()
+	RoleInfoAttributes()
+	AppointedByAttribute()
+	StatusAttribute()
+	VotingInfoAttributes()
+	OrganizationInfoAttributes()
+}
+
+// CommitteeMemberBasicBaseAttributes defines the core display attributes for a committee member.
+// Used for response types that show member identity and role information.
+func CommitteeMemberBasicBaseAttributes() {
+	UsernameAttribute()
 	FirstNameAttribute()
 	LastNameAttribute()
 	JobTitleAttribute()
@@ -444,17 +460,28 @@ var CommitteeMemberFull = dsl.Type("committee-member-full", func() {
 	CommitteeMemberBaseAttributes()
 })
 
-// CommitteeMemberFullWithReadonlyAttributes is the DSL type for a complete committee member with readonly attributes.
+// CommitteeMemberFullWithReadonlyAttributes is the DSL type for a committee member response
+// with readonly attributes. Shows member identity and role information.
 var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-with-readonly-attributes", func() {
-	dsl.Description("A complete representation of committee members with readonly attributes.")
+	dsl.Description("A committee member response with readonly attributes.")
 
 	CommitteeMemberUIDAttribute()
 	CommitteeUIDMemberAttribute()
 	CommitteeNameMemberAttribute()
 	CommitteeCategoryMemberAttribute()
-	CommitteeMemberBaseAttributes()
+	CommitteeMemberBasicBaseAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
+})
+
+// CommitteeMemberContactWithReadonlyAttributes is the DSL type for the contact
+// information of a committee member. Contains the member UID, committee UID, and email.
+var CommitteeMemberContactWithReadonlyAttributes = dsl.Type("committee-member-contact-with-readonly-attributes", func() {
+	dsl.Description("Contact information for a committee member.")
+
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	EmailAttribute()
 })
 
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
@@ -718,8 +745,8 @@ func OrganizationIDAttribute() {
 
 // MemberVisibilityAttribute is the DSL attribute for the member visibility setting
 func MemberVisibilityAttribute() {
-	dsl.Attribute("member_visibility", dsl.String, "Dertermines the visibility level of members profiles to other members of the same committee", func() {
-		dsl.Enum("hidden", "basic_profile")
+	dsl.Attribute("member_visibility", dsl.String, "Determines the visibility level of members' profiles to other members of the same committee", func() {
+		dsl.Enum("hidden", "basic_profile", "full_profile")
 		dsl.Default("hidden")
 		dsl.Example("hidden")
 	})
