@@ -208,6 +208,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 	return nil, nil
 }
 
+// HandleCommitteeUpdated handles committee updated events and re-syncs denormalized member data.
+// TODO: implement — stub added to satisfy port.MessageHandler while the full implementation is being built.
+func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(_ context.Context, _ port.TransportMessenger) ([]byte, error) {
+	return nil, nil
+}
+
 // NewMessageHandlerOrchestrator creates a new message handler orchestrator using the option pattern
 func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) port.MessageHandler {
 	m := &messageHandlerOrchestrator{}

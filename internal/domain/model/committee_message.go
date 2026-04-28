@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 
 	"github.com/go-viper/mapstructure/v2"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
@@ -127,7 +128,28 @@ type ResourceType string
 // ResourceType constants for the resource type of a committee event.
 const (
 	ResourceCommitteeMember ResourceType = "committee_member"
+	ResourceCommittee       ResourceType = "committee"
 )
+
+// CommitteeUpdateEventData carries the before and after images of a committee update.
+// Consumers use the two images to decide independently what side-effects to apply.
+type CommitteeUpdateEventData struct {
+	CommitteeUID string         `json:"committee_uid"`
+	OldCommittee *CommitteeBase `json:"old_committee"`
+	Committee    *CommitteeBase `json:"committee"`
+}
+
+// RequiresMemberSync reports whether the update changed any field that is
+// denormalized onto member documents. Returns false if either image is nil.
+func (e *CommitteeUpdateEventData) RequiresMemberSync() bool {
+	if e.OldCommittee == nil || e.Committee == nil {
+		return false
+	}
+	return e.OldCommittee.Name != e.Committee.Name ||
+		e.OldCommittee.Category != e.Committee.Category ||
+		e.OldCommittee.ProjectUID != e.Committee.ProjectUID ||
+		e.OldCommittee.ProjectSlug != e.Committee.ProjectSlug
+}
 
 // Build creates a CommitteeEvent from the resource type, action and input data
 func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
@@ -138,6 +160,8 @@ func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, actio
 	switch resource {
 	case ResourceCommitteeMember:
 		return e.buildCommitteeMembers(ctx, resource, action, input)
+	case ResourceCommittee:
+		return e.buildCommittee(ctx, resource, action, input)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -198,6 +222,31 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		}
 		e.Data = updateData
 	}
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommittee(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionUpdated:
+		e.Subject = constants.CommitteeUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	updateData, ok := input.(*CommitteeUpdateEventData)
+	if !ok || updateData == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeUpdateEventData",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
+	}
+	e.Data = updateData
 
 	return e, nil
 }
