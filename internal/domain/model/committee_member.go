@@ -163,6 +163,19 @@ func (cm *CommitteeMember) Tags() []string {
 	return tags
 }
 
+// NeedsSyncWith reports whether this member's denormalized committee fields
+// differ from the current state of the given committee. Used by the sync handler
+// to skip members that are already up to date, making re-runs idempotent.
+func (cm *CommitteeMember) NeedsSyncWith(committee *CommitteeBase) bool {
+	if committee == nil {
+		return false
+	}
+	return cm.CommitteeName != committee.Name ||
+		cm.CommitteeCategory != committee.Category ||
+		cm.ProjectUID != committee.ProjectUID ||
+		cm.ProjectSlug != committee.ProjectSlug
+}
+
 // Validate validates the committee member against the committee's requirements
 func (cm *CommitteeMember) Validate(committee *Committee) error {
 	if cm == nil {

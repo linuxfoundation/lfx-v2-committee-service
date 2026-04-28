@@ -85,4 +85,8 @@ const (
 	// CommitteeMemberUpdatedSubject is the subject for committee member update events.
 	// The subject is of the form: lfx.committee-api.committee_member.updated
 	CommitteeMemberUpdatedSubject = "lfx.committee-api.committee_member.updated"
+
+	// CommitteeUpdatedSubject is emitted after a successful committee update.
+	// The payload is a CommitteeEvent wrapping CommitteeUpdateEventData (old + new image).
+	CommitteeUpdatedSubject = "lfx.committee-api.committee.updated"
 )
