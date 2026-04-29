@@ -228,9 +228,15 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 		return nil, err
 	}
 
-	data, ok := event.Data.(*model.CommitteeUpdateEventData)
-	if !ok || data == nil {
-		slog.WarnContext(ctx, "CommitteeUpdated event has unexpected data shape — discarding")
+	// event.Data is map[string]interface{} after JSON round-trip; re-marshal to decode into the concrete type.
+	rawData, errMarshal := json.Marshal(event.Data)
+	if errMarshal != nil {
+		slog.WarnContext(ctx, "CommitteeUpdated event has unexpected data shape — discarding", "error", errMarshal)
+		return nil, nil
+	}
+	var data model.CommitteeUpdateEventData
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		slog.WarnContext(ctx, "CommitteeUpdated event data cannot be decoded — discarding", "error", err)
 		return nil, nil
 	}
 
@@ -239,6 +245,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 			"committee_uid", data.CommitteeUID)
 		return nil, nil
 	}
+
+	// Inject service-account identity so downstream indexer calls include a valid
+	// authorization header. Pattern follows lfx-v2-meeting-service:
+	// internal/infrastructure/eventing/nats_publisher.go — static "Bearer <service-name>"
+	// is used for background operations that have no originating HTTP request context.
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer "+constants.ServiceName)
 
 	slog.InfoContext(ctx, "denormalized fields changed — syncing members",
 		"committee_uid", data.CommitteeUID)
