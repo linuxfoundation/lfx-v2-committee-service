@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -629,6 +630,189 @@ func TestHandleCommitteeMailingListChanged(t *testing.T) {
 
 			assert.Equal(t, tt.wantIndexerCalled, spy.indexerCallCount > 0,
 				"indexer called mismatch: got %d calls", spy.indexerCallCount)
+		})
+	}
+}
+
+// spyCommitteeWriterOrchestrator records UpdateMember calls and can be configured to fail.
+type spyCommitteeWriterOrchestrator struct {
+	updateMemberCalls  int
+	updateMemberErr    error
+	updatedMembers     []*model.CommitteeMember
+}
+
+func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Committee, _ bool) (*model.Committee, error) {
+	return nil, nil
+}
+func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, _ *model.Committee, _ uint64, _ bool) (*model.Committee, error) {
+	return nil, nil
+}
+func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, _ *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
+	return nil, nil
+}
+func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ uint64, _ bool) error {
+	return nil
+}
+func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+	return nil, nil
+}
+func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool) (*model.CommitteeMember, error) {
+	s.updateMemberCalls++
+	memberCopy := *member
+	s.updatedMembers = append(s.updatedMembers, &memberCopy)
+	return member, s.updateMemberErr
+}
+func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error {
+	return nil
+}
+
+func buildCommitteeUpdatedMsg(committeeUID string, old, updated *model.CommitteeBase) []byte {
+	data := model.CommitteeUpdateEventData{
+		CommitteeUID: committeeUID,
+		OldCommittee: old,
+		Committee:    updated,
+	}
+	event := model.CommitteeEvent{Data: data}
+	b, _ := json.Marshal(event)
+	return b
+}
+
+func TestHandleCommitteeUpdated(t *testing.T) {
+	ctx := context.Background()
+
+	committeeUID := "committee-sync-test"
+	oldBase := &model.CommitteeBase{
+		Name:       "Old Name",
+		Category:   "Board",
+		ProjectUID: "proj-1",
+		ProjectSlug: "old-slug",
+	}
+	newBase := &model.CommitteeBase{
+		Name:       "New Name",
+		Category:   "Technical",
+		ProjectUID: "proj-1",
+		ProjectSlug: "new-slug",
+	}
+
+	makeStaleMember := func(uid string) *model.CommitteeMember {
+		return &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:               uid,
+				CommitteeUID:      committeeUID,
+				CommitteeName:     oldBase.Name,
+				CommitteeCategory: oldBase.Category,
+				ProjectUID:        oldBase.ProjectUID,
+				ProjectSlug:       oldBase.ProjectSlug,
+				Username:          uid + "@example.com",
+				Email:             uid + "@example.com",
+			},
+		}
+	}
+
+	tests := []struct {
+		name               string
+		messageData        []byte
+		setupMock          func(*mock.MockRepository)
+		writerErr          error
+		wantErr            bool
+		wantUpdateCalls    int
+		validateUpdated    func(*testing.T, []*model.CommitteeMember)
+	}{
+		{
+			name:        "invalid JSON returns error",
+			messageData: []byte(`not-json`),
+			setupMock:   func(_ *mock.MockRepository) {},
+			wantErr:     true,
+		},
+		{
+			name:        "no denormalized fields changed — skips sync",
+			messageData: buildCommitteeUpdatedMsg(committeeUID, oldBase, oldBase),
+			setupMock:   func(_ *mock.MockRepository) {},
+			wantErr:     false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:        "list members fails — propagates error",
+			messageData: buildCommitteeUpdatedMsg("unknown-committee", oldBase, newBase),
+			setupMock:   func(_ *mock.MockRepository) {},
+			wantErr:     false, // ListMembers returns empty slice for unknown committee, not error
+			wantUpdateCalls: 0,
+		},
+		{
+			name:        "all members already up to date — no UpdateMember calls",
+			messageData: buildCommitteeUpdatedMsg(committeeUID, oldBase, newBase),
+			setupMock: func(repo *mock.MockRepository) {
+				upToDate := makeStaleMember("up-to-date-member")
+				upToDate.CommitteeName = newBase.Name
+				upToDate.CommitteeCategory = newBase.Category
+				upToDate.ProjectSlug = newBase.ProjectSlug
+				repo.AddCommitteeMember(committeeUID, upToDate)
+			},
+			wantErr:         false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:        "stale members are synced",
+			messageData: buildCommitteeUpdatedMsg(committeeUID, oldBase, newBase),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommitteeMember(committeeUID, makeStaleMember("stale-1"))
+				repo.AddCommitteeMember(committeeUID, makeStaleMember("stale-2"))
+			},
+			wantErr:         false,
+			wantUpdateCalls: 2,
+			validateUpdated: func(t *testing.T, members []*model.CommitteeMember) {
+				t.Helper()
+				for _, m := range members {
+					assert.Equal(t, newBase.Name, m.CommitteeName)
+					assert.Equal(t, newBase.Category, m.CommitteeCategory)
+					assert.Equal(t, newBase.ProjectUID, m.ProjectUID)
+					assert.Equal(t, newBase.ProjectSlug, m.ProjectSlug)
+				}
+			},
+		},
+		{
+			name:        "UpdateMember fails — error accumulated, all members attempted",
+			messageData: buildCommitteeUpdatedMsg(committeeUID, oldBase, newBase),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommitteeMember(committeeUID, makeStaleMember("stale-a"))
+				repo.AddCommitteeMember(committeeUID, makeStaleMember("stale-b"))
+			},
+			writerErr:       fmt.Errorf("index unavailable"),
+			wantErr:         true,
+			wantUpdateCalls: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			tt.setupMock(mockRepo)
+
+			spy := &spyCommitteeWriterOrchestrator{updateMemberErr: tt.writerErr}
+
+			handler := NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(
+					NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+				),
+				WithCommitteeWriterOrchestratorForMessageHandler(spy),
+			)
+
+			msg := newMockTransportMessenger(constants.CommitteeUpdatedSubject, tt.messageData)
+			_, err := handler.HandleCommitteeUpdated(ctx, msg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.wantUpdateCalls, spy.updateMemberCalls,
+				"UpdateMember call count mismatch")
+
+			if tt.validateUpdated != nil {
+				tt.validateUpdated(t, spy.updatedMembers)
+			}
 		})
 	}
 }
