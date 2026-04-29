@@ -20,10 +20,10 @@ import (
 
 // messageHandlerOrchestrator orchestrates the message handling process
 type messageHandlerOrchestrator struct {
-	committeeReader      CommitteeReader
-	committeeWriter      port.CommitteeWriter
-	committeePublisher   port.CommitteePublisher
-	committeeMemberWriter CommitteeMemberDataWriter
+	committeeReader             CommitteeReader
+	committeeWriterOrchestrator CommitteeWriter
+	committeeWriter             port.CommitteeWriter
+	committeePublisher          port.CommitteePublisher
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -47,13 +47,6 @@ func WithCommitteeWriterForMessageHandler(writer port.CommitteeWriter) messageHa
 func WithCommitteePublisherForMessageHandler(publisher port.CommitteePublisher) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.committeePublisher = publisher
-	}
-}
-
-// WithCommitteeMemberWriterForMessageHandler sets the service-level member writer for message handler
-func WithCommitteeMemberWriterForMessageHandler(writer CommitteeMemberDataWriter) messageHandlerOrchestratorOption {
-	return func(m *messageHandlerOrchestrator) {
-		m.committeeMemberWriter = writer
 	}
 }
 
@@ -272,7 +265,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 			continue
 		}
 
-		if _, errUpdate := m.committeeMemberWriter.UpdateMember(ctx, member, revision, false); errUpdate != nil {
+		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false); errUpdate != nil {
 			slog.ErrorContext(ctx, "failed to update member during sync",
 				"member_uid", member.UID, "committee_uid", data.CommitteeUID, "error", errUpdate)
 			syncErrors = append(syncErrors, errUpdate)
