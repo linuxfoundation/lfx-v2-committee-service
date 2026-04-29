@@ -636,9 +636,9 @@ func TestHandleCommitteeMailingListChanged(t *testing.T) {
 
 // spyCommitteeWriterOrchestrator records UpdateMember calls and can be configured to fail.
 type spyCommitteeWriterOrchestrator struct {
-	updateMemberCalls  int
-	updateMemberErr    error
-	updatedMembers     []*model.CommitteeMember
+	updateMemberCalls int
+	updateMemberErr   error
+	updatedMembers    []*model.CommitteeMember
 }
 
 func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Committee, _ bool) (*model.Committee, error) {
@@ -682,15 +682,15 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 
 	committeeUID := "committee-sync-test"
 	oldBase := &model.CommitteeBase{
-		Name:       "Old Name",
-		Category:   "Board",
-		ProjectUID: "proj-1",
+		Name:        "Old Name",
+		Category:    "Board",
+		ProjectUID:  "proj-1",
 		ProjectSlug: "old-slug",
 	}
 	newBase := &model.CommitteeBase{
-		Name:       "New Name",
-		Category:   "Technical",
-		ProjectUID: "proj-1",
+		Name:        "New Name",
+		Category:    "Technical",
+		ProjectUID:  "proj-1",
 		ProjectSlug: "new-slug",
 	}
 
@@ -710,13 +710,13 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		messageData        []byte
-		setupMock          func(*mock.MockRepository)
-		writerErr          error
-		wantErr            bool
-		wantUpdateCalls    int
-		validateUpdated    func(*testing.T, []*model.CommitteeMember)
+		name            string
+		messageData     []byte
+		setupMock       func(*mock.MockRepository)
+		writerErr       error
+		wantErr         bool
+		wantUpdateCalls int
+		validateUpdated func(*testing.T, []*model.CommitteeMember)
 	}{
 		{
 			name:        "invalid JSON returns error",
@@ -725,17 +725,17 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			name:        "no denormalized fields changed — skips sync",
-			messageData: buildCommitteeUpdatedMsg(committeeUID, oldBase, oldBase),
-			setupMock:   func(_ *mock.MockRepository) {},
-			wantErr:     false,
+			name:            "no denormalized fields changed — skips sync",
+			messageData:     buildCommitteeUpdatedMsg(committeeUID, oldBase, oldBase),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         false,
 			wantUpdateCalls: 0,
 		},
 		{
-			name:        "list members fails — propagates error",
-			messageData: buildCommitteeUpdatedMsg("unknown-committee", oldBase, newBase),
-			setupMock:   func(_ *mock.MockRepository) {},
-			wantErr:     false, // ListMembers returns empty slice for unknown committee, not error
+			name:            "list members fails — propagates error",
+			messageData:     buildCommitteeUpdatedMsg("unknown-committee", oldBase, newBase),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         false, // ListMembers returns empty slice for unknown committee, not error
 			wantUpdateCalls: 0,
 		},
 		{
