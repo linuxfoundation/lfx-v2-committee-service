@@ -222,6 +222,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 // All members are processed regardless of individual failures (best-effort).
 // A combined error is returned at the end if any member failed.
 func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+
+	if m.committeeWriterOrchestrator == nil {
+		return nil, errors.NewValidation("committee writer orchestrator is required for handling committee updated events")
+	}
+
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		slog.ErrorContext(ctx, "failed to unmarshal CommitteeEvent", "error", err)
@@ -246,11 +251,16 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 		return nil, nil
 	}
 
+	if data.CommitteeUID == "" {
+		slog.WarnContext(ctx, "CommitteeUpdated event missing committee_uid — discarding")
+		return nil, nil
+	}
+
 	// Inject service-account identity so downstream indexer calls include a valid
 	// authorization header. Pattern follows lfx-v2-meeting-service:
 	// internal/infrastructure/eventing/nats_publisher.go — static "Bearer <service-name>"
 	// is used for background operations that have no originating HTTP request context.
-	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer "+constants.ServiceName)
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	slog.InfoContext(ctx, "denormalized fields changed — syncing members",
 		"committee_uid", data.CommitteeUID)

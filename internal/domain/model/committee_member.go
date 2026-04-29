@@ -167,7 +167,7 @@ func (cm *CommitteeMember) Tags() []string {
 // differ from the current state of the given committee. Used by the sync handler
 // to skip members that are already up to date, making re-runs idempotent.
 func (cm *CommitteeMember) NeedsSyncWith(committee *CommitteeBase) bool {
-	if committee == nil {
+	if cm == nil || committee == nil {
 		return false
 	}
 	return cm.CommitteeName != committee.Name ||
