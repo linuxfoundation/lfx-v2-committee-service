@@ -50,6 +50,13 @@ func WithCommitteePublisherForMessageHandler(publisher port.CommitteePublisher) 
 	}
 }
 
+// WithCommitteeWriterOrchestratorForMessageHandler sets the service-level committee writer for member sync
+func WithCommitteeWriterOrchestratorForMessageHandler(writer CommitteeWriter) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.committeeWriterOrchestrator = writer
+	}
+}
+
 // HandleCommitteeGetAttribute handles the retrieval of a specific attribute from the committee
 func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Context, msg port.TransportMessenger, attribute string) ([]byte, error) {
 
