@@ -34,6 +34,8 @@ type CommitteeDataReader interface {
 type CommitteeMemberDataReader interface {
 	// GetMember retrieves a committee member by committee UID and member UID
 	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
+	// GetMemberRevision retrieves the current KV revision for a committee member by UID
+	GetMemberRevision(ctx context.Context, memberUID string) (uint64, error)
 	// ListMembers retrieves all members for a given committee UID
 	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 }
@@ -117,6 +119,11 @@ func (rc *committeeReaderOrchestrator) GetBaseAttributeValue(ctx context.Context
 	}
 
 	return field, nil
+}
+
+// GetMemberRevision retrieves the current KV revision for a committee member by UID
+func (rc *committeeReaderOrchestrator) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
+	return rc.committeeReader.GetMemberRevision(ctx, memberUID)
 }
 
 // GetMember retrieves a committee member by committee UID and member UID

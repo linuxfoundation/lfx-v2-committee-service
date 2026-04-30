@@ -389,6 +389,15 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 					usecaseSvc.WithCommitteeReader(committeeReader),
 				),
 			),
+			usecaseSvc.WithCommitteeWriterOrchestratorForMessageHandler(
+				usecaseSvc.NewCommitteeWriterOrchestrator(
+					usecaseSvc.WithCommitteeRetriever(committeeReader),
+					usecaseSvc.WithCommitteeWriter(CommitteeWriterImpl(ctx)),
+					usecaseSvc.WithProjectRetriever(ProjectRetrieverImpl(ctx)),
+					usecaseSvc.WithUserReader(UserReaderImpl(ctx)),
+					usecaseSvc.WithCommitteePublisher(CommitteePublisherImpl(ctx)),
+				),
+			),
 			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 		),
@@ -405,6 +414,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeGetNameSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
 		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
+		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

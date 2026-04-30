@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log/slog"
 
@@ -19,9 +20,10 @@ import (
 
 // messageHandlerOrchestrator orchestrates the message handling process
 type messageHandlerOrchestrator struct {
-	committeeReader    CommitteeReader
-	committeeWriter    port.CommitteeWriter
-	committeePublisher port.CommitteePublisher
+	committeeReader             CommitteeReader
+	committeeWriterOrchestrator CommitteeWriter
+	committeeWriter             port.CommitteeWriter
+	committeePublisher          port.CommitteePublisher
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -45,6 +47,13 @@ func WithCommitteeWriterForMessageHandler(writer port.CommitteeWriter) messageHa
 func WithCommitteePublisherForMessageHandler(publisher port.CommitteePublisher) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.committeePublisher = publisher
+	}
+}
+
+// WithCommitteeWriterOrchestratorForMessageHandler sets the service-level committee writer for member sync
+func WithCommitteeWriterOrchestratorForMessageHandler(writer CommitteeWriter) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.committeeWriterOrchestrator = writer
 	}
 }
 
@@ -203,6 +212,102 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 		slog.ErrorContext(ctx, "failed to publish committee indexer update",
 			"committee_uid", event.CommitteeUID, "error", err)
 		return nil, err
+	}
+
+	return nil, nil
+}
+
+// HandleCommitteeUpdated reacts to a committee.updated event. It delegates
+// re-sync decisions to the domain model and re-syncs member documents when needed.
+// All members are processed regardless of individual failures (best-effort).
+// A combined error is returned at the end if any member failed.
+func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+
+	if m.committeeWriterOrchestrator == nil {
+		return nil, errors.NewValidation("committee writer orchestrator is required for handling committee updated events")
+	}
+
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal CommitteeEvent", "error", err)
+		return nil, err
+	}
+
+	// event.Data is map[string]interface{} after JSON round-trip; re-marshal to decode into the concrete type.
+	rawData, errMarshal := json.Marshal(event.Data)
+	if errMarshal != nil {
+		slog.WarnContext(ctx, "CommitteeUpdated event has unexpected data shape — discarding", "error", errMarshal)
+		return nil, nil
+	}
+	var data model.CommitteeUpdateEventData
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		slog.WarnContext(ctx, "CommitteeUpdated event data cannot be decoded — discarding", "error", err)
+		return nil, nil
+	}
+
+	if !data.RequiresMemberSync() {
+		slog.DebugContext(ctx, "no denormalized fields changed — skipping member sync",
+			"committee_uid", data.CommitteeUID)
+		return nil, nil
+	}
+
+	if data.CommitteeUID == "" {
+		slog.WarnContext(ctx, "CommitteeUpdated event missing committee_uid — discarding")
+		return nil, nil
+	}
+
+	// Inject service-account identity so downstream indexer calls include a valid
+	// authorization header. Pattern follows lfx-v2-meeting-service:
+	// internal/infrastructure/eventing/nats_publisher.go — static "Bearer <service-name>"
+	// is used for background operations that have no originating HTTP request context.
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+	slog.InfoContext(ctx, "denormalized fields changed — syncing members",
+		"committee_uid", data.CommitteeUID)
+
+	members, err := m.committeeReader.ListMembers(ctx, data.CommitteeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list members for sync",
+			"committee_uid", data.CommitteeUID, "error", err)
+		return nil, err
+	}
+
+	var syncErrors []error
+
+	for _, member := range members {
+		if !member.NeedsSyncWith(data.Committee) {
+			slog.DebugContext(ctx, "member already up to date — skipping",
+				"member_uid", member.UID, "committee_uid", data.CommitteeUID)
+			continue
+		}
+
+		member.CommitteeName = data.Committee.Name
+		member.CommitteeCategory = data.Committee.Category
+		member.ProjectUID = data.Committee.ProjectUID
+		member.ProjectSlug = data.Committee.ProjectSlug
+
+		revision, errRev := m.committeeReader.GetMemberRevision(ctx, member.UID)
+		if errRev != nil {
+			slog.ErrorContext(ctx, "failed to get member revision during sync",
+				"member_uid", member.UID, "committee_uid", data.CommitteeUID, "error", errRev)
+			syncErrors = append(syncErrors, errRev)
+			continue
+		}
+
+		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false); errUpdate != nil {
+			slog.ErrorContext(ctx, "failed to update member during sync",
+				"member_uid", member.UID, "committee_uid", data.CommitteeUID, "error", errUpdate)
+			syncErrors = append(syncErrors, errUpdate)
+		}
+	}
+
+	slog.InfoContext(ctx, "member sync completed",
+		"committee_uid", data.CommitteeUID,
+		"members_processed", len(members),
+		"failures", len(syncErrors))
+
+	if len(syncErrors) > 0 {
+		return nil, stderrors.Join(syncErrors...)
 	}
 
 	return nil, nil
