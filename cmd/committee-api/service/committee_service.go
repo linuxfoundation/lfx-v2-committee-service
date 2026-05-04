@@ -912,7 +912,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because there is no server-side enricher for committee_invite.
+// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
 func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
 	tags := invite.Tags()
 	indexingConfig := &indexerTypes.IndexingConfig{
@@ -964,7 +964,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 
 // publishApplicationIndexerMessage publishes an indexer message for application operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because there is no server-side enricher for committee_application.
+// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
 func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
 	tags := application.Tags()
 	indexingConfig := &indexerTypes.IndexingConfig{
