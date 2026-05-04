@@ -130,7 +130,7 @@ This service follows clean architecture principles with clear separation of conc
 
 This service indexes committee data into the indexer service, making it searchable via the query service.
 
-Each indexer message includes an `IndexingConfig` that provides pre-computed metadata for the indexer service. When present, it bypasses server-side enrichers and controls how the document is stored, searched, and access-checked in the index. For the full field reference and message format details, see the [indexer service client guide](https://github.com/linuxfoundation/lfx-v2-indexer-service/blob/main/docs/client-guide.md).
+Create and update indexer messages include an `IndexingConfig` that provides the metadata controlling how the document is stored, searched, and access-checked in the index. Delete messages omit `IndexingConfig` — only the object ID is needed to remove the document. For the full field reference and message format details, see the [indexer service client guide](https://github.com/linuxfoundation/lfx-v2-indexer-service/blob/main/docs/client-guide.md).
 
 For the data schemas, tags, access control values, parent references, and fulltext fields for all resource types — see [`docs/indexer-contract.md`](../../docs/indexer-contract.md).
 

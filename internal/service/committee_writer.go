@@ -24,7 +24,6 @@ import (
 )
 
 // buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
-// It mirrors what the CommitteeEnricher in the indexer service would derive from the data.
 func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	var nameAndAliases []string
 	if committee.Name != "" {
@@ -71,7 +70,6 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 }
 
 // buildCommitteeSettingsIndexingConfig constructs an IndexingConfig for a CommitteeSettings document.
-// It mirrors what the CommitteeSettingsEnricher in the indexer service would derive from the data.
 func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	public := committee.Public
 	return &indexerTypes.IndexingConfig{
