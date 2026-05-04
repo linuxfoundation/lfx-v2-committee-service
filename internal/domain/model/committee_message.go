@@ -43,8 +43,8 @@ type CommitteeIndexerMessage struct {
 	Data    any               `json:"data"`
 	// Tags is a list of tags to be set on the indexed resource for search.
 	Tags []string `json:"tags"`
-	// IndexingConfig provides pre-computed indexing metadata for resources that
-	// do not have a server-side enricher registered in the indexer service.
+	// IndexingConfig provides indexing metadata for the resource. The indexer is data-agnostic,
+	// so publishers are responsible for supplying all indexing metadata.
 	IndexingConfig *indexerTypes.IndexingConfig `json:"indexing_config,omitempty"`
 }
 
