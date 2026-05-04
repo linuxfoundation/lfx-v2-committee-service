@@ -153,6 +153,9 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 		case "description":
 			desc := string(data)
 			payload.Description = &desc
+		case "folder_uid":
+			folderUID := string(data)
+			payload.FolderUID = &folderUID
 		case "file":
 			if int64(len(data)) > model.MaxDocumentFileSize {
 				_ = part.Close()
@@ -176,6 +179,7 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 	requestBody := &committeeservicesvr.UploadCommitteeDocumentRequestBody{
 		Name:        &payload.Name,
 		Description: payload.Description,
+		FolderUID:   payload.FolderUID,
 		FileName:    &payload.FileName,
 		ContentType: &payload.ContentType,
 		File:        payload.File,

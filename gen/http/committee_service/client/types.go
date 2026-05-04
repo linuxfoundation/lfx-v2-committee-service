@@ -285,6 +285,8 @@ type UploadCommitteeDocumentRequestBody struct {
 	Name string `form:"name" json:"name" xml:"name"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Optional folder UID to place this document in
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Original file name (from the uploaded file part)
 	FileName string `form:"file_name" json:"file_name" xml:"file_name"`
 	// MIME type of the uploaded file
@@ -921,6 +923,8 @@ type UploadCommitteeDocumentResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Display name for the document
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// Optional description
@@ -2339,6 +2343,8 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Display name for the document
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// Optional description
@@ -2799,6 +2805,7 @@ func NewUploadCommitteeDocumentRequestBody(p *committeeservice.UploadCommitteeDo
 	body := &UploadCommitteeDocumentRequestBody{
 		Name:        p.Name,
 		Description: p.Description,
+		FolderUID:   p.FolderUID,
 		FileName:    p.FileName,
 		ContentType: p.ContentType,
 		File:        p.File,
@@ -5184,6 +5191,7 @@ func NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated(bo
 	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
 		UID:                body.UID,
 		CommitteeUID:       body.CommitteeUID,
+		FolderUID:          body.FolderUID,
 		Name:               body.Name,
 		Description:        body.Description,
 		FileName:           body.FileName,
@@ -5253,6 +5261,7 @@ func NewGetCommitteeDocumentResultOK(body *GetCommitteeDocumentResponseBody, eta
 	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
 		UID:                body.UID,
 		CommitteeUID:       body.CommitteeUID,
+		FolderUID:          body.FolderUID,
 		Name:               body.Name,
 		Description:        body.Description,
 		FileName:           body.FileName,
@@ -6540,6 +6549,9 @@ func ValidateUploadCommitteeDocumentResponseBody(body *UploadCommitteeDocumentRe
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
@@ -6577,6 +6589,9 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 	}
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
 	}
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 500 {
@@ -8257,6 +8272,9 @@ func ValidateCommitteeDocumentWithReadonlyAttributesResponseBody(body *Committee
 	}
 	if body.CommitteeUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
 	}
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 500 {

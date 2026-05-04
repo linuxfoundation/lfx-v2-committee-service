@@ -2133,7 +2133,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
@@ -2145,6 +2145,9 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 			if utf8.RuneCountInString(*body.Description) > 2000 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
 			}
+		}
+		if body.FolderUID != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
 		}
 		if err != nil {
 			return nil, err
@@ -2188,6 +2191,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	v := &committeeservice.UploadCommitteeDocumentPayload{
 		Name:        body.Name,
 		Description: body.Description,
+		FolderUID:   body.FolderUID,
 		FileName:    body.FileName,
 		ContentType: body.ContentType,
 		File:        body.File,
