@@ -14,6 +14,7 @@ import (
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -1518,3 +1519,123 @@ func TestLeaveCommittee(t *testing.T) {
 		})
 	}
 }
+
+func setupUploadDocumentService() (*committeeServicesrvc, *mock.MockLinkRepository, *mock.MockDocumentRepository) {
+	mockRepo := mock.NewMockRepository()
+	linkRepo := mock.NewMockLinkRepository()
+	docRepo := mock.NewMockDocumentRepository()
+
+	svc := &committeeServicesrvc{
+		auth:      mock.NewMockAuthService(),
+		storage:   mock.NewMockCommitteeReaderWriter(mockRepo),
+		publisher: mock.NewMockCommitteePublisher(),
+		linkReader: internalservice.NewLinkReaderOrchestrator(
+			internalservice.WithLinkReader(linkRepo),
+		),
+		docWriter: internalservice.NewDocumentWriterOrchestrator(
+			internalservice.WithDocumentWriter(docRepo),
+			internalservice.WithDocumentReaderForWriter(docRepo),
+		),
+		docReader: internalservice.NewDocumentReaderOrchestrator(
+			internalservice.WithDocumentReader(docRepo),
+		),
+	}
+	return svc, linkRepo, docRepo
+}
+
+func TestUploadCommitteeDocument_FolderUID(t *testing.T) {
+	const committeeUID = "committee-1"
+	const otherCommitteeUID = "committee-2"
+	fileData := []byte("hello world file content")
+
+	tests := []struct {
+		name         string
+		folderUID    *string
+		seedFolder   func(*mock.MockLinkRepository)
+		expectError  bool
+		expectBadReq bool
+		checkResult  func(*testing.T, *committeeservice.CommitteeDocumentWithReadonlyAttributes)
+	}{
+		{
+			name:        "no folder_uid — lands at root",
+			folderUID:   nil,
+			seedFolder:  func(_ *mock.MockLinkRepository) {},
+			expectError: false,
+			checkResult: func(t *testing.T, res *committeeservice.CommitteeDocumentWithReadonlyAttributes) {
+				assert.Nil(t, res.FolderUID)
+			},
+		},
+		{
+			name:      "valid folder_uid — document nested in folder",
+			folderUID: strPtr("folder-aaa"),
+			seedFolder: func(repo *mock.MockLinkRepository) {
+				_ = repo.CreateLinkFolder(context.Background(), &model.CommitteeLinkFolder{
+					UID:          "folder-aaa",
+					CommitteeUID: committeeUID,
+					Name:         "Governance Docs",
+				})
+			},
+			expectError: false,
+			checkResult: func(t *testing.T, res *committeeservice.CommitteeDocumentWithReadonlyAttributes) {
+				require.NotNil(t, res.FolderUID)
+				assert.Equal(t, "folder-aaa", *res.FolderUID)
+			},
+		},
+		{
+			name:         "non-existent folder_uid — returns 400",
+			folderUID:    strPtr("folder-does-not-exist"),
+			seedFolder:   func(_ *mock.MockLinkRepository) {},
+			expectError:  true,
+			expectBadReq: true,
+		},
+		{
+			name:      "folder_uid from different committee — returns 400",
+			folderUID: strPtr("folder-bbb"),
+			seedFolder: func(repo *mock.MockLinkRepository) {
+				_ = repo.CreateLinkFolder(context.Background(), &model.CommitteeLinkFolder{
+					UID:          "folder-bbb",
+					CommitteeUID: otherCommitteeUID,
+					Name:         "Other Committee Folder",
+				})
+			},
+			expectError:  true,
+			expectBadReq: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, linkRepo, _ := setupUploadDocumentService()
+			tt.seedFolder(linkRepo)
+
+			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "testuser")
+			payload := &committeeservice.UploadCommitteeDocumentPayload{
+				UID:         committeeUID,
+				Name:        "Test Document",
+				FileName:    "test.pdf",
+				ContentType: "application/pdf",
+				File:        fileData,
+				FolderUID:   tt.folderUID,
+			}
+
+			res, err := svc.UploadCommitteeDocument(ctx, payload)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.expectBadReq {
+					var badReq *committeeservice.BadRequestError
+					assert.ErrorAs(t, err, &badReq, "expected a 400 bad-request error")
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			if tt.checkResult != nil {
+				tt.checkResult(t, res)
+			}
+		})
+	}
+}
+
+func strPtr(s string) *string { return &s }
