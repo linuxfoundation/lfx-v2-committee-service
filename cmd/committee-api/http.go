@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -154,8 +155,9 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 			desc := string(data)
 			payload.Description = &desc
 		case "folder_uid":
-			folderUID := string(data)
-			payload.FolderUID = &folderUID
+			if folderUID := strings.TrimSpace(string(data)); folderUID != "" {
+				payload.FolderUID = &folderUID
+			}
 		case "file":
 			if int64(len(data)) > model.MaxDocumentFileSize {
 				_ = part.Close()
