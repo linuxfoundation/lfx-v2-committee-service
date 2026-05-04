@@ -1263,7 +1263,7 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 
 	if p.FolderUID != nil {
 		if _, _, err := s.linkReader.GetLinkFolder(ctx, p.UID, *p.FolderUID); err != nil {
-			return nil, wrapError(ctx, err)
+			return nil, wrapError(ctx, errors.NewValidation("folder_uid does not exist or does not belong to this committee"))
 		}
 	}
 
