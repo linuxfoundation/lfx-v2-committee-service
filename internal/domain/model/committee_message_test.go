@@ -416,3 +416,171 @@ func TestCommitteeIndexerMessage_Build_DeleteAction_RawUID(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteeUpdateEventData_RequiresMemberSync(t *testing.T) {
+	base := &CommitteeBase{
+		Name:        "TSC Committee",
+		Category:    "Board",
+		ProjectUID:  "proj-uid-123",
+		ProjectSlug: "my-project",
+	}
+
+	tests := []struct {
+		name string
+		data CommitteeUpdateEventData
+		want bool
+	}{
+		{
+			name: "nil OldCommittee — no sync",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: nil,
+				Committee:    base,
+			},
+			want: false,
+		},
+		{
+			name: "nil Committee — no sync",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: base,
+				Committee:    nil,
+			},
+			want: false,
+		},
+		{
+			name: "both nil — no sync",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: nil,
+				Committee:    nil,
+			},
+			want: false,
+		},
+		{
+			name: "all fields identical — no sync",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: base,
+				Committee:    base,
+			},
+			want: false,
+		},
+		{
+			name: "name changed",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: &CommitteeBase{Name: "Old Name", Category: "Board", ProjectUID: "proj-uid-123", ProjectSlug: "my-project"},
+				Committee:    base,
+			},
+			want: true,
+		},
+		{
+			name: "category changed",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: &CommitteeBase{Name: "TSC Committee", Category: "Other", ProjectUID: "proj-uid-123", ProjectSlug: "my-project"},
+				Committee:    base,
+			},
+			want: true,
+		},
+		{
+			name: "project_uid changed",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: &CommitteeBase{Name: "TSC Committee", Category: "Board", ProjectUID: "old-uid", ProjectSlug: "my-project"},
+				Committee:    base,
+			},
+			want: true,
+		},
+		{
+			name: "project_slug changed",
+			data: CommitteeUpdateEventData{
+				CommitteeUID: "uid-1",
+				OldCommittee: &CommitteeBase{Name: "TSC Committee", Category: "Board", ProjectUID: "proj-uid-123", ProjectSlug: "old-slug"},
+				Committee:    base,
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.RequiresMemberSync()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCommitteeEvent_Build_Committee(t *testing.T) {
+	validData := &CommitteeUpdateEventData{
+		CommitteeUID: "uid-1",
+		OldCommittee: &CommitteeBase{Name: "Old", Category: "Board"},
+		Committee:    &CommitteeBase{Name: "New", Category: "Other"},
+	}
+
+	tests := []struct {
+		name          string
+		action        MessageAction
+		input         any
+		wantErr       bool
+		wantSubject   string
+		wantEventType string
+		wantData      any
+	}{
+		{
+			name:          "ActionUpdated with valid input",
+			action:        ActionUpdated,
+			input:         validData,
+			wantErr:       false,
+			wantSubject:   constants.CommitteeUpdatedSubject,
+			wantEventType: "committee.updated",
+			wantData:      validData,
+		},
+		{
+			name:    "ActionUpdated with nil input",
+			action:  ActionUpdated,
+			input:   (*CommitteeUpdateEventData)(nil),
+			wantErr: true,
+		},
+		{
+			name:    "ActionUpdated with wrong type",
+			action:  ActionUpdated,
+			input:   &CommitteeMember{},
+			wantErr: true,
+		},
+		{
+			name:    "unsupported action (ActionCreated)",
+			action:  ActionCreated,
+			input:   validData,
+			wantErr: true,
+		},
+		{
+			name:    "unsupported action (ActionDeleted)",
+			action:  ActionDeleted,
+			input:   validData,
+			wantErr: true,
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := &CommitteeEvent{}
+			result, err := event.Build(ctx, ResourceCommittee, tt.action, tt.input)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantSubject, result.Subject)
+			assert.Equal(t, tt.wantEventType, result.EventType)
+			assert.Equal(t, tt.wantData, result.Data)
+		})
+	}
+}

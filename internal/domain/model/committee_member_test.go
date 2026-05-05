@@ -535,3 +535,120 @@ func TestCommitteeMember_BuildIndexKey_Uniqueness(t *testing.T) {
 		t.Errorf("Expected different keys for different committee/email combinations, but got same key: %s", key2)
 	}
 }
+
+func TestCommitteeMember_NeedsSyncWith(t *testing.T) {
+	base := &CommitteeBase{
+		Name:        "TSC Committee",
+		Category:    "Board",
+		ProjectUID:  "proj-uid-123",
+		ProjectSlug: "my-project",
+	}
+
+	tests := []struct {
+		name      string
+		member    *CommitteeMember
+		committee *CommitteeBase
+		want      bool
+	}{
+		{
+			name: "nil committee — no sync needed",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "TSC Committee",
+					CommitteeCategory: "Board",
+					ProjectUID:        "proj-uid-123",
+					ProjectSlug:       "my-project",
+				},
+			},
+			committee: nil,
+			want:      false,
+		},
+		{
+			name: "all fields match — no sync needed",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "TSC Committee",
+					CommitteeCategory: "Board",
+					ProjectUID:        "proj-uid-123",
+					ProjectSlug:       "my-project",
+				},
+			},
+			committee: base,
+			want:      false,
+		},
+		{
+			name: "name differs",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "Old Name",
+					CommitteeCategory: "Board",
+					ProjectUID:        "proj-uid-123",
+					ProjectSlug:       "my-project",
+				},
+			},
+			committee: base,
+			want:      true,
+		},
+		{
+			name: "category differs",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "TSC Committee",
+					CommitteeCategory: "Other",
+					ProjectUID:        "proj-uid-123",
+					ProjectSlug:       "my-project",
+				},
+			},
+			committee: base,
+			want:      true,
+		},
+		{
+			name: "project_uid differs",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "TSC Committee",
+					CommitteeCategory: "Board",
+					ProjectUID:        "old-proj-uid",
+					ProjectSlug:       "my-project",
+				},
+			},
+			committee: base,
+			want:      true,
+		},
+		{
+			name: "project_slug differs",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "TSC Committee",
+					CommitteeCategory: "Board",
+					ProjectUID:        "proj-uid-123",
+					ProjectSlug:       "old-slug",
+				},
+			},
+			committee: base,
+			want:      true,
+		},
+		{
+			name: "multiple fields differ",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					CommitteeName:     "Old Name",
+					CommitteeCategory: "Other",
+					ProjectUID:        "old-proj-uid",
+					ProjectSlug:       "old-slug",
+				},
+			},
+			committee: base,
+			want:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.member.NeedsSyncWith(tt.committee)
+			if got != tt.want {
+				t.Errorf("NeedsSyncWith() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

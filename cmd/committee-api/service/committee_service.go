@@ -912,7 +912,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because there is no server-side enricher for committee_invite.
+// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
 func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
 	tags := invite.Tags()
 	indexingConfig := &indexerTypes.IndexingConfig{
@@ -964,7 +964,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 
 // publishApplicationIndexerMessage publishes an indexer message for application operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because there is no server-side enricher for committee_application.
+// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
 func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
 	tags := application.Tags()
 	indexingConfig := &indexerTypes.IndexingConfig{
@@ -1261,6 +1261,12 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
+	if p.FolderUID != nil {
+		if _, _, err := s.linkReader.GetLinkFolder(ctx, p.UID, *p.FolderUID); err != nil {
+			return nil, wrapError(ctx, errors.NewValidation("folder_uid does not exist or does not belong to this committee"))
+		}
+	}
+
 	doc := &model.CommitteeDocument{
 		CommitteeUID:       p.UID,
 		Name:               p.Name,
@@ -1268,6 +1274,9 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
+	}
+	if p.FolderUID != nil {
+		doc.FolderUID = p.FolderUID
 	}
 	doc.FileName = p.FileName
 	doc.ContentType = p.ContentType
@@ -1362,6 +1371,9 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 	if d.UploadedByUsername != "" {
 		v := d.UploadedByUsername
 		res.UploadedByUsername = &v
+	}
+	if d.FolderUID != nil {
+		res.FolderUID = d.FolderUID
 	}
 	return res
 }
