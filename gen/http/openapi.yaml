@@ -2622,6 +2622,11 @@ definitions:
                 example: 204800
                 format: int64
                 minimum: 0
+            folder_uid:
+                type: string
+                description: Optional folder UID this document belongs to
+                example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                format: uuid
             name:
                 type: string
                 description: Display name for the document
@@ -2648,6 +2653,7 @@ definitions:
             description: Technical architecture decisions for Q1 2025
             file_name: architecture-decisions-q1-2025.pdf
             file_size: 204800
+            folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
@@ -4125,6 +4131,11 @@ definitions:
                 type: string
                 description: Original file name (from the uploaded file part)
                 example: Aperiam labore repudiandae atque quo et.
+            folder_uid:
+                type: string
+                description: Optional folder UID to place this document in
+                example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                format: uuid
             name:
                 type: string
                 description: Display name for the document
@@ -4169,6 +4180,7 @@ definitions:
                 - 101
                 - 46
             file_name: Eaque eum placeat soluta facere doloribus autem.
+            folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
             - name

@@ -24,7 +24,6 @@ import (
 )
 
 // buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
-// It mirrors what the CommitteeEnricher in the indexer service would derive from the data.
 func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	var nameAndAliases []string
 	if committee.Name != "" {
@@ -71,7 +70,6 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 }
 
 // buildCommitteeSettingsIndexingConfig constructs an IndexingConfig for a CommitteeSettings document.
-// It mirrors what the CommitteeSettingsEnricher in the indexer service would derive from the data.
 func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	public := committee.Public
 	return &indexerTypes.IndexingConfig{
@@ -733,13 +731,31 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		CommitteeSettings: settings,
 	}
 	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
-	// Publish both messages
+
+	updateEventData := &model.CommitteeUpdateEventData{
+		CommitteeUID: committee.CommitteeBase.UID,
+		OldCommittee: existing,
+		Committee:    &committee.CommitteeBase,
+	}
+
 	messages := []func() error{
 		func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
 			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+		},
+		func() error {
+			committeeEvent := model.CommitteeEvent{}
+			builtEvent, errBuild := committeeEvent.Build(ctx, model.ResourceCommittee, model.ActionUpdated, updateEventData)
+			if errBuild != nil {
+				slog.WarnContext(ctx, "failed to build committee updated event",
+					"error", errBuild,
+					"committee_uid", committee.CommitteeBase.UID,
+				)
+				return nil
+			}
+			return uc.committeePublisher.Event(ctx, constants.CommitteeUpdatedSubject, builtEvent, false)
 		},
 	}
 
