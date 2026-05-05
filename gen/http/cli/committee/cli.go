@@ -1416,7 +1416,7 @@ func committeeServiceUploadCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeDocumentUsage() {

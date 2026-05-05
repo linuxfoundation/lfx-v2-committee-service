@@ -1208,6 +1208,10 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("description", dsl.String, "Optional description", func() {
 				dsl.MaxLength(2000)
 			})
+			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this document in", func() {
+				dsl.Format(dsl.FormatUUID)
+				dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+			})
 			// File fields populated by the multipart decoder
 			dsl.Attribute("file_name", dsl.String, "Original file name (from the uploaded file part)")
 			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")

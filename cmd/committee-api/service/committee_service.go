@@ -1261,6 +1261,12 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
+	if p.FolderUID != nil {
+		if _, _, err := s.linkReader.GetLinkFolder(ctx, p.UID, *p.FolderUID); err != nil {
+			return nil, wrapError(ctx, errors.NewValidation("folder_uid does not exist or does not belong to this committee"))
+		}
+	}
+
 	doc := &model.CommitteeDocument{
 		CommitteeUID:       p.UID,
 		Name:               p.Name,
@@ -1268,6 +1274,9 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
+	}
+	if p.FolderUID != nil {
+		doc.FolderUID = p.FolderUID
 	}
 	doc.FileName = p.FileName
 	doc.ContentType = p.ContentType
@@ -1362,6 +1371,9 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 	if d.UploadedByUsername != "" {
 		v := d.UploadedByUsername
 		res.UploadedByUsername = &v
+	}
+	if d.FolderUID != nil {
+		res.FolderUID = d.FolderUID
 	}
 	return res
 }
