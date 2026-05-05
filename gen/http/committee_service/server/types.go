@@ -285,6 +285,8 @@ type UploadCommitteeDocumentRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Optional folder UID to place this document in
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Original file name (from the uploaded file part)
 	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
 	// MIME type of the uploaded file
@@ -921,6 +923,8 @@ type UploadCommitteeDocumentResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Display name for the document
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// Optional description
@@ -2327,6 +2331,8 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 	// Display name for the document
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// Optional description
@@ -3473,6 +3479,7 @@ func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocum
 	body := &UploadCommitteeDocumentResponseBody{
 		UID:                res.UID,
 		CommitteeUID:       res.CommitteeUID,
+		FolderUID:          res.FolderUID,
 		Name:               res.Name,
 		Description:        res.Description,
 		FileName:           res.FileName,
@@ -3492,6 +3499,7 @@ func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocum
 	body := &GetCommitteeDocumentResponseBody{
 		UID:                res.CommitteeDocument.UID,
 		CommitteeUID:       res.CommitteeDocument.CommitteeUID,
+		FolderUID:          res.CommitteeDocument.FolderUID,
 		Name:               res.CommitteeDocument.Name,
 		Description:        res.CommitteeDocument.Description,
 		FileName:           res.CommitteeDocument.FileName,
@@ -5608,6 +5616,7 @@ func NewUploadCommitteeDocumentPayload(body *UploadCommitteeDocumentRequestBody,
 	v := &committeeservice.UploadCommitteeDocumentPayload{
 		Name:        *body.Name,
 		Description: body.Description,
+		FolderUID:   body.FolderUID,
 		FileName:    *body.FileName,
 		ContentType: *body.ContentType,
 		File:        body.File,
@@ -6084,6 +6093,9 @@ func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentReq
 		if utf8.RuneCountInString(*body.Description) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
 		}
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
 	}
 	return
 }
