@@ -318,6 +318,10 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 // layer Update so that KV write and re-indexing are handled consistently in one place.
 // The caller (infrastructure layer) owns ACK/NAK.
 func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
+	if m.committeeWriterOrchestrator == nil {
+		return errors.NewValidation("committee writer orchestrator is required for handling total_members sync events")
+	}
+
 	subject := msg.Subject()
 
 	if subject != constants.CommitteeMemberCreatedSubject && subject != constants.CommitteeMemberDeletedSubject {
