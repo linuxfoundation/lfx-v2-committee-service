@@ -911,17 +911,10 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			wantUpdateCalls: 0,
 		},
 		{
-			name:    "ListMembers fails — propagates error",
-			subject: constants.CommitteeMemberCreatedSubject,
-			// Use a UID that has no members but a committee that exists so GetBase
-			// is never reached; here we use a UID not registered to trigger the
-			// reader returning an error (mock returns empty list, not an error).
-			// Instead we force GetBase to fail by not registering the committee.
+			name:        "GetBase fails — propagates error",
+			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
-			setupMock: func(repo *mock.MockRepository) {
-				// No committee registered — GetBase will fail after ListMembers returns empty
-				// ListMembers returns empty (not error), GetBase returns NotFound error.
-			},
+			setupMock:   func(repo *mock.MockRepository) {},
 			wantErr:         true,
 			wantUpdateCalls: 0,
 		},

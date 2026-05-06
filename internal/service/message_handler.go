@@ -356,6 +356,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 
 	committeeUID := member.CommitteeUID
 
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
 	slog.DebugContext(ctx, "starting total_members sync",
 		"committee_uid", committeeUID,
 		"subject", subject,
@@ -391,8 +393,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	)
 
 	committee.TotalMembers = actualCount
-
-	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
 		slog.ErrorContext(ctx, "failed to update committee total_members",
