@@ -428,9 +428,19 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		}
 	}
 
-	if _, err := natsClient.StartCommitteeMemberConsumer(ctx, messageHandlerService.messageHandler.HandleCommitteeTotalMembersSync); err != nil {
-		slog.ErrorContext(ctx, "failed to start committee member JetStream consumer", "error", err)
-		return fmt.Errorf("failed to start committee member consumer: %w", err)
+	streamConsumers := map[string]func(context.Context, port.StreamMessenger) error{
+		constants.ConsumerNameTotalMembersSync: messageHandlerService.messageHandler.HandleCommitteeTotalMembersSync,
+	}
+
+	for consumer, handler := range streamConsumers {
+		slog.InfoContext(ctx, "starting stream consumer", "consumer", consumer)
+		if _, err := natsClient.StartCommitteeMemberConsumer(ctx, handler); err != nil {
+			slog.ErrorContext(ctx, "failed to start stream consumer",
+				"error", err,
+				"consumer", consumer,
+			)
+			return fmt.Errorf("failed to start stream consumer %s: %w", consumer, err)
+		}
 	}
 
 	slog.InfoContext(ctx, "NATS subscriptions started successfully")

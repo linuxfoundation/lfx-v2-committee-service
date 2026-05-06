@@ -352,6 +352,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 
 	committeeUID := member.CommitteeUID
 
+	slog.DebugContext(ctx, "starting total_members sync",
+		"committee_uid", committeeUID,
+		"subject", subject,
+	)
+
 	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list members for total_members sync",
