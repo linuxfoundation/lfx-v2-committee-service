@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -91,6 +92,34 @@ func (c *NATSClient) ConsumeWithJetStream(
 	)
 
 	return consumeCtx, nil
+}
+
+// StartCommitteeMemberConsumer binds the durable consumer for the committee member events stream and
+// starts delivering messages to handler. It returns a stop function the caller must invoke on
+// shutdown to release the consumer goroutine. Consumer config (stream name, filter subjects,
+// retry policy) is owned here so the cmd layer does not need to import jetstream types.
+func (c *NATSClient) StartCommitteeMemberConsumer(
+	ctx context.Context,
+	handler func(ctx context.Context, msg port.StreamMessenger) error,
+) (func(), error) {
+	cfg := jetstream.ConsumerConfig{
+		Name:    constants.ConsumerNameTotalMembersSync,
+		Durable: constants.ConsumerNameTotalMembersSync,
+		FilterSubjects: []string{
+			constants.CommitteeMemberCreatedSubject,
+			constants.CommitteeMemberDeletedSubject,
+		},
+		AckPolicy:  jetstream.AckExplicitPolicy,
+		MaxDeliver: 3,
+		AckWait:    30 * time.Second,
+	}
+
+	consumeCtx, err := c.ConsumeWithJetStream(ctx, constants.StreamNameCommitteeMemberEvents, cfg, handler)
+	if err != nil {
+		return nil, err
+	}
+
+	return consumeCtx.Stop, nil
 }
 
 // nakDelay returns an exponential backoff duration with full jitter based on the message

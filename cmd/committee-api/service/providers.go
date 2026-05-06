@@ -428,6 +428,11 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		}
 	}
 
+	if _, err := natsClient.StartCommitteeMemberConsumer(ctx, messageHandlerService.messageHandler.HandleCommitteeTotalMembersSync); err != nil {
+		slog.ErrorContext(ctx, "failed to start committee member JetStream consumer", "error", err)
+		return fmt.Errorf("failed to start committee member consumer: %w", err)
+	}
+
 	slog.InfoContext(ctx, "NATS subscriptions started successfully")
 	return nil
 }

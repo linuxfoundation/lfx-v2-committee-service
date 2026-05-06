@@ -54,4 +54,10 @@ const (
 
 	// ObjectStoreNameCommitteeDocuments is the name of the Object Store for committee document files.
 	ObjectStoreNameCommitteeDocuments = "committee-documents"
+
+	// StreamNameCommitteeMemberEvents is the JetStream stream that captures committee member domain events.
+	StreamNameCommitteeMemberEvents = "committee-member-events"
+
+	// ConsumerNameTotalMembersSync is the durable JetStream consumer for keeping total_members accurate.
+	ConsumerNameTotalMembersSync = "committee-service-total-members"
 )
