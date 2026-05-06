@@ -600,6 +600,7 @@ func RoleNameAttribute() {
 			"Lead",
 			"None",
 			"Secretary",
+			"Technical Lead",
 			"Treasurer",
 			"Vice Chair",
 			"LF Staff",
