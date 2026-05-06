@@ -832,7 +832,7 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 	}
 }
 
-func buildTotalMembersSyncMsg(subject, committeeUID string) []byte {
+func buildTotalMembersSyncMsg(committeeUID string) []byte {
 	member := model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{CommitteeUID: committeeUID},
 	}
@@ -873,7 +873,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		{
 			name:            "irrelevant subject — skipped silently",
 			subject:         "lfx.committee-api.some.other.subject",
-			messageData:     buildTotalMembersSyncMsg("lfx.committee-api.some.other.subject", committeeUID),
+			messageData:     buildTotalMembersSyncMsg(committeeUID),
 			setupMock:       func(_ *mock.MockRepository) {},
 			wantErr:         false,
 			wantUpdateCalls: 0,
@@ -917,7 +917,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			// is never reached; here we use a UID not registered to trigger the
 			// reader returning an error (mock returns empty list, not an error).
 			// Instead we force GetBase to fail by not registering the committee.
-			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
+			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				// No committee registered — GetBase will fail after ListMembers returns empty
 				// ListMembers returns empty (not error), GetBase returns NotFound error.
@@ -928,7 +928,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		{
 			name:        "TotalMembers already correct — no update",
 			subject:     constants.CommitteeMemberCreatedSubject,
-			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
+			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 2))
 				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
@@ -944,7 +944,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		{
 			name:        "TotalMembers stale — update called with correct count (created subject)",
 			subject:     constants.CommitteeMemberCreatedSubject,
-			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
+			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 1))
 				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
@@ -964,7 +964,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		{
 			name:        "TotalMembers stale — update called with correct count (deleted subject)",
 			subject:     constants.CommitteeMemberDeletedSubject,
-			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberDeletedSubject, committeeUID),
+			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 3))
 				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
@@ -981,7 +981,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		{
 			name:        "Update fails — propagates error",
 			subject:     constants.CommitteeMemberCreatedSubject,
-			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
+			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 0))
 				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
