@@ -988,6 +988,10 @@ var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-
 		dsl.Format(dsl.FormatUUID)
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 	})
+	dsl.Attribute("folder_uid", dsl.String, "Optional folder UID this document belongs to", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+	})
 	dsl.Attribute("name", dsl.String, "Display name for the document", func() {
 		dsl.MaxLength(500)
 		dsl.Example("Architecture Decision Record")

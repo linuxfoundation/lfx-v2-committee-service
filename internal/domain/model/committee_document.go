@@ -38,6 +38,7 @@ var AllowedDocumentContentTypes = map[string]bool{
 type CommitteeDocument struct {
 	UID                string    `json:"uid"`
 	CommitteeUID       string    `json:"committee_uid"`
+	FolderUID          *string   `json:"folder_uid,omitempty"`
 	Name               string    `json:"name"`
 	Description        string    `json:"description,omitempty"`
 	FileName           string    `json:"file_name"`
@@ -74,6 +75,10 @@ func (d *CommitteeDocument) Tags() []string {
 
 	if d.CommitteeUID != "" {
 		tags = append(tags, fmt.Sprintf("committee_uid:%s", d.CommitteeUID))
+	}
+
+	if d.FolderUID != nil && *d.FolderUID != "" {
+		tags = append(tags, fmt.Sprintf("folder_uid:%s", *d.FolderUID))
 	}
 
 	if d.ContentType != "" {
