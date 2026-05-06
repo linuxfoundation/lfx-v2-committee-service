@@ -138,6 +138,6 @@ func nakDelay(msg jetstream.Msg) time.Duration {
 	if err != nil || meta == nil {
 		return time.Second
 	}
-	cap := time.Second * time.Duration(math.Pow(2, float64(meta.NumDelivered-1)))
-	return time.Duration(rand.Int63n(int64(cap) + 1))
+	maxDelay := time.Second * time.Duration(math.Pow(2, float64(meta.NumDelivered-1)))
+	return time.Duration(rand.Int63n(int64(maxDelay) + 1))
 }
