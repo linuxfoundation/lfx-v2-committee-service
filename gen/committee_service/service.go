@@ -222,6 +222,8 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	UID *string
 	// Committee UID
 	CommitteeUID *string
+	// Optional folder UID this document belongs to
+	FolderUID *string
 	// Display name for the document
 	Name *string
 	// Optional description
@@ -1153,6 +1155,8 @@ type UploadCommitteeDocumentPayload struct {
 	Name string
 	// Optional description
 	Description *string
+	// Optional folder UID to place this document in
+	FolderUID *string
 	// Original file name (from the uploaded file part)
 	FileName string
 	// MIME type of the uploaded file

@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -89,7 +90,12 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 		handler = debug.HTTP()(handler)
 	}
 	// Wrap the handler with OpenTelemetry instrumentation
-	handler = otelhttp.NewHandler(handler, "committee-service")
+	handler = otelhttp.NewHandler(handler, "committee-service",
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			p := r.URL.Path
+			return p != "/healthz" && p != "/livez" && p != "/readyz"
+		}),
+	)
 
 	// Start HTTP server using default configuration, change the code to
 	// configure the server as required by your service.
@@ -153,6 +159,10 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 		case "description":
 			desc := string(data)
 			payload.Description = &desc
+		case "folder_uid":
+			if folderUID := strings.TrimSpace(string(data)); folderUID != "" {
+				payload.FolderUID = &folderUID
+			}
 		case "file":
 			if int64(len(data)) > model.MaxDocumentFileSize {
 				_ = part.Close()
@@ -176,6 +186,7 @@ func uploadCommitteeDocumentDecoder(mr *multipart.Reader, p **committeeservice.U
 	requestBody := &committeeservicesvr.UploadCommitteeDocumentRequestBody{
 		Name:        &payload.Name,
 		Description: payload.Description,
+		FolderUID:   payload.FolderUID,
 		FileName:    &payload.FileName,
 		ContentType: &payload.ContentType,
 		File:        payload.File,
