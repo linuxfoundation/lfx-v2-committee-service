@@ -9,3 +9,10 @@ type TransportMessenger interface {
 	Data() []byte
 	Respond(data []byte) error
 }
+
+// StreamMessenger represents the behavior of a durable stream message consumed by the committee service.
+// ACK/NAK mechanics are handled by the infrastructure layer; handlers read subject and payload only.
+type StreamMessenger interface {
+	Subject() string
+	Data() []byte
+}

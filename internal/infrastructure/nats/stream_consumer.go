@@ -10,17 +10,28 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// streamMessengerAdapter wraps a jetstream.Msg and implements port.StreamMessenger so the
+// domain layer never depends on JetStream types directly.
+type streamMessengerAdapter struct {
+	msg jetstream.Msg
+}
+
+func (a *streamMessengerAdapter) Subject() string { return a.msg.Subject() }
+func (a *streamMessengerAdapter) Data() []byte    { return a.msg.Data() }
+
 // ConsumeWithJetStream creates or binds a durable JetStream consumer on streamName and starts
-// delivering messages to handler. The returned ConsumeContext must be stopped by the caller
-// (typically via defer consumeCtx.Stop()) to release the consumer goroutine.
+// delivering messages to handler. ACK and NAK-with-backoff are handled here so the domain
+// handler only needs to return an error. The returned ConsumeContext must be stopped by the
+// caller (typically via defer consumeCtx.Stop()) to release the consumer goroutine.
 func (c *NATSClient) ConsumeWithJetStream(
 	ctx context.Context,
 	streamName string,
 	cfg jetstream.ConsumerConfig,
-	handler func(ctx context.Context, msg jetstream.Msg),
+	handler func(ctx context.Context, msg port.StreamMessenger) error,
 ) (jetstream.ConsumeContext, error) {
 	js, err := jetstream.New(c.conn)
 	if err != nil {
@@ -43,7 +54,26 @@ func (c *NATSClient) ConsumeWithJetStream(
 	}
 
 	consumeCtx, err := consumer.Consume(func(msg jetstream.Msg) {
-		handler(ctx, msg)
+		if err := handler(ctx, &streamMessengerAdapter{msg: msg}); err != nil {
+			slog.ErrorContext(ctx, "stream message handler returned error — NAKing with backoff",
+				"error", err,
+				"subject", msg.Subject(),
+				"consumer", cfg.Name,
+			)
+			if nakErr := msg.NakWithDelay(nakDelay(msg)); nakErr != nil {
+				slog.ErrorContext(ctx, "failed to NAK stream message",
+					"error", nakErr,
+					"subject", msg.Subject(),
+				)
+			}
+			return
+		}
+		if ackErr := msg.Ack(); ackErr != nil {
+			slog.ErrorContext(ctx, "failed to ACK stream message",
+				"error", ackErr,
+				"subject", msg.Subject(),
+			)
+		}
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "error starting JetStream consume loop",
