@@ -861,13 +861,13 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 	committeeUID := uuid.New().String()
 
 	tests := []struct {
-		name             string
-		subject          string
-		messageData      []byte
-		setupMock        func(*mock.MockRepository)
-		writerErr        error
-		wantErr          bool
-		wantUpdateCalls  int
+		name              string
+		subject           string
+		messageData       []byte
+		setupMock         func(*mock.MockRepository)
+		writerErr         error
+		wantErr           bool
+		wantUpdateCalls   int
 		validateCommittee func(*testing.T, *model.Committee)
 	}{
 		{
@@ -926,8 +926,8 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			wantUpdateCalls: 0,
 		},
 		{
-			name:    "TotalMembers already correct — no update",
-			subject: constants.CommitteeMemberCreatedSubject,
+			name:        "TotalMembers already correct — no update",
+			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 2))
@@ -942,8 +942,8 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			wantUpdateCalls: 0,
 		},
 		{
-			name:    "TotalMembers stale — update called with correct count (created subject)",
-			subject: constants.CommitteeMemberCreatedSubject,
+			name:        "TotalMembers stale — update called with correct count (created subject)",
+			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 1))
@@ -962,8 +962,8 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			},
 		},
 		{
-			name:    "TotalMembers stale — update called with correct count (deleted subject)",
-			subject: constants.CommitteeMemberDeletedSubject,
+			name:        "TotalMembers stale — update called with correct count (deleted subject)",
+			subject:     constants.CommitteeMemberDeletedSubject,
 			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberDeletedSubject, committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 3))
@@ -979,8 +979,8 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			},
 		},
 		{
-			name:    "Update fails — propagates error",
-			subject: constants.CommitteeMemberCreatedSubject,
+			name:        "Update fails — propagates error",
+			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(constants.CommitteeMemberCreatedSubject, committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
 				repo.AddCommittee(makeCommittee(committeeUID, 0))
