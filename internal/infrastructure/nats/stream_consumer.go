@@ -28,6 +28,11 @@ func (a *streamMessengerAdapter) Data() []byte    { return a.msg.Data() }
 // delivering messages to handler. ACK and NAK-with-backoff are handled here so the domain
 // handler only needs to return an error. The returned ConsumeContext must be stopped by the
 // caller (typically via defer consumeCtx.Stop()) to release the consumer goroutine.
+//
+// Observability: wrapping each message dispatch with an OpenTelemetry consumer span
+// (SpanKindConsumer, subject as span name, messaging semconv attributes) would make
+// JetStream processing latency visible alongside HTTP traces. The OTel SDK pipeline is
+// already bootstrapped via pkg/utils/otel.go and otel.Tracer can be used here.
 func (c *NATSClient) ConsumeWithJetStream(
 	ctx context.Context,
 	streamName string,
