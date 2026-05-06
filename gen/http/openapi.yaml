@@ -3140,6 +3140,7 @@ definitions:
                             - Lead
                             - None
                             - Secretary
+                            - Technical Lead
                             - Treasurer
                             - Vice Chair
                             - LF Staff
@@ -3384,6 +3385,7 @@ definitions:
                             - Lead
                             - None
                             - Secretary
+                            - Technical Lead
                             - Treasurer
                             - Vice Chair
                             - LF Staff
@@ -3942,6 +3944,7 @@ definitions:
                             - Lead
                             - None
                             - Secretary
+                            - Technical Lead
                             - Treasurer
                             - Vice Chair
                             - LF Staff
