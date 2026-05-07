@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -30,19 +29,14 @@ func main() {
 	ctx := context.Background()
 
 	registry := buildRegistry()
-	flag.CommandLine.Usage = func() { printUsage(registry) }
-
-	natsURL := flag.String("nats-url", env.Get("NATS_URL", "nats://localhost:4222"), "NATS server address")
-	dryRun := flag.Bool("dry-run", false, "compute diffs without writing")
-	debug := flag.Bool("debug", false, "verbose structured logging")
 
 	const positionalLimit = 2
 	parsed := splitArgs(os.Args[1:], positionalLimit)
-	positionals, flagArgs := parsed.Positionals, parsed.FlagArgs
+	positionals := parsed.Positionals
 
 	// When both positionals are known, --help belongs to the subcommand.
-	// Intercept before flag.CommandLine.Parse steals it and shows global usage.
-	if len(positionals) >= 2 && hasHelpFlag(flagArgs) {
+	// Intercept before anything else so no infrastructure is initialised.
+	if len(positionals) >= 2 && hasHelpFlag(parsed.SubArgs) {
 		if grp, ok := registry[positionals[0]]; ok {
 			if sub, ok := grp.Subcommands()[positionals[1]]; ok {
 				_ = sub.Run(ctx, commands.RunContext{Args: []string{"--help"}})
@@ -52,17 +46,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	if err := flag.CommandLine.Parse(flagArgs); err != nil {
-		os.Exit(1)
-	}
-
-	if *debug {
-		os.Setenv("LOG_LEVEL", "debug")
-	}
 	logging.InitStructureLogConfig()
 
 	if len(positionals) < 2 {
-		printUsage(buildRegistry())
+		printUsage(registry)
 		os.Exit(1)
 	}
 	commandName := positionals[0]
@@ -82,14 +69,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	client, err := nats.NewClient(ctx, nats.Config{
-		URL:           *natsURL,
+		URL:           natsURL,
 		Timeout:       10 * time.Second,
 		MaxReconnect:  3,
 		ReconnectWait: 2 * time.Second,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to connect to NATS", "error", err, "url", *natsURL)
+		slog.ErrorContext(ctx, "failed to connect to NATS", "error", err, "url", natsURL)
 		os.Exit(1)
 	}
 	defer client.Close()
@@ -107,8 +95,7 @@ func main() {
 	rc := commands.RunContext{
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
-		DryRun:                      *dryRun,
-		Args:                        flag.Args(),
+		Args:                        parsed.SubArgs,
 	}
 
 	if err := sub.Run(ctx, rc); err != nil {
@@ -125,12 +112,11 @@ func buildRegistry() map[string]commands.Command {
 }
 
 func printUsage(registry map[string]commands.Command) {
-	fmt.Fprintln(os.Stderr, "usage: committee-cli [flags] <command> <subcommand> [subcommand flags]")
+	fmt.Fprintln(os.Stderr, "usage: committee-cli <command> <subcommand> [subcommand flags]")
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "global flags:")
-	fmt.Fprintln(os.Stderr, "  --nats-url string   NATS server address (default: $NATS_URL or nats://localhost:4222)")
-	fmt.Fprintln(os.Stderr, "  --dry-run           compute diffs without writing (default: false)")
-	fmt.Fprintln(os.Stderr, "  --debug             verbose structured logging (default: false)")
+	fmt.Fprintln(os.Stderr, "environment variables:")
+	fmt.Fprintln(os.Stderr, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
+	fmt.Fprintln(os.Stderr, "  LOG_LEVEL   Log verbosity, e.g. debug (default: info)")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "commands:")
 	for _, cmd := range registry {

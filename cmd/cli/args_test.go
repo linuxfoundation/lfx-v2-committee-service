@@ -10,74 +10,67 @@ import (
 
 func TestSplitArgs(t *testing.T) {
 	tests := []struct {
-		name           string
-		args           []string
+		name            string
+		args            []string
 		positionalLimit int
 		wantPositionals []string
-		wantFlagArgs    []string
+		wantSubArgs     []string
 	}{
 		{
 			name:            "command and subcommand only",
 			args:            []string{"sync", "total-members-attribute"},
 			positionalLimit: 2,
 			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    nil,
-		},
-		{
-			name:            "global flags before command",
-			args:            []string{"--dry-run", "--debug", "sync", "total-members-attribute"},
-			positionalLimit: 2,
-			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    []string{"--dry-run", "--debug"},
-		},
-		{
-			name:            "global flags after subcommand",
-			args:            []string{"sync", "total-members-attribute", "--dry-run"},
-			positionalLimit: 2,
-			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    []string{"--dry-run"},
+			wantSubArgs:     nil,
 		},
 		{
 			name:            "subcommand flags after subcommand",
 			args:            []string{"sync", "total-members-attribute", "--committee-uid=abc", "--sleep=200ms"},
 			positionalLimit: 2,
 			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    []string{"--committee-uid=abc", "--sleep=200ms"},
+			wantSubArgs:     []string{"--committee-uid=abc", "--sleep=200ms"},
 		},
 		{
-			name:            "flags mixed with positionals",
-			args:            []string{"--nats-url=nats://localhost:4222", "sync", "--dry-run", "total-members-attribute", "--sleep=1s"},
+			name:            "dry-run and project-uid as subcommand flags",
+			args:            []string{"sync", "total-members-attribute", "--project-uid", "abc-123", "--dry-run"},
 			positionalLimit: 2,
 			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    []string{"--nats-url=nats://localhost:4222", "--dry-run", "--sleep=1s"},
+			wantSubArgs:     []string{"--project-uid", "abc-123", "--dry-run"},
 		},
 		{
-			name:            "help flag after subcommand",
+			name:            "flag before first positional goes to SubArgs",
+			args:            []string{"--unknown", "sync", "total-members-attribute"},
+			positionalLimit: 2,
+			wantPositionals: []string{"sync", "total-members-attribute"},
+			wantSubArgs:     []string{"--unknown"},
+		},
+		{
+			name:            "help flag after subcommand goes to SubArgs",
 			args:            []string{"sync", "total-members-attribute", "--help"},
 			positionalLimit: 2,
 			wantPositionals: []string{"sync", "total-members-attribute"},
-			wantFlagArgs:    []string{"--help"},
+			wantSubArgs:     []string{"--help"},
+		},
+		{
+			name:            "help flag before command goes to SubArgs",
+			args:            []string{"--help"},
+			positionalLimit: 2,
+			wantPositionals: nil,
+			wantSubArgs:     []string{"--help"},
 		},
 		{
 			name:            "only one positional",
-			args:            []string{"sync", "--help"},
+			args:            []string{"sync"},
 			positionalLimit: 2,
 			wantPositionals: []string{"sync"},
-			wantFlagArgs:    []string{"--help"},
+			wantSubArgs:     nil,
 		},
 		{
 			name:            "no args",
 			args:            []string{},
 			positionalLimit: 2,
 			wantPositionals: nil,
-			wantFlagArgs:    nil,
-		},
-		{
-			name:            "only flags, no positionals",
-			args:            []string{"--dry-run", "--debug"},
-			positionalLimit: 2,
-			wantPositionals: nil,
-			wantFlagArgs:    []string{"--dry-run", "--debug"},
+			wantSubArgs:     nil,
 		},
 	}
 
@@ -87,8 +80,8 @@ func TestSplitArgs(t *testing.T) {
 			if !reflect.DeepEqual(got.Positionals, tt.wantPositionals) {
 				t.Errorf("Positionals = %v, want %v", got.Positionals, tt.wantPositionals)
 			}
-			if !reflect.DeepEqual(got.FlagArgs, tt.wantFlagArgs) {
-				t.Errorf("FlagArgs = %v, want %v", got.FlagArgs, tt.wantFlagArgs)
+			if !reflect.DeepEqual(got.SubArgs, tt.wantSubArgs) {
+				t.Errorf("SubArgs = %v, want %v", got.SubArgs, tt.wantSubArgs)
 			}
 		})
 	}
@@ -112,7 +105,7 @@ func TestHasHelpFlag(t *testing.T) {
 		},
 		{
 			name: "help among other flags",
-			args: []string{"--dry-run", "--help", "--debug"},
+			args: []string{"--dry-run", "--help", "--committee-uid=abc"},
 			want: true,
 		},
 		{

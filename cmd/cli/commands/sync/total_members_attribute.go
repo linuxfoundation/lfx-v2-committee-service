@@ -12,6 +12,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
 // totalMembersAttributeSubcommand reconciles CommitteeBase.TotalMembers against actual member counts.
@@ -28,15 +29,18 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 
 	fs := flag.NewFlagSet("total-members-attribute", flag.ExitOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: committee-cli [global flags] sync total-members-attribute [flags]\n\nflags:\n")
+		fmt.Fprintf(fs.Output(), "usage: committee-cli [--nats-url] sync total-members-attribute [flags]\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	committeeUID := fs.String("committee-uid", "", "limit sync to a single committee UID")
 	projectUID := fs.String("project-uid", "", "limit sync to committees belonging to a project")
 	sleep := fs.Duration("sleep", 0, "wait between each committee update (e.g. 200ms, 1s)")
+	dryRun := fs.Bool("dry-run", false, "compute diffs without writing")
 	if err := fs.Parse(rc.Args); err != nil {
 		return err
 	}
+
+	rc.DryRun = *dryRun
 
 	uids, err := s.resolveUIDs(ctx, rc, *committeeUID)
 	if err != nil {
@@ -79,6 +83,8 @@ func (s *totalMembersAttributeSubcommand) resolveUIDs(ctx context.Context, rc co
 }
 
 func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc commands.RunContext, uid, projectUID string, stats *commands.Stats) error {
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
 	base, revision, err := rc.CommitteeReader.GetBase(ctx, uid)
 	if err != nil {
 		stats.Failed++
