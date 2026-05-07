@@ -634,8 +634,21 @@ func TestHandleCommitteeMailingListChanged(t *testing.T) {
 	}
 }
 
-// spyCommitteeWriterOrchestrator records UpdateMember calls and can be configured to fail.
+// mockStreamMessenger implements port.StreamMessenger for testing
+type mockStreamMessenger struct {
+	subject string
+	data    []byte
+}
+
+func (m *mockStreamMessenger) Subject() string { return m.subject }
+func (m *mockStreamMessenger) Data() []byte    { return m.data }
+
+// spyCommitteeWriterOrchestrator records Update and UpdateMember calls and can be configured to fail.
 type spyCommitteeWriterOrchestrator struct {
+	updateCalls      int
+	updateErr        error
+	updatedCommittee *model.Committee
+
 	updateMemberCalls int
 	updateMemberErr   error
 	updatedMembers    []*model.CommitteeMember
@@ -644,8 +657,10 @@ type spyCommitteeWriterOrchestrator struct {
 func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Committee, _ bool) (*model.Committee, error) {
 	return nil, nil
 }
-func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, _ *model.Committee, _ uint64, _ bool) (*model.Committee, error) {
-	return nil, nil
+func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Committee, _ uint64, _ bool) (*model.Committee, error) {
+	s.updateCalls++
+	s.updatedCommittee = c
+	return c, s.updateErr
 }
 func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, _ *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
 	return nil, nil
@@ -812,6 +827,195 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 
 			if tt.validateUpdated != nil {
 				tt.validateUpdated(t, spy.updatedMembers)
+			}
+		})
+	}
+}
+
+func buildTotalMembersSyncMsg(committeeUID string) []byte {
+	member := model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{CommitteeUID: committeeUID},
+	}
+	event := model.CommitteeEvent{Data: member}
+	b, _ := json.Marshal(event)
+	return b
+}
+
+func TestHandleCommitteeTotalMembersSync(t *testing.T) {
+	ctx := context.Background()
+
+	makeCommittee := func(uid string, totalMembers int) *model.Committee {
+		return &model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:          uid,
+				ProjectUID:   "proj-1",
+				Name:         "Test Committee",
+				Category:     "technical",
+				TotalMembers: totalMembers,
+				CreatedAt:    time.Now().Add(-time.Hour),
+				UpdatedAt:    time.Now(),
+			},
+		}
+	}
+
+	committeeUID := uuid.New().String()
+
+	tests := []struct {
+		name              string
+		subject           string
+		messageData       []byte
+		setupMock         func(*mock.MockRepository)
+		writerErr         error
+		wantErr           bool
+		wantUpdateCalls   int
+		validateCommittee func(*testing.T, *model.Committee)
+	}{
+		{
+			name:            "irrelevant subject — skipped silently",
+			subject:         "lfx.committee-api.some.other.subject",
+			messageData:     buildTotalMembersSyncMsg(committeeUID),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:            "invalid JSON — returns parse error",
+			subject:         constants.CommitteeMemberCreatedSubject,
+			messageData:     []byte(`not-json`),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         true,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:    "event data cannot decode to CommitteeMember — discarded silently",
+			subject: constants.CommitteeMemberCreatedSubject,
+			messageData: func() []byte {
+				event := model.CommitteeEvent{Data: "not-a-member"}
+				b, _ := json.Marshal(event)
+				return b
+			}(),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:    "empty committee_uid — discarded silently",
+			subject: constants.CommitteeMemberCreatedSubject,
+			messageData: func() []byte {
+				event := model.CommitteeEvent{Data: model.CommitteeMember{}}
+				b, _ := json.Marshal(event)
+				return b
+			}(),
+			setupMock:       func(_ *mock.MockRepository) {},
+			wantErr:         false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:            "GetBase fails — propagates error",
+			subject:         constants.CommitteeMemberCreatedSubject,
+			messageData:     buildTotalMembersSyncMsg(committeeUID),
+			setupMock:       func(repo *mock.MockRepository) {},
+			wantErr:         true,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:        "TotalMembers already correct — no update",
+			subject:     constants.CommitteeMemberCreatedSubject,
+			messageData: buildTotalMembersSyncMsg(committeeUID),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommittee(makeCommittee(committeeUID, 2))
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+			},
+			wantErr:         false,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:        "TotalMembers stale — update called with correct count (created subject)",
+			subject:     constants.CommitteeMemberCreatedSubject,
+			messageData: buildTotalMembersSyncMsg(committeeUID),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommittee(makeCommittee(committeeUID, 1))
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+			},
+			wantErr:         false,
+			wantUpdateCalls: 1,
+			validateCommittee: func(t *testing.T, c *model.Committee) {
+				t.Helper()
+				assert.Equal(t, 2, c.TotalMembers)
+			},
+		},
+		{
+			name:        "TotalMembers stale — update called with correct count (deleted subject)",
+			subject:     constants.CommitteeMemberDeletedSubject,
+			messageData: buildTotalMembersSyncMsg(committeeUID),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommittee(makeCommittee(committeeUID, 3))
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+			},
+			wantErr:         false,
+			wantUpdateCalls: 1,
+			validateCommittee: func(t *testing.T, c *model.Committee) {
+				t.Helper()
+				assert.Equal(t, 1, c.TotalMembers)
+			},
+		},
+		{
+			name:        "Update fails — propagates error",
+			subject:     constants.CommitteeMemberCreatedSubject,
+			messageData: buildTotalMembersSyncMsg(committeeUID),
+			setupMock: func(repo *mock.MockRepository) {
+				repo.AddCommittee(makeCommittee(committeeUID, 0))
+				repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+				})
+			},
+			writerErr:       fmt.Errorf("storage unavailable"),
+			wantErr:         true,
+			wantUpdateCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			tt.setupMock(mockRepo)
+
+			spy := &spyCommitteeWriterOrchestrator{updateErr: tt.writerErr}
+
+			handler := NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(
+					NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+				),
+				WithCommitteeWriterOrchestratorForMessageHandler(spy),
+			)
+
+			msg := &mockStreamMessenger{subject: tt.subject, data: tt.messageData}
+			err := handler.HandleCommitteeTotalMembersSync(ctx, msg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.wantUpdateCalls, spy.updateCalls, "Update call count mismatch")
+
+			if tt.validateCommittee != nil {
+				require.NotNil(t, spy.updatedCommittee)
+				tt.validateCommittee(t, spy.updatedCommittee)
 			}
 		})
 	}

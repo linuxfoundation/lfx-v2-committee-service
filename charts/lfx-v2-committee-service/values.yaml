@@ -253,6 +253,33 @@ nats:
     # replicas is the number of replicas for the KV bucket
     replicas: 1
 
+  # stream_committee_member_events is the JetStream stream for committee member domain events.
+  # Subjects capture created, updated, and deleted; the consumer filters to created and deleted only.
+  stream_committee_member_events:
+    # creation controls whether the stream CRD is provisioned by this chart
+    creation: true
+    # keep preserves the stream during helm uninstall to avoid message loss
+    keep: true
+    # name is the NATS stream name
+    name: committee-member-events
+    # subjects captures all committee member domain events published by this service and peer services
+    subjects:
+      - lfx.committee-api.committee_member.*
+    # storage is the storage backend for the stream
+    storage: file
+    # retention keeps messages up to maxAge; they are not accumulated indefinitely
+    retention: limits
+    # maxAge is the maximum age of a message before it is removed
+    maxAge: 24h
+    # maxBytes is unlimited; maxAge is the primary eviction mechanism
+    maxBytes: -1
+    # maxMsgs is unlimited; maxAge is the primary eviction mechanism
+    maxMsgs: -1
+    # replicas matches the NATS cluster size for durability
+    replicas: 3
+    # compression reduces storage cost for JSON payloads
+    compression: s2
+
   # object_store_committee_documents is the configuration for the Object Store for storing committee document files
   object_store_committee_documents:
     # creation is a boolean to determine if the Object Store should be created via the helm chart.
