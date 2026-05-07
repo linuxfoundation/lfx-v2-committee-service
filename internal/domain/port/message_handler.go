@@ -13,12 +13,16 @@ type CommitteeAttributeHandler interface {
 }
 
 // CommitteeMemberHandler handles member-related messages: responding to external
-// list-members queries and reacting to committee-change events that require member re-sync.
+// list-members queries, reacting to committee-change events that require member re-sync,
+// and keeping the total_members counter accurate via durable stream events.
 type CommitteeMemberHandler interface {
 	// HandleCommitteeListMembers handles committee list members messages
 	HandleCommitteeListMembers(ctx context.Context, msg TransportMessenger) ([]byte, error)
 	// HandleCommitteeUpdated handles committee updated events and re-syncs denormalized member data
 	HandleCommitteeUpdated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeTotalMembersSync reacts to committee_member.created and committee_member.deleted
+	// stream events and updates the total_members counter on the committee record.
+	HandleCommitteeTotalMembersSync(ctx context.Context, msg StreamMessenger) error
 }
 
 // CommitteeMailingListHandler handles events from mailing-list-api.

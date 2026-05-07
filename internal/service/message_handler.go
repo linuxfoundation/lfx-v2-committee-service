@@ -313,6 +313,96 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 	return nil, nil
 }
 
+// HandleCommitteeTotalMembersSync reacts to committee_member.created and committee_member.deleted
+// stream events. It recounts the active members for the committee and delegates to the service
+// layer Update so that KV write and re-indexing are handled consistently in one place.
+// The caller (infrastructure layer) owns ACK/NAK.
+func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
+	if m.committeeWriterOrchestrator == nil {
+		return errors.NewValidation("committee writer orchestrator is required for handling total_members sync events")
+	}
+
+	subject := msg.Subject()
+
+	if subject != constants.CommitteeMemberCreatedSubject && subject != constants.CommitteeMemberDeletedSubject {
+		slog.DebugContext(ctx, "stream message subject not relevant for total_members sync — skipping",
+			"subject", subject,
+		)
+		return nil
+	}
+
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal CommitteeEvent for total_members sync", "error", err)
+		return err
+	}
+
+	rawData, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "total_members sync event has unexpected data shape — discarding", "error", err)
+		return nil
+	}
+
+	var member model.CommitteeMember
+	if err := json.Unmarshal(rawData, &member); err != nil {
+		slog.WarnContext(ctx, "total_members sync event data cannot be decoded — discarding", "error", err)
+		return nil
+	}
+
+	if member.CommitteeUID == "" {
+		slog.WarnContext(ctx, "total_members sync event missing committee_uid — discarding")
+		return nil
+	}
+
+	committeeUID := member.CommitteeUID
+
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+	slog.DebugContext(ctx, "starting total_members sync",
+		"committee_uid", committeeUID,
+		"subject", subject,
+	)
+
+	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list members for total_members sync",
+			"committee_uid", committeeUID, "error", err)
+		return err
+	}
+	actualCount := len(members)
+
+	committee, revision, err := m.committeeReader.GetBase(ctx, committeeUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get committee base for total_members sync",
+			"committee_uid", committeeUID, "error", err)
+		return err
+	}
+
+	if committee.TotalMembers == actualCount {
+		slog.DebugContext(ctx, "total_members already correct — skipping update",
+			"committee_uid", committeeUID,
+			"total_members", actualCount,
+		)
+		return nil
+	}
+
+	slog.DebugContext(ctx, "updating total_members counter",
+		"committee_uid", committeeUID,
+		"previous", committee.TotalMembers,
+		"actual", actualCount,
+	)
+
+	committee.TotalMembers = actualCount
+
+	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
+		slog.ErrorContext(ctx, "failed to update committee total_members",
+			"committee_uid", committeeUID, "error", err)
+		return err
+	}
+
+	return nil
+}
+
 // NewMessageHandlerOrchestrator creates a new message handler orchestrator using the option pattern
 func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) port.MessageHandler {
 	m := &messageHandlerOrchestrator{}
