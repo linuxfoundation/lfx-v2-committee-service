@@ -10,7 +10,7 @@ This is intended to replace the `scripts/migrations/` folder over time. Individu
 
 ## Usage
 
-```
+```text
 committee-cli <command> <subcommand> [subcommand flags]
 ```
 
@@ -32,7 +32,9 @@ Reconciles `CommitteeBase.TotalMembers` against the actual member count in the K
 | Flag | Default | Description |
 |---|---|---|
 | `--committee-uid` | `""` | Limit sync to a single committee |
+| `--project-uid` | `""` | Limit sync to committees belonging to a project |
 | `--sleep` | `0` | Wait between each update to reduce indexer pressure (e.g. `200ms`, `1s`) |
+| `--dry-run` | `false` | Compute diffs without writing |
 
 **Exit code:** `0` if no committees failed, `1` otherwise.
 
