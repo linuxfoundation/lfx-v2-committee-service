@@ -27,9 +27,9 @@ func (s *totalMembersAttributeSubcommand) Help() string {
 func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.RunContext) error {
 	slog.DebugContext(ctx, "starting subcommand", "subcommand", s.Name(), "args", rc.Args)
 
-	fs := flag.NewFlagSet("total-members-attribute", flag.ExitOnError)
+	fs := flag.NewFlagSet("total-members-attribute", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: committee-cli [--nats-url] sync total-members-attribute [flags]\n\nflags:\n")
+		fmt.Fprintf(fs.Output(), "usage: committee-cli sync total-members-attribute [flags]\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	committeeUID := fs.String("committee-uid", "", "limit sync to a single committee UID")
@@ -37,6 +37,9 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 	sleep := fs.Duration("sleep", 0, "wait between each committee update (e.g. 200ms, 1s)")
 	dryRun := fs.Bool("dry-run", false, "compute diffs without writing")
 	if err := fs.Parse(rc.Args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 

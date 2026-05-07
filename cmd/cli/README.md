@@ -86,7 +86,7 @@ In CI, the image is built and published automatically by the existing `ko-build-
 
 ```sh
 kubectl create job lfx-committee-cli-sync-total-members \
-  --image=ghcr.io/linuxfoundation/lfx-v2-committee-service/cli:<tag> \
+  --image=ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:<tag> \
   --namespace=lfx \
   -- sync total-members-attribute --sleep=200ms
 ```
