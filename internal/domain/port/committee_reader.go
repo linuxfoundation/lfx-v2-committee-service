@@ -22,6 +22,7 @@ type CommitteeReader interface {
 type CommitteeBaseReader interface {
 	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
 	GetRevision(ctx context.Context, uid string) (uint64, error)
+	ListAllUIDs(ctx context.Context) ([]string, error)
 }
 
 // CommitteeSettingsReader handles committee settings reading operations

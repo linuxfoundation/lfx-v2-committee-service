@@ -272,6 +272,20 @@ func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, e
 	return 1, nil
 }
 
+// ListAllUIDs returns all committee UIDs from the mock repository.
+func (m *MockRepository) ListAllUIDs(ctx context.Context) ([]string, error) {
+	slog.DebugContext(ctx, "mock repository: listing all committee UIDs")
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	uids := make([]string, 0, len(m.committees))
+	for uid := range m.committees {
+		uids = append(uids, uid)
+	}
+	return uids, nil
+}
+
 // ================== CommitteeSettingsReader implementation ==================
 
 // GetSettings retrieves committee settings by committee UID
