@@ -147,6 +147,24 @@ func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
 	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{}, true)
 }
 
+// ListAllUIDs returns all active committee UIDs from the KV store, excluding secondary index keys.
+func (s *storage) ListAllUIDs(ctx context.Context) ([]string, error) {
+	keys, err := s.client.kvStore[constants.KVBucketNameCommittees].ListKeys(ctx)
+	if err != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committees bucket", err)
+	}
+
+	var uids []string
+	for key := range keys.Keys() {
+		if strings.HasPrefix(key, "lookup/") || strings.HasPrefix(key, constants.KVSlugPrefix) {
+			continue
+		}
+		uids = append(uids, key)
+	}
+
+	return uids, nil
+}
+
 // GetSettings retrieves a committee's settings and its current revision from the KV store by committee UID.
 func (s *storage) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
