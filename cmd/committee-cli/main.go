@@ -92,7 +92,7 @@ func run() error {
 		ReconnectWait: 2 * time.Second,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS %s: %w", natsURL, err)
+		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 	defer client.Close()
 
