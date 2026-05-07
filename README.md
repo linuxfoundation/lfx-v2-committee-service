@@ -9,8 +9,8 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 ## File Structure
 
 ```bash
-├── .github/                        # Github files
-│   └── workflows/                  # Github Action workflow files
+├── .github/                        # GitHub files
+│   └── workflows/                  # GitHub Actions workflow files
 ├── charts/                         # Helm charts for running the service in kubernetes
 ├── cmd/                            # Services and tools (main packages)
 │   ├── committee-api/              # Committee service code
@@ -18,7 +18,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 │   │   ├── service/                # Service implementation
 │   │   ├── main.go                 # Application entry point
 │   │   └── http.go                 # HTTP server setup
-│   └── cli/                        # committee-cli operational tool
+│   └── committee-cli/              # committee-cli operational tool
 │       └── commands/               # Command and subcommand implementations
 ├── docs/                           # Feature and flow documentation
 ├── gen/                            # Generated code from Goa design
@@ -56,7 +56,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - [Invite & Application Flows](docs/invite-application-flows.md) — membership modes, invite/application lifecycle, state transitions, and edge cases
 - [Indexer Contract](docs/indexer-contract.md) — authoritative reference for all messages sent to the indexer service
 - [FGA Contract](docs/fga-contract.md) — authoritative reference for all messages sent to the fga-sync service
-- [Committee CLI](cmd/cli/README.md) — operational tool for running data repair and sync tasks against the service
+- [Committee CLI](cmd/committee-cli/README.md) — operational tool for running data repair and sync tasks against the service
 
 ## Releases
 

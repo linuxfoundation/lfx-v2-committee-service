@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"time"
@@ -46,7 +47,7 @@ func run() error {
 	if hasHelpFlag(parsed.SubArgs) {
 		switch len(positionals) {
 		case 0, 1:
-			printUsage(registry)
+			printUsage(os.Stdout, registry)
 			os.Exit(0)
 		default:
 			if grp, ok := registry[positionals[0]]; ok {
@@ -56,7 +57,7 @@ func run() error {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "unknown command: %s %s\n\n", positionals[0], positionals[1])
-			printUsage(registry)
+			printUsage(os.Stderr, registry)
 			os.Exit(1)
 		}
 	}
@@ -64,7 +65,7 @@ func run() error {
 	logging.InitStructureLogConfig()
 
 	if len(positionals) < 2 {
-		printUsage(registry)
+		printUsage(os.Stderr, registry)
 		os.Exit(1)
 	}
 	commandName := positionals[0]
@@ -73,14 +74,14 @@ func run() error {
 	cmd, ok := registry[commandName]
 	if !ok {
 		slog.Error("unknown command", "command", commandName)
-		printUsage(registry)
+		printUsage(os.Stderr, registry)
 		os.Exit(1)
 	}
 
 	sub, ok := cmd.Subcommands()[subcommandName]
 	if !ok {
 		slog.Error("unknown subcommand", "command", commandName, "subcommand", subcommandName)
-		printUsage(registry)
+		printUsage(os.Stderr, registry)
 		os.Exit(1)
 	}
 
@@ -122,18 +123,18 @@ func buildRegistry() map[string]commands.Command {
 	}
 }
 
-func printUsage(registry map[string]commands.Command) {
-	fmt.Fprintln(os.Stderr, "usage: committee-cli <command> <subcommand> [subcommand flags]")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "environment variables:")
-	fmt.Fprintln(os.Stderr, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
-	fmt.Fprintln(os.Stderr, "  LOG_LEVEL   Log verbosity, e.g. debug (default: info)")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "commands:")
+func printUsage(w io.Writer, registry map[string]commands.Command) {
+	fmt.Fprintln(w, "usage: committee-cli <command> <subcommand> [subcommand flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "environment variables:")
+	fmt.Fprintln(w, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
+	fmt.Fprintln(w, "  LOG_LEVEL   Log verbosity, e.g. debug (default: info)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "commands:")
 	for _, cmd := range registry {
-		fmt.Fprintf(os.Stderr, "  %-30s %s\n", cmd.Name(), cmd.Help())
+		fmt.Fprintf(w, "  %-30s %s\n", cmd.Name(), cmd.Help())
 		for _, sub := range cmd.Subcommands() {
-			fmt.Fprintf(os.Stderr, "    %-28s %s\n", sub.Name(), sub.Help())
+			fmt.Fprintf(w, "    %-28s %s\n", sub.Name(), sub.Help())
 		}
 	}
 }
