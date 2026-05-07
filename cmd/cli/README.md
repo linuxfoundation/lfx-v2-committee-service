@@ -11,16 +11,15 @@ This is intended to replace the `scripts/migrations/` folder over time. Individu
 ## Usage
 
 ```
-committee-cli [flags] <command> <subcommand> [subcommand flags]
+committee-cli <command> <subcommand> [subcommand flags]
 ```
 
-### Global flags
+### Environment variables
 
-| Flag | Env var | Default | Description |
-|---|---|---|---|
-| `--nats-url` | `NATS_URL` | `nats://localhost:4222` | NATS server address |
-| `--dry-run` | — | `false` | Compute diffs without writing |
-| `--debug` | — | `false` | Verbose structured logging |
+| Env var | Default | Description |
+|---|---|---|
+| `NATS_URL` | `nats://localhost:4222` | NATS server address |
+| `LOG_LEVEL` | `info` | Log verbosity (e.g. `debug`) |
 
 ### Commands
 
@@ -43,8 +42,8 @@ Reconciles `CommitteeBase.TotalMembers` against the actual member count in the K
 
 Dry-run across all committees (safe first step):
 ```sh
-NATS_URL=nats://localhost:4222 \
-  committee-cli --dry-run --debug sync total-members-attribute
+NATS_URL=nats://localhost:4222 LOG_LEVEL=debug \
+  committee-cli sync total-members-attribute --dry-run
 ```
 
 Full run with a 200ms pause between updates:
