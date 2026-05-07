@@ -51,8 +51,9 @@ func run() error {
 				os.Exit(0)
 			}
 		}
+		fmt.Fprintf(os.Stderr, "unknown command: %s %s\n\n", positionals[0], positionals[1])
 		printUsage(registry)
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	logging.InitStructureLogConfig()
