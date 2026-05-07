@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli/commands"
-	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli/commands/sync"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"

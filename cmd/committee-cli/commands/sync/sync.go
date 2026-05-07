@@ -3,7 +3,7 @@
 
 package sync
 
-import "github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli/commands"
+import "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 
 // command is the "sync" command group.
 type command struct{}
