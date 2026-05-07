@@ -41,19 +41,24 @@ func run() error {
 	parsed := splitArgs(os.Args[1:], positionalLimit)
 	positionals := parsed.Positionals
 
-	// When both positionals are known, --help belongs to the subcommand.
-	// Intercept before anything else so no infrastructure is initialised.
-	// sub.Run with --help prints subcommand usage and returns nil (flag.ContinueOnError + flag.ErrHelp handling).
-	if len(positionals) >= 2 && hasHelpFlag(parsed.SubArgs) {
-		if grp, ok := registry[positionals[0]]; ok {
-			if sub, ok := grp.Subcommands()[positionals[1]]; ok {
-				_ = sub.Run(ctx, commands.RunContext{Args: []string{"--help"}})
-				os.Exit(0)
+	// Intercept --help/-h before any infrastructure is initialised so help
+	// always exits 0 regardless of how many positionals are present.
+	if hasHelpFlag(parsed.SubArgs) {
+		switch len(positionals) {
+		case 0, 1:
+			printUsage(registry)
+			os.Exit(0)
+		default:
+			if grp, ok := registry[positionals[0]]; ok {
+				if sub, ok := grp.Subcommands()[positionals[1]]; ok {
+					_ = sub.Run(ctx, commands.RunContext{Args: []string{"--help"}})
+					os.Exit(0)
+				}
 			}
+			fmt.Fprintf(os.Stderr, "unknown command: %s %s\n\n", positionals[0], positionals[1])
+			printUsage(registry)
+			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "unknown command: %s %s\n\n", positionals[0], positionals[1])
-		printUsage(registry)
-		os.Exit(1)
 	}
 
 	logging.InitStructureLogConfig()
