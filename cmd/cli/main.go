@@ -26,6 +26,13 @@ var (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("command failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 
 	registry := buildRegistry()
@@ -77,8 +84,7 @@ func main() {
 		ReconnectWait: 2 * time.Second,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to connect to NATS", "error", err, "url", natsURL)
-		os.Exit(1)
+		return fmt.Errorf("failed to connect to NATS %s: %w", natsURL, err)
 	}
 	defer client.Close()
 
@@ -98,10 +104,7 @@ func main() {
 		Args:                        parsed.SubArgs,
 	}
 
-	if err := sub.Run(ctx, rc); err != nil {
-		slog.ErrorContext(ctx, "command failed", "error", err)
-		os.Exit(1)
-	}
+	return sub.Run(ctx, rc)
 }
 
 func buildRegistry() map[string]commands.Command {
