@@ -126,7 +126,7 @@ run: build ## Run the application for local development
 .PHONY: build-cli
 build-cli: ## Build the committee-cli binary for local OS
 	@echo "Building committee-cli for local development..."
-	go build -o bin/committee-cli ./cmd/cli
+	go build -o bin/committee-cli ./cmd/committee-cli
 
 ##@ Docker
 

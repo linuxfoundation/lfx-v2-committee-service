@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )

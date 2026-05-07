@@ -102,7 +102,7 @@ The Job is kept after completion so its logs and exit status remain accessible a
 
 ## Adding new commands
 
-1. Create `cmd/cli/commands/<group>.go` and implement the `Command` and `Subcommand` interfaces from `command.go`.
-2. Register the new command in `buildRegistry()` in `cmd/cli/main.go`.
+1. Create `cmd/committee-cli/commands/<group>.go` and implement the `Command` and `Subcommand` interfaces from `command.go`.
+2. Register the new command in `buildRegistry()` in `cmd/committee-cli/main.go`.
 
 No changes to shared infrastructure or domain packages are required unless the new command needs a port method that does not yet exist.

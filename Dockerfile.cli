@@ -16,7 +16,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /go/bin/committee-cli -trimpath -ldflags="-w -s" github.com/linuxfoundation/lfx-v2-committee-service/cmd/cli
+RUN go build -o /go/bin/committee-cli -trimpath -ldflags="-w -s" github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli
 
 FROM cgr.dev/chainguard/static:latest
 
