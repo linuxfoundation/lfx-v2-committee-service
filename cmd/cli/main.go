@@ -43,10 +43,12 @@ func run() error {
 
 	// When both positionals are known, --help belongs to the subcommand.
 	// Intercept before anything else so no infrastructure is initialised.
+	// sub.Run with --help prints subcommand usage and returns nil (flag.ContinueOnError + flag.ErrHelp handling).
 	if len(positionals) >= 2 && hasHelpFlag(parsed.SubArgs) {
 		if grp, ok := registry[positionals[0]]; ok {
 			if sub, ok := grp.Subcommands()[positionals[1]]; ok {
 				_ = sub.Run(ctx, commands.RunContext{Args: []string{"--help"}})
+				os.Exit(0)
 			}
 		}
 		printUsage(registry)
