@@ -11,7 +11,7 @@ func TestGet(t *testing.T) {
 	tests := []struct {
 		name         string
 		key          string
-		envValue     string // empty string means "unset"
+		envValue     string // empty string means "unset or empty" — Get treats both identically
 		defaultValue string
 		expected     string
 	}{
@@ -23,18 +23,11 @@ func TestGet(t *testing.T) {
 			expected:     "from-env",
 		},
 		{
-			name:         "returns default when var is unset",
+			name:         "returns default when var is unset or empty",
 			key:          "TEST_ENV_KEY_UNSET",
 			envValue:     "",
 			defaultValue: "default",
 			expected:     "default",
-		},
-		{
-			name:         "returns default when var is empty string",
-			key:          "TEST_ENV_KEY_EMPTY",
-			envValue:     "",
-			defaultValue: "fallback",
-			expected:     "fallback",
 		},
 		{
 			name:         "returns empty default when both unset and default are empty",
