@@ -9,6 +9,7 @@ GIT_COMMIT := $(shell git rev-parse HEAD)
 # Docker
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
+DOCKER_CLI_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-cli
 DOCKER_TAG := $(VERSION)
 
 # Helm variables
@@ -122,6 +123,11 @@ run: build ## Run the application for local development
 	@echo "Running application for local development..."
 	./bin/$(APP_NAME)
 
+.PHONY: build-cli
+build-cli: ## Build the committee-cli binary for local OS
+	@echo "Building committee-cli for local development..."
+	go build -o bin/committee-cli ./cmd/cli
+
 ##@ Docker
 
 .PHONY: docker-build
@@ -130,6 +136,12 @@ docker-build: ## Build Docker image
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 	docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):latest
 
+
+.PHONY: docker-build-cli
+docker-build-cli: ## Build CLI Docker image using Dockerfile.cli
+	@echo "Building committee-cli Docker image..."
+	docker build -f Dockerfile.cli -t $(DOCKER_CLI_IMAGE):$(DOCKER_TAG) .
+	docker tag $(DOCKER_CLI_IMAGE):$(DOCKER_TAG) $(DOCKER_CLI_IMAGE):latest
 
 .PHONY: docker-run
 docker-run: ## Run Docker container locally
