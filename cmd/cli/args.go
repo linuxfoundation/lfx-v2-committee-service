@@ -6,25 +6,27 @@ package main
 import "strings"
 
 // parsedArgs holds the result of splitting raw CLI arguments into positionals
-// (command, subcommand) and the remaining flag arguments passed to flag.Parse.
+// (command, subcommand) and subcommand args (everything else).
 type parsedArgs struct {
 	// Positionals contains the non-flag arguments up to positionalLimit (command, subcommand).
 	Positionals []string
-	// FlagArgs contains all flag-like arguments (starting with "-") plus any
-	// arguments that appear after both positionals have been collected.
-	FlagArgs []string
+	// SubArgs contains everything after both positionals, forwarded as-is to
+	// the subcommand's own FlagSet.
+	SubArgs []string
 }
 
-// splitArgs separates up to positionalLimit positional arguments from flag
-// arguments. Flags (any arg starting with "-") are always collected into
-// FlagArgs regardless of their position. Once positionalLimit positionals have
-// been collected, all remaining arguments are treated as flag arguments so they
-// can be forwarded to a subcommand's FlagSet.
+// splitArgs separates up to positionalLimit positional arguments from the rest.
+// Non-flag args (no leading "-") are collected into Positionals until the limit
+// is reached; everything else goes into SubArgs for the subcommand to parse.
 func splitArgs(args []string, positionalLimit int) parsedArgs {
 	var result parsedArgs
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") || len(result.Positionals) >= positionalLimit {
-			result.FlagArgs = append(result.FlagArgs, arg)
+		if len(result.Positionals) >= positionalLimit {
+			result.SubArgs = append(result.SubArgs, arg)
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			result.SubArgs = append(result.SubArgs, arg)
 			continue
 		}
 		result.Positionals = append(result.Positionals, arg)
