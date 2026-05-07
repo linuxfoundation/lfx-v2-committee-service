@@ -12,12 +12,14 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 ├── .github/                        # Github files
 │   └── workflows/                  # Github Action workflow files
 ├── charts/                         # Helm charts for running the service in kubernetes
-├── cmd/                            # Services (main packages)
-│   └── committee-api/              # Committee service code
-│       ├── design/                 # API design specifications (Goa)
-│       ├── service/                # Service implementation
-│       ├── main.go                 # Application entry point
-│       └── http.go                 # HTTP server setup
+├── cmd/                            # Services and tools (main packages)
+│   ├── committee-api/              # Committee service code
+│   │   ├── design/                 # API design specifications (Goa)
+│   │   ├── service/                # Service implementation
+│   │   ├── main.go                 # Application entry point
+│   │   └── http.go                 # HTTP server setup
+│   └── cli/                        # committee-cli operational tool
+│       └── commands/               # Command and subcommand implementations
 ├── docs/                           # Feature and flow documentation
 ├── gen/                            # Generated code from Goa design
 ├── internal/                       # Internal service packages
@@ -54,6 +56,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - [Invite & Application Flows](docs/invite-application-flows.md) — membership modes, invite/application lifecycle, state transitions, and edge cases
 - [Indexer Contract](docs/indexer-contract.md) — authoritative reference for all messages sent to the indexer service
 - [FGA Contract](docs/fga-contract.md) — authoritative reference for all messages sent to the fga-sync service
+- [Committee CLI](cmd/cli/README.md) — operational tool for running data repair and sync tasks against the service
 
 ## Releases
 
@@ -76,7 +79,7 @@ To create a new release of the committee service:
    update the `appVersion` in the released chart.
 
 3. **The GitHub Actions workflow will automatically**:
-   - Build and publish the container images (committee-api)
+   - Build and publish the container images (committee-api and committee-cli)
    - Package and publish the Helm chart to GitHub Pages
    - Publish the chart to GitHub Container Registry (GHCR)
    - Sign the chart with Cosign
