@@ -7,3 +7,9 @@ builds:
       - -X=main.Version={{.Env.VERSION}}
       - -X=main.BuildTime={{.Env.BUILD_TIME}}
       - -X=main.GitCommit={{.Env.GIT_COMMIT}}
+  - id: committee-cli
+    dir: ./cmd/committee-cli
+    ldflags:
+      - -X=main.Version={{.Env.VERSION}}
+      - -X=main.BuildTime={{.Env.BUILD_TIME}}
+      - -X=main.GitCommit={{.Env.GIT_COMMIT}}
