@@ -19,7 +19,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | Env var | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://localhost:4222` | NATS server address |
-| `LOG_LEVEL` | `info` | Log verbosity (e.g. `debug`) |
+| `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 
 ### Commands
 
@@ -71,7 +71,7 @@ make build-cli
 
 Or directly with Go:
 ```sh
-go build -o bin/committee-cli ./cmd/cli
+go build -o bin/committee-cli ./cmd/committee-cli
 ```
 
 ### Docker image

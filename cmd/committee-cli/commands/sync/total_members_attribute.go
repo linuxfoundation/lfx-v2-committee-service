@@ -43,6 +43,10 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 		return err
 	}
 
+	if *committeeUID != "" && *projectUID != "" {
+		return fmt.Errorf("--committee-uid and --project-uid are mutually exclusive")
+	}
+
 	rc.DryRun = *dryRun
 
 	uids, err := s.resolveUIDs(ctx, rc, *committeeUID)
@@ -54,12 +58,9 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 	stats.Total = len(uids)
 
 	for _, uid := range uids {
-		if err := s.syncOne(ctx, rc, uid, *projectUID, stats); err != nil {
+		if err := s.syncOne(ctx, rc, uid, *projectUID, *sleep, stats); err != nil {
 			// syncOne already logged and incremented stats.Failed; keep going
 			continue
-		}
-		if *sleep > 0 {
-			time.Sleep(*sleep)
 		}
 	}
 
@@ -85,7 +86,7 @@ func (s *totalMembersAttributeSubcommand) resolveUIDs(ctx context.Context, rc co
 	return uids, nil
 }
 
-func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc commands.RunContext, uid, projectUID string, stats *commands.Stats) error {
+func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc commands.RunContext, uid, projectUID string, sleep time.Duration, stats *commands.Stats) error {
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	base, revision, err := rc.CommitteeReader.GetBase(ctx, uid)
@@ -114,6 +115,10 @@ func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc comman
 	actual := len(members)
 
 	if base.TotalMembers == actual {
+		slog.DebugContext(ctx, "skipping committee, total_members already correct",
+			"committee_uid", uid,
+			"total_members", actual,
+		)
 		stats.Skipped++
 		return nil
 	}
@@ -142,5 +147,8 @@ func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc comman
 	}
 
 	stats.Updated++
+	if sleep > 0 {
+		time.Sleep(sleep)
+	}
 	return nil
 }
