@@ -214,6 +214,10 @@ func (r *TestMockCommitteeReader) GetRevision(ctx context.Context, uid string) (
 	return 0, errs.NewNotFound("not implemented for this test")
 }
 
+func (r *TestMockCommitteeReader) ListAllUIDs(ctx context.Context) ([]string, error) {
+	return nil, errs.NewNotFound("not implemented for this test")
+}
+
 func (r *TestMockCommitteeReader) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")
 }
