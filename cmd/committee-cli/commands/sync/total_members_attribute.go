@@ -56,6 +56,7 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 
 	stats := commands.NewStats()
 	stats.Total = len(uids)
+	stats.DryRun = rc.DryRun
 
 	for _, uid := range uids {
 		if err := s.syncOne(ctx, rc, uid, *projectUID, *sleep, stats); err != nil {

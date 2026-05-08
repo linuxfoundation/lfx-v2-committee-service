@@ -40,6 +40,7 @@ type Stats struct {
 	Updated int
 	Skipped int
 	Failed  int
+	DryRun  bool
 	start   time.Time
 }
 
@@ -60,6 +61,7 @@ func (s *Stats) Log(ctx context.Context, commandName string) {
 		"updated", s.Updated,
 		"skipped", s.Skipped,
 		"failed", s.Failed,
+		"dry_run", s.DryRun,
 		"duration_ms", duration.Milliseconds(),
 		"rate_per_sec", rate,
 	)
