@@ -64,19 +64,15 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 	// Parse message data to extract committee UID
 	uid := string(msg.Data())
 
-	slog.DebugContext(ctx, "committee get name request",
-		"committee_uid", uid,
-		"attribute", attribute,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	ctx = log.AppendCtx(ctx, slog.String("attribute", attribute))
+	slog.DebugContext(ctx, "committee get name request")
 
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
 		return nil, err
 	}
-
-	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
-	ctx = log.AppendCtx(ctx, slog.String("attribute", attribute))
 
 	// Use the committee reader to get the committee base information
 	committee, _, err := m.committeeReader.GetBase(ctx, uid)
@@ -103,17 +99,14 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	// Parse message data to extract committee UID
 	uid := string(msg.Data())
 
-	slog.DebugContext(ctx, "committee list members request",
-		"committee_uid", uid,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	slog.DebugContext(ctx, "committee list members request")
 
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
 		return nil, err
 	}
-
-	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 
 	// Check if the committee exists first
 	_, _, err = m.committeeReader.GetBase(ctx, uid)
@@ -133,10 +126,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 		return nil, errors.NewUnexpected("failed to marshal committee members", err)
 	}
 
-	slog.DebugContext(ctx, "committee list members response",
-		"committee_uid", uid,
-		"member_count", len(members),
-	)
+	slog.DebugContext(ctx, "committee list members response", "member_count", len(members))
 
 	return membersJSON, nil
 }
@@ -327,10 +317,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
 
-	slog.DebugContext(ctx, "starting total_members sync",
-		"committee_uid", committeeUID,
-		"subject", subject,
-	)
+	slog.DebugContext(ctx, "starting total_members sync", "subject", subject)
 
 	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
 	if err != nil {
@@ -344,15 +331,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	}
 
 	if committee.TotalMembers == actualCount {
-		slog.DebugContext(ctx, "total_members already correct — skipping update",
-			"committee_uid", committeeUID,
-			"total_members", actualCount,
-		)
+		slog.DebugContext(ctx, "total_members already correct — skipping update", "total_members", actualCount)
 		return nil
 	}
 
 	slog.DebugContext(ctx, "updating total_members counter",
-		"committee_uid", committeeUID,
 		"previous", committee.TotalMembers,
 		"actual", actualCount,
 	)
