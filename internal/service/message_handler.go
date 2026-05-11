@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 )
 
 // messageHandlerOrchestrator orchestrates the message handling process
@@ -74,6 +75,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 		return nil, err
 	}
 
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	ctx = log.AppendCtx(ctx, slog.String("attribute", attribute))
+
 	// Use the committee reader to get the committee base information
 	committee, _, err := m.committeeReader.GetBase(ctx, uid)
 	if err != nil {
@@ -108,6 +112,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
+
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 
 	// Check if the committee exists first
 	_, _, err = m.committeeReader.GetBase(ctx, uid)
@@ -319,6 +325,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	committeeUID := member.CommitteeUID
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
 
 	slog.DebugContext(ctx, "starting total_members sync",
 		"committee_uid", committeeUID,

@@ -12,6 +12,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 )
 
 // CommitteeReader defines the interface for committee read operations
@@ -58,6 +59,7 @@ type committeeReaderOrchestrator struct {
 // GetBase retrieves committee base information by UID
 func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 	slog.DebugContext(ctx, "executing get committee base use case",
 		"committee_uid", uid,
 	)
@@ -79,6 +81,7 @@ func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) 
 // GetSettings retrieves committee settings by UID
 func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 	slog.DebugContext(ctx, "executing get committee settings use case",
 		"committee_uid", uid,
 	)
@@ -121,6 +124,8 @@ func (rc *committeeReaderOrchestrator) GetMemberRevision(ctx context.Context, me
 // GetMember retrieves a committee member by committee UID and member UID
 func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
 
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
+	ctx = log.AppendCtx(ctx, slog.String("member_uid", memberUID))
 	slog.DebugContext(ctx, "executing get committee member use case",
 		"committee_uid", committeeUID,
 		"member_uid", memberUID,
@@ -155,6 +160,7 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 // ListMembers retrieves all members for a given committee UID
 func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
 	slog.DebugContext(ctx, "executing list committee members use case",
 		"committee_uid", committeeUID,
 	)
