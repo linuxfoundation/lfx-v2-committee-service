@@ -65,10 +65,6 @@ func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) 
 	// Get committee base from storage
 	committeeBase, revision, err := rc.committeeReader.GetBase(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, 0, err
 	}
 
@@ -90,10 +86,6 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 	// Get committee settings from storage
 	committeeSettings, revision, err := rc.committeeReader.GetSettings(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee settings",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, 0, err
 	}
 
@@ -137,31 +129,17 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 	// First, verify that the committee exists
 	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base - committee does not exist",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
 		return nil, 0, err
 	}
 
 	// Get committee member from storage
 	committeeMember, revision, err := rc.committeeReader.GetMember(ctx, memberUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee member",
-			"error", err,
-			"committee_uid", committeeUID,
-			"member_uid", memberUID,
-		)
 		return nil, 0, err
 	}
 
 	// Verify that the member belongs to the requested committee
 	if committeeMember.CommitteeUID != committeeUID {
-		slog.ErrorContext(ctx, "committee member does not belong to the requested committee",
-			"committee_uid", committeeUID,
-			"member_uid", memberUID,
-			"member_committee_uid", committeeMember.CommitteeUID,
-		)
 		return nil, 0, errs.NewValidation("committee member does not belong to the requested committee")
 	}
 
@@ -184,10 +162,6 @@ func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committe
 	// Get all committee members from storage
 	members, err := rc.committeeReader.ListMembers(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list committee members",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
 		return nil, err
 	}
 
