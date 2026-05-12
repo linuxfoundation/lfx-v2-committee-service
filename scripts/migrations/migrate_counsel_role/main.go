@@ -6,10 +6,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +20,9 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+// errNotCounsel is returned by processRecord when the member's role is not "Counsel".
+var errNotCounsel = errors.New("role is not Counsel")
 
 var (
 	natsURL      = flag.String("nats-url", getEnvOrDefault("NATS_URL", "nats://localhost:4222"), "NATS server URL")
@@ -55,7 +60,7 @@ func run() error {
 	ctx := context.Background()
 
 	slog.InfoContext(ctx, "Starting counsel_role migration",
-		"nats_url", *natsURL,
+		"nats_url", redactNATSURL(*natsURL),
 		"bucket", *bucketName,
 		"index_subject", *indexSubject,
 		"dry_run", *dryRun,
@@ -109,7 +114,7 @@ func run() error {
 	for i, uid := range memberUIDs {
 		err := processRecord(ctx, kvStore, uid, *dryRun, *indexSubject, nc)
 		if err != nil {
-			if strings.Contains(err.Error(), "not counsel") {
+			if errors.Is(err, errNotCounsel) {
 				stats.Skipped++
 			} else {
 				slog.ErrorContext(ctx, "failed to process record",
@@ -174,7 +179,7 @@ func processRecord(ctx context.Context, kvStore jetstream.KeyValue, uid string, 
 	roleMap, ok := dataMap["role"].(map[string]interface{})
 	if !ok || roleMap["name"] != "Counsel" {
 		slog.DebugContext(ctx, "record role is not Counsel, skipping", "uid", uid)
-		return fmt.Errorf("not counsel")
+		return errNotCounsel
 	}
 
 	roleMap["name"] = "None"
@@ -221,7 +226,7 @@ func processRecord(ctx context.Context, kvStore jetstream.KeyValue, uid string, 
 			roleMap, ok = dataMap["role"].(map[string]interface{})
 			if !ok || roleMap["name"] != "Counsel" {
 				slog.DebugContext(ctx, "role was changed by concurrent process", "uid", uid)
-				return fmt.Errorf("not counsel")
+				return errNotCounsel
 			}
 
 			roleMap["name"] = "None"
@@ -238,18 +243,24 @@ func processRecord(ctx context.Context, kvStore jetstream.KeyValue, uid string, 
 
 	msgData, err := json.Marshal(dataMap)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to marshal member for index message", "uid", uid, "error", err)
-	} else {
-		if err := nc.Publish(indexSubject, msgData); err != nil {
-			slog.WarnContext(ctx, "failed to publish index message",
-				"uid", uid,
-				"subject", indexSubject,
-				"error", err,
-			)
-		}
+		return fmt.Errorf("failed to marshal member for index message: %w", err)
+	}
+	if err := nc.Publish(indexSubject, msgData); err != nil {
+		return fmt.Errorf("failed to publish index message to %s: %w", indexSubject, err)
 	}
 
 	return nil
+}
+
+func redactNATSURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "<invalid>"
+	}
+	if u.User != nil {
+		u.User = url.User("REDACTED")
+	}
+	return u.String()
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
