@@ -635,8 +635,8 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
 		}
 		if body.Role != nil {
-			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Technical Lead" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			if !(body.Role.Name == "Chair" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Technical Lead" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
 			}
 			if body.Role.StartDate != nil {
 				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
@@ -876,8 +876,8 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
 		}
 		if body.Role != nil {
-			if !(body.Role.Name == "Chair" || body.Role.Name == "Counsel" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Technical Lead" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			if !(body.Role.Name == "Chair" || body.Role.Name == "Developer Seat" || body.Role.Name == "TAC/TOC Representative" || body.Role.Name == "Director" || body.Role.Name == "Lead" || body.Role.Name == "None" || body.Role.Name == "Secretary" || body.Role.Name == "Technical Lead" || body.Role.Name == "Treasurer" || body.Role.Name == "Vice Chair" || body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
 			}
 			if body.Role.StartDate != nil {
 				err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
