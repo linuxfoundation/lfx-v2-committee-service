@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -1033,12 +1034,15 @@ func messageHandlerStringPtr(s string) *string {
 
 // mockEmailSender records SendEmail calls for assertions.
 type mockEmailSender struct {
+	mu     sync.Mutex
 	calls  []emailapi.SendEmailRequest
 	retErr error
 }
 
 func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailRequest) error {
+	m.mu.Lock()
 	m.calls = append(m.calls, req)
+	m.mu.Unlock()
 	return m.retErr
 }
 
@@ -1168,12 +1172,12 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 		wantSendCount   int
 	}{
 		{
-			name:          "new writer added — one email sent",
+			name:          "new writer added — one email sent with Writer role",
 			newWriters:    []model.CommitteeUser{alice},
 			wantSendCount: 1,
 		},
 		{
-			name:          "new auditor added — one email sent",
+			name:          "new auditor added — one email sent with Auditor role",
 			newAuditors:   []model.CommitteeUser{alice},
 			wantSendCount: 1,
 		},
@@ -1182,6 +1186,12 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			newWriters:    []model.CommitteeUser{alice},
 			newAuditors:   []model.CommitteeUser{bob},
 			wantSendCount: 2,
+		},
+		{
+			name:          "same user in both writer and auditor — deduplicated to one email",
+			newWriters:    []model.CommitteeUser{alice},
+			newAuditors:   []model.CommitteeUser{alice},
+			wantSendCount: 1,
 		},
 		{
 			name:          "writer already existed — no email sent",
@@ -1234,6 +1244,13 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			if tt.wantSendCount > 0 {
 				assert.Contains(t, sender.calls[0].HTML, "https://dev.app.lfx.dev/groups/committee-1")
 				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
+			}
+			// Verify correct role labels in email content
+			if tt.name == "new writer added — one email sent with Writer role" {
+				assert.Contains(t, sender.calls[0].HTML, "Writer")
+			}
+			if tt.name == "new auditor added — one email sent with Auditor role" {
+				assert.Contains(t, sender.calls[0].HTML, "Auditor")
 			}
 		})
 	}
