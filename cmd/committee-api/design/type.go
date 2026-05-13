@@ -593,7 +593,6 @@ func RoleNameAttribute() {
 	dsl.Attribute("name", dsl.String, "Committee role name", func() {
 		dsl.Enum(
 			"Chair",
-			"Counsel",
 			"Developer Seat",
 			"TAC/TOC Representative",
 			"Director",
