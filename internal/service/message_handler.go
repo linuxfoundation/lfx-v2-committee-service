@@ -546,12 +546,28 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		return nil, nil
 	}
 
-	newUsers := append(
-		diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()),
-		diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors())...,
-	)
+	// Build a deduplicated list of (user, role) pairs. Writers take precedence
+	// if a user appears in both lists — they get a single email with the higher role.
+	type notification struct {
+		user model.CommitteeUser
+		role string
+	}
+	seen := make(map[string]bool)
+	var notifs []notification
+	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()) {
+		if !seen[u.Username] {
+			seen[u.Username] = true
+			notifs = append(notifs, notification{user: u, role: "Writer"})
+		}
+	}
+	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors()) {
+		if !seen[u.Username] {
+			seen[u.Username] = true
+			notifs = append(notifs, notification{user: u, role: "Auditor"})
+		}
+	}
 
-	if len(newUsers) == 0 {
+	if len(notifs) == 0 {
 		slog.DebugContext(ctx, "no new writers/auditors — skipping settings notification",
 			"committee_uid", data.CommitteeUID)
 		return nil, nil
@@ -562,14 +578,15 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
-	for _, u := range newUsers {
-		if u.Email == "" {
+	for _, n := range notifs {
+		if n.user.Email == "" {
 			slog.WarnContext(ctx, "skipping settings notification — user has no email address",
-				"committee_uid", data.CommitteeUID, "username", u.Username)
+				"committee_uid", data.CommitteeUID, "username", n.user.Username)
 			continue
 		}
 
 		g.Go(func() error {
+			u, role := n.user, n.role
 			recipientName := u.Name
 			if recipientName == "" {
 				recipientName = u.Username
@@ -581,7 +598,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			subject, html, text, renderErr := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 				RecipientName: recipientName,
 				CommitteeName: data.CommitteeName,
-				Role:          "committee administrator",
+				Role:          role,
 				CommitteeURL:  committeeURL,
 				InviterName:   "A committee administrator",
 			})
