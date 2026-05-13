@@ -35,6 +35,8 @@ type CommitteeMailingListHandler interface {
 type CommitteeNotificationHandler interface {
 	// HandleCommitteeMemberCreated sends a notification email when a member is added to a committee.
 	HandleCommitteeMemberCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeSettingsUpdated sends notification emails to newly added Writers/Auditors.
+	HandleCommitteeSettingsUpdated(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.

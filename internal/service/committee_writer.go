@@ -883,7 +883,25 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		)
 	}
 
-	// ******************************************************
+	// Publish a domain event carrying old+new settings so subscribers can
+	// detect newly added Writers/Auditors and send notification emails.
+	settingsEvent, errBuildEvent := (&model.CommitteeEvent{}).Build(ctx, model.ResourceCommitteeSettings, model.ActionUpdated, &model.CommitteeSettingsUpdateEventData{
+		CommitteeUID:  settings.UID,
+		OldSettings:   existingSettings,
+		Settings:      settings,
+		CommitteeName: committeeBase.Name,
+	})
+	if errBuildEvent != nil {
+		slog.WarnContext(ctx, "failed to build committee_settings.updated event — skipping",
+			"error", errBuildEvent,
+			"committee_uid", settings.UID,
+		)
+	} else if errEvent := uc.committeePublisher.Event(ctx, constants.CommitteeSettingsUpdatedSubject, settingsEvent, false); errEvent != nil {
+		slog.WarnContext(ctx, "failed to publish committee_settings.updated event — skipping",
+			"error", errEvent,
+			"committee_uid", settings.UID,
+		)
+	}
 
 	return settings, nil
 }
