@@ -19,6 +19,10 @@ type emailSender struct {
 
 // SendEmail sends an email via the email service using NATS request/reply.
 func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailRequest) error {
+	if e.client == nil || e.client.conn == nil {
+		return errors.NewServiceUnavailable("email sender is not configured", nil)
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return errors.NewUnexpected("failed to marshal email request", err)
