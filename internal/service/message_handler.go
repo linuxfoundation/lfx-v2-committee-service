@@ -24,6 +24,8 @@ type messageHandlerOrchestrator struct {
 	committeeWriterOrchestrator CommitteeWriter
 	committeeWriter             port.CommitteeWriter
 	committeePublisher          port.CommitteePublisher
+	emailSender                 port.EmailSender
+	lfxSelfServeBaseURL         string
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -54,6 +56,20 @@ func WithCommitteePublisherForMessageHandler(publisher port.CommitteePublisher) 
 func WithCommitteeWriterOrchestratorForMessageHandler(writer CommitteeWriter) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.committeeWriterOrchestrator = writer
+	}
+}
+
+// WithEmailSenderForMessageHandler sets the email sender for notification emails.
+func WithEmailSenderForMessageHandler(sender port.EmailSender) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.emailSender = sender
+	}
+}
+
+// WithLFXSelfServeBaseURLForMessageHandler sets the base URL used to build links in notification emails.
+func WithLFXSelfServeBaseURLForMessageHandler(baseURL string) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.lfxSelfServeBaseURL = baseURL
 	}
 }
 

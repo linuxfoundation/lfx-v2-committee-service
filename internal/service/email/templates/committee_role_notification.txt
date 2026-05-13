@@ -1,0 +1,12 @@
+{{- /* Copyright The Linux Foundation and each contributor to LFX. */ -}}
+{{- /* SPDX-License-Identifier: MIT */ -}}
+Hi {{.RecipientName}},
+
+{{.InviterName}} has added you as a {{.Role}} on the {{.CommitteeName}} committee in LFX Self-Serve.
+
+You can view the committee here:
+{{.CommitteeURL}}
+
+---
+You are receiving this email because you were added to a committee on LFX Self-Serve.
+© The Linux Foundation
