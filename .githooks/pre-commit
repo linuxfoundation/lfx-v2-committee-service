@@ -6,6 +6,6 @@ git add -u
 
 echo "Running golangci-lint..."
 if ! make lint; then
-  echo "Lint failed. Fix errors before committing."
-  exit 1
+	echo "Lint failed. Fix errors before committing."
+	exit 1
 fi
