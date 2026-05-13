@@ -9,13 +9,18 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	emailsvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service/email"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	"golang.org/x/sync/errgroup"
 )
 
 // messageHandlerOrchestrator orchestrates the message handling process
@@ -426,4 +431,206 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 		opt(m)
 	}
 	return m
+}
+
+const committeeEmailSendTimeout = 5 * time.Second
+
+// HandleCommitteeMemberCreated handles committee_member.created events and sends
+// a notification email to the newly added member. Best-effort: send errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_member.created event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_member.created event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var member model.CommitteeMember
+	if err := json.Unmarshal(raw, &member); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMember from event data", "error", err)
+		return nil, nil
+	}
+
+	if member.Email == "" {
+		slog.WarnContext(ctx, "skipping member notification — no email address",
+			"committee_uid", member.CommitteeUID, "username", member.Username)
+		return nil, nil
+	}
+
+	if m.emailSender == nil {
+		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+		return nil, nil
+	}
+
+	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
+	if recipientName == "" {
+		recipientName = member.Username
+	}
+	if recipientName == "" {
+		recipientName = member.Email
+	}
+
+	roleDisplay := member.Role.Name
+	if roleDisplay == "" {
+		roleDisplay = "Member"
+	}
+
+	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, member.CommitteeUID)
+
+	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
+		RecipientName: recipientName,
+		CommitteeName: member.CommitteeName,
+		Role:          roleDisplay,
+		CommitteeURL:  committeeURL,
+		InviterName:   "A committee administrator",
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "failed to render member notification email template",
+			"error", err, "committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(5)
+	g.Go(func() error {
+		sendCtx, cancel := context.WithTimeout(gctx, committeeEmailSendTimeout)
+		defer cancel()
+		if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+			To:      member.Email,
+			Subject: subject,
+			HTML:    html,
+			Text:    text,
+		}); sendErr != nil {
+			slog.WarnContext(gctx, "failed to send member notification email",
+				"error", sendErr, "committee_uid", member.CommitteeUID, "to", member.Email)
+		} else {
+			slog.DebugContext(gctx, "sent member notification email",
+				"committee_uid", member.CommitteeUID, "to", member.Email)
+		}
+		return nil
+	})
+	_ = g.Wait()
+
+	return nil, nil
+}
+
+// HandleCommitteeSettingsUpdated handles committee_settings.updated events and sends
+// notification emails to Writers or Auditors newly added in the updated settings.
+// Best-effort: send errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_settings.updated event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_settings.updated event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var data model.CommitteeSettingsUpdateEventData
+	if err := json.Unmarshal(raw, &data); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeSettingsUpdateEventData from event", "error", err)
+		return nil, nil
+	}
+
+	if m.emailSender == nil {
+		slog.WarnContext(ctx, "email sender not configured — skipping settings notification")
+		return nil, nil
+	}
+
+	newUsers := append(
+		diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()),
+		diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors())...,
+	)
+
+	if len(newUsers) == 0 {
+		slog.DebugContext(ctx, "no new writers/auditors — skipping settings notification",
+			"committee_uid", data.CommitteeUID)
+		return nil, nil
+	}
+
+	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, data.CommitteeUID)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(5)
+
+	for _, u := range newUsers {
+		if u.Email == "" {
+			slog.WarnContext(ctx, "skipping settings notification — user has no email address",
+				"committee_uid", data.CommitteeUID, "username", u.Username)
+			continue
+		}
+
+		g.Go(func() error {
+			recipientName := u.Name
+			if recipientName == "" {
+				recipientName = u.Username
+			}
+			if recipientName == "" {
+				recipientName = u.Email
+			}
+
+			subject, html, text, renderErr := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
+				RecipientName: recipientName,
+				CommitteeName: data.CommitteeName,
+				Role:          "committee administrator",
+				CommitteeURL:  committeeURL,
+				InviterName:   "A committee administrator",
+			})
+			if renderErr != nil {
+				slog.WarnContext(gctx, "failed to render settings notification email",
+					"error", renderErr, "committee_uid", data.CommitteeUID)
+				return nil
+			}
+
+			sendCtx, cancel := context.WithTimeout(gctx, committeeEmailSendTimeout)
+			defer cancel()
+			if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+				To:      u.Email,
+				Subject: subject,
+				HTML:    html,
+				Text:    text,
+			}); sendErr != nil {
+				slog.WarnContext(gctx, "failed to send settings notification email",
+					"error", sendErr, "committee_uid", data.CommitteeUID, "to", u.Email)
+			} else {
+				slog.DebugContext(gctx, "sent settings notification email",
+					"committee_uid", data.CommitteeUID, "to", u.Email)
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	return nil, nil
+}
+
+// diffNewCommitteeUsers returns users in newList whose username is absent from oldList.
+func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.CommitteeUser {
+	oldKeys := make(map[string]bool, len(oldList))
+	for _, u := range oldList {
+		if u.Username != "" {
+			oldKeys[u.Username] = true
+		}
+	}
+	var added []model.CommitteeUser
+	for _, u := range newList {
+		if !oldKeys[u.Username] {
+			added = append(added, u)
+		}
+	}
+	return added
+}
+
+// buildCommitteeURL returns a deep link directly to the committee page.
+func buildCommitteeURL(baseURL, committeeUID string) string {
+	return strings.TrimRight(baseURL, "/") + "/groups/" + committeeUID
 }

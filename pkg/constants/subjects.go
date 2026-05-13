@@ -89,4 +89,8 @@ const (
 	// CommitteeUpdatedSubject is emitted after a successful committee update.
 	// The payload is a CommitteeEvent wrapping CommitteeUpdateEventData (old + new image).
 	CommitteeUpdatedSubject = "lfx.committee-api.committee.updated"
+
+	// CommitteeSettingsUpdatedSubject is emitted after a successful committee settings update.
+	// The payload is a CommitteeEvent wrapping CommitteeSettingsUpdateEventData (old + new image).
+	CommitteeSettingsUpdatedSubject = "lfx.committee-api.committee_settings.updated"
 )

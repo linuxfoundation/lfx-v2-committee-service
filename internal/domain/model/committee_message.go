@@ -128,9 +128,19 @@ type ResourceType string
 
 // ResourceType constants for the resource type of a committee event.
 const (
-	ResourceCommitteeMember ResourceType = "committee_member"
-	ResourceCommittee       ResourceType = "committee"
+	ResourceCommitteeMember   ResourceType = "committee_member"
+	ResourceCommittee         ResourceType = "committee"
+	ResourceCommitteeSettings ResourceType = "committee_settings"
 )
+
+// CommitteeSettingsUpdateEventData carries the before and after images of a committee settings update.
+// Consumers diff OldSettings vs Settings to detect newly added Writers or Auditors.
+type CommitteeSettingsUpdateEventData struct {
+	CommitteeUID  string             `json:"committee_uid"`
+	OldSettings   *CommitteeSettings `json:"old_settings"`
+	Settings      *CommitteeSettings `json:"settings"`
+	CommitteeName string             `json:"committee_name"`
+}
 
 // CommitteeUpdateEventData carries the before and after images of a committee update.
 // Consumers use the two images to decide independently what side-effects to apply.
@@ -163,6 +173,8 @@ func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, actio
 		return e.buildCommitteeMembers(ctx, resource, action, input)
 	case ResourceCommittee:
 		return e.buildCommittee(ctx, resource, action, input)
+	case ResourceCommitteeSettings:
+		return e.buildCommitteeSettings(ctx, resource, action, input)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -243,6 +255,31 @@ func (e *CommitteeEvent) buildCommittee(ctx context.Context, resource ResourceTy
 			"resource", resource,
 			"action", action,
 			"expected", "*CommitteeUpdateEventData",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
+	}
+	e.Data = updateData
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeSettings(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionUpdated:
+		e.Subject = constants.CommitteeSettingsUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_settings resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	updateData, ok := input.(*CommitteeSettingsUpdateEventData)
+	if !ok || updateData == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeSettingsUpdateEventData",
 			"got", fmt.Sprintf("%T", input),
 		)
 		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
