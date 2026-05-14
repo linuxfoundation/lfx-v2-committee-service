@@ -441,7 +441,7 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 	return m
 }
 
-const committeeEmailSendTimeout = 5 * time.Second
+const committeeNotificationTimeout = 5 * time.Second
 
 // HandleCommitteeMemberCreated handles committee_member.created events and sends
 // a notification email to the newly added member. Best-effort: send errors are logged, not returned.
@@ -503,26 +503,20 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(5)
-	g.Go(func() error {
-		sendCtx, cancel := context.WithTimeout(gctx, committeeEmailSendTimeout)
-		defer cancel()
-		if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
-			To:      member.Email,
-			Subject: subject,
-			HTML:    html,
-			Text:    text,
-		}); sendErr != nil {
-			slog.WarnContext(gctx, "failed to send member notification email",
-				"error", sendErr, "committee_uid", member.CommitteeUID, "to", member.Email)
-		} else {
-			slog.DebugContext(gctx, "sent member notification email",
-				"committee_uid", member.CommitteeUID, "to", member.Email)
-		}
-		return nil
-	})
-	_ = g.Wait()
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+		To:      member.Email,
+		Subject: subject,
+		HTML:    html,
+		Text:    text,
+	}); sendErr != nil {
+		slog.WarnContext(ctx, "failed to send member notification email",
+			"error", sendErr, "committee_uid", member.CommitteeUID)
+	} else {
+		slog.DebugContext(ctx, "sent member notification email",
+			"committee_uid", member.CommitteeUID)
+	}
 
 	return nil, nil
 }
@@ -583,7 +577,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, data.CommitteeUID)
 
-	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeEmailSendTimeout)
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	inviterName := m.resolveDisplayName(resolveCtx, data.UpdatedBy)
 	resolveCancel()
 
@@ -591,22 +585,21 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	g.SetLimit(5)
 
 	for _, n := range notifs {
-		if n.user.Email == "" && m.userReader != nil && n.user.Username != "" {
-			lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeEmailSendTimeout)
-			emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, n.user.Username)
-			lookupCancel()
-			if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
-				n.user.Email = emails.PrimaryEmail
-			}
-		}
-		if n.user.Email == "" {
-			slog.WarnContext(ctx, "skipping settings notification — user has no email address",
-				"committee_uid", data.CommitteeUID, "username", n.user.Username)
-			continue
-		}
-
 		g.Go(func() error {
 			u, role := n.user, n.role
+			if u.Email == "" && m.userReader != nil && u.Username != "" {
+				lookupCtx, lookupCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, u.Username)
+				lookupCancel()
+				if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
+					u.Email = emails.PrimaryEmail
+				}
+			}
+			if u.Email == "" {
+				slog.WarnContext(gctx, "skipping settings notification — user has no email address",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
 			recipientName := u.Name
 			if recipientName == "" {
 				recipientName = u.Username
@@ -628,7 +621,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				return nil
 			}
 
-			sendCtx, cancel := context.WithTimeout(gctx, committeeEmailSendTimeout)
+			sendCtx, cancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 			defer cancel()
 			if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
 				To:      u.Email,
@@ -676,7 +669,11 @@ func buildCommitteeURL(baseURL, committeeUID string) string {
 // Returns "A committee administrator" if the lookup fails or the metadata has no name.
 func (m *messageHandlerOrchestrator) resolveDisplayName(ctx context.Context, principal string) string {
 	if principal != "" && m.userReader != nil {
-		if meta, err := m.userReader.UserMetadataByPrincipal(ctx, principal); err == nil && meta != nil {
+		meta, err := m.userReader.UserMetadataByPrincipal(ctx, principal)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to look up inviter display name — using default",
+				"error", err)
+		} else if meta != nil {
 			if meta.Name != "" {
 				return meta.Name
 			}
