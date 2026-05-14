@@ -107,6 +107,35 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 	return result, nil
 }
 
+// UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
+func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	if err != nil {
+		return nil, err
+	}
+
+	var response UserMetadataNATSResponse
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		return nil, errors.NewUnexpected("failed to parse user_metadata response", err)
+	}
+
+	if !response.Success || response.Data == nil {
+		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
+	}
+
+	result := &model.UserMetadata{}
+	if response.Data.Name != nil {
+		result.Name = *response.Data.Name
+	}
+	if response.Data.GivenName != nil {
+		result.GivenName = *response.Data.GivenName
+	}
+	if response.Data.FamilyName != nil {
+		result.FamilyName = *response.Data.FamilyName
+	}
+	return result, nil
+}
+
 // NewMessageRequest creates a new NATS-backed ProjectReader for retrieving project attributes.
 func NewMessageRequest(client *NATSClient) port.ProjectReader {
 	return &messageRequest{
