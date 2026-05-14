@@ -6,7 +6,6 @@ package nats
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -39,7 +38,7 @@ func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailReque
 
 	var errResp emailapi.SendEmailErrorResponse
 	if jsonErr := json.Unmarshal(msg.Data, &errResp); jsonErr == nil && errResp.Error != "" {
-		return fmt.Errorf("email service error: %s", errResp.Error)
+		return errors.NewUnexpected("email service error: "+errResp.Error, nil)
 	}
 
 	return nil
