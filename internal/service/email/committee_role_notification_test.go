@@ -16,7 +16,7 @@ func TestRenderCommitteeRoleNotification(t *testing.T) {
 		RecipientName: "Alice",
 		CommitteeName: "TSC Committee",
 		Role:          "Writer",
-		CommitteeURL:  "https://dev.app.lfx.dev/projects/demo-project/committees",
+		CommitteeURL:  "https://app.dev.lfx.dev/projects/demo-project/committees",
 		InviterName:   "A committee administrator",
 	}
 
@@ -30,14 +30,14 @@ func TestRenderCommitteeRoleNotification(t *testing.T) {
 	assert.Contains(t, html, "Alice")
 	assert.Contains(t, html, "TSC Committee")
 	assert.Contains(t, html, "Writer")
-	assert.Contains(t, html, "https://dev.app.lfx.dev/projects/demo-project/committees")
+	assert.Contains(t, html, "https://app.dev.lfx.dev/projects/demo-project/committees")
 	assert.Contains(t, html, "A committee administrator")
 	assert.True(t, strings.Contains(html, "<html"), "expected HTML output")
 
 	assert.Contains(t, text, "Alice")
 	assert.Contains(t, text, "TSC Committee")
 	assert.Contains(t, text, "Writer")
-	assert.Contains(t, text, "https://dev.app.lfx.dev/projects/demo-project/committees")
+	assert.Contains(t, text, "https://app.dev.lfx.dev/projects/demo-project/committees")
 	assert.Contains(t, text, "A committee administrator")
 	assert.False(t, strings.Contains(text, "<html"), "expected plain text output")
 }
