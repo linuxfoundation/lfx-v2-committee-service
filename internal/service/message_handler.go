@@ -30,6 +30,7 @@ type messageHandlerOrchestrator struct {
 	committeeWriter             port.CommitteeWriter
 	committeePublisher          port.CommitteePublisher
 	emailSender                 port.EmailSender
+	userReader                  port.UserReader
 	lfxSelfServeBaseURL         string
 }
 
@@ -75,6 +76,13 @@ func WithEmailSenderForMessageHandler(sender port.EmailSender) messageHandlerOrc
 func WithLFXSelfServeBaseURLForMessageHandler(baseURL string) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.lfxSelfServeBaseURL = baseURL
+	}
+}
+
+// WithUserReaderForMessageHandler sets the user reader used to resolve display names for notification emails.
+func WithUserReaderForMessageHandler(reader port.UserReader) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.userReader = reader
 	}
 }
 
@@ -575,6 +583,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, data.CommitteeUID)
 
+	inviterName := m.resolveDisplayName(ctx, data.UpdatedBy)
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
@@ -600,7 +610,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				CommitteeName: data.CommitteeName,
 				Role:          role,
 				CommitteeURL:  committeeURL,
-				InviterName:   "A committee administrator",
+				InviterName:   inviterName,
 			})
 			if renderErr != nil {
 				slog.WarnContext(gctx, "failed to render settings notification email",
@@ -650,4 +660,20 @@ func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.Commi
 // buildCommitteeURL returns a deep link directly to the committee page.
 func buildCommitteeURL(baseURL, committeeUID string) string {
 	return strings.TrimRight(baseURL, "/") + "/groups/" + committeeUID
+}
+
+// resolveDisplayName looks up the display name for the given principal via the user reader.
+// Returns "A committee administrator" if the lookup fails or the metadata has no name.
+func (m *messageHandlerOrchestrator) resolveDisplayName(ctx context.Context, principal string) string {
+	if principal != "" && m.userReader != nil {
+		if meta, err := m.userReader.UserMetadataByPrincipal(ctx, principal); err == nil && meta != nil {
+			if meta.Name != "" {
+				return meta.Name
+			}
+			if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+				return full
+			}
+		}
+	}
+	return "A committee administrator"
 }

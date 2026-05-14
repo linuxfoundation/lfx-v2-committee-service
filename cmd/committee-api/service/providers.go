@@ -441,6 +441,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
 			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
+			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 		),
 	}
 

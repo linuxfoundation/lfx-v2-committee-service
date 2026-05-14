@@ -32,6 +32,10 @@ const (
 	// The subject is of the form: lfx.auth-service.user_emails.read
 	AuthUserEmailsReadSubject = "lfx.auth-service.user_emails.read"
 
+	// AuthUserMetadataReadSubject is the subject for looking up a user's profile metadata by principal.
+	// The subject is of the form: lfx.auth-service.user_metadata.read
+	AuthUserMetadataReadSubject = "lfx.auth-service.user_metadata.read"
+
 	// IndexCommitteeSubject is the subject for the committee index.
 	// The subject is of the form: lfx.index.committee
 	IndexCommitteeSubject = "lfx.index.committee"

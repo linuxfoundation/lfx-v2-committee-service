@@ -32,6 +32,11 @@ func (m *MockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
 
+// UserMetadataByPrincipal is not used in mock mode; always returns nil.
+func (m *MockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, nil
+}
+
 // NewMockUserReader creates a new mock UserReader.
 func NewMockUserReader() port.UserReader {
 	return &MockUserReader{}

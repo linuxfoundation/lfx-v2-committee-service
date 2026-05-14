@@ -14,3 +14,10 @@ type AlternateEmail struct {
 	Email    string
 	Verified bool
 }
+
+// UserMetadata holds profile information for a user returned by the auth service.
+type UserMetadata struct {
+	Name       string
+	GivenName  string
+	FamilyName string
+}

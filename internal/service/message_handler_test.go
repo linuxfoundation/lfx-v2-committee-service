@@ -1046,6 +1046,24 @@ func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailReq
 	return m.retErr
 }
 
+// mockUserReader is a simple UserReader for tests that returns fixed metadata.
+type mockUserReader struct {
+	meta *model.UserMetadata
+	err  error
+}
+
+func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (m *mockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+
+func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return m.meta, m.err
+}
+
 func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember) []byte {
 	t.Helper()
 	event := model.CommitteeEvent{}
@@ -1167,9 +1185,12 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 		newWriters      []model.CommitteeUser
 		oldAuditors     []model.CommitteeUser
 		newAuditors     []model.CommitteeUser
+		updatedBy       string
+		userReader      *mockUserReader
 		omitEmailSender bool
 		invalidJSON     bool
 		wantSendCount   int
+		wantInviterName string
 	}{
 		{
 			name:          "new writer added — one email sent with Writer role",
@@ -1215,6 +1236,44 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			invalidJSON:   true,
 			wantSendCount: 0,
 		},
+		{
+			name:            "user reader returns full name — used as inviter name",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{Name: "John Doe"}},
+			wantSendCount:   1,
+			wantInviterName: "John Doe",
+		},
+		{
+			name:            "user reader returns given+family name — combined as inviter name",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{GivenName: "John", FamilyName: "Doe"}},
+			wantSendCount:   1,
+			wantInviterName: "John Doe",
+		},
+		{
+			name:            "user reader returns empty metadata — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{}},
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
+		{
+			name:            "no user reader — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
+		{
+			name:            "updatedBy empty — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "",
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1224,6 +1283,9 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			if !tt.omitEmailSender {
 				h.emailSender = sender
 			}
+			if tt.userReader != nil {
+				h.userReader = tt.userReader
+			}
 
 			var payload []byte
 			if tt.invalidJSON {
@@ -1232,6 +1294,7 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 				d := *base
 				d.OldSettings = &model.CommitteeSettings{Writers: tt.oldWriters, Auditors: tt.oldAuditors}
 				d.Settings = &model.CommitteeSettings{Writers: tt.newWriters, Auditors: tt.newAuditors}
+				d.UpdatedBy = tt.updatedBy
 				payload = buildSettingsUpdatedPayload(t, &d)
 			}
 
@@ -1251,6 +1314,9 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			}
 			if tt.name == "new auditor added — one email sent with Auditor role" {
 				assert.Contains(t, sender.calls[0].HTML, "Auditor")
+			}
+			if tt.wantInviterName != "" {
+				assert.Contains(t, sender.calls[0].HTML, tt.wantInviterName)
 			}
 		})
 	}

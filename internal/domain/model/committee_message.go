@@ -140,6 +140,8 @@ type CommitteeSettingsUpdateEventData struct {
 	OldSettings   *CommitteeSettings `json:"old_settings"`
 	Settings      *CommitteeSettings `json:"settings"`
 	CommitteeName string             `json:"committee_name"`
+	// UpdatedBy is the principal (username or Auth0 sub) who triggered the settings change.
+	UpdatedBy string `json:"updated_by,omitempty"`
 }
 
 // CommitteeUpdateEventData carries the before and after images of a committee update.

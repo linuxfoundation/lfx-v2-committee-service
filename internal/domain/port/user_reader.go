@@ -16,4 +16,6 @@ type UserReader interface {
 	// EmailsByPrincipal retrieves all email addresses (primary and alternate) for a user
 	// from the identity provider, looked up by their principal (subject identifier).
 	EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error)
+	// UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by their principal.
+	UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error)
 }
