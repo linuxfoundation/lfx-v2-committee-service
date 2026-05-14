@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"embed"
 	htmltemplate "html/template"
+	"strings"
 	texttemplate "text/template"
 )
 
@@ -36,7 +37,7 @@ type CommitteeRoleNotificationData struct {
 // RenderCommitteeRoleNotification renders the subject, HTML body, and plain-text body
 // for a committee role notification email.
 func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subject, html, text string, err error) {
-	subject = data.InviterName + " added you as a " + data.Role + " on " + data.CommitteeName
+	subject = sanitizeHeader(data.InviterName) + " added you as a " + data.Role + " on " + data.CommitteeName
 
 	var htmlBuf bytes.Buffer
 	if err = committeeRoleHTMLTemplate.Execute(&htmlBuf, data); err != nil {
@@ -50,4 +51,15 @@ func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subjec
 	}
 	text = textBuf.String()
 	return
+}
+
+// sanitizeHeader strips ASCII control characters (including CR/LF) from a string
+// to prevent header injection if the value is ever used directly in an email header.
+func sanitizeHeader(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
 }
