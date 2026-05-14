@@ -1048,8 +1048,9 @@ func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailReq
 
 // mockUserReader is a simple UserReader for tests that returns fixed metadata.
 type mockUserReader struct {
-	meta *model.UserMetadata
-	err  error
+	meta         *model.UserMetadata
+	err          error
+	primaryEmail string // returned by EmailsByPrincipal
 }
 
 func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
@@ -1057,6 +1058,9 @@ func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error)
 }
 
 func (m *mockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+	if m.primaryEmail != "" {
+		return &model.UserEmails{PrimaryEmail: m.primaryEmail}, nil
+	}
 	return nil, nil
 }
 
@@ -1224,6 +1228,12 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			name:          "new user has no email — no email sent",
 			newWriters:    []model.CommitteeUser{noemail},
 			wantSendCount: 0,
+		},
+		{
+			name:          "new user has no email but user reader resolves it — email sent",
+			newWriters:    []model.CommitteeUser{noemail},
+			userReader:    &mockUserReader{primaryEmail: "noemail@example.com"},
+			wantSendCount: 1,
 		},
 		{
 			name:            "no email sender configured — no email sent",

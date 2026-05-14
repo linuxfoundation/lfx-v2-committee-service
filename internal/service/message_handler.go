@@ -583,12 +583,22 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, data.CommitteeUID)
 
-	inviterName := m.resolveDisplayName(ctx, data.UpdatedBy)
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeEmailSendTimeout)
+	inviterName := m.resolveDisplayName(resolveCtx, data.UpdatedBy)
+	resolveCancel()
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
 	for _, n := range notifs {
+		if n.user.Email == "" && m.userReader != nil && n.user.Username != "" {
+			lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeEmailSendTimeout)
+			emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, n.user.Username)
+			lookupCancel()
+			if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
+				n.user.Email = emails.PrimaryEmail
+			}
+		}
 		if n.user.Email == "" {
 			slog.WarnContext(ctx, "skipping settings notification — user has no email address",
 				"committee_uid", data.CommitteeUID, "username", n.user.Username)
