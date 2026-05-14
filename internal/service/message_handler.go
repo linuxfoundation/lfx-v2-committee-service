@@ -669,7 +669,7 @@ func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.Commi
 
 // buildCommitteeURL returns a deep link directly to the committee page.
 func buildCommitteeURL(baseURL, committeeUID string) string {
-	return strings.TrimRight(baseURL, "/") + "/groups/" + committeeUID
+	return strings.TrimRight(baseURL, "/") + "/project/groups/" + committeeUID
 }
 
 // resolveDisplayName looks up the display name for the given principal via the user reader.
