@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 )
 
 // messageHandlerOrchestrator orchestrates the message handling process
@@ -63,44 +64,29 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 	// Parse message data to extract committee UID
 	uid := string(msg.Data())
 
-	slog.DebugContext(ctx, "committee get name request",
-		"committee_uid", uid,
-		"attribute", attribute,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	ctx = log.AppendCtx(ctx, slog.String("attribute", attribute))
+	slog.DebugContext(ctx, "committee get name request")
 
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "error parsing committee ID", "error", err)
 		return nil, err
 	}
 
 	// Use the committee reader to get the committee base information
 	committee, _, err := m.committeeReader.GetBase(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, err
 	}
 
 	value, ok := fields.LookupByTag(committee, "json", attribute)
 	if !ok {
-		slog.ErrorContext(ctx, "attribute not found in committee",
-			"attribute", attribute,
-			"committee_uid", uid,
-		)
 		return nil, errors.NewNotFound(fmt.Sprintf("attribute %s not found in committee %s", attribute, uid))
 	}
 
 	strValue, ok := value.(string)
 	if !ok {
-		slog.ErrorContext(ctx, "attribute value is not a string",
-			"attribute", attribute,
-			"committee_uid", uid,
-			"value_type", fmt.Sprintf("%T", value),
-		)
 		return nil, errors.NewValidation(fmt.Sprintf("attribute %s value is not a string", attribute))
 	}
 
@@ -113,51 +99,34 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	// Parse message data to extract committee UID
 	uid := string(msg.Data())
 
-	slog.DebugContext(ctx, "committee list members request",
-		"committee_uid", uid,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	slog.DebugContext(ctx, "committee list members request")
 
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "error parsing committee ID", "error", err)
 		return nil, err
 	}
 
 	// Check if the committee exists first
 	_, _, err = m.committeeReader.GetBase(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, err
 	}
 
 	// Get all members for the committee
 	members, err := m.committeeReader.ListMembers(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list committee members",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, err
 	}
 
 	// Marshal the members to JSON
 	membersJSON, err := json.Marshal(members)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal committee members",
-			"error", err,
-			"committee_uid", uid,
-		)
 		return nil, errors.NewUnexpected("failed to marshal committee members", err)
 	}
 
-	slog.DebugContext(ctx, "committee list members response",
-		"committee_uid", uid,
-		"member_count", len(members),
-	)
+	slog.DebugContext(ctx, "committee list members response", "member_count", len(members))
 
 	return membersJSON, nil
 }
@@ -167,7 +136,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeMailingListChangedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		slog.ErrorContext(ctx, "failed to unmarshal CommitteeMailingListChangedEvent", "error", err)
 		return nil, err
 	}
 
@@ -183,8 +151,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 
 	committee, changed, err := m.committeeWriter.UpdateHasMailingList(ctx, event.CommitteeUID, event.HasMailingList)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update has_mailing_list",
-			"committee_uid", event.CommitteeUID, "error", err)
 		return nil, err
 	}
 	if !changed {
@@ -202,15 +168,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 
 	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to build indexer message",
-			"committee_uid", event.CommitteeUID, "error", err)
 		return nil, err
 	}
 	indexerMsg.IndexingConfig = buildCommitteeIndexingConfig(fullCommittee)
 
 	if err := m.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false); err != nil {
-		slog.ErrorContext(ctx, "failed to publish committee indexer update",
-			"committee_uid", event.CommitteeUID, "error", err)
 		return nil, err
 	}
 
@@ -229,7 +191,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		slog.ErrorContext(ctx, "failed to unmarshal CommitteeEvent", "error", err)
 		return nil, err
 	}
 
@@ -267,8 +228,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 
 	members, err := m.committeeReader.ListMembers(ctx, data.CommitteeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list members for sync",
-			"committee_uid", data.CommitteeUID, "error", err)
 		return nil, err
 	}
 
@@ -333,7 +292,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		slog.ErrorContext(ctx, "failed to unmarshal CommitteeEvent for total_members sync", "error", err)
 		return err
 	}
 
@@ -357,37 +315,27 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	committeeUID := member.CommitteeUID
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
 
-	slog.DebugContext(ctx, "starting total_members sync",
-		"committee_uid", committeeUID,
-		"subject", subject,
-	)
+	slog.DebugContext(ctx, "starting total_members sync", "subject", subject)
 
 	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list members for total_members sync",
-			"committee_uid", committeeUID, "error", err)
 		return err
 	}
 	actualCount := len(members)
 
 	committee, revision, err := m.committeeReader.GetBase(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base for total_members sync",
-			"committee_uid", committeeUID, "error", err)
 		return err
 	}
 
 	if committee.TotalMembers == actualCount {
-		slog.DebugContext(ctx, "total_members already correct — skipping update",
-			"committee_uid", committeeUID,
-			"total_members", actualCount,
-		)
+		slog.DebugContext(ctx, "total_members already correct — skipping update", "total_members", actualCount)
 		return nil
 	}
 
 	slog.DebugContext(ctx, "updating total_members counter",
-		"committee_uid", committeeUID,
 		"previous", committee.TotalMembers,
 		"actual", actualCount,
 	)
@@ -395,8 +343,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	committee.TotalMembers = actualCount
 
 	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
-		slog.ErrorContext(ctx, "failed to update committee total_members",
-			"committee_uid", committeeUID, "error", err)
 		return err
 	}
 
