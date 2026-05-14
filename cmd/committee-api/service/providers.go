@@ -379,9 +379,9 @@ func lfxSelfServeBaseURL() string {
 	case "prod":
 		return "https://app.lfx.dev"
 	case "staging", "stg":
-		return "https://staging.app.lfx.dev"
+		return "https://app.staging.lfx.dev"
 	default:
-		return "https://dev.app.lfx.dev"
+		return "https://app.dev.lfx.dev"
 	}
 }
 

@@ -1149,7 +1149,7 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://dev.app.lfx.dev"}
+			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
 			if !tt.omitEmailSender {
 				h.emailSender = tt.emailSender
 			}
@@ -1166,7 +1166,7 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					assert.Equal(t, "alice@example.com", tt.emailSender.calls[0].To)
 					assert.Contains(t, tt.emailSender.calls[0].Subject, "TSC Committee")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "Alice Smith")
-					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://dev.app.lfx.dev/groups/committee-1")
+					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://app.dev.lfx.dev/groups/committee-1")
 				}
 			}
 		})
@@ -1289,7 +1289,7 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &mockEmailSender{}
-			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://dev.app.lfx.dev"}
+			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
 			if !tt.omitEmailSender {
 				h.emailSender = sender
 			}
@@ -1315,7 +1315,7 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			assert.Nil(t, resp)
 			assert.Len(t, sender.calls, tt.wantSendCount)
 			if tt.wantSendCount > 0 {
-				assert.Contains(t, sender.calls[0].HTML, "https://dev.app.lfx.dev/groups/committee-1")
+				assert.Contains(t, sender.calls[0].HTML, "https://app.dev.lfx.dev/groups/committee-1")
 				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
 			}
 			// Verify correct role labels in email content
@@ -1333,8 +1333,8 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 }
 
 func TestBuildCommitteeURL(t *testing.T) {
-	assert.Equal(t, "https://dev.app.lfx.dev/groups/abc-123", buildCommitteeURL("https://dev.app.lfx.dev", "abc-123"))
-	assert.Equal(t, "https://dev.app.lfx.dev/groups/abc-123", buildCommitteeURL("https://dev.app.lfx.dev/", "abc-123"))
+	assert.Equal(t, "https://app.dev.lfx.dev/groups/abc-123", buildCommitteeURL("https://app.dev.lfx.dev", "abc-123"))
+	assert.Equal(t, "https://app.dev.lfx.dev/groups/abc-123", buildCommitteeURL("https://app.dev.lfx.dev/", "abc-123"))
 }
 
 func TestDiffNewCommitteeUsers(t *testing.T) {
