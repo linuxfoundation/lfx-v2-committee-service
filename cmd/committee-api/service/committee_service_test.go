@@ -48,6 +48,10 @@ func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
 
+func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, nil
+}
+
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
 	deleteError       error

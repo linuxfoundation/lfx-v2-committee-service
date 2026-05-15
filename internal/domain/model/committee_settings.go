@@ -15,6 +15,22 @@ type CommitteeUser struct {
 	Username string `json:"username,omitempty"`
 }
 
+// GetWriters returns the Writers slice, returning nil when the receiver is nil.
+func (s *CommitteeSettings) GetWriters() []CommitteeUser {
+	if s == nil {
+		return nil
+	}
+	return s.Writers
+}
+
+// GetAuditors returns the Auditors slice, returning nil when the receiver is nil.
+func (s *CommitteeSettings) GetAuditors() []CommitteeUser {
+	if s == nil {
+		return nil
+	}
+	return s.Auditors
+}
+
 // CommitteeSettings represents sensitive committee settings
 type CommitteeSettings struct {
 	UID                   string          `json:"uid"`

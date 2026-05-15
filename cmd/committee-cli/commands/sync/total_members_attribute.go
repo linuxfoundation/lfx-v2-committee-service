@@ -29,7 +29,7 @@ func (s *totalMembersAttributeSubcommand) Run(ctx context.Context, rc commands.R
 
 	fs := flag.NewFlagSet("total-members-attribute", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: committee-cli sync total-members-attribute [flags]\n\nflags:\n")
+		_, _ = fmt.Fprintf(fs.Output(), "usage: committee-cli sync total-members-attribute [flags]\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	committeeUID := fs.String("committee-uid", "", "limit sync to a single committee UID")
