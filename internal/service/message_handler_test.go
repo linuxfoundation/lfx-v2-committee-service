@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 )
 
 // mockTransportMessenger implements port.TransportMessenger for testing
@@ -1024,4 +1026,327 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 // Helper function to create string pointer
 func messageHandlerStringPtr(s string) *string {
 	return &s
+}
+
+// ---------------------------------------------------------------------------
+// Notification handler tests
+// ---------------------------------------------------------------------------
+
+// mockEmailSender records SendEmail calls for assertions.
+type mockEmailSender struct {
+	mu     sync.Mutex
+	calls  []emailapi.SendEmailRequest
+	retErr error
+}
+
+func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailRequest) error {
+	m.mu.Lock()
+	m.calls = append(m.calls, req)
+	m.mu.Unlock()
+	return m.retErr
+}
+
+// mockUserReader is a simple UserReader for tests that returns fixed metadata.
+type mockUserReader struct {
+	meta         *model.UserMetadata
+	err          error
+	primaryEmail string // returned by EmailsByPrincipal
+}
+
+func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (m *mockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+	if m.primaryEmail != "" {
+		return &model.UserEmails{PrimaryEmail: m.primaryEmail}, nil
+	}
+	return nil, nil
+}
+
+func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return m.meta, m.err
+}
+
+func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember) []byte {
+	t.Helper()
+	event := model.CommitteeEvent{}
+	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionCreated, member)
+	require.NoError(t, err)
+	data, err := json.Marshal(built)
+	require.NoError(t, err)
+	return data
+}
+
+func buildSettingsUpdatedPayload(t *testing.T, data *model.CommitteeSettingsUpdateEventData) []byte {
+	t.Helper()
+	event := model.CommitteeEvent{}
+	built, err := event.Build(context.Background(), model.ResourceCommitteeSettings, model.ActionUpdated, data)
+	require.NoError(t, err)
+	payload, err := json.Marshal(built)
+	require.NoError(t, err)
+	return payload
+}
+
+func TestHandleCommitteeMemberCreated(t *testing.T) {
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-1",
+			Email:         "alice@example.com",
+			FirstName:     "Alice",
+			LastName:      "Smith",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "writer"},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		msgData         []byte
+		emailSender     *mockEmailSender
+		omitEmailSender bool
+		wantSendCount   int
+	}{
+		{
+			name:          "member with email — notification sent",
+			msgData:       buildMemberCreatedPayload(t, member),
+			emailSender:   &mockEmailSender{},
+			wantSendCount: 1,
+		},
+		{
+			name: "member without email — no notification sent",
+			msgData: buildMemberCreatedPayload(t, &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					Username:      "noemail",
+					CommitteeUID:  "committee-1",
+					CommitteeName: "TSC Committee",
+					Role:          model.CommitteeMemberRole{Name: "writer"},
+				},
+			}),
+			emailSender:   &mockEmailSender{},
+			wantSendCount: 0,
+		},
+		{
+			name:          "send error — handler still returns nil",
+			msgData:       buildMemberCreatedPayload(t, member),
+			emailSender:   &mockEmailSender{retErr: assert.AnError},
+			wantSendCount: 1,
+		},
+		{
+			name:          "invalid JSON — handler returns nil",
+			msgData:       []byte("not json"),
+			emailSender:   &mockEmailSender{},
+			wantSendCount: 0,
+		},
+		{
+			name:            "no email sender configured — handler returns nil",
+			msgData:         buildMemberCreatedPayload(t, member),
+			omitEmailSender: true,
+			wantSendCount:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			if !tt.omitEmailSender {
+				h.emailSender = tt.emailSender
+			}
+
+			msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, tt.msgData)
+			resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+
+			assert.NoError(t, err)
+			assert.Nil(t, resp)
+
+			if tt.emailSender != nil {
+				assert.Len(t, tt.emailSender.calls, tt.wantSendCount)
+				if tt.wantSendCount > 0 {
+					assert.Equal(t, "alice@example.com", tt.emailSender.calls[0].To)
+					assert.Contains(t, tt.emailSender.calls[0].Subject, "TSC Committee")
+					assert.Contains(t, tt.emailSender.calls[0].HTML, "Alice Smith")
+					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
+				}
+			}
+		})
+	}
+}
+
+func TestHandleCommitteeSettingsUpdated(t *testing.T) {
+	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
+	bob := model.CommitteeUser{Username: "bob", Email: "bob@example.com", Name: "Bob"}
+	noemail := model.CommitteeUser{Username: "noemail"}
+
+	base := &model.CommitteeSettingsUpdateEventData{
+		CommitteeUID:  "committee-1",
+		CommitteeName: "TSC Committee",
+	}
+
+	tests := []struct {
+		name            string
+		oldWriters      []model.CommitteeUser
+		newWriters      []model.CommitteeUser
+		oldAuditors     []model.CommitteeUser
+		newAuditors     []model.CommitteeUser
+		updatedBy       string
+		userReader      *mockUserReader
+		omitEmailSender bool
+		invalidJSON     bool
+		wantSendCount   int
+		wantInviterName string
+	}{
+		{
+			name:          "new writer added — one email sent with Writer role",
+			newWriters:    []model.CommitteeUser{alice},
+			wantSendCount: 1,
+		},
+		{
+			name:          "new auditor added — one email sent with Auditor role",
+			newAuditors:   []model.CommitteeUser{alice},
+			wantSendCount: 1,
+		},
+		{
+			name:          "writer and auditor both added — two emails sent",
+			newWriters:    []model.CommitteeUser{alice},
+			newAuditors:   []model.CommitteeUser{bob},
+			wantSendCount: 2,
+		},
+		{
+			name:          "same user in both writer and auditor — deduplicated to one email",
+			newWriters:    []model.CommitteeUser{alice},
+			newAuditors:   []model.CommitteeUser{alice},
+			wantSendCount: 1,
+		},
+		{
+			name:          "writer already existed — no email sent",
+			oldWriters:    []model.CommitteeUser{alice},
+			newWriters:    []model.CommitteeUser{alice},
+			wantSendCount: 0,
+		},
+		{
+			name:          "new user has no email — no email sent",
+			newWriters:    []model.CommitteeUser{noemail},
+			wantSendCount: 0,
+		},
+		{
+			name:          "new user has no email but user reader resolves it — email sent",
+			newWriters:    []model.CommitteeUser{noemail},
+			userReader:    &mockUserReader{primaryEmail: "noemail@example.com"},
+			wantSendCount: 1,
+		},
+		{
+			name:            "no email sender configured — no email sent",
+			newWriters:      []model.CommitteeUser{alice},
+			omitEmailSender: true,
+			wantSendCount:   0,
+		},
+		{
+			name:          "invalid JSON — returns nil without panic",
+			invalidJSON:   true,
+			wantSendCount: 0,
+		},
+		{
+			name:            "user reader returns full name — used as inviter name",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{Name: "John Doe"}},
+			wantSendCount:   1,
+			wantInviterName: "John Doe",
+		},
+		{
+			name:            "user reader returns given+family name — combined as inviter name",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{GivenName: "John", FamilyName: "Doe"}},
+			wantSendCount:   1,
+			wantInviterName: "John Doe",
+		},
+		{
+			name:            "user reader returns empty metadata — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			userReader:      &mockUserReader{meta: &model.UserMetadata{}},
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
+		{
+			name:            "no user reader — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "johndoe",
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
+		{
+			name:            "updatedBy empty — falls back to committee administrator",
+			newWriters:      []model.CommitteeUser{alice},
+			updatedBy:       "",
+			wantSendCount:   1,
+			wantInviterName: "A committee administrator",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &mockEmailSender{}
+			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			if !tt.omitEmailSender {
+				h.emailSender = sender
+			}
+			if tt.userReader != nil {
+				h.userReader = tt.userReader
+			}
+
+			var payload []byte
+			if tt.invalidJSON {
+				payload = []byte("not json")
+			} else {
+				d := *base
+				d.OldSettings = &model.CommitteeSettings{Writers: tt.oldWriters, Auditors: tt.oldAuditors}
+				d.Settings = &model.CommitteeSettings{Writers: tt.newWriters, Auditors: tt.newAuditors}
+				d.UpdatedBy = tt.updatedBy
+				payload = buildSettingsUpdatedPayload(t, &d)
+			}
+
+			msg := newMockTransportMessenger(constants.CommitteeSettingsUpdatedSubject, payload)
+			resp, err := h.HandleCommitteeSettingsUpdated(context.Background(), msg)
+
+			assert.NoError(t, err)
+			assert.Nil(t, resp)
+			assert.Len(t, sender.calls, tt.wantSendCount)
+			if tt.wantSendCount > 0 {
+				assert.Contains(t, sender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
+				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
+			}
+			// Verify correct role labels in email content
+			if tt.name == "new writer added — one email sent with Writer role" {
+				assert.Contains(t, sender.calls[0].HTML, "Writer")
+			}
+			if tt.name == "new auditor added — one email sent with Auditor role" {
+				assert.Contains(t, sender.calls[0].HTML, "Auditor")
+			}
+			if tt.wantInviterName != "" {
+				assert.Contains(t, sender.calls[0].HTML, tt.wantInviterName)
+			}
+		})
+	}
+}
+
+func TestBuildCommitteeURL(t *testing.T) {
+	assert.Equal(t, "https://app.dev.lfx.dev/project/groups/abc-123", buildCommitteeURL("https://app.dev.lfx.dev", "abc-123"))
+	assert.Equal(t, "https://app.dev.lfx.dev/project/groups/abc-123", buildCommitteeURL("https://app.dev.lfx.dev/", "abc-123"))
+}
+
+func TestDiffNewCommitteeUsers(t *testing.T) {
+	alice := model.CommitteeUser{Username: "alice"}
+	bob := model.CommitteeUser{Username: "bob"}
+
+	got := diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice, bob})
+	assert.Equal(t, []model.CommitteeUser{bob}, got)
+
+	got = diffNewCommitteeUsers(nil, []model.CommitteeUser{alice})
+	assert.Equal(t, []model.CommitteeUser{alice}, got)
+
+	got = diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice})
+	assert.Empty(t, got)
 }

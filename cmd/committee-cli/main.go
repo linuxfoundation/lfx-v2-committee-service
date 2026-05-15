@@ -93,7 +93,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	storage := nats.NewStorage(client)
 
@@ -122,17 +122,17 @@ func buildRegistry() map[string]commands.Command {
 }
 
 func printUsage(w io.Writer, registry map[string]commands.Command) {
-	fmt.Fprintln(w, "usage: committee-cli <command> <subcommand> [subcommand flags]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "environment variables:")
-	fmt.Fprintln(w, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
-	fmt.Fprintln(w, "  LOG_LEVEL   Log verbosity, e.g. info (default: debug)")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "commands:")
+	_, _ = fmt.Fprintln(w, "usage: committee-cli <command> <subcommand> [subcommand flags]")
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "environment variables:")
+	_, _ = fmt.Fprintln(w, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
+	_, _ = fmt.Fprintln(w, "  LOG_LEVEL   Log verbosity, e.g. info (default: debug)")
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "commands:")
 	for _, cmd := range registry {
-		fmt.Fprintf(w, "  %-30s %s\n", cmd.Name(), cmd.Help())
+		_, _ = fmt.Fprintf(w, "  %-30s %s\n", cmd.Name(), cmd.Help())
 		for _, sub := range cmd.Subcommands() {
-			fmt.Fprintf(w, "    %-28s %s\n", sub.Name(), sub.Help())
+			_, _ = fmt.Fprintf(w, "    %-28s %s\n", sub.Name(), sub.Help())
 		}
 	}
 }

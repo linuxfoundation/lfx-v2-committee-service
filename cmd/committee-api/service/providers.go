@@ -346,6 +346,45 @@ func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReader
 	return nil
 }
 
+// EmailSenderImpl initializes the email sender for notification emails.
+func EmailSenderImpl(ctx context.Context) port.EmailSender {
+	messagingSource := os.Getenv("MESSAGING_SOURCE")
+	if messagingSource == "" {
+		messagingSource = "nats"
+	}
+
+	switch messagingSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock email sender")
+		return nil // notifications are skipped when emailSender is nil
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS email sender")
+		natsInit(ctx)
+		return nats.NewEmailSender(natsClient)
+	default:
+		log.Fatalf("unsupported messaging source for email sender: %s", messagingSource)
+	}
+
+	// unreachable
+	return nil
+}
+
+// lfxSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
+// LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
+func lfxSelfServeBaseURL() string {
+	if url := os.Getenv("LFX_SELF_SERVE_BASE_URL"); url != "" {
+		return url
+	}
+	switch os.Getenv("LFX_ENVIRONMENT") {
+	case "prod":
+		return "https://app.lfx.dev"
+	case "staging", "stg":
+		return "https://app.staging.lfx.dev"
+	default:
+		return "https://app.dev.lfx.dev"
+	}
+}
+
 // CommitteeDocumentReaderWriterImpl initializes the committee document reader/writer implementation
 // using a dedicated infrastructure adapter (not the shared storage struct) so it can be swapped
 // to S3 or another backend by adding a new case here without touching domain or service code.
@@ -400,6 +439,9 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			),
 			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
+			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
+			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
+			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 		),
 	}
 
@@ -415,6 +457,8 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
 		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
 		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
+		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
+		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {
