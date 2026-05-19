@@ -1404,6 +1404,15 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantSendCount:   0,
 			wantInviteCount: 1,
 		},
+		{
+			name:            "non-LFID writer already existed — no invite sent",
+			oldWriters:      []model.CommitteeUser{noLFIDUser},
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1473,7 +1482,10 @@ func TestBuildCommitteeURL(t *testing.T) {
 func TestDiffNewCommitteeUsers(t *testing.T) {
 	alice := model.CommitteeUser{Username: "alice"}
 	bob := model.CommitteeUser{Username: "bob"}
+	noLFID := model.CommitteeUser{Email: "nolfid@example.com"}
+	noLFID2 := model.CommitteeUser{Email: "other@example.com"}
 
+	// LFID users: diff by Username
 	got := diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice, bob})
 	assert.Equal(t, []model.CommitteeUser{bob}, got)
 
@@ -1482,4 +1494,11 @@ func TestDiffNewCommitteeUsers(t *testing.T) {
 
 	got = diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice})
 	assert.Empty(t, got)
+
+	// Non-LFID users: diff by Email
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFID, noLFID2})
+	assert.Equal(t, []model.CommitteeUser{noLFID2}, got)
+
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFID})
+	assert.Empty(t, got, "non-LFID user already in old list should not appear as new")
 }
