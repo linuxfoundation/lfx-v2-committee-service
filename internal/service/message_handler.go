@@ -554,7 +554,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 	err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		RecipientEmail: member.Email,
 		RecipientName:  recipientName,
-		InviterName:    "A committee administrator",
+		InviterName:    "",
 		ResourceUID:    member.CommitteeUID,
 		ResourceName:   member.CommitteeName,
 		ResourceType:   "group",
