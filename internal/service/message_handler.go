@@ -735,8 +735,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 //   - Writer → Manage
 //   - Auditor → View
 func mapRoleToInviteRole(role string) string {
-	switch role {
-	case "Auditor":
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "auditor":
 		return string(inviteapi.InviteRoleView)
 	default:
 		return string(inviteapi.InviteRoleManage)

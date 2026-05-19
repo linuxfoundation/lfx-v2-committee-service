@@ -1141,6 +1141,18 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			Role:          model.CommitteeMemberRole{Name: "Auditor"},
 		},
 	}
+	// Non-LFID auditor with lowercase role name — role matching must be case-insensitive
+	nonLFIDAuditorLower := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-4",
+			Email:         "diana@example.com",
+			FirstName:     "Diana",
+			LastName:      "Kim",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "auditor"},
+		},
+	}
 
 	tests := []struct {
 		name             string
@@ -1173,6 +1185,15 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 		{
 			name:            "non-LFID auditor member — invite sent with View role",
 			msgData:         buildMemberCreatedPayload(t, nonLFIDAuditor),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
+		},
+		{
+			name:            "non-LFID auditor member lowercase role — invite sent with View role",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDAuditorLower),
 			emailSender:     &mockEmailSender{},
 			inviteSender:    &mockInviteSender{},
 			wantEmailCount:  0,
