@@ -20,6 +20,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,6 +31,7 @@ type messageHandlerOrchestrator struct {
 	committeeWriter             port.CommitteeWriter
 	committeePublisher          port.CommitteePublisher
 	emailSender                 port.EmailSender
+	inviteSender                port.InviteSender
 	userReader                  port.UserReader
 	lfxSelfServeBaseURL         string
 }
@@ -69,6 +71,13 @@ func WithCommitteeWriterOrchestratorForMessageHandler(writer CommitteeWriter) me
 func WithEmailSenderForMessageHandler(sender port.EmailSender) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.emailSender = sender
+	}
+}
+
+// WithInviteSenderForMessageHandler sets the invite sender for non-LFID users.
+func WithInviteSenderForMessageHandler(sender port.InviteSender) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.inviteSender = sender
 	}
 }
 
@@ -443,8 +452,10 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 
 const committeeNotificationTimeout = 5 * time.Second
 
-// HandleCommitteeMemberCreated handles committee_member.created events and sends
-// a notification email to the newly added member. Best-effort: send errors are logged, not returned.
+// HandleCommitteeMemberCreated handles committee_member.created events and notifies
+// the newly added member. Users with an LFID (Username present) receive a direct
+// notification email. Users without an LFID receive an invite via the invite service.
+// Best-effort: send errors are logged, not returned.
 func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -470,11 +481,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
-	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
-		return nil, nil
-	}
-
 	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
 	if recipientName == "" {
 		recipientName = member.Username
@@ -483,12 +489,25 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		recipientName = member.Email
 	}
 
+	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, member.CommitteeUID)
+
+	if member.Username == "" {
+		// No LFID — route through the invite service so the user must create an
+		// account before gaining committee access.
+		m.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		return nil, nil
+	}
+
+	// LFID present — send a direct notification email.
+	if m.emailSender == nil {
+		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+		return nil, nil
+	}
+
 	roleDisplay := member.Role.Name
 	if roleDisplay == "" {
 		roleDisplay = "Member"
 	}
-
-	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, member.CommitteeUID)
 
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
@@ -521,9 +540,37 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 	return nil, nil
 }
 
-// HandleCommitteeSettingsUpdated handles committee_settings.updated events and sends
-// notification emails to Writers or Auditors newly added in the updated settings.
-// Best-effort: send errors are logged, not returned.
+// sendMemberInvite publishes a send-invite request for a new committee member who
+// does not yet have an LFID. Fire-and-forget: errors are logged, not returned.
+func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) {
+	if m.inviteSender == nil {
+		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
+			"committee_uid", member.CommitteeUID)
+		return
+	}
+
+	err := m.inviteSender.SendInvite(ctx, inviteapi.SendInviteRequest{
+		RecipientEmail: member.Email,
+		RecipientName:  recipientName,
+		InviterName:    "A committee administrator",
+		ProjectUID:     member.CommitteeUID,
+		ProjectName:    member.CommitteeName,
+		Role:           string(inviteapi.InviteRoleManage),
+		DeepLinkURL:    deepLinkURL,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "failed to publish member invite request",
+			"error", err, "committee_uid", member.CommitteeUID)
+	} else {
+		slog.DebugContext(ctx, "published member invite request",
+			"committee_uid", member.CommitteeUID)
+	}
+}
+
+// HandleCommitteeSettingsUpdated handles committee_settings.updated events and notifies
+// Writers or Auditors newly added in the updated settings. Users with an LFID (Username
+// present) receive a direct notification email. Users without an LFID receive an invite
+// via the invite service. Best-effort: send errors are logged, not returned.
 func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -543,13 +590,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		return nil, nil
 	}
 
-	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping settings notification")
-		return nil, nil
-	}
-
 	// Build a deduplicated list of (user, role) pairs. Writers take precedence
-	// if a user appears in both lists — they get a single email with the higher role.
+	// if a user appears in both lists — they get a single notification with the higher role.
 	type notification struct {
 		user model.CommitteeUser
 		role string
@@ -557,14 +599,22 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	seen := make(map[string]bool)
 	var notifs []notification
 	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()) {
-		if !seen[u.Username] {
-			seen[u.Username] = true
+		key := u.Username
+		if key == "" {
+			key = "email:" + u.Email
+		}
+		if !seen[key] {
+			seen[key] = true
 			notifs = append(notifs, notification{user: u, role: "Writer"})
 		}
 	}
 	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors()) {
-		if !seen[u.Username] {
-			seen[u.Username] = true
+		key := u.Username
+		if key == "" {
+			key = "email:" + u.Email
+		}
+		if !seen[key] {
+			seen[key] = true
 			notifs = append(notifs, notification{user: u, role: "Auditor"})
 		}
 	}
@@ -587,6 +637,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	for _, n := range notifs {
 		g.Go(func() error {
 			u, role := n.user, n.role
+
+			// For LFID users, look up their email if not already provided.
 			if u.Email == "" && m.userReader != nil && u.Username != "" {
 				lookupCtx, lookupCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, u.Username)
@@ -600,12 +652,46 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
+
 			recipientName := u.Name
 			if recipientName == "" {
 				recipientName = u.Username
 			}
 			if recipientName == "" {
 				recipientName = u.Email
+			}
+
+			if u.Username == "" {
+				// No LFID — route through the invite service.
+				if m.inviteSender == nil {
+					slog.WarnContext(gctx, "invite sender not configured — skipping settings invite",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				inviteRole := mapRoleToInviteRole(role)
+				if inviteErr := m.inviteSender.SendInvite(gctx, inviteapi.SendInviteRequest{
+					RecipientEmail: u.Email,
+					RecipientName:  recipientName,
+					InviterName:    inviterName,
+					ProjectUID:     data.CommitteeUID,
+					ProjectName:    data.CommitteeName,
+					Role:           inviteRole,
+					DeepLinkURL:    committeeURL,
+				}); inviteErr != nil {
+					slog.WarnContext(gctx, "failed to publish settings invite request",
+						"error", inviteErr, "committee_uid", data.CommitteeUID)
+				} else {
+					slog.DebugContext(gctx, "published settings invite request",
+						"committee_uid", data.CommitteeUID)
+				}
+				return nil
+			}
+
+			// LFID present — send a direct notification email.
+			if m.emailSender == nil {
+				slog.WarnContext(gctx, "email sender not configured — skipping settings notification",
+					"committee_uid", data.CommitteeUID)
+				return nil
 			}
 
 			subject, html, text, renderErr := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
@@ -641,6 +727,21 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	_ = g.Wait()
 
 	return nil, nil
+}
+
+// mapRoleToInviteRole converts a committee settings role string to the invite
+// service's role vocabulary.
+//
+// Mapping:
+//   - Writer → Manage
+//   - Auditor → View
+func mapRoleToInviteRole(role string) string {
+	switch role {
+	case "Auditor":
+		return string(inviteapi.InviteRoleView)
+	default:
+		return string(inviteapi.InviteRoleManage)
+	}
 }
 
 // diffNewCommitteeUsers returns users in newList whose username is absent from oldList.

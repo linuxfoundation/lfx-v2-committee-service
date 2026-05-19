@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // mockTransportMessenger implements port.TransportMessenger for testing
@@ -1046,6 +1047,20 @@ func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailReq
 	return m.retErr
 }
 
+// mockInviteSender records SendInvite calls for assertions.
+type mockInviteSender struct {
+	mu     sync.Mutex
+	calls  []inviteapi.SendInviteRequest
+	retErr error
+}
+
+func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInviteRequest) error {
+	m.mu.Lock()
+	m.calls = append(m.calls, req)
+	m.mu.Unlock()
+	return m.retErr
+}
+
 // mockUserReader is a simple UserReader for tests that returns fixed metadata.
 type mockUserReader struct {
 	meta         *model.UserMetadata
@@ -1089,9 +1104,11 @@ func buildSettingsUpdatedPayload(t *testing.T, data *model.CommitteeSettingsUpda
 }
 
 func TestHandleCommitteeMemberCreated(t *testing.T) {
-	member := &model.CommitteeMember{
+	// LFID member: has username → email notification path
+	lfidMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:           "member-uid-1",
+			Username:      "alice_lfid",
 			Email:         "alice@example.com",
 			FirstName:     "Alice",
 			LastName:      "Smith",
@@ -1100,19 +1117,44 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			Role:          model.CommitteeMemberRole{Name: "writer"},
 		},
 	}
+	// Non-LFID member: no username → invite path
+	nonLFIDMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-2",
+			Email:         "bob@example.com",
+			FirstName:     "Bob",
+			LastName:      "Jones",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Member"},
+		},
+	}
 
 	tests := []struct {
-		name            string
-		msgData         []byte
-		emailSender     *mockEmailSender
-		omitEmailSender bool
-		wantSendCount   int
+		name             string
+		msgData          []byte
+		emailSender      *mockEmailSender
+		inviteSender     *mockInviteSender
+		omitEmailSender  bool
+		omitInviteSender bool
+		wantEmailCount   int
+		wantInviteCount  int
 	}{
 		{
-			name:          "member with email — notification sent",
-			msgData:       buildMemberCreatedPayload(t, member),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 1,
+			name:            "LFID member — email notification sent",
+			msgData:         buildMemberCreatedPayload(t, lfidMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  1,
+			wantInviteCount: 0,
+		},
+		{
+			name:            "non-LFID member — invite sent instead of email",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
 		},
 		{
 			name: "member without email — no notification sent",
@@ -1124,26 +1166,50 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					Role:          model.CommitteeMemberRole{Name: "writer"},
 				},
 			}),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 0,
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
 		},
 		{
-			name:          "send error — handler still returns nil",
-			msgData:       buildMemberCreatedPayload(t, member),
-			emailSender:   &mockEmailSender{retErr: assert.AnError},
-			wantSendCount: 1,
+			name:            "LFID member — email send error — handler still returns nil",
+			msgData:         buildMemberCreatedPayload(t, lfidMember),
+			emailSender:     &mockEmailSender{retErr: assert.AnError},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  1,
+			wantInviteCount: 0,
 		},
 		{
-			name:          "invalid JSON — handler returns nil",
-			msgData:       []byte("not json"),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 0,
+			name:            "non-LFID member — invite send error — handler still returns nil",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{retErr: assert.AnError},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
 		},
 		{
-			name:            "no email sender configured — handler returns nil",
-			msgData:         buildMemberCreatedPayload(t, member),
-			omitEmailSender: true,
-			wantSendCount:   0,
+			name:            "invalid JSON — handler returns nil",
+			msgData:         []byte("not json"),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			name:             "no email sender and no invite sender — LFID member skipped",
+			msgData:          buildMemberCreatedPayload(t, lfidMember),
+			omitEmailSender:  true,
+			omitInviteSender: true,
+			wantEmailCount:   0,
+			wantInviteCount:  0,
+		},
+		{
+			name:             "no invite sender — non-LFID member skipped",
+			msgData:          buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:      &mockEmailSender{},
+			omitInviteSender: true,
+			wantEmailCount:   0,
+			wantInviteCount:  0,
 		},
 	}
 
@@ -1153,6 +1219,9 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			if !tt.omitEmailSender {
 				h.emailSender = tt.emailSender
 			}
+			if !tt.omitInviteSender {
+				h.inviteSender = tt.inviteSender
+			}
 
 			msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, tt.msgData)
 			resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
@@ -1161,12 +1230,23 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			assert.Nil(t, resp)
 
 			if tt.emailSender != nil {
-				assert.Len(t, tt.emailSender.calls, tt.wantSendCount)
-				if tt.wantSendCount > 0 {
+				assert.Len(t, tt.emailSender.calls, tt.wantEmailCount, "email call count")
+				if tt.wantEmailCount > 0 {
 					assert.Equal(t, "alice@example.com", tt.emailSender.calls[0].To)
 					assert.Contains(t, tt.emailSender.calls[0].Subject, "TSC Committee")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "Alice Smith")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
+				}
+			}
+			if tt.inviteSender != nil {
+				assert.Len(t, tt.inviteSender.calls, tt.wantInviteCount, "invite call count")
+				if tt.wantInviteCount > 0 {
+					assert.Equal(t, "bob@example.com", tt.inviteSender.calls[0].RecipientEmail)
+					assert.Equal(t, "Bob Jones", tt.inviteSender.calls[0].RecipientName)
+					assert.Equal(t, "committee-1", tt.inviteSender.calls[0].ProjectUID)
+					assert.Equal(t, "TSC Committee", tt.inviteSender.calls[0].ProjectName)
+					assert.Equal(t, string(inviteapi.InviteRoleManage), tt.inviteSender.calls[0].Role)
+					assert.Contains(t, tt.inviteSender.calls[0].DeepLinkURL, "committee-1")
 				}
 			}
 		})
@@ -1177,6 +1257,7 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
 	bob := model.CommitteeUser{Username: "bob", Email: "bob@example.com", Name: "Bob"}
 	noemail := model.CommitteeUser{Username: "noemail"}
+	noLFIDUser := model.CommitteeUser{Email: "nolfid@example.com", Name: "No LFID User"}
 
 	base := &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  "committee-1",
@@ -1184,17 +1265,21 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		oldWriters      []model.CommitteeUser
-		newWriters      []model.CommitteeUser
-		oldAuditors     []model.CommitteeUser
-		newAuditors     []model.CommitteeUser
-		updatedBy       string
-		userReader      *mockUserReader
-		omitEmailSender bool
-		invalidJSON     bool
-		wantSendCount   int
-		wantInviterName string
+		name             string
+		oldWriters       []model.CommitteeUser
+		newWriters       []model.CommitteeUser
+		oldAuditors      []model.CommitteeUser
+		newAuditors      []model.CommitteeUser
+		updatedBy        string
+		userReader       *mockUserReader
+		omitEmailSender  bool
+		inviteSender     *mockInviteSender
+		omitInviteSender bool
+		invalidJSON      bool
+		wantSendCount    int
+		wantInviteCount  int
+		wantInviteRole   string
+		wantInviterName  string
 	}{
 		{
 			name:          "new writer added — one email sent with Writer role",
@@ -1284,6 +1369,41 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantSendCount:   1,
 			wantInviterName: "A committee administrator",
 		},
+		{
+			name:            "non-LFID writer added — invite sent with Manage role",
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleManage),
+		},
+		{
+			name:            "non-LFID auditor added — invite sent with View role",
+			newAuditors:     []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
+		},
+		{
+			name:             "no invite sender — non-LFID writer skipped",
+			newWriters:       []model.CommitteeUser{noLFIDUser},
+			omitEmailSender:  true,
+			omitInviteSender: true,
+			wantSendCount:    0,
+			wantInviteCount:  0,
+		},
+		{
+			name:            "non-LFID user in both writer and auditor — deduplicated to one invite",
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			newAuditors:     []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1292,6 +1412,9 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
 			if !tt.omitEmailSender {
 				h.emailSender = sender
+			}
+			if !tt.omitInviteSender && tt.inviteSender != nil {
+				h.inviteSender = tt.inviteSender
 			}
 			if tt.userReader != nil {
 				h.userReader = tt.userReader
@@ -1327,6 +1450,16 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			}
 			if tt.wantInviterName != "" {
 				assert.Contains(t, sender.calls[0].HTML, tt.wantInviterName)
+			}
+			if tt.inviteSender != nil {
+				tt.inviteSender.mu.Lock()
+				inviteCalls := make([]inviteapi.SendInviteRequest, len(tt.inviteSender.calls))
+				copy(inviteCalls, tt.inviteSender.calls)
+				tt.inviteSender.mu.Unlock()
+				assert.Len(t, inviteCalls, tt.wantInviteCount, "invite call count")
+				if tt.wantInviteCount > 0 && tt.wantInviteRole != "" {
+					assert.Equal(t, tt.wantInviteRole, inviteCalls[0].Role, "invite role")
+				}
 			}
 		})
 	}
