@@ -386,11 +386,16 @@ func TestNewSampler_InvalidArg(t *testing.T) {
 // TestNewSampler_ParentHonored verifies that the default sampler honors
 // parent span sampling decisions.
 func TestNewSampler_ParentHonored(t *testing.T) {
-	cfg := OTelConfig{TracesSampleRatio: 1.0}
+	cfg := OTelConfig{TracesSampleRatio: 0.0}
 	s := newSampler(cfg) // default = parentbased_traceidratio
 
-	// With a sampled parent, child should also be sampled
-	sampledParent := trace.SpanContext{}.WithTraceFlags(trace.FlagsSampled)
+	// With a sampled parent, child should also be sampled.
+	sampledParent := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{1},
+		SpanID:     trace.SpanID{1},
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
 	parentCtx := trace.ContextWithRemoteSpanContext(context.Background(), sampledParent)
 	result := s.ShouldSample(sdktrace.SamplingParameters{ParentContext: parentCtx})
 	if result.Decision != sdktrace.RecordAndSample {
