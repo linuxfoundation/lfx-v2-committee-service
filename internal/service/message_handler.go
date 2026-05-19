@@ -744,17 +744,24 @@ func mapRoleToInviteRole(role string) string {
 	}
 }
 
-// diffNewCommitteeUsers returns users in newList whose username is absent from oldList.
+// diffNewCommitteeUsers returns users in newList that were not in oldList.
+// LFID users are matched by Username; non-LFID users (empty Username) are matched by Email.
 func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.CommitteeUser {
 	oldKeys := make(map[string]bool, len(oldList))
 	for _, u := range oldList {
 		if u.Username != "" {
 			oldKeys[u.Username] = true
+		} else if u.Email != "" {
+			oldKeys["email:"+u.Email] = true
 		}
 	}
 	var added []model.CommitteeUser
 	for _, u := range newList {
-		if !oldKeys[u.Username] {
+		key := u.Username
+		if key == "" {
+			key = "email:" + u.Email
+		}
+		if !oldKeys[key] {
 			added = append(added, u)
 		}
 	}
