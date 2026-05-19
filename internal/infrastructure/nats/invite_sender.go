@@ -23,6 +23,10 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 		return errors.NewServiceUnavailable("invite sender is not configured", nil)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return errors.NewUnexpected("context cancelled before publishing invite", err)
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return errors.NewUnexpected("failed to marshal invite request", err)
