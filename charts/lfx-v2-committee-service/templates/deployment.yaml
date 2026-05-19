@@ -81,6 +81,11 @@ spec:
             - name: OTEL_TRACES_SAMPLER
               value: {{ $otelTracesSampler | quote }}
             {{- end }}
+            {{- $otelTracesSamplerArg := .Values.app.otel.tracesSamplerArg | toString | trim }}
+            {{- if ne $otelTracesSamplerArg "" }}
+            - name: OTEL_TRACES_SAMPLER_ARG
+              value: {{ $otelTracesSamplerArg | quote }}
+            {{- end }}
             {{- $otelMetricsExporter := .Values.app.otel.metricsExporter | toString | trim }}
             {{- if ne $otelMetricsExporter "" }}
             - name: OTEL_METRICS_EXPORTER
