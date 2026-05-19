@@ -4646,7 +4646,6 @@ components:
                             example: Chair
                             enum:
                                 - Chair
-                                - Counsel
                                 - Developer Seat
                                 - TAC/TOC Representative
                                 - Director
@@ -4819,7 +4818,6 @@ components:
                             example: Chair
                             enum:
                                 - Chair
-                                - Counsel
                                 - Developer Seat
                                 - TAC/TOC Representative
                                 - Director
@@ -5012,7 +5010,6 @@ components:
                             example: Chair
                             enum:
                                 - Chair
-                                - Counsel
                                 - Developer Seat
                                 - TAC/TOC Representative
                                 - Director
@@ -5402,7 +5399,6 @@ components:
                             example: Chair
                             enum:
                                 - Chair
-                                - Counsel
                                 - Developer Seat
                                 - TAC/TOC Representative
                                 - Director

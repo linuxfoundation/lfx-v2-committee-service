@@ -3133,7 +3133,6 @@ definitions:
                         example: Chair
                         enum:
                             - Chair
-                            - Counsel
                             - Developer Seat
                             - TAC/TOC Representative
                             - Director
@@ -3378,7 +3377,6 @@ definitions:
                         example: Chair
                         enum:
                             - Chair
-                            - Counsel
                             - Developer Seat
                             - TAC/TOC Representative
                             - Director
@@ -3937,7 +3935,6 @@ definitions:
                         example: Chair
                         enum:
                             - Chair
-                            - Counsel
                             - Developer Seat
                             - TAC/TOC Representative
                             - Director
