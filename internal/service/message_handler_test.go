@@ -1264,9 +1264,10 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			if tt.inviteSender != nil {
 				assert.Len(t, tt.inviteSender.calls, tt.wantInviteCount, "invite call count")
 				if tt.wantInviteCount > 0 {
-					assert.Equal(t, "committee-1", tt.inviteSender.calls[0].ProjectUID)
-					assert.Equal(t, "TSC Committee", tt.inviteSender.calls[0].ProjectName)
-					assert.Contains(t, tt.inviteSender.calls[0].DeepLinkURL, "committee-1")
+					assert.Equal(t, "committee-1", tt.inviteSender.calls[0].ResourceUID)
+					assert.Equal(t, "TSC Committee", tt.inviteSender.calls[0].ResourceName)
+					assert.Equal(t, "group", tt.inviteSender.calls[0].ResourceType)
+					assert.Contains(t, tt.inviteSender.calls[0].ReturnURL, "committee-1")
 					if tt.wantInviteRole != "" {
 						assert.Equal(t, tt.wantInviteRole, tt.inviteSender.calls[0].Role, "invite role")
 					}
