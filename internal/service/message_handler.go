@@ -557,7 +557,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		InviterName:    "A committee administrator",
 		ProjectUID:     member.CommitteeUID,
 		ProjectName:    member.CommitteeName,
-		Role:           string(inviteapi.InviteRoleManage),
+		Role:           mapRoleToInviteRole(member.Role.Name),
 		DeepLinkURL:    deepLinkURL,
 	})
 	if err != nil {
@@ -601,21 +601,13 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	seen := make(map[string]bool)
 	var notifs []notification
 	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()) {
-		key := u.Username
-		if key == "" {
-			key = "email:" + u.Email
-		}
-		if !seen[key] {
+		if key := committeeUserKey(u); !seen[key] {
 			seen[key] = true
 			notifs = append(notifs, notification{user: u, role: "Writer"})
 		}
 	}
 	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors()) {
-		key := u.Username
-		if key == "" {
-			key = "email:" + u.Email
-		}
-		if !seen[key] {
+		if key := committeeUserKey(u); !seen[key] {
 			seen[key] = true
 			notifs = append(notifs, notification{user: u, role: "Auditor"})
 		}
@@ -749,26 +741,35 @@ func mapRoleToInviteRole(role string) string {
 	}
 }
 
+// committeeUserKey returns a stable, normalized identity key for a CommitteeUser.
+// LFID users are keyed by Username; non-LFID users fall back to a normalized email.
+// Returns "" when both fields are empty (user cannot be identified).
+func committeeUserKey(u model.CommitteeUser) string {
+	if u.Username != "" {
+		return "username:" + u.Username
+	}
+	if email := strings.ToLower(strings.TrimSpace(u.Email)); email != "" {
+		return "email:" + email
+	}
+	return ""
+}
+
 // diffNewCommitteeUsers returns users in newList that were not in oldList.
-// LFID users are matched by Username; non-LFID users (empty Username) are matched by Email.
+// LFID users are matched by Username; non-LFID users are matched by normalized Email.
 func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.CommitteeUser {
 	oldKeys := make(map[string]bool, len(oldList))
 	for _, u := range oldList {
-		if u.Username != "" {
-			oldKeys[u.Username] = true
-		} else if u.Email != "" {
-			oldKeys["email:"+u.Email] = true
+		if key := committeeUserKey(u); key != "" {
+			oldKeys[key] = true
 		}
 	}
 	var added []model.CommitteeUser
 	for _, u := range newList {
-		key := u.Username
-		if key == "" {
-			key = "email:" + u.Email
+		key := committeeUserKey(u)
+		if key == "" || oldKeys[key] {
+			continue
 		}
-		if !oldKeys[key] {
-			added = append(added, u)
-		}
+		added = append(added, u)
 	}
 	return added
 }
