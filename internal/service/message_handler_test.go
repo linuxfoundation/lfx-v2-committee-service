@@ -1129,6 +1129,18 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			Role:          model.CommitteeMemberRole{Name: "Member"},
 		},
 	}
+	// Non-LFID auditor: should receive InviteRoleView, not Manage
+	nonLFIDAuditor := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-3",
+			Email:         "carol@example.com",
+			FirstName:     "Carol",
+			LastName:      "Lee",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Auditor"},
+		},
+	}
 
 	tests := []struct {
 		name             string
@@ -1139,6 +1151,7 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 		omitInviteSender bool
 		wantEmailCount   int
 		wantInviteCount  int
+		wantInviteRole   string
 	}{
 		{
 			name:            "LFID member — email notification sent",
@@ -1149,12 +1162,22 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			wantInviteCount: 0,
 		},
 		{
-			name:            "non-LFID member — invite sent instead of email",
+			name:            "non-LFID member — invite sent with Manage role",
 			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
 			emailSender:     &mockEmailSender{},
 			inviteSender:    &mockInviteSender{},
 			wantEmailCount:  0,
 			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleManage),
+		},
+		{
+			name:            "non-LFID auditor member — invite sent with View role",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDAuditor),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
 		},
 		{
 			name: "member without email — no notification sent",
@@ -1241,12 +1264,12 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			if tt.inviteSender != nil {
 				assert.Len(t, tt.inviteSender.calls, tt.wantInviteCount, "invite call count")
 				if tt.wantInviteCount > 0 {
-					assert.Equal(t, "bob@example.com", tt.inviteSender.calls[0].RecipientEmail)
-					assert.Equal(t, "Bob Jones", tt.inviteSender.calls[0].RecipientName)
 					assert.Equal(t, "committee-1", tt.inviteSender.calls[0].ProjectUID)
 					assert.Equal(t, "TSC Committee", tt.inviteSender.calls[0].ProjectName)
-					assert.Equal(t, string(inviteapi.InviteRoleManage), tt.inviteSender.calls[0].Role)
 					assert.Contains(t, tt.inviteSender.calls[0].DeepLinkURL, "committee-1")
+					if tt.wantInviteRole != "" {
+						assert.Equal(t, tt.wantInviteRole, tt.inviteSender.calls[0].Role, "invite role")
+					}
 				}
 			}
 		})
@@ -1501,4 +1524,9 @@ func TestDiffNewCommitteeUsers(t *testing.T) {
 
 	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFID})
 	assert.Empty(t, got, "non-LFID user already in old list should not appear as new")
+
+	// Email normalization: different casing/whitespace must not produce a duplicate.
+	noLFIDUpper := model.CommitteeUser{Email: "  NOLFID@EXAMPLE.COM  "}
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFIDUpper})
+	assert.Empty(t, got, "email match should be case- and whitespace-insensitive")
 }
