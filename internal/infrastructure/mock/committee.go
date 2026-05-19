@@ -14,7 +14,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // Global mock repository instance to share data between all repositories
@@ -1054,24 +1053,6 @@ func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, even
 // NewMockCommitteePublisher creates a mock committee publisher
 func NewMockCommitteePublisher() port.CommitteePublisher {
 	return &MockCommitteePublisher{}
-}
-
-// MockInviteSender implements InviteSender interface for testing
-type MockInviteSender struct{}
-
-// SendInvite simulates sending an invite request
-func (s *MockInviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteRequest) error {
-	slog.InfoContext(ctx, "mock invite sender: invite request published",
-		"recipient_email", req.RecipientEmail,
-		"project_uid", req.ProjectUID,
-		"role", req.Role,
-	)
-	return nil
-}
-
-// NewMockInviteSender creates a mock invite sender
-func NewMockInviteSender() port.InviteSender {
-	return &MockInviteSender{}
 }
 
 // GetSettingsPtr returns the settings pointer for a committee.

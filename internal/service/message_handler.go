@@ -549,7 +549,9 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		return
 	}
 
-	err := m.inviteSender.SendInvite(ctx, inviteapi.SendInviteRequest{
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		RecipientEmail: member.Email,
 		RecipientName:  recipientName,
 		InviterName:    "A committee administrator",
@@ -669,7 +671,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					return nil
 				}
 				inviteRole := mapRoleToInviteRole(role)
-				if inviteErr := m.inviteSender.SendInvite(gctx, inviteapi.SendInviteRequest{
+				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
 					RecipientEmail: u.Email,
 					RecipientName:  recipientName,
 					InviterName:    inviterName,
@@ -677,7 +680,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					ProjectName:    data.CommitteeName,
 					Role:           inviteRole,
 					DeepLinkURL:    committeeURL,
-				}); inviteErr != nil {
+				})
+				inviteCancel()
+				if inviteErr != nil {
 					slog.WarnContext(gctx, "failed to publish settings invite request",
 						"error", inviteErr, "committee_uid", data.CommitteeUID)
 				} else {
