@@ -555,10 +555,11 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		RecipientEmail: member.Email,
 		RecipientName:  recipientName,
 		InviterName:    "A committee administrator",
-		ProjectUID:     member.CommitteeUID,
-		ProjectName:    member.CommitteeName,
+		ResourceUID:    member.CommitteeUID,
+		ResourceName:   member.CommitteeName,
+		ResourceType:   "group",
 		Role:           mapRoleToInviteRole(member.Role.Name),
-		DeepLinkURL:    deepLinkURL,
+		ReturnURL:      deepLinkURL,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to publish member invite request",
@@ -668,10 +669,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					RecipientEmail: u.Email,
 					RecipientName:  recipientName,
 					InviterName:    inviterName,
-					ProjectUID:     data.CommitteeUID,
-					ProjectName:    data.CommitteeName,
+					ResourceUID:    data.CommitteeUID,
+					ResourceName:   data.CommitteeName,
+					ResourceType:   "group",
 					Role:           inviteRole,
-					DeepLinkURL:    committeeURL,
+					ReturnURL:      committeeURL,
 				})
 				inviteCancel()
 				if inviteErr != nil {
