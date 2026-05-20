@@ -645,7 +645,12 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 	}
 	result := make([]model.CommitteeUser, 0, len(users))
 	for _, u := range users {
-		if u == nil || u.Username == nil || *u.Username == "" {
+		if u == nil {
+			continue
+		}
+		hasUsername := u.Username != nil && *u.Username != ""
+		hasEmail := u.Email != nil && *u.Email != ""
+		if !hasUsername && !hasEmail {
 			continue
 		}
 		cu := model.CommitteeUser{}
@@ -658,7 +663,9 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 		if u.Name != nil {
 			cu.Name = *u.Name
 		}
-		cu.Username = *u.Username
+		if hasUsername {
+			cu.Username = *u.Username
+		}
 		result = append(result, cu)
 	}
 	return result
