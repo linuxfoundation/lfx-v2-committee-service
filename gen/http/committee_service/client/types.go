@@ -5484,6 +5484,20 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -5639,6 +5653,20 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
@@ -5660,6 +5688,20 @@ func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsRe
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	if body.CreatedAt != nil {
@@ -7973,6 +8015,46 @@ func ValidateDeleteCommitteeDocumentServiceUnavailableResponseBody(body *DeleteC
 	return
 }
 
+// ValidateCommitteeUserRequestBody runs the validations defined on
+// committee-userRequestBody
+func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
+	if body.Invite != nil {
+		if err2 := ValidateCommitteeUserInviteRequestBody(body.Invite); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateCommitteeUserInviteRequestBody runs the validations defined on
+// committee-user-inviteRequestBody
+func ValidateCommitteeUserInviteRequestBody(body *CommitteeUserInviteRequestBody) (err error) {
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeUserResponseBody runs the validations defined on
+// committee-userResponseBody
+func ValidateCommitteeUserResponseBody(body *CommitteeUserResponseBody) (err error) {
+	if body.Invite != nil {
+		if err2 := ValidateCommitteeUserInviteResponseBody(body.Invite); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateCommitteeUserInviteResponseBody runs the validations defined on
+// committee-user-inviteResponseBody
+func ValidateCommitteeUserInviteResponseBody(body *CommitteeUserInviteResponseBody) (err error) {
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateCommitteeBaseWithReadonlyAttributesResponseBody runs the validations
 // defined on committee-base-with-readonly-attributesResponseBody
 func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBaseWithReadonlyAttributesResponseBody) (err error) {
@@ -8055,6 +8137,20 @@ func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *Committee
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	if body.CreatedAt != nil {

@@ -5758,6 +5758,20 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -5833,6 +5847,20 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	return
@@ -6122,6 +6150,26 @@ func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentReq
 	}
 	if body.FolderUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidateCommitteeUserRequestBody runs the validations defined on
+// committee-userRequestBody
+func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
+	if body.Invite != nil {
+		if err2 := ValidateCommitteeUserInviteRequestBody(body.Invite); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateCommitteeUserInviteRequestBody runs the validations defined on
+// committee-user-inviteRequestBody
+func ValidateCommitteeUserInviteRequestBody(body *CommitteeUserInviteRequestBody) (err error) {
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
 	}
 	return
 }

@@ -836,7 +836,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			slog.WarnContext(ctx, "committee writer orchestrator not available — cannot write back invite data",
 				"committee_uid", data.CommitteeUID)
 		} else {
-			if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(ctx, currentSettings, revision, false); writeErr != nil {
+			writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+			if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, currentSettings, revision, false); writeErr != nil {
 				slog.WarnContext(ctx, "failed to update settings with invite data",
 					"error", writeErr, "committee_uid", data.CommitteeUID)
 			} else {
