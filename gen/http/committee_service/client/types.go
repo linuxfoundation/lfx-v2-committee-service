@@ -2103,6 +2103,19 @@ type CommitteeUserRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Pending invite info, present when the user has no LFID
+	Invite *CommitteeUserInviteRequestBody `form:"invite,omitempty" json:"invite,omitempty" xml:"invite,omitempty"`
+}
+
+// CommitteeUserInviteRequestBody is used to define fields on request body
+// types.
+type CommitteeUserInviteRequestBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Email address the invite was sent to
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Invite expiry timestamp (RFC 3339)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 }
 
 // CommitteeUserResponseBody is used to define fields on response body types.
@@ -2115,6 +2128,19 @@ type CommitteeUserResponseBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Pending invite info, present when the user has no LFID
+	Invite *CommitteeUserInviteResponseBody `form:"invite,omitempty" json:"invite,omitempty" xml:"invite,omitempty"`
+}
+
+// CommitteeUserInviteResponseBody is used to define fields on response body
+// types.
+type CommitteeUserInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Email address the invite was sent to
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Invite expiry timestamp (RFC 3339)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 }
 
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on

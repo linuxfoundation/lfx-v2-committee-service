@@ -4,6 +4,8 @@
 package service
 
 import (
+	"time"
+
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 )
@@ -691,6 +693,17 @@ func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservic
 		}
 		if u.Username != "" {
 			cu.Username = &u.Username
+		}
+		if u.Invite != nil {
+			inv := &committeeservice.CommitteeUserInvite{
+				UID:   &u.Invite.UID,
+				Email: &u.Invite.Email,
+			}
+			if u.Invite.ExpiresAt != nil {
+				t := u.Invite.ExpiresAt.Format(time.RFC3339)
+				inv.ExpiresAt = &t
+			}
+			cu.Invite = inv
 		}
 		result = append(result, cu)
 	}
