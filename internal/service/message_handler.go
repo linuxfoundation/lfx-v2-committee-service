@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -494,7 +495,41 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 	if member.Username == "" {
 		// No LFID — route through the invite service so the user must create an
 		// account before gaining committee access.
-		m.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		result, inviteErr := m.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		if inviteErr != nil {
+			// Log error but continue; best-effort
+			slog.WarnContext(ctx, "invite failed, continuing without storing invite data",
+				"error", inviteErr, "committee_uid", member.CommitteeUID)
+			return nil, nil
+		}
+
+		// Store invite metadata on the member record if we got a result with an invite UID
+		if result.InviteUID != "" {
+			expiresAt := result.ExpiresAt
+			member.Invite = &model.InviteInfo{
+				UID:       result.InviteUID,
+				Email:     result.RecipientEmail,
+				ExpiresAt: &expiresAt,
+			}
+
+			// Get current member revision and update with invite data
+			revision, revErr := m.committeeReader.GetMemberRevision(ctx, member.UID)
+			if revErr != nil {
+				slog.WarnContext(ctx, "failed to get member revision for updating invite data",
+					"error", revErr, "committee_uid", member.CommitteeUID, "member_uid", member.UID)
+				return nil, nil
+			}
+
+			if _, updateErr := m.committeeWriter.UpdateMember(ctx, &member, revision); updateErr != nil {
+				slog.WarnContext(ctx, "failed to update member with invite data",
+					"error", updateErr, "committee_uid", member.CommitteeUID, "member_uid", member.UID)
+				return nil, nil
+			}
+
+			slog.DebugContext(ctx, "stored invite data on member",
+				"committee_uid", member.CommitteeUID, "member_uid", member.UID, "invite_uid", result.InviteUID)
+		}
+
 		return nil, nil
 	}
 
@@ -540,18 +575,19 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 	return nil, nil
 }
 
-// sendMemberInvite publishes a send-invite request for a new committee member who
-// does not yet have an LFID. Fire-and-forget: errors are logged, not returned.
-func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) {
+// sendMemberInvite sends an invite request for a new committee member who does not
+// yet have an LFID and stores the returned invite data on the member record.
+// Returns (InviteResult, error); error is logged but best-effort (not returned to caller).
+func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
 	if m.inviteSender == nil {
 		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
-		return
+		return port.InviteResult{}, nil
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
-	err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
+	result, err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		RecipientEmail: member.Email,
 		RecipientName:  recipientName,
 		InviterName:    "",
@@ -562,12 +598,14 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		ReturnURL:      deepLinkURL,
 	})
 	if err != nil {
-		slog.WarnContext(ctx, "failed to publish member invite request",
+		slog.WarnContext(ctx, "failed to send member invite request",
 			"error", err, "committee_uid", member.CommitteeUID)
-	} else {
-		slog.DebugContext(ctx, "published member invite request",
-			"committee_uid", member.CommitteeUID)
+		return port.InviteResult{}, err
 	}
+
+	slog.DebugContext(ctx, "sent member invite request",
+		"committee_uid", member.CommitteeUID, "invite_uid", result.InviteUID)
+	return result, nil
 }
 
 // HandleCommitteeSettingsUpdated handles committee_settings.updated events and notifies
@@ -629,6 +667,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
+	// Track invite results to apply back to settings after all goroutines complete.
+	// Key: email (normalized), Value: InviteInfo
+	inviteResultsMutex := &sync.Mutex{}
+	inviteResults := make(map[string]*model.InviteInfo)
+
 	for _, n := range notifs {
 		g.Go(func() error {
 			u, role := n.user, n.role
@@ -665,7 +708,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				}
 				inviteRole := mapRoleToInviteRole(role)
 				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
-				inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
+				result, inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
 					RecipientEmail: u.Email,
 					RecipientName:  recipientName,
 					InviterName:    inviterName,
@@ -677,12 +720,29 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				})
 				inviteCancel()
 				if inviteErr != nil {
-					slog.WarnContext(gctx, "failed to publish settings invite request",
+					slog.WarnContext(gctx, "failed to send settings invite request",
 						"error", inviteErr, "committee_uid", data.CommitteeUID)
-				} else {
-					slog.DebugContext(gctx, "published settings invite request",
-						"committee_uid", data.CommitteeUID)
+					return nil
 				}
+
+				slog.DebugContext(gctx, "sent settings invite request",
+					"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+
+				// Track invite metadata if we got a result with an invite UID
+				if result.InviteUID != "" {
+					expiresAt := result.ExpiresAt
+					inviteInfo := &model.InviteInfo{
+						UID:       result.InviteUID,
+						Email:     result.RecipientEmail,
+						ExpiresAt: &expiresAt,
+					}
+					inviteResultsMutex.Lock()
+					inviteResults[strings.ToLower(strings.TrimSpace(u.Email))] = inviteInfo
+					inviteResultsMutex.Unlock()
+					slog.DebugContext(gctx, "tracked invite data for settings update",
+						"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+				}
+
 				return nil
 			}
 
@@ -724,6 +784,51 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		})
 	}
 	_ = g.Wait()
+
+	// Apply invite data to settings if we have any results
+	if len(inviteResults) > 0 {
+		// Read current settings to get the revision
+		currentSettings, revision, readErr := m.committeeReader.GetSettings(ctx, data.CommitteeUID)
+		if readErr != nil {
+			slog.WarnContext(ctx, "failed to read settings for updating invite data",
+				"error", readErr, "committee_uid", data.CommitteeUID)
+			return nil, nil
+		}
+
+		// Apply invite data to matching users in Writers list
+		for i := range currentSettings.Writers {
+			key := strings.ToLower(strings.TrimSpace(currentSettings.Writers[i].Email))
+			if inviteInfo, exists := inviteResults[key]; exists {
+				currentSettings.Writers[i].Invite = inviteInfo
+				slog.DebugContext(ctx, "applied invite data to writer",
+					"committee_uid", data.CommitteeUID, "invite_uid", inviteInfo.UID)
+			}
+		}
+
+		// Apply invite data to matching users in Auditors list
+		for i := range currentSettings.Auditors {
+			key := strings.ToLower(strings.TrimSpace(currentSettings.Auditors[i].Email))
+			if inviteInfo, exists := inviteResults[key]; exists {
+				currentSettings.Auditors[i].Invite = inviteInfo
+				slog.DebugContext(ctx, "applied invite data to auditor",
+					"committee_uid", data.CommitteeUID, "invite_uid", inviteInfo.UID)
+			}
+		}
+
+		// Write back the updated settings using the service-level orchestrator
+		if m.committeeWriterOrchestrator == nil {
+			slog.WarnContext(ctx, "committee writer orchestrator not available — cannot write back invite data",
+				"committee_uid", data.CommitteeUID)
+		} else {
+			if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(ctx, currentSettings, revision, false); writeErr != nil {
+				slog.WarnContext(ctx, "failed to update settings with invite data",
+					"error", writeErr, "committee_uid", data.CommitteeUID)
+			} else {
+				slog.DebugContext(ctx, "updated settings with invite data",
+					"committee_uid", data.CommitteeUID)
+			}
+		}
+	}
 
 	return nil, nil
 }
