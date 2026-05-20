@@ -592,7 +592,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
 	result, err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
-		RecipientEmail: member.Email,
+		RecipientEmail: strings.TrimSpace(member.Email),
 		RecipientName:  recipientName,
 		InviterName:    "A committee administrator",
 		ResourceUID:    member.CommitteeUID,
@@ -723,7 +723,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				inviteRole := mapRoleToInviteRole(role)
 				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				result, inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
-					RecipientEmail: u.Email,
+					RecipientEmail: strings.TrimSpace(u.Email),
 					RecipientName:  recipientName,
 					InviterName:    inviterName,
 					ResourceUID:    data.CommitteeUID,
@@ -876,16 +876,22 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	if event.InviteUID == "" || event.Username == "" {
 		slog.WarnContext(ctx, "invite_accepted event missing invite_uid or username — discarding",
-			"invite_uid", event.InviteUID, "username", event.Username)
+			"invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
 		return nil, nil
 	}
 
 	// Look up the committee UID from the secondary index.
 	committeeUID, err := m.committeeReader.GetSettingsUIDByInviteUID(ctx, event.InviteUID)
 	if err != nil {
-		// Not found means this invite belongs to another service — silently ignore.
-		slog.DebugContext(ctx, "invite not tracked by this service — ignoring",
-			"invite_uid", event.InviteUID)
+		var notFound errors.NotFound
+		if stderrors.As(err, &notFound) {
+			// No mapping means this invite belongs to another service — silently ignore.
+			slog.DebugContext(ctx, "invite not tracked by this service — ignoring",
+				"invite_uid", event.InviteUID)
+			return nil, nil
+		}
+		slog.WarnContext(ctx, "KV error looking up invite mapping",
+			"error", err, "invite_uid", event.InviteUID)
 		return nil, nil
 	}
 
@@ -945,7 +951,7 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	}
 
 	slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
-		"committee_uid", committeeUID, "invite_uid", event.InviteUID, "username", event.Username)
+		"committee_uid", committeeUID, "invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
 
 	return nil, nil
 }
