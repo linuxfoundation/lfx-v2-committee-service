@@ -37,4 +37,10 @@ type CommitteeBaseWriter interface {
 // CommitteeSettingsWriter handles committee settings writing operations
 type CommitteeSettingsWriter interface {
 	UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error
+	// IndexSettingsInvite creates a secondary index entry mapping invite_uid → committee_uid so
+	// that invite acceptance messages can be routed to the right settings record without a full scan.
+	IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error
+	// DeleteSettingsInviteIndex removes the secondary index entry for the given invite UID once
+	// the invite has been accepted (username set, invite field cleared).
+	DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error
 }
