@@ -5274,6 +5274,7 @@ components:
                     type: string
                     description: Invite expiry timestamp (RFC 3339)
                     example: "2026-06-01T00:00:00Z"
+                    format: date-time
                 uid:
                     type: string
                     description: Invite UID

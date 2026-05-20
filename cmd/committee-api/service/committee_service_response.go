@@ -687,13 +687,13 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser, existin
 			cu.Avatar = *u.Avatar
 		}
 		if u.Email != nil {
-			cu.Email = *u.Email
+			cu.Email = strings.TrimSpace(*u.Email)
 		}
 		if u.Name != nil {
 			cu.Name = *u.Name
 		}
 		if hasUsername {
-			cu.Username = *u.Username
+			cu.Username = strings.TrimSpace(*u.Username)
 		}
 		result = append(result, cu)
 	}
