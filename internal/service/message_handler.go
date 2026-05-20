@@ -859,13 +859,13 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	return nil, nil
 }
 
-// inviteAcceptedEvent is the payload published by the invite service on InviteAcceptedSubject.
+// inviteAcceptedEvent is the payload published by the LFX self-serve web app on InviteAcceptedSubject.
 type inviteAcceptedEvent struct {
 	InviteUID string `json:"invite_uid"`
 	Username  string `json:"username"`
 }
 
-// HandleInviteAccepted processes an invite acceptance event from the invite service.
+// HandleInviteAccepted processes an invite acceptance event from the LFX self-serve web app.
 // It locates the settings record that owns the invite, promotes the user from non-LFID
 // (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
 func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {

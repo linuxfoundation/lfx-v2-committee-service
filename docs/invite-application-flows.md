@@ -197,7 +197,7 @@ All steps are best-effort — a failure is logged and does not block further pro
 
 ### Invite Acceptance
 
-**Triggered by:** a `lfx.invite-service.invite.accepted` event published by the invite service when the user completes LFID account creation.
+**Triggered by:** a `lfx.invite.accepted` event published by the LFX self-serve web app when the user completes LFID account creation.
 
 **NATS subscription:** registered in `cmd/committee-api/service/committee_handler.go` and `providers.go` under `inviteapi.InviteAcceptedSubject`.
 
