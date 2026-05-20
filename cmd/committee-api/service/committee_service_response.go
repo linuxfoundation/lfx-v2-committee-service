@@ -4,6 +4,7 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -77,8 +78,8 @@ func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.Crea
 	settings := &model.CommitteeSettings{
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               convertPayloadUsersToModel(p.Writers),
-		Auditors:              convertPayloadUsersToModel(p.Auditors),
+		Writers:               convertPayloadUsersToModel(p.Writers, nil),
+		Auditors:              convertPayloadUsersToModel(p.Auditors, nil),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -145,11 +146,19 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	return committee
 }
 
-// convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model
-func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservice.UpdateCommitteeSettingsPayload) *model.CommitteeSettings {
+// convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model.
+// existing, when non-nil, is used to seed each writer/auditor entry so that read-only fields
+// (e.g. Invite) are preserved across PUT requests without the client having to send them.
+func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservice.UpdateCommitteeSettingsPayload, existing *model.CommitteeSettings) *model.CommitteeSettings {
 	// Check for nil payload to avoid panic
 	if p == nil {
 		return &model.CommitteeSettings{}
+	}
+
+	var existingWriters, existingAuditors []model.CommitteeUser
+	if existing != nil {
+		existingWriters = existing.Writers
+		existingAuditors = existing.Auditors
 	}
 
 	settings := &model.CommitteeSettings{
@@ -157,8 +166,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               convertPayloadUsersToModel(p.Writers),
-		Auditors:              convertPayloadUsersToModel(p.Auditors),
+		Writers:               convertPayloadUsersToModel(p.Writers, existingWriters),
+		Auditors:              convertPayloadUsersToModel(p.Auditors, existingAuditors),
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
 		MemberVisibility:      p.MemberVisibility,
 	}
@@ -638,13 +647,26 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 // convertPayloadUsersToModel converts Goa payload user objects to domain model CommitteeUser slice.
 // Returns nil when users is nil (field omitted by caller) and an empty non-nil slice when users
 // is an explicit empty array, preserving the caller's intent to clear the list.
-func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model.CommitteeUser {
+//
+// existing, when provided, seeds each incoming user with the stored record matched by normalized
+// identity key (username for LFID users, lowercased-trimmed email for non-LFID users) so that
+// read-only fields (e.g. Invite) survive a PUT request without the client having to send them.
+// Incoming API fields are overlaid on top of the seeded values.
+func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser, existing []model.CommitteeUser) []model.CommitteeUser {
 	if users == nil {
 		return nil
 	}
 	if len(users) == 0 {
 		return []model.CommitteeUser{}
 	}
+
+	existingByKey := make(map[string]model.CommitteeUser, len(existing))
+	for _, u := range existing {
+		if key := userIdentityKey(u.Username, u.Email); key != "" {
+			existingByKey[key] = u
+		}
+	}
+
 	result := make([]model.CommitteeUser, 0, len(users))
 	for _, u := range users {
 		if u == nil {
@@ -655,7 +677,12 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 		if !hasUsername && !hasEmail {
 			continue
 		}
-		cu := model.CommitteeUser{}
+		// Seed from the existing stored record so read-only fields are preserved.
+		var cu model.CommitteeUser
+		if key := userIdentityKey(ptrStr(u.Username), ptrStr(u.Email)); key != "" {
+			cu = existingByKey[key]
+		}
+		// Overlay fields the API is allowed to set.
 		if u.Avatar != nil {
 			cu.Avatar = *u.Avatar
 		}
@@ -671,6 +698,26 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser) []model
 		result = append(result, cu)
 	}
 	return result
+}
+
+// userIdentityKey returns a normalized identity key for matching users across lists.
+// LFID users are keyed by username; non-LFID users fall back to lowercased-trimmed email.
+func userIdentityKey(username, email string) string {
+	if username != "" {
+		return "username:" + username
+	}
+	if e := strings.ToLower(strings.TrimSpace(email)); e != "" {
+		return "email:" + e
+	}
+	return ""
+}
+
+// ptrStr safely dereferences a *string, returning "" for nil.
+func ptrStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.

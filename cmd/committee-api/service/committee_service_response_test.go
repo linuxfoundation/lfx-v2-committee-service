@@ -346,9 +346,12 @@ func TestConvertPayloadToUpdateBase(t *testing.T) {
 }
 
 func TestConvertPayloadToUpdateSettings(t *testing.T) {
+	invite := &model.InviteInfo{UID: "inv-1", Email: "nolfid@example.com"}
+
 	tests := []struct {
 		name     string
 		payload  *committeeservice.UpdateCommitteeSettingsPayload
+		existing *model.CommitteeSettings
 		expected *model.CommitteeSettings
 	}{
 		{
@@ -375,12 +378,38 @@ func TestConvertPayloadToUpdateSettings(t *testing.T) {
 				Auditors:              []model.CommitteeUser{{Username: "auditor3"}, {Username: "auditor4"}},
 			},
 		},
+		{
+			name: "invite preserved from existing — non-LFID user matched by email",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:     stringPtr("committee-123"),
+				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com"), Name: stringPtr("Updated Name")}},
+			},
+			existing: &model.CommitteeSettings{
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Old Name", Invite: invite}},
+			},
+			expected: &model.CommitteeSettings{
+				UID:     "committee-123",
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Updated Name", Invite: invite}},
+			},
+		},
+		{
+			name: "no existing — invite stays nil",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:     stringPtr("committee-123"),
+				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com")}},
+			},
+			existing: nil,
+			expected: &model.CommitteeSettings{
+				UID:     "committee-123",
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com"}},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &committeeServicesrvc{}
-			result := svc.convertPayloadToUpdateSettings(tt.payload)
+			result := svc.convertPayloadToUpdateSettings(tt.payload, tt.existing)
 
 			assert.Equal(t, tt.expected, result)
 		})
