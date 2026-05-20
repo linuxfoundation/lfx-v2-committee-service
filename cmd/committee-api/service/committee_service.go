@@ -886,8 +886,8 @@ func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) 
 		if u == nil {
 			return false
 		}
-		hasUsername := u.Username != nil && *u.Username != ""
-		hasEmail := u.Email != nil && *u.Email != ""
+		hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+		hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
 		return hasUsername || hasEmail
 	}
 	for i, u := range writers {

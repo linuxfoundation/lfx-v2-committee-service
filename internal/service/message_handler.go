@@ -20,6 +20,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -478,7 +479,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 
 	if member.Email == "" {
 		slog.WarnContext(ctx, "skipping member notification — no email address",
-			"committee_uid", member.CommitteeUID, "username", member.Username)
+			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
 		return nil, nil
 	}
 
@@ -505,12 +506,15 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 
 		// Store invite metadata on the member record if we got a result with an invite UID
 		if result.InviteUID != "" {
-			expiresAt := result.ExpiresAt
-			member.Invite = &model.InviteInfo{
-				UID:       result.InviteUID,
-				Email:     result.RecipientEmail,
-				ExpiresAt: &expiresAt,
+			inv := &model.InviteInfo{
+				UID:   result.InviteUID,
+				Email: result.RecipientEmail,
 			}
+			if !result.ExpiresAt.IsZero() {
+				expiresAt := result.ExpiresAt
+				inv.ExpiresAt = &expiresAt
+			}
+			member.Invite = inv
 
 			// Get current member revision and update with invite data
 			revision, revErr := m.committeeReader.GetMemberRevision(ctx, member.UID)
@@ -576,8 +580,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 }
 
 // sendMemberInvite sends an invite request for a new committee member who does not
-// yet have an LFID and stores the returned invite data on the member record.
-// Returns (InviteResult, error); error is logged but best-effort (not returned to caller).
+// yet have an LFID. Returns the invite metadata from the invite service response so the
+// caller can persist it; errors are propagated to the caller to handle best-effort.
 func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
 	if m.inviteSender == nil {
 		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
@@ -590,7 +594,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 	result, err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		RecipientEmail: member.Email,
 		RecipientName:  recipientName,
-		InviterName:    "",
+		InviterName:    "A committee administrator",
 		ResourceUID:    member.CommitteeUID,
 		ResourceName:   member.CommitteeName,
 		ResourceType:   "group",
@@ -740,11 +744,13 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 				// Track invite metadata if we got a result with an invite UID
 				if result.InviteUID != "" {
-					expiresAt := result.ExpiresAt
 					inviteInfo := &model.InviteInfo{
-						UID:       result.InviteUID,
-						Email:     result.RecipientEmail,
-						ExpiresAt: &expiresAt,
+						UID:   result.InviteUID,
+						Email: result.RecipientEmail,
+					}
+					if !result.ExpiresAt.IsZero() {
+						expiresAt := result.ExpiresAt
+						inviteInfo.ExpiresAt = &expiresAt
 					}
 					inviteResultsMutex.Lock()
 					inviteResults[strings.ToLower(strings.TrimSpace(u.Email))] = inviteInfo
