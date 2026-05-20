@@ -217,8 +217,14 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Convert payload to domain model
-	settings := s.convertPayloadToUpdateSettings(p)
+	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
+	if errGet != nil {
+		return nil, wrapError(ctx, errGet)
+	}
+
+	// Convert payload to domain model, seeding each user from the existing record.
+	settings := s.convertPayloadToUpdateSettings(p, existingSettings)
 
 	// Execute use case
 	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision, p.XSync)
