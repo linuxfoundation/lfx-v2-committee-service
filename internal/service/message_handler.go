@@ -699,6 +699,16 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				recipientName = u.Email
 			}
 
+			// Skip notification if this user was previously an invited (email-only) entry in the
+			// old settings — they're being promoted from non-LFID to LFID via invite acceptance,
+			// not freshly added. They already received the invite email; a second email would be
+			// confusing and redundant.
+			if u.Email != "" && wasInvitedInOldSettings(u.Email, data.OldSettings) {
+				slog.DebugContext(gctx, "skipping notification — user promoted from invite to LFID",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+
 			if u.Username == "" {
 				// No LFID — route through the invite service.
 				if m.inviteSender == nil {
@@ -980,6 +990,27 @@ func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.Commi
 		added = append(added, u)
 	}
 	return added
+}
+
+// wasInvitedInOldSettings returns true if the given email was already present in old settings
+// as an email-only (non-LFID, Username == "") entry — meaning the user was previously invited
+// and is now being promoted. Used to suppress duplicate notification emails on LFID promotion.
+func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
+	if old == nil {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	for _, u := range old.GetWriters() {
+		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+			return true
+		}
+	}
+	for _, u := range old.GetAuditors() {
+		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+			return true
+		}
+	}
+	return false
 }
 
 // buildCommitteeURL returns a deep link directly to the committee page.
