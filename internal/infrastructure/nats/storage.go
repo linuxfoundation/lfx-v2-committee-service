@@ -603,6 +603,40 @@ func (s *storage) UniqueInvite(ctx context.Context, invite *model.CommitteeInvit
 	return uniqueKey, nil
 }
 
+// ================== CommitteeSettingsInvite secondary index ==================
+
+// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the
+// secondary index written at invite-send time.
+func (s *storage) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
+	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
+	entry, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return "", errs.NewNotFound("no settings record found for invite UID")
+		}
+		return "", errs.NewUnexpected("failed to look up settings by invite UID", err)
+	}
+	return string(entry.Value()), nil
+}
+
+// IndexSettingsInvite creates or overwrites the secondary index entry mapping invite_uid → committee_uid.
+func (s *storage) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
+	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Put(ctx, key, []byte(committeeUID)); err != nil {
+		return errs.NewUnexpected("failed to index settings invite", err)
+	}
+	return nil
+}
+
+// DeleteSettingsInviteIndex removes the secondary index entry for the given invite UID.
+func (s *storage) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
+	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
+	if err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Delete(ctx, key); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
+		return errs.NewUnexpected("failed to delete settings invite index", err)
+	}
+	return nil
+}
+
 // ================== CommitteeApplicationReader implementation ==================
 
 // GetApplication retrieves a committee application by application UID

@@ -72,6 +72,16 @@ func (w *TestMockCommitteeMemberWriter) UpdateSetting(ctx context.Context, setti
 	return mockWriter.UpdateSetting(ctx, settings, revision)
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.IndexSettingsInvite(ctx, inviteUID, committeeUID)
+}
+
+func (w *TestMockCommitteeMemberWriter) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.DeleteSettingsInviteIndex(ctx, inviteUID)
+}
+
 // Implement CommitteeMemberWriter interface
 func (w *TestMockCommitteeMemberWriter) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
 	if member == nil {
@@ -235,6 +245,10 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 
 func (r *TestMockCommitteeReader) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
+	return "", errs.NewNotFound("not implemented for this test")
 }
 
 // Implement CommitteeInviteReader interface

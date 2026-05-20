@@ -19,6 +19,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 var (
@@ -483,6 +484,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
+		inviteapi.InviteAcceptedSubject:              messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {
