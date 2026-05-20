@@ -6,7 +6,6 @@ package nats
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -42,17 +41,17 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "invite service request failed", "error", err)
-		return port.InviteResult{}, fmt.Errorf("invite service request: %w", err)
+		return port.InviteResult{}, errors.NewServiceUnavailable("invite service unavailable", err)
 	}
 
 	var resp inviteapi.SendInviteResponse
 	if len(reply.Data) > 0 {
 		if jsonErr := json.Unmarshal(reply.Data, &resp); jsonErr != nil {
 			slog.ErrorContext(ctx, "error unmarshalling invite response", "error", jsonErr)
-			return port.InviteResult{}, fmt.Errorf("invite service response: %w", jsonErr)
+			return port.InviteResult{}, errors.NewUnexpected("failed to parse invite service response", jsonErr)
 		}
 		if resp.Error != "" {
-			return port.InviteResult{}, fmt.Errorf("invite service error: %s", resp.Error)
+			return port.InviteResult{}, errors.NewUnexpected("invite service error: "+resp.Error, nil)
 		}
 	}
 

@@ -320,6 +320,7 @@ var CommitteeUserInviteType = dsl.Type("committee-user-invite", func() {
 	})
 	dsl.Attribute("expires_at", dsl.String, "Invite expiry timestamp (RFC 3339)", func() {
 		dsl.Example("2026-06-01T00:00:00Z")
+		dsl.Format(dsl.FormatDateTime)
 	})
 })
 
