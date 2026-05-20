@@ -1049,16 +1049,17 @@ func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailReq
 
 // mockInviteSender records SendInvite calls for assertions.
 type mockInviteSender struct {
-	mu     sync.Mutex
-	calls  []inviteapi.SendInviteRequest
-	retErr error
+	mu        sync.Mutex
+	calls     []inviteapi.SendInviteRequest
+	retErr    error
+	retResult port.InviteResult
 }
 
-func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInviteRequest) error {
+func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInviteRequest) (port.InviteResult, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, req)
 	m.mu.Unlock()
-	return m.retErr
+	return m.retResult, m.retErr
 }
 
 // mockUserReader is a simple UserReader for tests that returns fixed metadata.

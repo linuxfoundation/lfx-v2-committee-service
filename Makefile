@@ -1,7 +1,7 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 
-APP_NAME := lfx-v2-committee-service
+APP_NAME := lfx-v2-committee-service/committee-api
 VERSION := $(shell git describe --tags --always)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GIT_COMMIT := $(shell git rev-parse HEAD)
@@ -10,7 +10,7 @@ GIT_COMMIT := $(shell git rev-parse HEAD)
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
 DOCKER_CLI_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-cli
-DOCKER_TAG := $(VERSION)
+DOCKER_TAG := latest
 
 # Helm variables
 HELM_CHART_PATH=./charts/lfx-v2-committee-service
