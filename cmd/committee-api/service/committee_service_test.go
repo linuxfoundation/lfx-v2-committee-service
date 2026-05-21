@@ -1705,7 +1705,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "missing email — entry untouched (username stays as provided)",
+			name: "missing email — username cleared (untrusted caller LFID not kept)",
 			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
 				p := basePayload()
 				p.Auditors = []*committeeservice.CommitteeUser{
@@ -1715,8 +1715,8 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Auditors, 1)
-				// no email means we skip lookup; Username stays whatever caller sent
-				assert.Equal(t, "bob", *p.Auditors[0].Username)
+				// no email → cannot look up LFID → clear caller-supplied username so converter drops the entry
+				assert.Equal(t, "", *p.Auditors[0].Username)
 			},
 		},
 		{

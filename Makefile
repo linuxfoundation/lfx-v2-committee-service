@@ -145,16 +145,16 @@ nats-setup: ## Create NATS streams, consumers, and KV buckets for local developm
 		exit 1; \
 	}
 	@echo "Creating KV buckets..."
-	@nats kv add committees             --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 >/dev/null 2>&1 || true
-	@nats kv add committee-settings     --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 >/dev/null 2>&1 || true
-	@nats kv add committee-members      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 >/dev/null 2>&1 || true
-	@nats kv add committee-invites      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 >/dev/null 2>&1 || true
-	@nats kv add committee-applications --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 >/dev/null 2>&1 || true
-	@nats kv add committee-links        --history=20 --storage=file >/dev/null 2>&1 || true
-	@nats kv add committee-folders      --history=20 --storage=file >/dev/null 2>&1 || true
-	@nats kv add committee-documents-metadata --history=20 --storage=file >/dev/null 2>&1 || true
+	@nats kv add committees             --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
+	@nats kv add committee-settings     --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
+	@nats kv add committee-members      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
+	@nats kv add committee-invites      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
+	@nats kv add committee-applications --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
+	@nats kv add committee-links        --history=20 --storage=file || true
+	@nats kv add committee-folders      --history=20 --storage=file || true
+	@nats kv add committee-documents-metadata --history=20 --storage=file || true
 	@echo "Creating object store..."
-	@nats object add committee-documents --storage=file >/dev/null 2>&1 || true
+	@nats object add committee-documents --storage=file || true
 	@echo "Creating JetStream stream..."
 	@nats stream add committee-member-events \
 		--subjects="lfx.committee-api.committee_member.*" \
@@ -163,7 +163,7 @@ nats-setup: ## Create NATS streams, consumers, and KV buckets for local developm
 		--compression=s2 \
 		--replicas=1 \
 		--storage=file \
-		--defaults >/dev/null 2>&1 || true
+		--defaults || true
 	@echo "Creating consumer..."
 	@nats consumer add committee-member-events committee-service-total-members \
 		--filter="lfx.committee-api.committee_member.created" \
@@ -173,7 +173,7 @@ nats-setup: ## Create NATS streams, consumers, and KV buckets for local developm
 		--max-deliver=3 \
 		--ack-wait=30s \
 		--durable=committee-service-total-members \
-		--defaults >/dev/null 2>&1 || true
+		--defaults || true
 	@echo "NATS setup complete."
 
 local-setup: local-up nats-setup ## Start local infrastructure and provision NATS (run once after cloning)
