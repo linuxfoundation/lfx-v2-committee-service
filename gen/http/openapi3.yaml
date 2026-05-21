@@ -5243,6 +5243,8 @@ components:
                     type: string
                     description: The user's email address
                     example: alice.johnson@example.com
+                invite:
+                    $ref: '#/components/schemas/CommitteeUserInvite'
                 name:
                     type: string
                     description: Display name of the user
@@ -5255,8 +5257,33 @@ components:
             example:
                 avatar: https://example.com/avatar.jpg
                 email: alice.johnson@example.com
+                invite:
+                    email: alice.johnson@example.com
+                    expires_at: "2026-06-01T00:00:00Z"
+                    uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 name: Alice Johnson
                 username: alicejohnson789
+        CommitteeUserInvite:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Email address the invite was sent to
+                    example: alice.johnson@example.com
+                expires_at:
+                    type: string
+                    description: Invite expiry timestamp (RFC 3339)
+                    example: "2026-06-01T00:00:00Z"
+                    format: date-time
+                uid:
+                    type: string
+                    description: Invite UID
+                    example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            description: Pending invite metadata for a user who has not yet created an LFID account.
+            example:
+                email: alice.johnson@example.com
+                expires_at: "2026-06-01T00:00:00Z"
+                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         ConflictError:
             type: object
             properties:

@@ -71,6 +71,20 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
+		for _, e := range body.Writers {
+			if e != nil {
+				if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
+		for _, e := range body.Auditors {
+			if e != nil {
+				if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -511,6 +525,20 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		}
 		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+		for _, e := range body.Writers {
+			if e != nil {
+				if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
+		for _, e := range body.Auditors {
+			if e != nil {
+				if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
 		}
 		if err != nil {
 			return nil, err

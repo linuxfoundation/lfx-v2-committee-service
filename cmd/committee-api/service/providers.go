@@ -19,6 +19,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 var (
@@ -369,6 +370,29 @@ func EmailSenderImpl(ctx context.Context) port.EmailSender {
 	return nil
 }
 
+// InviteSenderImpl initializes the invite sender for non-LFID users.
+func InviteSenderImpl(ctx context.Context) port.InviteSender {
+	messagingSource := os.Getenv("MESSAGING_SOURCE")
+	if messagingSource == "" {
+		messagingSource = "nats"
+	}
+
+	switch messagingSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock invite sender")
+		return nil // invites are skipped when inviteSender is nil
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS invite sender")
+		natsInit(ctx)
+		return nats.NewInviteSender(natsClient)
+	default:
+		log.Fatalf("unsupported messaging source for invite sender: %s", messagingSource)
+	}
+
+	// unreachable
+	return nil
+}
+
 // lfxSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
 func lfxSelfServeBaseURL() string {
@@ -440,6 +464,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
+			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
 			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 		),
@@ -459,6 +484,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
+		inviteapi.InviteAcceptedSubject:              messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {
