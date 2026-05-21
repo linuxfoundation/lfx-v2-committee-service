@@ -4776,6 +4776,25 @@ func unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *Committ
 		Name:     v.Name,
 		Username: v.Username,
 	}
+	if v.Invite != nil {
+		res.Invite = unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite(v.Invite)
+	}
+
+	return res
+}
+
+// unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite
+// builds a value of type *committeeservice.CommitteeUserInvite from a value of
+// type *CommitteeUserInviteRequestBody.
+func unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite(v *CommitteeUserInviteRequestBody) *committeeservice.CommitteeUserInvite {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CommitteeUserInvite{
+		UID:       v.UID,
+		Email:     v.Email,
+		ExpiresAt: v.ExpiresAt,
+	}
 
 	return res
 }
@@ -4792,6 +4811,25 @@ func marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(v *committe
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+	if v.Invite != nil {
+		res.Invite = marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody(v.Invite)
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody
+// builds a value of type *CommitteeUserInviteResponseBody from a value of type
+// *committeeservice.CommitteeUserInvite.
+func marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody(v *committeeservice.CommitteeUserInvite) *CommitteeUserInviteResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CommitteeUserInviteResponseBody{
+		UID:       v.UID,
+		Email:     v.Email,
+		ExpiresAt: v.ExpiresAt,
 	}
 
 	return res

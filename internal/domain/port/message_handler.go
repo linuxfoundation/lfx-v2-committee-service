@@ -37,6 +37,10 @@ type CommitteeNotificationHandler interface {
 	HandleCommitteeMemberCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
 	// HandleCommitteeSettingsUpdated sends notification emails to newly added Writers/Auditors.
 	HandleCommitteeSettingsUpdated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleInviteAccepted processes an invite acceptance event from the invite service.
+	// It locates the settings record that owns the invite, promotes the user from non-LFID
+	// (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
+	HandleInviteAccepted(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.
