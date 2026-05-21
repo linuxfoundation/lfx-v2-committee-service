@@ -74,6 +74,12 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		return nil, wrapError(ctx, err)
 	}
 
+	// Reject entries that have neither a username nor an email — these are unresolvable and
+	// would be silently dropped by the converter, which violates the previous API contract.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
 
@@ -221,6 +227,12 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 
 	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
 	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Reject entries that have neither a username nor an email — these are unresolvable and
+	// would be silently dropped by the converter, which violates the previous API contract.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
@@ -1007,6 +1019,28 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 			"application_uid", application.UID,
 		)
 	}
+}
+
+// validateIdentityFields returns a validation error if any writer or auditor entry has
+// neither a username nor an email address, since such entries cannot be resolved or stored.
+func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
+	check := func(role string, users []*committeeservice.CommitteeUser) error {
+		for i, u := range users {
+			if u == nil {
+				continue
+			}
+			hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+			hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
+			if !hasUsername && !hasEmail {
+				return errors.NewValidation(fmt.Sprintf("%s[%d]: username or email is required", role, i))
+			}
+		}
+		return nil
+	}
+	if err := check("writers", writers); err != nil {
+		return err
+	}
+	return check("auditors", auditors)
 }
 
 // enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied

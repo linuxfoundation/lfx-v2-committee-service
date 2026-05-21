@@ -1716,7 +1716,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Auditors, 1)
-				// no email → cannot look up LFID → clear caller-supplied username so converter drops the entry
+				// no email → Username cleared to ""; email is also absent so converter drops the entry (both identity fields empty)
 				assert.Equal(t, "", *p.Auditors[0].Username)
 			},
 		},
@@ -1793,15 +1793,15 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 type errUserReader struct{}
 
 func (e *errUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
-	return "", errs.NewUnexpected("nats: connection timeout", nil)
+	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
 func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
-	return nil, errs.NewUnexpected("nats: connection timeout", nil)
+	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
 func (e *errUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
-	return nil, errs.NewUnexpected("nats: connection timeout", nil)
+	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
 func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
