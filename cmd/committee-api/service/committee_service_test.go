@@ -37,7 +37,7 @@ func newMockUserReader(pairs ...string) *mockUserReader {
 	return m
 }
 
-// withSubs returns a copy of the mock with email→sub mappings configured.
+// withSubs populates the mock's email→sub map and returns the same receiver for chaining.
 func (m *mockUserReader) withSubs(pairs ...string) *mockUserReader {
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m.subs[pairs[i]] = pairs[i+1]
@@ -1751,13 +1751,30 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				assert.Equal(t, "dave-lfid", *p.Writers[0].Username)
 			},
 		},
+		{
+			name: "transport error from SubByEmail fails the request",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("x"), Email: strPtr("fail@example.com"), Name: strPtr("Fail")},
+				}
+				return p
+			},
+			// no subs configured → mockUserReader returns NotFound, which is not a transport error
+			// so we use a custom reader that returns a real error
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _ := setupServiceTest()
-			reader := newMockUserReader().withSubs(tt.subs...)
-			svc.userReader = reader
+			if tt.name == "transport error from SubByEmail fails the request" {
+				svc.userReader = &errUserReader{}
+			} else {
+				reader := newMockUserReader().withSubs(tt.subs...)
+				svc.userReader = reader
+			}
 			p := tt.payload()
 			err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
 			if tt.wantErr {
@@ -1770,4 +1787,33 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// errUserReader always returns a transport error from SubByEmail (not a NotFound).
+type errUserReader struct{}
+
+func (e *errUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+	return "", errs.NewUnexpected("nats: connection timeout", nil)
+}
+
+func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, errs.NewUnexpected("nats: connection timeout", nil)
+}
+
+func (e *errUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, errs.NewUnexpected("nats: connection timeout", nil)
+}
+
+func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
+	svc, _ := setupServiceTest()
+	svc.userReader = nil
+	p := &committeeservice.UpdateCommitteeSettingsPayload{
+		UID:     strPtr("committee-uid-1"),
+		IfMatch: strPtr("1"),
+		Writers: []*committeeservice.CommitteeUser{
+			{Username: strPtr("x"), Email: strPtr("alice@example.com"), Name: strPtr("Alice")},
+		},
+	}
+	err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
+	assert.Error(t, err)
 }

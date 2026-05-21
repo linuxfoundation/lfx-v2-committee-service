@@ -1003,10 +1003,9 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 	}
 }
 
-// NewCommitteeService returns the committee-service service implementation with dependencies.
 // enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
 // slices with the authoritative LFID (sub) from the auth service.
-// Each unique email is looked up exactly once; concurrent lookups are bounded to 8 goroutines.
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
 // Misses (unknown email or lookup not found) leave the Username empty — convertPayloadUsersToModel
 // will then drop that entry, so unresolvable users are never persisted with a stale LFID.
 // Transport errors fail the request so incorrect LFIDs are never silently kept.
@@ -1069,6 +1068,13 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				}
 				return err
 			}
+			if sub == "" {
+				// Empty sub with no error is treated as not found — no valid LFID to persist.
+				mu.Lock()
+				results[email] = ""
+				mu.Unlock()
+				return nil
+			}
 			mu.Lock()
 			results[email] = sub
 			mu.Unlock()
@@ -1089,6 +1095,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	return nil
 }
 
+// NewCommitteeService returns the committee-service service implementation with dependencies.
 func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
