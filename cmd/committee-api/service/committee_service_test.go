@@ -20,21 +20,36 @@ import (
 )
 
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailByPrincipal maps principal → primary email.
+// EmailByPrincipal maps principal → primary email; subs maps email → LFID sub.
 type mockUserReader struct {
-	emails map[string]string
+	emails map[string]string // principal → primary email (for EmailsByPrincipal)
+	subs   map[string]string // email → sub/LFID (for SubByEmail)
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
-	m := &mockUserReader{emails: make(map[string]string)}
+	m := &mockUserReader{
+		emails: make(map[string]string),
+		subs:   make(map[string]string),
+	}
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m.emails[pairs[i]] = pairs[i+1]
 	}
 	return m
 }
 
+// withSubs returns a copy of the mock with email→sub mappings configured.
+func (m *mockUserReader) withSubs(pairs ...string) *mockUserReader {
+	for i := 0; i+1 < len(pairs); i += 2 {
+		m.subs[pairs[i]] = pairs[i+1]
+	}
+	return m
+}
+
 func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, error) {
-	return "", nil
+	if sub, ok := m.subs[email]; ok {
+		return sub, nil
+	}
+	return "", errs.NewNotFound("mock: sub not found for email: " + email)
 }
 
 func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
@@ -1643,3 +1658,116 @@ func TestUploadCommitteeDocument_FolderUID(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
+	basePayload := func() *committeeservice.UpdateCommitteeSettingsPayload {
+		return &committeeservice.UpdateCommitteeSettingsPayload{
+			UID:     strPtr("committee-uid-1"),
+			IfMatch: strPtr("1"),
+		}
+	}
+
+	tests := []struct {
+		name     string
+		payload  func() *committeeservice.UpdateCommitteeSettingsPayload
+		subs     []string // email, sub pairs
+		wantErr  bool
+		validate func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload)
+	}{
+		{
+			name: "caller-supplied username replaced with resolved LFID",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("UNTRUSTED"), Email: strPtr("alice@example.com"), Name: strPtr("Alice")},
+				}
+				return p
+			},
+			subs: []string{"alice@example.com", "alice-lfid"},
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Writers, 1)
+				assert.Equal(t, "alice-lfid", *p.Writers[0].Username)
+			},
+		},
+		{
+			name: "unknown email — username cleared, entry dropped from converter",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("ghost"), Email: strPtr("ghost@example.com"), Name: strPtr("Ghost")},
+				}
+				return p
+			},
+			// no subs configured → NotFound → username cleared
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Writers, 1)
+				assert.Equal(t, "", *p.Writers[0].Username)
+			},
+		},
+		{
+			name: "missing email — entry untouched (username stays as provided)",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Auditors = []*committeeservice.CommitteeUser{
+					{Username: strPtr("bob"), Name: strPtr("Bob")}, // no email
+				}
+				return p
+			},
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Auditors, 1)
+				// no email means we skip lookup; Username stays whatever caller sent
+				assert.Equal(t, "bob", *p.Auditors[0].Username)
+			},
+		},
+		{
+			name: "duplicate email across roles — looked up once, applied to both",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("bad1"), Email: strPtr("carol@example.com"), Name: strPtr("Carol W")},
+				}
+				p.Auditors = []*committeeservice.CommitteeUser{
+					{Username: strPtr("bad2"), Email: strPtr("carol@example.com"), Name: strPtr("Carol A")},
+				}
+				return p
+			},
+			subs: []string{"carol@example.com", "carol-lfid"},
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				assert.Equal(t, "carol-lfid", *p.Writers[0].Username)
+				assert.Equal(t, "carol-lfid", *p.Auditors[0].Username)
+			},
+		},
+		{
+			name: "email case-normalised before lookup",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("x"), Email: strPtr("  Dave@Example.COM  "), Name: strPtr("Dave")},
+				}
+				return p
+			},
+			subs: []string{"dave@example.com", "dave-lfid"},
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				assert.Equal(t, "dave-lfid", *p.Writers[0].Username)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _ := setupServiceTest()
+			reader := newMockUserReader().withSubs(tt.subs...)
+			svc.userReader = reader
+			p := tt.payload()
+			err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.validate != nil {
+					tt.validate(t, svc, p)
+				}
+			}
+		})
+	}
+}
