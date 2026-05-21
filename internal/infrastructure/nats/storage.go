@@ -619,10 +619,16 @@ func (s *storage) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID strin
 	return string(entry.Value()), nil
 }
 
-// IndexSettingsInvite creates or overwrites the secondary index entry mapping invite_uid → committee_uid.
+// IndexSettingsInvite writes the secondary index entry mapping invite_uid → committee_uid.
+// It uses Create (write-if-absent) so an accidental invite UID collision from the invite
+// service surfaces as an explicit error rather than silently overwriting a valid mapping.
 func (s *storage) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
 	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
-	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Put(ctx, key, []byte(committeeUID)); err != nil {
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Create(ctx, key, []byte(committeeUID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			// Mapping already present — idempotent; treat as success.
+			return nil
+		}
 		return errs.NewUnexpected("failed to index settings invite", err)
 	}
 	return nil

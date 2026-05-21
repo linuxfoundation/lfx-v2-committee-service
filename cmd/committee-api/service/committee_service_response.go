@@ -672,8 +672,8 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser, existin
 		if u == nil {
 			continue
 		}
-		hasUsername := u.Username != nil && *u.Username != ""
-		hasEmail := u.Email != nil && *u.Email != ""
+		hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+		hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
 		if !hasUsername && !hasEmail {
 			continue
 		}
@@ -703,8 +703,8 @@ func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser, existin
 // userIdentityKey returns a normalized identity key for matching users across lists.
 // LFID users are keyed by username; non-LFID users fall back to lowercased-trimmed email.
 func userIdentityKey(username, email string) string {
-	if username != "" {
-		return "username:" + username
+	if u := strings.TrimSpace(username); u != "" {
+		return "username:" + strings.ToLower(u)
 	}
 	if e := strings.ToLower(strings.TrimSpace(email)); e != "" {
 		return "email:" + e
