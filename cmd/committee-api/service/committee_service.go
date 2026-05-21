@@ -1022,10 +1022,18 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 
 	for _, slice := range slices {
 		for _, u := range slice {
-			if u == nil || u.Email == nil || *u.Email == "" {
-				continue // no email — leave username as-is; converter will skip empty-username entries
+			if u == nil {
+				continue
 			}
-			normEmail := strings.ToLower(strings.TrimSpace(*u.Email))
+			normEmail := ""
+			if u.Email != nil {
+				normEmail = strings.ToLower(strings.TrimSpace(*u.Email))
+			}
+			if normEmail == "" {
+				empty := ""
+				u.Username = &empty
+				continue
+			}
 			eg := byEmail[normEmail]
 			if eg == nil {
 				eg = &group{}
