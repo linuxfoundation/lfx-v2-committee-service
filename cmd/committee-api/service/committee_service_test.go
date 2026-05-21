@@ -1691,7 +1691,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "unknown email — username cleared, entry dropped from converter",
+			name: "unknown email — username cleared, stale LFID not persisted",
 			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
 				p := basePayload()
 				p.Writers = []*committeeservice.CommitteeUser{
@@ -1699,7 +1699,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			// no subs configured → NotFound → username cleared
+			// no subs configured → NotFound → Username cleared; entry kept (converter only drops when both username and email are empty)
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Writers, 1)
 				assert.Equal(t, "", *p.Writers[0].Username)

@@ -1012,8 +1012,9 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 // enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
 // slices with the authoritative LFID (sub) from the auth service.
 // Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
-// Misses (unknown email or lookup not found) leave the Username empty — convertPayloadUsersToModel
-// will then drop that entry, so unresolvable users are never persisted with a stale LFID.
+// Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
+// The entry itself is kept by convertPayloadUsersToModel (it only drops entries where both username
+// and email are empty), so an unresolvable user remains in the stored record email-only.
 // Transport errors fail the request so incorrect LFIDs are never silently kept.
 func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
 	if s.userReader == nil {
