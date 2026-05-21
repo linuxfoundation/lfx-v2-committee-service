@@ -29,6 +29,11 @@ const (
 	// KVLookupInvitePrefix is the prefix for invite lookup keys in the KV store.
 	KVLookupInvitePrefix = "lookup/committee-invites/%s"
 
+	// KVLookupSettingsInvitePrefix is the secondary index that maps an invite UID to the
+	// committee settings UID that contains that invite, stored in the committee-settings bucket.
+	// Key: "lookup/committee-settings-invite/<invite_uid>", Value: <committee_uid>
+	KVLookupSettingsInvitePrefix = "lookup/committee-settings-invite/%s"
+
 	// KVLookupApplicationPrefix is the prefix for application lookup keys in the KV store.
 	KVLookupApplicationPrefix = "lookup/committee-applications/%s"
 

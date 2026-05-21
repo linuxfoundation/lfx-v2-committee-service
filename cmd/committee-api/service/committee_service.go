@@ -212,13 +212,19 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Validate that every writer/auditor entry has a username
+	// Validate that every writer/auditor entry is identifiable (username or email)
 	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
-	// Convert payload to domain model
-	settings := s.convertPayloadToUpdateSettings(p)
+	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
+	if errGet != nil {
+		return nil, wrapError(ctx, errGet)
+	}
+
+	// Convert payload to domain model, seeding each user from the existing record.
+	settings := s.convertPayloadToUpdateSettings(p, existingSettings)
 
 	// Execute use case
 	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision, p.XSync)
@@ -873,16 +879,25 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
 // validateSettingsUsers returns a validation error if any entry in writers or
-// auditors is missing a username, since username is required for access control.
+// auditors has neither a username nor an email, since at least one is needed to
+// identify the user (LFID users by username, non-LFID users by email).
 func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
+	hasIdentity := func(u *committeeservice.CommitteeUser) bool {
+		if u == nil {
+			return false
+		}
+		hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+		hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
+		return hasUsername || hasEmail
+	}
 	for i, u := range writers {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("writers[%d]: username is required", i))
+		if !hasIdentity(u) {
+			return errors.NewValidation(fmt.Sprintf("writers[%d]: username or email is required", i))
 		}
 	}
 	for i, u := range auditors {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username is required", i))
+		if !hasIdentity(u) {
+			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username or email is required", i))
 		}
 	}
 	return nil

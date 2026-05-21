@@ -28,4 +28,8 @@ type CommitteeBaseReader interface {
 // CommitteeSettingsReader handles committee settings reading operations
 type CommitteeSettingsReader interface {
 	GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error)
+	// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the
+	// secondary index written at invite-send time. Returns NotFound if the invite is not tracked
+	// by this service.
+	GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error)
 }
