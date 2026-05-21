@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+	"golang.org/x/sync/errgroup"
 
 	"goa.design/goa/v3/security"
 )
@@ -66,6 +68,11 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		"name", p.Name,
 		"x_sync", p.XSync,
 	)
+
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
@@ -212,8 +219,8 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Validate that every writer/auditor entry has a username
-	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
@@ -872,22 +879,6 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
-// validateSettingsUsers returns a validation error if any entry in writers or
-// auditors is missing a username, since username is required for access control.
-func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
-	for i, u := range writers {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("writers[%d]: username is required", i))
-		}
-	}
-	for i, u := range auditors {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username is required", i))
-		}
-	}
-	return nil
-}
-
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1013,6 +1004,83 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
+// enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
+// slices with the authoritative LFID (sub) from the auth service.
+// Each unique email is looked up exactly once; concurrent lookups are bounded to 8 goroutines.
+// Misses (unknown email or lookup not found) leave the Username empty — convertPayloadUsersToModel
+// will then drop that entry, so unresolvable users are never persisted with a stale LFID.
+// Transport errors fail the request so incorrect LFIDs are never silently kept.
+func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
+	if s.userReader == nil {
+		return errors.NewServiceUnavailable("user reader is not configured")
+	}
+
+	type group struct {
+		users []*committeeservice.CommitteeUser
+	}
+	byEmail := make(map[string]*group)
+
+	for _, slice := range slices {
+		for _, u := range slice {
+			if u == nil || u.Email == nil || *u.Email == "" {
+				continue // no email — leave username as-is; converter will skip empty-username entries
+			}
+			normEmail := strings.ToLower(strings.TrimSpace(*u.Email))
+			eg := byEmail[normEmail]
+			if eg == nil {
+				eg = &group{}
+				byEmail[normEmail] = eg
+			}
+			eg.users = append(eg.users, u)
+		}
+	}
+
+	if len(byEmail) == 0 {
+		return nil
+	}
+
+	results := make(map[string]string, len(byEmail))
+	var mu sync.Mutex
+	const maxConcurrent = 8
+	g, gCtx := errgroup.WithContext(ctx)
+	sem := make(chan struct{}, maxConcurrent)
+
+	for email := range byEmail {
+		email := email
+		g.Go(func() error {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			sub, err := s.userReader.SubByEmail(gCtx, email)
+			if err != nil {
+				var notFound errors.NotFound
+				if stderrors.As(err, &notFound) {
+					mu.Lock()
+					results[email] = ""
+					mu.Unlock()
+					return nil
+				}
+				return err
+			}
+			mu.Lock()
+			results[email] = sub
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return errors.NewUnexpected("enriching committee user role fields failed", err)
+	}
+
+	for email, eg := range byEmail {
+		sub := results[email]
+		for _, u := range eg.users {
+			u.Username = &sub
+		}
+	}
+	return nil
+}
+
 func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
