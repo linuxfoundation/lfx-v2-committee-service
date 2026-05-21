@@ -129,56 +129,6 @@ build-cli: ## Build the committee-cli binary for local OS
 	@echo "Building committee-cli for local development..."
 	go build -o bin/committee-cli ./cmd/committee-cli
 
-##@ Local Development
-
-.PHONY: local-up local-down nats-setup local-setup
-
-local-up: ## Start local infrastructure (NATS via Docker Compose)
-	docker compose up -d
-
-local-down: ## Stop local infrastructure
-	docker compose down
-
-nats-setup: ## Create NATS streams, consumers, and KV buckets for local development
-	@which nats >/dev/null 2>&1 || { \
-		echo "Error: nats CLI is not installed."; \
-		echo "Install it first: https://docs.nats.io/using-nats/nats-tools/nats_cli"; \
-		exit 1; \
-	}
-	@echo "Creating KV buckets..."
-	@nats kv add committees             --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
-	@nats kv add committee-settings     --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
-	@nats kv add committee-members      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
-	@nats kv add committee-invites      --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
-	@nats kv add committee-applications --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824 || true
-	@nats kv add committee-links        --history=20 --storage=file || true
-	@nats kv add committee-folders      --history=20 --storage=file || true
-	@nats kv add committee-documents-metadata --history=20 --storage=file || true
-	@echo "Creating object store..."
-	@nats object add committee-documents --storage=file || true
-	@echo "Creating JetStream stream..."
-	@nats stream add committee-member-events \
-		--subjects="lfx.committee-api.committee_member.*" \
-		--retention=limits \
-		--max-age=24h \
-		--compression=s2 \
-		--replicas=1 \
-		--storage=file \
-		--defaults || true
-	@echo "Creating consumer..."
-	@nats consumer add committee-member-events committee-service-total-members \
-		--filter="lfx.committee-api.committee_member.created" \
-		--filter="lfx.committee-api.committee_member.deleted" \
-		--ack=explicit \
-		--deliver=all \
-		--max-deliver=3 \
-		--ack-wait=30s \
-		--durable=committee-service-total-members \
-		--defaults || true
-	@echo "NATS setup complete."
-
-local-setup: local-up nats-setup ## Start local infrastructure and provision NATS (run once after cloning)
-
 ##@ Docker
 
 .PHONY: docker-build
