@@ -11,6 +11,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // MessageHandlerService handles NATS messages using the service layer
@@ -32,6 +33,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeUpdatedSubject:            mhs.handleCommitteeUpdated,
 		constants.CommitteeMemberCreatedSubject:      mhs.handleCommitteeMemberCreated,
 		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
+		inviteapi.InviteAcceptedSubject:              mhs.handleInviteAccepted,
 	}
 
 	handler, ok := handlers[subject]
@@ -87,6 +89,10 @@ func (mhs *MessageHandlerService) handleCommitteeMemberCreated(ctx context.Conte
 
 func (mhs *MessageHandlerService) handleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeSettingsUpdated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleInviteAccepted(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
