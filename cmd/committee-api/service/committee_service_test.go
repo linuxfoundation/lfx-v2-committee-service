@@ -1668,11 +1668,12 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		payload  func() *committeeservice.UpdateCommitteeSettingsPayload
-		subs     []string // email, sub pairs
-		wantErr  bool
-		validate func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload)
+		name         string
+		payload      func() *committeeservice.UpdateCommitteeSettingsPayload
+		subs         []string // email, sub pairs
+		useErrReader bool     // use errUserReader (transport error) instead of mockUserReader
+		wantErr      bool
+		validate     func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload)
 	}{
 		{
 			name: "caller-supplied username replaced with resolved LFID",
@@ -1760,16 +1761,15 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			// no subs configured → mockUserReader returns NotFound, which is not a transport error
-			// so we use a custom reader that returns a real error
-			wantErr: true,
+			useErrReader: true,
+			wantErr:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _ := setupServiceTest()
-			if tt.name == "transport error from SubByEmail fails the request" {
+			if tt.useErrReader {
 				svc.userReader = &errUserReader{}
 			} else {
 				reader := newMockUserReader().withSubs(tt.subs...)
