@@ -1143,13 +1143,16 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	for email, users := range byEmail {
 		r := results[email]
 		for _, u := range users {
-			u.Username = &r.sub
+			sub := r.sub
+			u.Username = &sub
 			if r.metadata != nil {
 				if r.metadata.Name != "" {
-					u.Name = &r.metadata.Name
+					name := r.metadata.Name
+					u.Name = &name
 				}
 				if r.metadata.Picture != "" {
-					u.Avatar = &r.metadata.Picture
+					picture := r.metadata.Picture
+					u.Avatar = &picture
 				}
 			}
 		}
