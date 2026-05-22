@@ -1728,18 +1728,18 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "missing email — username cleared (untrusted caller LFID not kept)",
+			name: "missing email — username kept as-is (username-only entry is valid)",
 			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
 				p := basePayload()
 				p.Auditors = []*committeeservice.CommitteeUser{
-					{Username: strPtr("bob"), Name: strPtr("Bob")}, // no email
+					{Username: strPtr("bob"), Name: strPtr("Bob")}, // no email — username preserved
 				}
 				return p
 			},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Auditors, 1)
-				// no email → Username cleared to ""; email is also absent so converter drops the entry (both identity fields empty)
-				assert.Equal(t, "", *p.Auditors[0].Username)
+				// no email → enrichAllRoleFields skips; username is left untouched
+				assert.Equal(t, "bob", *p.Auditors[0].Username)
 			},
 		},
 		{
@@ -1893,27 +1893,24 @@ func (e *errUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*m
 }
 
 // TestUpdateCommitteeSettings_LFIDOnlyEntry verifies that passing a CommitteeUser with only a
-// caller-supplied Username (no email) through the full UpdateCommitteeSettings path results in
-// a 400 error. enrichAllRoleFields clears the untrusted Username to "" (no email to look up),
-// and validateIdentityFields then rejects the now-empty entry.
+// caller-supplied Username (no email) is accepted by enrichAllRoleFields — the username is left
+// untouched and validateIdentityFields allows it through.
 func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
 	svc, _ := setupServiceTest()
 	svc.userReader = newMockUserReader()
 
-	p := &committeeservice.UpdateCommitteeSettingsPayload{
-		UID:     strPtr("committee-uid-1"),
-		IfMatch: strPtr("1"),
-		Writers: []*committeeservice.CommitteeUser{
-			{Username: strPtr("alice-lfid")}, // no email — untrusted LFID only
-		},
+	writers := []*committeeservice.CommitteeUser{
+		{Username: strPtr("project_super_admin")}, // no email — username-only is valid
 	}
 
-	_, err := svc.UpdateCommitteeSettings(context.Background(), p)
+	err := svc.enrichAllRoleFields(context.Background(), writers)
+	require.NoError(t, err, "username-only entry should not cause enrichment to fail")
 
-	require.Error(t, err)
-	var badReq *committeeservice.BadRequestError
-	require.ErrorAs(t, err, &badReq, "expected 400 bad request for LFID-only entry")
-	assert.Contains(t, badReq.Message, "username or email is required")
+	require.NotNil(t, writers[0].Username)
+	assert.Equal(t, "project_super_admin", *writers[0].Username, "username should be left untouched")
+
+	err = validateIdentityFields(writers, nil)
+	require.NoError(t, err, "username-only entry should pass validateIdentityFields")
 }
 
 func TestEnrichMember(t *testing.T) {
