@@ -1120,7 +1120,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
 			if metaErr != nil {
 				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
-					"email", email, "sub", sub, "error", metaErr)
+					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
 			} else {
 				meta = m
 			}
