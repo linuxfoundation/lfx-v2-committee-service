@@ -1030,7 +1030,8 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 
 // validateIdentityFields returns a validation error if any writer or auditor entry has
 // neither a username nor an email address, since such entries cannot be resolved or stored.
-// Email-only entries are allowed — the username will have been filled in by enrichAllRoleFields.
+// Email-only entries are allowed — enrichAllRoleFields may fill in the username if the email
+// resolves, but an entry is still valid even when the email is unresolvable (Username stays "").
 // Username-only entries (no email) are allowed — the caller-supplied LFID is persisted as-is.
 func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
 	check := func(role string, users []*committeeservice.CommitteeUser) error {
@@ -1172,7 +1173,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
-	if s.userReader == nil || member.Username != "" {
+	if s.userReader == nil || strings.TrimSpace(member.Username) != "" {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))
@@ -1180,6 +1181,9 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 		return
 	}
 
+	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
+	// failing the request. Individual member writes (create/update/approve) should not be blocked
+	// by a transient auth-service outage — the member is stored without an enriched LFID.
 	sub, err := s.userReader.SubByEmail(ctx, email)
 	if err != nil {
 		var notFound errors.NotFound
