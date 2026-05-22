@@ -1228,7 +1228,7 @@ func classifyCommitteeUsers(old, new *model.CommitteeSettings) []committeeUserRo
 	newSet := buildRoleSet(new)
 
 	// Collect all user keys that appear in either old or new.
-	allKeys := make(map[string]bool, len(oldSet)+len(newSet))
+	allKeys := make(map[string]bool)
 	for k := range oldSet {
 		allKeys[k] = true
 	}
