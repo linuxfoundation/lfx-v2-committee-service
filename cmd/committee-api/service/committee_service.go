@@ -1045,10 +1045,11 @@ func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser)
 
 // enrichAllRoleFields overwrites the Username, Name, and Avatar fields on every CommitteeUser
 // across all supplied slices with authoritative values from the auth service.
-// Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently.
 // Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
-// The entry itself is kept by convertPayloadUsersToModel (it only drops entries where both username
-// and email are empty), so an unresolvable user remains in the stored record email-only.
+// NOTE: entries that have only a caller-supplied Username and no Email are treated as unresolvable:
+// Username is cleared to "", and the subsequent validateIdentityFields call will return 400.
+// This is a deliberate security trade-off — caller-supplied LFIDs are untrusted.
 // Username transport errors fail the request so incorrect LFIDs are never silently kept.
 // Metadata (name/avatar) errors only log a warning; display fields do not block the write.
 func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
@@ -1056,10 +1057,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	type group struct {
-		users []*committeeservice.CommitteeUser
-	}
-	byEmail := make(map[string]*group)
+	byEmail := make(map[string][]*committeeservice.CommitteeUser)
 
 	for _, slice := range slices {
 		for _, u := range slice {
@@ -1075,12 +1073,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				u.Username = &empty
 				continue
 			}
-			eg := byEmail[normEmail]
-			if eg == nil {
-				eg = &group{}
-				byEmail[normEmail] = eg
-			}
-			eg.users = append(eg.users, u)
+			byEmail[normEmail] = append(byEmail[normEmail], u)
 		}
 	}
 
@@ -1098,12 +1091,10 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	var mu sync.Mutex
 	const maxConcurrent = 8
 	g, gCtx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, maxConcurrent)
+	g.SetLimit(maxConcurrent)
 
 	for email := range byEmail {
 		g.Go(func() error {
-			sem <- struct{}{}
-			defer func() { <-sem }()
 			sub, err := s.userReader.SubByEmail(gCtx, email)
 			if err != nil {
 				var notFound errors.NotFound
@@ -1149,9 +1140,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
 	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
 	// not currently model; they are fetched now so the domain struct is complete for future callers.
-	for email, eg := range byEmail {
+	for email, users := range byEmail {
 		r := results[email]
-		for _, u := range eg.users {
+		for _, u := range users {
 			u.Username = &r.sub
 			if r.metadata != nil {
 				if r.metadata.Name != "" {
