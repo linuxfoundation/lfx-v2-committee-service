@@ -123,15 +123,49 @@ func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal 
 		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
 	}
 
+	d := response.Data
 	result := &model.UserMetadata{}
-	if response.Data.Name != nil {
-		result.Name = *response.Data.Name
+	if d.Picture != nil {
+		result.Picture = *d.Picture
 	}
-	if response.Data.GivenName != nil {
-		result.GivenName = *response.Data.GivenName
+	if d.Zoneinfo != nil {
+		result.Zoneinfo = *d.Zoneinfo
 	}
-	if response.Data.FamilyName != nil {
-		result.FamilyName = *response.Data.FamilyName
+	if d.Name != nil {
+		result.Name = *d.Name
+	}
+	if d.GivenName != nil {
+		result.GivenName = *d.GivenName
+	}
+	if d.FamilyName != nil {
+		result.FamilyName = *d.FamilyName
+	}
+	if d.JobTitle != nil {
+		result.JobTitle = *d.JobTitle
+	}
+	if d.Organization != nil {
+		result.Organization = *d.Organization
+	}
+	if d.Country != nil {
+		result.Country = *d.Country
+	}
+	if d.StateProvince != nil {
+		result.StateProvince = *d.StateProvince
+	}
+	if d.City != nil {
+		result.City = *d.City
+	}
+	if d.Address != nil {
+		result.Address = *d.Address
+	}
+	if d.PostalCode != nil {
+		result.PostalCode = *d.PostalCode
+	}
+	if d.PhoneNumber != nil {
+		result.PhoneNumber = *d.PhoneNumber
+	}
+	if d.TShirtSize != nil {
+		result.TShirtSize = *d.TShirtSize
 	}
 	return result, nil
 }

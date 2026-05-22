@@ -17,7 +17,18 @@ type AlternateEmail struct {
 
 // UserMetadata holds profile information for a user returned by the auth service.
 type UserMetadata struct {
-	Name       string
-	GivenName  string
-	FamilyName string
+	Picture       string
+	Zoneinfo      string
+	Name          string
+	GivenName     string
+	FamilyName    string
+	JobTitle      string
+	Organization  string
+	Country       string
+	StateProvince string
+	City          string
+	Address       string
+	PostalCode    string
+	PhoneNumber   string
+	TShirtSize    string
 }

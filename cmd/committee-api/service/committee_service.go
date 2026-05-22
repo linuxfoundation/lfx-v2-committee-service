@@ -74,8 +74,7 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		return nil, wrapError(ctx, err)
 	}
 
-	// Reject entries that have neither a username nor an email — these are unresolvable and
-	// would be silently dropped by the converter, which violates the previous API contract.
+	// After enrichment, every entry must have at least an email or a resolved username.
 	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -230,8 +229,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Reject entries that have neither a username nor an email — these are unresolvable and
-	// would be silently dropped by the converter, which violates the previous API contract.
+	// After enrichment, every entry must have at least an email or a resolved username.
 	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -268,6 +266,9 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, request)
 
 	// Execute use case
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
@@ -332,6 +333,9 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, committeeMember)
 
 	// Execute use case
 	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
@@ -735,6 +739,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		},
 	}
 
+	// Resolve username and profile fields from the applicant's email.
+	s.enrichMember(ctx, member)
+
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -1023,6 +1030,9 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 
 // validateIdentityFields returns a validation error if any writer or auditor entry has
 // neither a username nor an email address, since such entries cannot be resolved or stored.
+// Email-only entries are allowed — enrichAllRoleFields may fill in the username if the email
+// resolves, but an entry is still valid even when the email is unresolvable (Username stays "").
+// Username-only entries (no email) are allowed — the caller-supplied LFID is persisted as-is.
 func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
 	check := func(role string, users []*committeeservice.CommitteeUser) error {
 		for i, u := range users {
@@ -1043,22 +1053,20 @@ func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser)
 	return check("auditors", auditors)
 }
 
-// enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
-// slices with the authoritative LFID (sub) from the auth service.
-// Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
+// enrichAllRoleFields overwrites the Username, Name, and Avatar fields on every CommitteeUser
+// across all supplied slices with authoritative values from the auth service.
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently.
 // Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
-// The entry itself is kept by convertPayloadUsersToModel (it only drops entries where both username
-// and email are empty), so an unresolvable user remains in the stored record email-only.
-// Transport errors fail the request so incorrect LFIDs are never silently kept.
+// Entries with only a caller-supplied Username and no Email are left untouched —
+// they pass through and are persisted as-is.
+// Username transport errors fail the request so incorrect LFIDs are never silently kept.
+// Metadata (name/avatar) errors only log a warning; display fields do not block the write.
 func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
 	if s.userReader == nil {
 		return errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	type group struct {
-		users []*committeeservice.CommitteeUser
-	}
-	byEmail := make(map[string]*group)
+	byEmail := make(map[string][]*committeeservice.CommitteeUser)
 
 	for _, slice := range slices {
 		for _, u := range slice {
@@ -1070,16 +1078,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				normEmail = strings.ToLower(strings.TrimSpace(*u.Email))
 			}
 			if normEmail == "" {
-				empty := ""
-				u.Username = &empty
 				continue
 			}
-			eg := byEmail[normEmail]
-			if eg == nil {
-				eg = &group{}
-				byEmail[normEmail] = eg
-			}
-			eg.users = append(eg.users, u)
+			byEmail[normEmail] = append(byEmail[normEmail], u)
 		}
 	}
 
@@ -1087,23 +1088,26 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return nil
 	}
 
-	results := make(map[string]string, len(byEmail))
+	// enrichResult holds the resolved identity and profile for one email address.
+	type enrichResult struct {
+		sub      string
+		metadata *model.UserMetadata
+	}
+
+	results := make(map[string]enrichResult, len(byEmail))
 	var mu sync.Mutex
 	const maxConcurrent = 8
 	g, gCtx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, maxConcurrent)
+	g.SetLimit(maxConcurrent)
 
 	for email := range byEmail {
-		email := email
 		g.Go(func() error {
-			sem <- struct{}{}
-			defer func() { <-sem }()
 			sub, err := s.userReader.SubByEmail(gCtx, email)
 			if err != nil {
 				var notFound errors.NotFound
 				if stderrors.As(err, &notFound) {
 					mu.Lock()
-					results[email] = ""
+					results[email] = enrichResult{}
 					mu.Unlock()
 					return nil
 				}
@@ -1112,12 +1116,24 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 			if sub == "" {
 				// Empty sub with no error is treated as not found — no valid LFID to persist.
 				mu.Lock()
-				results[email] = ""
+				results[email] = enrichResult{}
 				mu.Unlock()
 				return nil
 			}
+
+			// Sub resolved — now fetch authoritative profile data.
+			// Metadata failures are non-fatal: display fields must not block the write.
+			var meta *model.UserMetadata
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			if metaErr != nil {
+				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
+					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
+			} else {
+				meta = m
+			}
+
 			mu.Lock()
-			results[email] = sub
+			results[email] = enrichResult{sub: sub, metadata: meta}
 			mu.Unlock()
 			return nil
 		})
@@ -1127,13 +1143,76 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return errors.NewUnexpected("enriching committee user role fields failed", err)
 	}
 
-	for email, eg := range byEmail {
-		sub := results[email]
-		for _, u := range eg.users {
+	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
+	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
+	// not currently model; they are fetched now so the domain struct is complete for future callers.
+	for email, users := range byEmail {
+		r := results[email]
+		for _, u := range users {
+			sub := r.sub
 			u.Username = &sub
+			if r.metadata != nil {
+				if r.metadata.Name != "" {
+					name := r.metadata.Name
+					u.Name = &name
+				}
+				if r.metadata.Picture != "" {
+					picture := r.metadata.Picture
+					u.Avatar = &picture
+				}
+			}
 		}
 	}
 	return nil
+}
+
+// enrichMember resolves the LFID (username) and profile metadata for a member when only their
+// email is known (Username is empty). All lookups are best-effort: failures log a warning and
+// leave the field unchanged so the caller's write is never blocked by an enrichment error.
+// FirstName and LastName are only overwritten when the auth service returns a non-empty value
+// and the caller did not supply them, so caller-provided display names are preserved.
+func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
+	if s.userReader == nil || strings.TrimSpace(member.Username) != "" {
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(member.Email))
+	if email == "" {
+		return
+	}
+
+	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
+	// failing the request. Individual member writes (create/update/approve) should not be blocked
+	// by a transient auth-service outage — the member is stored without an enriched LFID.
+	sub, err := s.userReader.SubByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed; member will be stored without LFID",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return
+	}
+	if sub == "" {
+		return
+	}
+	member.Username = sub
+
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	if metaErr != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
+			"sub", redaction.Redact(sub), "error", metaErr)
+		return
+	}
+	if meta == nil {
+		return
+	}
+	if member.FirstName == "" && meta.GivenName != "" {
+		member.FirstName = meta.GivenName
+	}
+	if member.LastName == "" && meta.FamilyName != "" {
+		member.LastName = meta.FamilyName
+	}
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
