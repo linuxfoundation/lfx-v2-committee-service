@@ -269,6 +269,9 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
 
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, request)
+
 	// Execute use case
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
 	if err != nil {
@@ -332,6 +335,9 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, committeeMember)
 
 	// Execute use case
 	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
@@ -734,6 +740,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 			Status:       "Active",
 		},
 	}
+
+	// Resolve username and profile fields from the applicant's email.
+	s.enrichMember(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
@@ -1158,6 +1167,51 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		}
 	}
 	return nil
+}
+
+// enrichMember resolves the LFID (username) and profile metadata for a member when only their
+// email is known (Username is empty). All lookups are best-effort: failures log a warning and
+// leave the field unchanged so the caller's write is never blocked by an enrichment error.
+// FirstName and LastName are only overwritten when the auth service returns a non-empty value
+// and the caller did not supply them, so caller-provided display names are preserved.
+func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
+	if s.userReader == nil || member.Username != "" {
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(member.Email))
+	if email == "" {
+		return
+	}
+
+	sub, err := s.userReader.SubByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed; member will be stored without LFID",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return
+	}
+	if sub == "" {
+		return
+	}
+	member.Username = sub
+
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	if metaErr != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
+			"sub", redaction.Redact(sub), "error", metaErr)
+		return
+	}
+	if meta == nil {
+		return
+	}
+	if member.FirstName == "" && meta.GivenName != "" {
+		member.FirstName = meta.GivenName
+	}
+	if member.LastName == "" && meta.FamilyName != "" {
+		member.LastName = meta.FamilyName
+	}
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.

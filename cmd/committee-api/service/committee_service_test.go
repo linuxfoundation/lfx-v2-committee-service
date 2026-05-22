@@ -1916,6 +1916,135 @@ func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
 	assert.Contains(t, badReq.Message, "username or email is required")
 }
 
+func TestEnrichMember(t *testing.T) {
+	tests := []struct {
+		name        string
+		member      func() *model.CommitteeMember
+		setupReader func(r *mockUserReader)
+		validate    func(t *testing.T, m *model.CommitteeMember)
+	}{
+		{
+			name: "email-only — username resolved and profile enriched",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email: "alice@example.com",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withSubs("alice@example.com", "alice-lfid")
+				r.withMetadata("alice-lfid", &model.UserMetadata{
+					GivenName:  "Alice",
+					FamilyName: "Smith",
+				})
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "alice-lfid", m.Username)
+				assert.Equal(t, "Alice", m.FirstName)
+				assert.Equal(t, "Smith", m.LastName)
+			},
+		},
+		{
+			name: "username already set — skipped entirely",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email:    "alice@example.com",
+						Username: "existing-lfid",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withSubs("alice@example.com", "other-lfid")
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "existing-lfid", m.Username)
+			},
+		},
+		{
+			name: "email not found — username stays empty, no error",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email: "ghost@example.com",
+					},
+				}
+			},
+			// no subs configured → SubByEmail returns NotFound
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Empty(t, m.Username)
+				assert.Empty(t, m.FirstName)
+			},
+		},
+		{
+			name: "caller-supplied FirstName preserved when metadata also has name",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email:     "bob@example.com",
+						FirstName: "Bobby",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withSubs("bob@example.com", "bob-lfid")
+				r.withMetadata("bob-lfid", &model.UserMetadata{
+					GivenName:  "Robert",
+					FamilyName: "Jones",
+				})
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "bob-lfid", m.Username)
+				assert.Equal(t, "Bobby", m.FirstName) // caller value preserved
+				assert.Equal(t, "Jones", m.LastName)  // auth value set (was empty)
+			},
+		},
+		{
+			name: "metadata lookup fails — username still set, profile unchanged",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email: "carol@example.com",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withSubs("carol@example.com", "carol-lfid")
+				r.withMetadataErr(errs.NewUnexpected("nats: metadata timeout"))
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "carol-lfid", m.Username)
+				assert.Empty(t, m.FirstName)
+				assert.Empty(t, m.LastName)
+			},
+		},
+		{
+			name: "empty email — nothing happens",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{}
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Empty(t, m.Username)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _ := setupServiceTest()
+			reader := newMockUserReader()
+			if tt.setupReader != nil {
+				tt.setupReader(reader)
+			}
+			svc.userReader = reader
+			m := tt.member()
+			svc.enrichMember(context.Background(), m)
+			tt.validate(t, m)
+		})
+	}
+}
+
 func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
 	svc, _ := setupServiceTest()
 	svc.userReader = nil
