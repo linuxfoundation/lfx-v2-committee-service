@@ -1872,6 +1872,30 @@ func (e *errUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*m
 	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
+// TestUpdateCommitteeSettings_LFIDOnlyEntry verifies that passing a CommitteeUser with only a
+// caller-supplied Username (no email) through the full UpdateCommitteeSettings path results in
+// a 400 error. enrichAllRoleFields clears the untrusted Username to "" (no email to look up),
+// and validateIdentityFields then rejects the now-empty entry.
+func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
+	svc, _ := setupServiceTest()
+	svc.userReader = newMockUserReader()
+
+	p := &committeeservice.UpdateCommitteeSettingsPayload{
+		UID:     strPtr("committee-uid-1"),
+		IfMatch: strPtr("1"),
+		Writers: []*committeeservice.CommitteeUser{
+			{Username: strPtr("alice-lfid")}, // no email — untrusted LFID only
+		},
+	}
+
+	_, err := svc.UpdateCommitteeSettings(context.Background(), p)
+
+	require.Error(t, err)
+	var badReq *committeeservice.BadRequestError
+	require.ErrorAs(t, err, &badReq, "expected 400 bad request for LFID-only entry")
+	assert.Contains(t, badReq.Message, "username or email is required")
+}
+
 func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
 	svc, _ := setupServiceTest()
 	svc.userReader = nil
