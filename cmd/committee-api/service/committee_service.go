@@ -1043,13 +1043,14 @@ func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser)
 	return check("auditors", auditors)
 }
 
-// enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
-// slices with the authoritative LFID (sub) from the auth service.
+// enrichAllRoleFields overwrites the Username, Name, and Avatar fields on every CommitteeUser
+// across all supplied slices with authoritative values from the auth service.
 // Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
 // Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
 // The entry itself is kept by convertPayloadUsersToModel (it only drops entries where both username
 // and email are empty), so an unresolvable user remains in the stored record email-only.
-// Transport errors fail the request so incorrect LFIDs are never silently kept.
+// Username transport errors fail the request so incorrect LFIDs are never silently kept.
+// Metadata (name/avatar) errors only log a warning; display fields do not block the write.
 func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
 	if s.userReader == nil {
 		return errors.NewServiceUnavailable("user reader is not configured")
@@ -1087,14 +1088,19 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return nil
 	}
 
-	results := make(map[string]string, len(byEmail))
+	// enrichResult holds the resolved identity and profile for one email address.
+	type enrichResult struct {
+		sub      string
+		metadata *model.UserMetadata
+	}
+
+	results := make(map[string]enrichResult, len(byEmail))
 	var mu sync.Mutex
 	const maxConcurrent = 8
 	g, gCtx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, maxConcurrent)
 
 	for email := range byEmail {
-		email := email
 		g.Go(func() error {
 			sem <- struct{}{}
 			defer func() { <-sem }()
@@ -1103,7 +1109,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				var notFound errors.NotFound
 				if stderrors.As(err, &notFound) {
 					mu.Lock()
-					results[email] = ""
+					results[email] = enrichResult{}
 					mu.Unlock()
 					return nil
 				}
@@ -1112,12 +1118,24 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 			if sub == "" {
 				// Empty sub with no error is treated as not found — no valid LFID to persist.
 				mu.Lock()
-				results[email] = ""
+				results[email] = enrichResult{}
 				mu.Unlock()
 				return nil
 			}
+
+			// Sub resolved — now fetch authoritative profile data.
+			// Metadata failures are non-fatal: display fields must not block the write.
+			var meta *model.UserMetadata
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			if metaErr != nil {
+				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
+					"email", email, "sub", sub, "error", metaErr)
+			} else {
+				meta = m
+			}
+
 			mu.Lock()
-			results[email] = sub
+			results[email] = enrichResult{sub: sub, metadata: meta}
 			mu.Unlock()
 			return nil
 		})
@@ -1127,10 +1145,22 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return errors.NewUnexpected("enriching committee user role fields failed", err)
 	}
 
+	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
+	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
+	// not currently model; they are fetched now so the domain struct is complete for future callers.
 	for email, eg := range byEmail {
-		sub := results[email]
+		r := results[email]
 		for _, u := range eg.users {
-			u.Username = &sub
+			u.Username = &r.sub
+			if r.metadata != nil {
+				if r.metadata.Name != "" {
+					u.Name = &r.metadata.Name
+				}
+				if r.metadata.Picture != "" {
+					u.Avatar = &r.metadata.Picture
+				}
+			}
 		}
 	}
 	return nil

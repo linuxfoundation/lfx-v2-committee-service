@@ -70,9 +70,20 @@ type UserMetadataNATSResponse struct {
 
 // UserMetadataNATSDataBody holds the profile fields from the auth-service user_metadata response
 type UserMetadataNATSDataBody struct {
-	Name       *string `json:"name,omitempty"`
-	GivenName  *string `json:"given_name,omitempty"`
-	FamilyName *string `json:"family_name,omitempty"`
+	Picture       *string `json:"picture,omitempty"`
+	Zoneinfo      *string `json:"zoneinfo,omitempty"`
+	Name          *string `json:"name,omitempty"`
+	GivenName     *string `json:"given_name,omitempty"`
+	FamilyName    *string `json:"family_name,omitempty"`
+	JobTitle      *string `json:"job_title,omitempty"`
+	Organization  *string `json:"organization,omitempty"`
+	Country       *string `json:"country,omitempty"`
+	StateProvince *string `json:"state_province,omitempty"`
+	City          *string `json:"city,omitempty"`
+	Address       *string `json:"address,omitempty"`
+	PostalCode    *string `json:"postal_code,omitempty"`
+	PhoneNumber   *string `json:"phone_number,omitempty"`
+	TShirtSize    *string `json:"t_shirt_size,omitempty"`
 }
 
 // CheckError parses a JSON message and returns an error if the operation was unsuccessful.
