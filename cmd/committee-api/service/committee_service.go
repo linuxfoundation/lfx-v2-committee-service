@@ -74,8 +74,7 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		return nil, wrapError(ctx, err)
 	}
 
-	// Reject entries that have neither a username nor an email — these are unresolvable and
-	// would be silently dropped by the converter, which violates the previous API contract.
+	// After enrichment, every entry must have at least an email or a resolved username.
 	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -230,8 +229,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Reject entries that have neither a username nor an email — these are unresolvable and
-	// would be silently dropped by the converter, which violates the previous API contract.
+	// After enrichment, every entry must have at least an email or a resolved username.
 	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1032,6 +1030,9 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 
 // validateIdentityFields returns a validation error if any writer or auditor entry has
 // neither a username nor an email address, since such entries cannot be resolved or stored.
+// Email-only entries are allowed — the username will have been filled in by enrichAllRoleFields.
+// Username-only entries (no email) are rejected because enrichAllRoleFields will have cleared
+// the untrusted caller-supplied LFID, leaving both fields empty.
 func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
 	check := func(role string, users []*committeeservice.CommitteeUser) error {
 		for i, u := range users {
@@ -1056,9 +1057,8 @@ func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser)
 // across all supplied slices with authoritative values from the auth service.
 // Each unique email is looked up exactly once; at most 8 lookups run concurrently.
 // Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
-// NOTE: entries that have only a caller-supplied Username and no Email are treated as unresolvable:
-// Username is cleared to "", and the subsequent validateIdentityFields call will return 400.
-// This is a deliberate security trade-off — caller-supplied LFIDs are untrusted.
+// Entries with only a caller-supplied Username and no Email have Username cleared to "" —
+// caller-supplied LFIDs are untrusted and will be rejected by validateIdentityFields afterward.
 // Username transport errors fail the request so incorrect LFIDs are never silently kept.
 // Metadata (name/avatar) errors only log a warning; display fields do not block the write.
 func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
