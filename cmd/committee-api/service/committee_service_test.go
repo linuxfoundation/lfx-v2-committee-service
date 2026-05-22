@@ -22,14 +22,17 @@ import (
 // mockUserReader is a simple in-memory UserReader for tests.
 // EmailByPrincipal maps principal → primary email; subs maps email → LFID sub.
 type mockUserReader struct {
-	emails map[string]string // principal → primary email (for EmailsByPrincipal)
-	subs   map[string]string // email → sub/LFID (for SubByEmail)
+	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
+	subs        map[string]string              // email → sub/LFID (for SubByEmail)
+	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
+	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
 	m := &mockUserReader{
-		emails: make(map[string]string),
-		subs:   make(map[string]string),
+		emails:      make(map[string]string),
+		subs:        make(map[string]string),
+		metadataMap: make(map[string]*model.UserMetadata),
 	}
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m.emails[pairs[i]] = pairs[i+1]
@@ -42,6 +45,18 @@ func (m *mockUserReader) withSubs(pairs ...string) *mockUserReader {
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m.subs[pairs[i]] = pairs[i+1]
 	}
+	return m
+}
+
+// withMetadata registers a UserMetadata response for a given sub.
+func (m *mockUserReader) withMetadata(sub string, meta *model.UserMetadata) *mockUserReader {
+	m.metadataMap[sub] = meta
+	return m
+}
+
+// withMetadataErr configures a global error returned by UserMetadataByPrincipal for all subs.
+func (m *mockUserReader) withMetadataErr(err error) *mockUserReader {
+	m.metadataErr = err
 	return m
 }
 
@@ -63,7 +78,13 @@ func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
 
-func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, sub string) (*model.UserMetadata, error) {
+	if m.metadataErr != nil {
+		return nil, m.metadataErr
+	}
+	if meta, ok := m.metadataMap[sub]; ok {
+		return meta, nil
+	}
 	return nil, nil
 }
 
@@ -1670,8 +1691,9 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 	tests := []struct {
 		name         string
 		payload      func() *committeeservice.UpdateCommitteeSettingsPayload
-		subs         []string // email, sub pairs
-		useErrReader bool     // use errUserReader (transport error) instead of mockUserReader
+		subs         []string                // email, sub pairs
+		setupReader  func(r *mockUserReader) // optional extra reader configuration (metadata, errors)
+		useErrReader bool                    // use errUserReader (transport error) instead of mockUserReader
 		wantErr      bool
 		validate     func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload)
 	}{
@@ -1764,6 +1786,49 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			useErrReader: true,
 			wantErr:      true,
 		},
+		{
+			name: "metadata enriched — name and avatar overwritten with auth-service values",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("UNTRUSTED"), Email: strPtr("carol@example.com"), Name: strPtr("Carol Old"), Avatar: strPtr("old-avatar.png")},
+				}
+				return p
+			},
+			subs: []string{"carol@example.com", "carol-lfid"},
+			setupReader: func(r *mockUserReader) {
+				r.withMetadata("carol-lfid", &model.UserMetadata{
+					Name:    "Carol Real Name",
+					Picture: "https://auth.example.com/carol.png",
+				})
+			},
+			validate: func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Writers, 1)
+				assert.Equal(t, "carol-lfid", *p.Writers[0].Username)
+				assert.Equal(t, "Carol Real Name", *p.Writers[0].Name)
+				assert.Equal(t, "https://auth.example.com/carol.png", *p.Writers[0].Avatar)
+			},
+		},
+		{
+			name: "metadata lookup fails — request still succeeds, name and avatar unchanged",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("UNTRUSTED"), Email: strPtr("dave@example.com"), Name: strPtr("Dave"), Avatar: strPtr("")},
+				}
+				return p
+			},
+			subs: []string{"dave@example.com", "dave-lfid"},
+			setupReader: func(r *mockUserReader) {
+				r.withMetadataErr(errs.NewUnexpected("nats: metadata timeout"))
+			},
+			validate: func(t *testing.T, svc *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Writers, 1)
+				assert.Equal(t, "dave-lfid", *p.Writers[0].Username)
+				assert.Equal(t, "Dave", *p.Writers[0].Name)
+				assert.Equal(t, "", *p.Writers[0].Avatar)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1773,6 +1838,9 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				svc.userReader = &errUserReader{}
 			} else {
 				reader := newMockUserReader().withSubs(tt.subs...)
+				if tt.setupReader != nil {
+					tt.setupReader(reader)
+				}
 				svc.userReader = reader
 			}
 			p := tt.payload()
