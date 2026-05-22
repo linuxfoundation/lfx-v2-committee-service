@@ -1775,6 +1775,26 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 		},
 		{
+			name: "multiple distinct emails — each resolved independently",
+			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
+				p := basePayload()
+				p.Writers = []*committeeservice.CommitteeUser{
+					{Username: strPtr("bad-w"), Email: strPtr("alice@example.com"), Name: strPtr("Alice")},
+				}
+				p.Auditors = []*committeeservice.CommitteeUser{
+					{Username: strPtr("bad-a"), Email: strPtr("bob@example.com"), Name: strPtr("Bob")},
+				}
+				return p
+			},
+			subs: []string{"alice@example.com", "alice-lfid", "bob@example.com", "bob-lfid"},
+			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
+				require.Len(t, p.Writers, 1)
+				require.Len(t, p.Auditors, 1)
+				assert.Equal(t, "alice-lfid", *p.Writers[0].Username)
+				assert.Equal(t, "bob-lfid", *p.Auditors[0].Username)
+			},
+		},
+		{
 			name: "transport error from SubByEmail fails the request",
 			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
 				p := basePayload()
