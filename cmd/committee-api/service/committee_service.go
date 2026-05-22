@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+	"golang.org/x/sync/errgroup"
 
 	"goa.design/goa/v3/security"
 )
@@ -66,6 +68,17 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		"name", p.Name,
 		"x_sync", p.XSync,
 	)
+
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Reject entries that have neither a username nor an email — these are unresolvable and
+	// would be silently dropped by the converter, which violates the previous API contract.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
@@ -212,8 +225,14 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Validate that every writer/auditor entry is identifiable (username or email)
-	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Reject entries that have neither a username nor an email — these are unresolvable and
+	// would be silently dropped by the converter, which violates the previous API contract.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
@@ -878,31 +897,6 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
-// validateSettingsUsers returns a validation error if any entry in writers or
-// auditors has neither a username nor an email, since at least one is needed to
-// identify the user (LFID users by username, non-LFID users by email).
-func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
-	hasIdentity := func(u *committeeservice.CommitteeUser) bool {
-		if u == nil {
-			return false
-		}
-		hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
-		hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
-		return hasUsername || hasEmail
-	}
-	for i, u := range writers {
-		if !hasIdentity(u) {
-			return errors.NewValidation(fmt.Sprintf("writers[%d]: username or email is required", i))
-		}
-	}
-	for i, u := range auditors {
-		if !hasIdentity(u) {
-			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username or email is required", i))
-		}
-	}
-	return nil
-}
-
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1025,6 +1019,121 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 			"application_uid", application.UID,
 		)
 	}
+}
+
+// validateIdentityFields returns a validation error if any writer or auditor entry has
+// neither a username nor an email address, since such entries cannot be resolved or stored.
+func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
+	check := func(role string, users []*committeeservice.CommitteeUser) error {
+		for i, u := range users {
+			if u == nil {
+				continue
+			}
+			hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+			hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
+			if !hasUsername && !hasEmail {
+				return errors.NewValidation(fmt.Sprintf("%s[%d]: username or email is required", role, i))
+			}
+		}
+		return nil
+	}
+	if err := check("writers", writers); err != nil {
+		return err
+	}
+	return check("auditors", auditors)
+}
+
+// enrichAllRoleFields overwrites the Username field on every CommitteeUser across all supplied
+// slices with the authoritative LFID (sub) from the auth service.
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently (semaphore-bounded).
+// Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
+// The entry itself is kept by convertPayloadUsersToModel (it only drops entries where both username
+// and email are empty), so an unresolvable user remains in the stored record email-only.
+// Transport errors fail the request so incorrect LFIDs are never silently kept.
+func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
+	if s.userReader == nil {
+		return errors.NewServiceUnavailable("user reader is not configured")
+	}
+
+	type group struct {
+		users []*committeeservice.CommitteeUser
+	}
+	byEmail := make(map[string]*group)
+
+	for _, slice := range slices {
+		for _, u := range slice {
+			if u == nil {
+				continue
+			}
+			normEmail := ""
+			if u.Email != nil {
+				normEmail = strings.ToLower(strings.TrimSpace(*u.Email))
+			}
+			if normEmail == "" {
+				empty := ""
+				u.Username = &empty
+				continue
+			}
+			eg := byEmail[normEmail]
+			if eg == nil {
+				eg = &group{}
+				byEmail[normEmail] = eg
+			}
+			eg.users = append(eg.users, u)
+		}
+	}
+
+	if len(byEmail) == 0 {
+		return nil
+	}
+
+	results := make(map[string]string, len(byEmail))
+	var mu sync.Mutex
+	const maxConcurrent = 8
+	g, gCtx := errgroup.WithContext(ctx)
+	sem := make(chan struct{}, maxConcurrent)
+
+	for email := range byEmail {
+		email := email
+		g.Go(func() error {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			sub, err := s.userReader.SubByEmail(gCtx, email)
+			if err != nil {
+				var notFound errors.NotFound
+				if stderrors.As(err, &notFound) {
+					mu.Lock()
+					results[email] = ""
+					mu.Unlock()
+					return nil
+				}
+				return err
+			}
+			if sub == "" {
+				// Empty sub with no error is treated as not found — no valid LFID to persist.
+				mu.Lock()
+				results[email] = ""
+				mu.Unlock()
+				return nil
+			}
+			mu.Lock()
+			results[email] = sub
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return errors.NewUnexpected("enriching committee user role fields failed", err)
+	}
+
+	for email, eg := range byEmail {
+		sub := results[email]
+		for _, u := range eg.users {
+			u.Username = &sub
+		}
+	}
+	return nil
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
