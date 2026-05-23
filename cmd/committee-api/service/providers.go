@@ -15,6 +15,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/ai"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
@@ -257,6 +258,49 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 	}
 
 	return authService
+}
+
+// AIAdapterImpl initializes the AI adapter used for weekly-brief generation.
+// Selection is driven by AI_SOURCE:
+//   - "fake"            -> deterministic in-process adapter (local dev, CI, tests)
+//   - "live" (default)  -> LiteLLM HTTP adapter, configured via
+//     LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL
+//
+// When AI_SOURCE is unset, "live" is selected. If "live" is selected but the
+// required LiteLLM env vars are missing, we fail fast with a helpful message
+// rather than silently degrading.
+func AIAdapterImpl(ctx context.Context) port.AIAdapter {
+	aiSource := os.Getenv("AI_SOURCE")
+	if aiSource == "" {
+		aiSource = "live"
+	}
+
+	switch aiSource {
+	case "fake":
+		slog.InfoContext(ctx, "initializing fake AI adapter", "ai_source", aiSource)
+		return ai.NewFakeAdapter()
+	case "live":
+		cfg := ai.LiteLLMConfig{
+			BaseURL: os.Getenv("LITELLM_BASE_URL"),
+			APIKey:  os.Getenv("LITELLM_API_KEY"),
+			Model:   os.Getenv("LITELLM_MODEL"),
+		}
+		if cfg.BaseURL == "" || cfg.APIKey == "" || cfg.Model == "" {
+			log.Fatalf(
+				"AI_SOURCE=live requires LITELLM_BASE_URL, LITELLM_API_KEY, and LITELLM_MODEL "+
+					"(set AI_SOURCE=fake for local dev/CI); got base_url=%q, api_key_set=%t, model=%q",
+				cfg.BaseURL, cfg.APIKey != "", cfg.Model,
+			)
+		}
+		slog.InfoContext(ctx, "initializing live LiteLLM AI adapter",
+			"ai_source", aiSource, "model", cfg.Model)
+		return ai.NewLiteLLMAdapter(cfg)
+	default:
+		log.Fatalf("unsupported AI adapter implementation: %s (expected one of: fake, live)", aiSource)
+	}
+
+	// unreachable
+	return nil
 }
 
 // CommitteePublisherImpl initializes the committee publisher implementation based on the messaging source
