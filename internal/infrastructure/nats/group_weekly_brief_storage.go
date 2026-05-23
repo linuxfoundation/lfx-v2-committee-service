@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -104,4 +106,143 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 	}
 
 	return brief, throttleBytes, nil
+}
+
+// PutGroupWeeklyBrief persists the brief and refreshes the secondary index that
+// maps {committee_uid}.{yyyymmdd} → brief UID. The brief UID is generated when
+// missing. The returned brief carries the new KV revision so callers can chain
+// further compare-and-swap updates.
+//
+// Optimistic concurrency: when brief.Revision > 0 the write uses Update (CAS);
+// otherwise it uses Put. This lets the orchestrator distinguish a true create
+// from a regeneration overwrite.
+func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error) {
+	if brief == nil {
+		return nil, errs.NewValidation("brief is required")
+	}
+	if brief.CommitteeUID == "" {
+		return nil, errs.NewValidation("committee_uid is required")
+	}
+	if brief.WindowStart.IsZero() {
+		return nil, errs.NewValidation("window_start is required")
+	}
+	if brief.UID == "" {
+		brief.UID = uuid.NewString()
+	}
+	now := time.Now().UTC()
+	if brief.CreatedAt.IsZero() {
+		brief.CreatedAt = now
+	}
+	brief.UpdatedAt = now
+
+	briefBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefs]
+	if !ok {
+		return nil, errs.NewServiceUnavailable("group-weekly-briefs bucket not initialised")
+	}
+	idxBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefUIDIndex]
+	if !ok {
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-uid-index bucket not initialised")
+	}
+
+	payload, err := json.Marshal(brief)
+	if err != nil {
+		return nil, errs.NewUnexpected("failed to marshal weekly brief", err)
+	}
+
+	briefKey := sanitizeKVKey(brief.UID)
+	var (
+		rev    uint64
+		putErr error
+	)
+	if brief.Revision > 0 {
+		rev, putErr = briefBucket.Update(ctx, briefKey, payload, brief.Revision)
+	} else {
+		rev, putErr = briefBucket.Put(ctx, briefKey, payload)
+	}
+	if putErr != nil {
+		return nil, errs.NewUnexpected("failed to write weekly brief", putErr)
+	}
+	brief.Revision = rev
+
+	// Refresh the secondary index. A previous brief may have lived under a
+	// different UID — Put overwrites unconditionally, which is what we want.
+	indexKey := buildBriefIndexKey(brief.CommitteeUID, model.WindowDateKey(brief.WindowStart))
+	if _, errIdx := idxBucket.Put(ctx, indexKey, []byte(brief.UID)); errIdx != nil {
+		slog.WarnContext(ctx, "failed to update weekly-brief uid index",
+			"committee_uid", brief.CommitteeUID,
+			"index_key", indexKey,
+			"error", errIdx,
+		)
+		// The brief is persisted; index drift is recoverable on next write.
+		return brief, nil
+	}
+	return brief, nil
+}
+
+// GetGroupWeeklyBriefThrottle returns the throttle entry for the given
+// (committee, window-start) pair. A miss returns (nil, nil).
+func (s *storage) GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID string, windowStart time.Time) (*model.GroupWeeklyBriefThrottle, error) {
+	thBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefThrottle]
+	if !ok {
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialised")
+	}
+	key := buildBriefIndexKey(committeeUID, model.WindowDateKey(windowStart))
+	entry, err := thBucket.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return nil, nil
+		}
+		return nil, errs.NewUnexpected("failed to read weekly-brief throttle entry", err)
+	}
+	t := &model.GroupWeeklyBriefThrottle{}
+	if err := json.Unmarshal(entry.Value(), t); err != nil {
+		return nil, errs.NewUnexpected("failed to unmarshal weekly-brief throttle entry", err)
+	}
+	t.Revision = entry.Revision()
+	return t, nil
+}
+
+// PutGroupWeeklyBriefThrottle writes the throttle entry using compare-and-swap
+// on the carried Revision. Revision == 0 → Create (which fails if the entry
+// already exists); Revision > 0 → Update (CAS). On any KV error the caller
+// should treat the throttle increment as failed and surface 503 to the client.
+func (s *storage) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model.GroupWeeklyBriefThrottle) (*model.GroupWeeklyBriefThrottle, error) {
+	if throttle == nil {
+		return nil, errs.NewValidation("throttle is required")
+	}
+	if throttle.CommitteeUID == "" {
+		return nil, errs.NewValidation("committee_uid is required")
+	}
+	if throttle.WindowStart.IsZero() {
+		return nil, errs.NewValidation("window_start is required")
+	}
+	thBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefThrottle]
+	if !ok {
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialised")
+	}
+
+	// Keep the legacy Count field in sync for any read path still using it.
+	throttle.Count = throttle.GeneratesUsed + throttle.RegenerationsUsed
+	throttle.LastAttemptAt = time.Now().UTC()
+
+	payload, err := json.Marshal(throttle)
+	if err != nil {
+		return nil, errs.NewUnexpected("failed to marshal throttle entry", err)
+	}
+	key := buildBriefIndexKey(throttle.CommitteeUID, model.WindowDateKey(throttle.WindowStart))
+
+	var (
+		rev    uint64
+		putErr error
+	)
+	if throttle.Revision == 0 {
+		rev, putErr = thBucket.Create(ctx, key, payload)
+	} else {
+		rev, putErr = thBucket.Update(ctx, key, payload, throttle.Revision)
+	}
+	if putErr != nil {
+		return nil, errs.NewUnexpected("failed to write weekly-brief throttle entry", putErr)
+	}
+	throttle.Revision = rev
+	return throttle, nil
 }

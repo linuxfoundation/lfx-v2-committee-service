@@ -96,6 +96,11 @@ type Service interface {
 	// Sun→Sat window. Returns 200 with a null brief and throttle when no draft
 	// exists (BFF contract — do not return 404).
 	GetCurrentWeeklyBrief(context.Context, *GetCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefCurrentResult, err error)
+	// Generate (or regenerate) the working-group weekly brief for the current
+	// Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3
+	// regenerations. Returns 409 when an edited brief exists and force is not set,
+	// 422 when no sources contributed, 429 when the throttle is exhausted.
+	GenerateWeeklyBrief(context.Context, *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -118,7 +123,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [36]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief"}
+var MethodNames = [37]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -770,6 +775,19 @@ type DownloadCommitteeDocumentPayload struct {
 	DocumentUID *string
 }
 
+// GenerateWeeklyBriefPayload is the payload type of the committee-service
+// service generate-weekly-brief method.
+type GenerateWeeklyBriefPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Force regeneration even if an edited brief exists
+	Force bool
+}
+
 // GetApplicationPayload is the payload type of the committee-service service
 // get-application method.
 type GetApplicationPayload struct {
@@ -938,6 +956,15 @@ type GroupWeeklyBriefCurrentResult struct {
 	Throttle *GroupWeeklyBriefThrottle
 }
 
+// GroupWeeklyBriefGenerateResult is the result type of the committee-service
+// service generate-weekly-brief method.
+type GroupWeeklyBriefGenerateResult struct {
+	// The newly generated (or regenerated) brief
+	Brief *GroupWeeklyBriefWithReadonlyAttributes
+	// Updated throttle counters for the current window
+	Throttle *GroupWeeklyBriefThrottle
+}
+
 // Reference to a source document considered by the weekly-brief generator.
 type GroupWeeklyBriefSourceRef struct {
 	// Source category (meeting, mailing-list, doc, …)
@@ -950,11 +977,21 @@ type GroupWeeklyBriefSourceRef struct {
 	Excerpt *string
 }
 
-// Per-window regeneration throttle counters.
+// Per-committee/per-week regeneration throttle counters.
 type GroupWeeklyBriefThrottle struct {
-	// Regeneration attempts in this window
+	// Number of fresh generations used in this window
+	GeneratesUsed *int
+	// Maximum fresh generations allowed in this window
+	GeneratesLimit *int
+	// Number of regenerations used in this window
+	RegenerationsUsed *int
+	// Maximum regenerations allowed in this window
+	RegenerationsLimit *int
+	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	WindowResetsAt *string
+	// Deprecated: total regeneration attempts; use regenerations_used
 	Count *int
-	// Timestamp of the last regeneration attempt
+	// Deprecated: timestamp of last attempt
 	LastAttemptAt *string
 }
 
@@ -1270,6 +1307,40 @@ type ForbiddenError struct {
 	Message string
 }
 
+// Returned when an edited brief already exists for this window and force was
+// not set.
+type GroupWeeklyBriefEditedExistsError struct {
+	// Stable machine code
+	Code string
+	// Current revision of the edited brief
+	Revision uint64
+}
+
+// Returned when there is no activity in the window across any source.
+type GroupWeeklyBriefNoSourceError struct {
+	// Stable machine code
+	Code string
+	// Human-readable explanation
+	Message string
+}
+
+// Returned when the per-committee/per-week generation or regeneration limit is
+// exhausted.
+type GroupWeeklyBriefThrottleExceededError struct {
+	// Stable machine code
+	Code string
+	// Fresh generations consumed in this window
+	GeneratesUsed int
+	// Fresh-generation limit per window
+	GeneratesLimit int
+	// Regenerations consumed in this window
+	RegenerationsUsed int
+	// Regeneration limit per window
+	RegenerationsLimit int
+	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	WindowResetsAt string
+}
+
 type InternalServerError struct {
 	// Error message
 	Message string
@@ -1334,6 +1405,57 @@ func (e *ForbiddenError) ErrorName() string {
 // GoaErrorName returns "forbidden-error".
 func (e *ForbiddenError) GoaErrorName() string {
 	return "Forbidden"
+}
+
+// Error returns an error description.
+func (e *GroupWeeklyBriefEditedExistsError) Error() string {
+	return "Returned when an edited brief already exists for this window and force was not set."
+}
+
+// ErrorName returns "group-weekly-brief-edited-exists-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *GroupWeeklyBriefEditedExistsError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "group-weekly-brief-edited-exists-error".
+func (e *GroupWeeklyBriefEditedExistsError) GoaErrorName() string {
+	return "EditedBriefExists"
+}
+
+// Error returns an error description.
+func (e *GroupWeeklyBriefNoSourceError) Error() string {
+	return "Returned when there is no activity in the window across any source."
+}
+
+// ErrorName returns "group-weekly-brief-no-source-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *GroupWeeklyBriefNoSourceError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "group-weekly-brief-no-source-error".
+func (e *GroupWeeklyBriefNoSourceError) GoaErrorName() string {
+	return "NoSources"
+}
+
+// Error returns an error description.
+func (e *GroupWeeklyBriefThrottleExceededError) Error() string {
+	return "Returned when the per-committee/per-week generation or regeneration limit is exhausted."
+}
+
+// ErrorName returns "group-weekly-brief-throttle-exceeded-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *GroupWeeklyBriefThrottleExceededError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "group-weekly-brief-throttle-exceeded-error".
+func (e *GroupWeeklyBriefThrottleExceededError) GoaErrorName() string {
+	return "ThrottleExceeded"
 }
 
 // Error returns an error description.

@@ -43,6 +43,7 @@ type committeeServicesrvc struct {
 	docReader                   service.CommitteeDocumentDataReader
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
+	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1232,6 +1233,7 @@ func NewCommitteeService(
 	docReader service.CommitteeDocumentDataReader,
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
+	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -1246,6 +1248,7 @@ func NewCommitteeService(
 		docReader:                   docReader,
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
+		weeklyBriefGenerator:        weeklyBriefGenerator,
 	}
 }
 
@@ -1349,15 +1352,84 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 }
 
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
-// response type.
+// response type. Phase 2 surfaces the split counters (generates / regenerations)
+// plus the window reset timestamp; the legacy count / last_attempt_at fields
+// are still populated so older clients keep working.
 func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
 	count := t.Count
-	out := &committeeservice.GroupWeeklyBriefThrottle{Count: &count}
+	if count == 0 {
+		count = t.GeneratesUsed + t.RegenerationsUsed
+	}
+	gUsed := t.GeneratesUsed
+	gLimit := model.GroupWeeklyBriefGenerateLimit
+	rUsed := t.RegenerationsUsed
+	rLimit := model.GroupWeeklyBriefRegenerationLimit
+	out := &committeeservice.GroupWeeklyBriefThrottle{
+		GeneratesUsed:      &gUsed,
+		GeneratesLimit:     &gLimit,
+		RegenerationsUsed:  &rUsed,
+		RegenerationsLimit: &rLimit,
+		Count:              &count,
+	}
+	if !t.WindowResetsAt.IsZero() {
+		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
+		out.WindowResetsAt = &v
+	}
 	if !t.LastAttemptAt.IsZero() {
 		v := t.LastAttemptAt.UTC().Format(time.RFC3339)
 		out.LastAttemptAt = &v
 	}
 	return out
+}
+
+// GenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/generate
+// handler. See the Phase 2 spec for behaviour; the orchestrator owns the
+// throttle, edited-guard, source gather, prompt, AI call, and persist steps.
+func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *committeeservice.GenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefGenerateResult, error) {
+	slog.DebugContext(ctx, "committeeService.generate-weekly-brief",
+		"committee_uid", p.UID,
+		"force", p.Force,
+	)
+
+	if s.accessChecker != nil {
+		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
+			return nil, wrapError(ctx, err)
+		}
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404, not 422/429.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+
+	committeeName := ""
+	if base != nil && base.Name != "" {
+		committeeName = base.Name
+	}
+
+	out, errGen := s.weeklyBriefGenerator.Generate(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: committeeName,
+		Force:         p.Force,
+		Now:           time.Now().UTC(),
+	})
+	if errGen != nil {
+		return nil, wrapError(ctx, errGen)
+	}
+
+	res := &committeeservice.GroupWeeklyBriefGenerateResult{}
+	if out.Brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(out.Brief)
+	}
+	if out.Throttle != nil {
+		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
+	}
+	return res, nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

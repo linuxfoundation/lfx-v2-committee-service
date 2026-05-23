@@ -32,6 +32,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0
 	goa.design/clue v1.2.3
 	goa.design/goa/v3 v3.22.6
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
 )
 

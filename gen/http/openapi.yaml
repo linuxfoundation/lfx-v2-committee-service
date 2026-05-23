@@ -2389,9 +2389,6 @@ paths:
                     description: OK response.
                     schema:
                         $ref: '#/definitions/GroupWeeklyBriefCurrentResult'
-                        required:
-                            - brief
-                            - throttle
                 "400":
                     description: Bad Request response.
                     schema:
@@ -2410,6 +2407,107 @@ paths:
                         $ref: '#/definitions/NotFoundError'
                         required:
                             - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/weekly-briefs/generate:
+        post:
+            tags:
+                - committee-service
+            summary: generate-weekly-brief committee-service
+            description: 'Generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations. Returns 409 when an edited brief exists and force is not set, 422 when no sources contributed, 429 when the throttle is exhausted.'
+            operationId: committee-service#generate-weekly-brief
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: object
+                  in: body
+                  required: true
+                  schema:
+                    type: object
+                    properties:
+                        force:
+                            type: boolean
+                            description: Force regeneration even if an edited brief exists
+                            default: false
+                            example: false
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefGenerateResult'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefEditedExistsError'
+                        required:
+                            - code
+                            - revision
+                "422":
+                    description: Unprocessable Entity response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefNoSourceError'
+                        required:
+                            - code
+                            - message
+                "429":
+                    description: Too Many Requests response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefThrottleExceededError'
+                        required:
+                            - code
+                            - generates_used
+                            - generates_limit
+                            - regenerations_used
+                            - regenerations_limit
+                            - window_resets_at
                 "500":
                     description: Internal Server Error response.
                     schema:
@@ -4439,10 +4537,94 @@ definitions:
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
                 count: 0
+                generates_limit: 2
+                generates_used: 0
                 last_attempt_at: "1976-05-27T12:27:23Z"
+                regenerations_limit: 3
+                regenerations_used: 0
+                window_resets_at: "2026-05-24T00:00:00Z"
+    GroupWeeklyBriefEditedExistsError:
+        title: GroupWeeklyBriefEditedExistsError
+        type: object
+        properties:
+            code:
+                type: string
+                description: Stable machine code
+                example: edited_brief_exists
+                enum:
+                    - edited_brief_exists
+            revision:
+                type: integer
+                description: Current revision of the edited brief
+                example: 7
+                format: int64
+        description: An edited brief exists and force is not set
+        example:
+            code: edited_brief_exists
+            revision: 7
         required:
-            - brief
-            - throttle
+            - code
+            - revision
+    GroupWeeklyBriefGenerateResult:
+        title: GroupWeeklyBriefGenerateResult
+        type: object
+        properties:
+            brief:
+                $ref: '#/definitions/GroupWeeklyBriefWithReadonlyAttributes'
+            throttle:
+                $ref: '#/definitions/GroupWeeklyBriefThrottle'
+        example:
+            brief:
+                brief_text: lvl
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                model: fake
+                private_source_present: false
+                prompt_version: v1
+                regeneration_count: 0
+                source_refs:
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                state: generated
+                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                updated_at: "2023-06-20T14:45:30Z"
+                window_end: "2026-05-16T23:59:59Z"
+                window_start: "2026-05-10T00:00:00Z"
+            throttle:
+                count: 0
+                generates_limit: 2
+                generates_used: 0
+                last_attempt_at: "1976-05-27T12:27:23Z"
+                regenerations_limit: 3
+                regenerations_used: 0
+                window_resets_at: "2026-05-24T00:00:00Z"
+    GroupWeeklyBriefNoSourceError:
+        title: GroupWeeklyBriefNoSourceError
+        type: object
+        properties:
+            code:
+                type: string
+                description: Stable machine code
+                example: no_sources
+                enum:
+                    - no_sources
+            message:
+                type: string
+                description: Human-readable explanation
+                example: No activity found for this week
+        description: No activity in the window across any source
+        example:
+            code: no_sources
+            message: No activity found for this week
+        required:
+            - code
+            - message
     GroupWeeklyBriefSourceRef:
         title: GroupWeeklyBriefSourceRef
         type: object
@@ -4476,19 +4658,107 @@ definitions:
         properties:
             count:
                 type: integer
-                description: Regeneration attempts in this window
+                description: 'Deprecated: total regeneration attempts; use regenerations_used'
+                example: 0
+                format: int64
+                minimum: 0
+            generates_limit:
+                type: integer
+                description: Maximum fresh generations allowed in this window
+                example: 2
+                format: int64
+                minimum: 0
+            generates_used:
+                type: integer
+                description: Number of fresh generations used in this window
                 example: 0
                 format: int64
                 minimum: 0
             last_attempt_at:
                 type: string
-                description: Timestamp of the last regeneration attempt
+                description: 'Deprecated: timestamp of last attempt'
                 example: "2009-01-10T04:33:58Z"
                 format: date-time
-        description: Per-window regeneration throttle counters.
+            regenerations_limit:
+                type: integer
+                description: Maximum regenerations allowed in this window
+                example: 3
+                format: int64
+                minimum: 0
+            regenerations_used:
+                type: integer
+                description: Number of regenerations used in this window
+                example: 0
+                format: int64
+                minimum: 0
+            window_resets_at:
+                type: string
+                description: Timestamp when the window resets (next UTC Sunday 00:00:00)
+                example: "2026-05-24T00:00:00Z"
+                format: date-time
+        description: Per-committee/per-week regeneration throttle counters.
         example:
             count: 0
+            generates_limit: 2
+            generates_used: 0
             last_attempt_at: "2004-01-18T19:15:43Z"
+            regenerations_limit: 3
+            regenerations_used: 0
+            window_resets_at: "2026-05-24T00:00:00Z"
+    GroupWeeklyBriefThrottleExceededError:
+        title: GroupWeeklyBriefThrottleExceededError
+        type: object
+        properties:
+            code:
+                type: string
+                description: Stable machine code
+                example: throttle_exceeded
+                enum:
+                    - throttle_exceeded
+            generates_limit:
+                type: integer
+                description: Fresh-generation limit per window
+                example: 2
+                format: int64
+                minimum: 0
+            generates_used:
+                type: integer
+                description: Fresh generations consumed in this window
+                example: 2
+                format: int64
+                minimum: 0
+            regenerations_limit:
+                type: integer
+                description: Regeneration limit per window
+                example: 3
+                format: int64
+                minimum: 0
+            regenerations_used:
+                type: integer
+                description: Regenerations consumed in this window
+                example: 0
+                format: int64
+                minimum: 0
+            window_resets_at:
+                type: string
+                description: Timestamp when the window resets (next UTC Sunday 00:00:00)
+                example: "2026-05-24T00:00:00Z"
+                format: date-time
+        description: Per-committee/per-week generation or regeneration limit exhausted
+        example:
+            code: throttle_exceeded
+            generates_limit: 2
+            generates_used: 2
+            regenerations_limit: 3
+            regenerations_used: 0
+            window_resets_at: "2026-05-24T00:00:00Z"
+        required:
+            - code
+            - generates_used
+            - generates_limit
+            - regenerations_used
+            - regenerations_limit
+            - window_resets_at
     GroupWeeklyBriefWithReadonlyAttributes:
         title: GroupWeeklyBriefWithReadonlyAttributes
         type: object

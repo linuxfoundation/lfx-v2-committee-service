@@ -60,6 +60,7 @@ type Server struct {
 	DownloadCommitteeDocument http.Handler
 	DeleteCommitteeDocument   http.Handler
 	GetCurrentWeeklyBrief     http.Handler
+	GenerateWeeklyBrief       http.Handler
 	GenHTTPOpenapiJSON        http.Handler
 	GenHTTPOpenapiYaml        http.Handler
 	GenHTTPOpenapi3JSON       http.Handler
@@ -155,6 +156,7 @@ func New(
 			{"DownloadCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}/download"},
 			{"DeleteCommitteeDocument", "DELETE", "/committees/{uid}/documents/{document_uid}"},
 			{"GetCurrentWeeklyBrief", "GET", "/committees/{uid}/weekly-briefs/current"},
+			{"GenerateWeeklyBrief", "POST", "/committees/{uid}/weekly-briefs/generate"},
 			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
 			{"Serve gen/http/openapi.yaml", "GET", "/_committees/openapi.yaml"},
 			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
@@ -196,6 +198,7 @@ func New(
 		DownloadCommitteeDocument: NewDownloadCommitteeDocumentHandler(e.DownloadCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentHandler(e.DeleteCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefHandler(e.GetCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		GenerateWeeklyBrief:       NewGenerateWeeklyBriefHandler(e.GenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
 		GenHTTPOpenapiJSON:        http.FileServer(fileSystemGenHTTPOpenapiJSON),
 		GenHTTPOpenapiYaml:        http.FileServer(fileSystemGenHTTPOpenapiYaml),
 		GenHTTPOpenapi3JSON:       http.FileServer(fileSystemGenHTTPOpenapi3JSON),
@@ -244,6 +247,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.DownloadCommitteeDocument = m(s.DownloadCommitteeDocument)
 	s.DeleteCommitteeDocument = m(s.DeleteCommitteeDocument)
 	s.GetCurrentWeeklyBrief = m(s.GetCurrentWeeklyBrief)
+	s.GenerateWeeklyBrief = m(s.GenerateWeeklyBrief)
 }
 
 // MethodNames returns the methods served.
@@ -287,6 +291,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountDownloadCommitteeDocumentHandler(mux, h.DownloadCommitteeDocument)
 	MountDeleteCommitteeDocumentHandler(mux, h.DeleteCommitteeDocument)
 	MountGetCurrentWeeklyBriefHandler(mux, h.GetCurrentWeeklyBrief)
+	MountGenerateWeeklyBriefHandler(mux, h.GenerateWeeklyBrief)
 	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
 	MountGenHTTPOpenapiYaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiYaml))
 	MountGenHTTPOpenapi3JSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3JSON))
@@ -2230,6 +2235,60 @@ func NewGetCurrentWeeklyBriefHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "get-current-weekly-brief")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountGenerateWeeklyBriefHandler configures the mux to serve the
+// "committee-service" service "generate-weekly-brief" endpoint.
+func MountGenerateWeeklyBriefHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/weekly-briefs/generate", f)
+}
+
+// NewGenerateWeeklyBriefHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "generate-weekly-brief"
+// endpoint.
+func NewGenerateWeeklyBriefHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeGenerateWeeklyBriefRequest(mux, decoder)
+		encodeResponse = EncodeGenerateWeeklyBriefResponse(encoder)
+		encodeError    = EncodeGenerateWeeklyBriefError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "generate-weekly-brief")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {
