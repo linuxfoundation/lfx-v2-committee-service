@@ -132,7 +132,26 @@ func main() {
 		usecaseSvc.WithDocumentPublisher(committeePublisher),
 	)
 
-	committeeServiceSvc := service.NewCommitteeService(writeCommitteeUseCase, readCommitteeUseCase, authService, storage, committeePublisher, userReader, linkReaderUseCase, linkWriterUseCase, docReaderUseCase, docWriterUseCase)
+	weeklyBriefReader := service.GroupWeeklyBriefReaderImpl(ctx)
+	weeklyBriefReaderUseCase := usecaseSvc.NewGroupWeeklyBriefReaderOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReader(weeklyBriefReader),
+	)
+	accessChecker := service.CommitteeAccessCheckerImpl(ctx)
+
+	committeeServiceSvc := service.NewCommitteeService(
+		writeCommitteeUseCase,
+		readCommitteeUseCase,
+		authService,
+		accessChecker,
+		storage,
+		committeePublisher,
+		userReader,
+		linkReaderUseCase,
+		linkWriterUseCase,
+		docReaderUseCase,
+		docWriterUseCase,
+		weeklyBriefReaderUseCase,
+	)
 
 	// Wrap the services in endpoints that can be invoked from other services
 	// potentially running in different processes.

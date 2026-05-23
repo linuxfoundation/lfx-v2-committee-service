@@ -1808,7 +1808,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"i04\",\n      \"folder_uid\": \"27355660-a042-4a5b-b89e-2c8d204a1e52\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vxz\",\n      \"folder_uid\": \"ff7cc935-e169-436a-a7c3-fe2be325cceb\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2161,7 +2161,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Illo et quas nemo.\",\n      \"description\": \"jcp\",\n      \"file\": \"UXVpIHV0IG5vbiBleHBlZGl0YSBxdW9kIHF1aS4=\",\n      \"file_name\": \"Mollitia sapiente qui velit aspernatur corrupti.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
@@ -2384,6 +2384,44 @@ func BuildDeleteCommitteeDocumentPayload(committeeServiceDeleteCommitteeDocument
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+
+	return v, nil
+}
+
+// BuildGetCurrentWeeklyBriefPayload builds the payload for the
+// committee-service get-current-weekly-brief endpoint from CLI flags.
+func BuildGetCurrentWeeklyBriefPayload(committeeServiceGetCurrentWeeklyBriefUID string, committeeServiceGetCurrentWeeklyBriefVersion string, committeeServiceGetCurrentWeeklyBriefBearerToken string) (*committeeservice.GetCurrentWeeklyBriefPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetCurrentWeeklyBriefUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGetCurrentWeeklyBriefVersion != "" {
+			version = &committeeServiceGetCurrentWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetCurrentWeeklyBriefBearerToken != "" {
+			bearerToken = &committeeServiceGetCurrentWeeklyBriefBearerToken
+		}
+	}
+	v := &committeeservice.GetCurrentWeeklyBriefPayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
 
 	return v, nil
 }

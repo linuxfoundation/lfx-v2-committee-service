@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
 	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
+	accessChecker               port.CommitteeAccessChecker
 	storage                     port.CommitteeReaderWriter
 	publisher                   port.CommitteePublisher
 	userReader                  port.UserReader
@@ -40,6 +42,7 @@ type committeeServicesrvc struct {
 	linkWriter                  service.CommitteeLinkDataWriter
 	docReader                   service.CommitteeDocumentDataReader
 	docWriter                   service.CommitteeDocumentDataWriter
+	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1216,11 +1219,25 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
+func NewCommitteeService(
+	createCommitteeUseCase service.CommitteeWriter,
+	readCommitteeUseCase service.CommitteeReader,
+	authService port.Authenticator,
+	accessChecker port.CommitteeAccessChecker,
+	storage port.CommitteeReaderWriter,
+	publisher port.CommitteePublisher,
+	userReader port.UserReader,
+	linkReader service.CommitteeLinkDataReader,
+	linkWriter service.CommitteeLinkDataWriter,
+	docReader service.CommitteeDocumentDataReader,
+	docWriter service.CommitteeDocumentDataWriter,
+	weeklyBriefReader service.GroupWeeklyBriefDataReader,
+) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
+		accessChecker:               accessChecker,
 		storage:                     storage,
 		publisher:                   publisher,
 		userReader:                  userReader,
@@ -1228,7 +1245,119 @@ func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCom
 		linkWriter:                  linkWriter,
 		docReader:                   docReader,
 		docWriter:                   docWriter,
+		weeklyBriefReader:           weeklyBriefReader,
 	}
+}
+
+// GetCurrentWeeklyBrief returns the working-group weekly brief for the most
+// recently completed UTC Sun→Sat window, plus optional throttle counters.
+// On a miss, both fields are nil and the HTTP status is 200 (per BFF contract).
+func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *committeeservice.GetCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefCurrentResult, error) {
+	slog.DebugContext(ctx, "committeeService.get-current-weekly-brief",
+		"committee_uid", p.UID,
+	)
+
+	if s.accessChecker != nil {
+		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
+			return nil, wrapError(ctx, err)
+		}
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404, not 200/null.
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if s.weeklyBriefReader == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief reader is not configured"))
+	}
+
+	brief, throttleBytes, err := s.weeklyBriefReader.GetCurrent(ctx, p.UID, time.Now().UTC())
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	res := &committeeservice.GroupWeeklyBriefCurrentResult{}
+	if brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(brief)
+	}
+	if len(throttleBytes) > 0 {
+		throttle := &model.GroupWeeklyBriefThrottle{}
+		if err := json.Unmarshal(throttleBytes, throttle); err == nil {
+			res.Throttle = domainGroupWeeklyBriefThrottleToGoa(throttle)
+		} else {
+			slog.WarnContext(ctx, "failed to unmarshal weekly-brief throttle entry", "error", err)
+		}
+	}
+	return res, nil
+}
+
+// domainGroupWeeklyBriefToGoa converts a domain GroupWeeklyBrief to its Goa
+// response type.
+func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.GroupWeeklyBriefWithReadonlyAttributes {
+	uid := b.UID
+	committeeUID := b.CommitteeUID
+	windowStart := b.WindowStart.UTC().Format(time.RFC3339)
+	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339)
+	state := string(b.State)
+	regenCount := b.RegenerationCount
+	privPresent := b.PrivateSourcePresent
+	createdAt := b.CreatedAt.UTC().Format(time.RFC3339)
+	updatedAt := b.UpdatedAt.UTC().Format(time.RFC3339)
+
+	out := &committeeservice.GroupWeeklyBriefWithReadonlyAttributes{
+		UID:                  &uid,
+		CommitteeUID:         &committeeUID,
+		WindowStart:          &windowStart,
+		WindowEnd:            &windowEnd,
+		State:                &state,
+		RegenerationCount:    &regenCount,
+		PrivateSourcePresent: &privPresent,
+		CreatedAt:            &createdAt,
+		UpdatedAt:            &updatedAt,
+	}
+	if b.BriefText != "" {
+		v := b.BriefText
+		out.BriefText = &v
+	}
+	if b.PromptVersion != "" {
+		v := b.PromptVersion
+		out.PromptVersion = &v
+	}
+	if b.Model != "" {
+		v := b.Model
+		out.Model = &v
+	}
+	for _, sr := range b.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		out.SourceRefs = append(out.SourceRefs, ref)
+	}
+	return out
+}
+
+// domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
+// response type.
+func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
+	count := t.Count
+	out := &committeeservice.GroupWeeklyBriefThrottle{Count: &count}
+	if !t.LastAttemptAt.IsZero() {
+		v := t.LastAttemptAt.UTC().Format(time.RFC3339)
+		out.LastAttemptAt = &v
+	}
+	return out
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

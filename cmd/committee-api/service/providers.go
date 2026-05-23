@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
@@ -407,6 +408,59 @@ func lfxSelfServeBaseURL() string {
 	default:
 		return "https://app.dev.lfx.dev"
 	}
+}
+
+// GroupWeeklyBriefReaderImpl initializes the working-group weekly brief reader.
+// Phase 1 only supports the NATS-backed implementation; the storage struct
+// already satisfies port.GroupWeeklyBriefReader.
+func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock group weekly brief reader")
+		// Phase 1 has no mock — return an always-miss stub so the mock
+		// REPOSITORY_SOURCE still produces a working HTTP service.
+		return &alwaysMissGroupWeeklyBriefReader{}
+
+	case "nats":
+		slog.InfoContext(ctx, "initializing NATS group weekly brief reader")
+		natsInit(ctx)
+		if natsClient == nil {
+			log.Fatalf("failed to initialize NATS client for weekly brief reader")
+		}
+		reader, ok := natsStorage.(port.GroupWeeklyBriefReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement GroupWeeklyBriefReader")
+		}
+		return reader
+
+	default:
+		log.Fatalf("unsupported group weekly brief reader implementation: %s", repoSource)
+	}
+
+	// unreachable
+	return nil
+}
+
+// CommitteeAccessCheckerImpl returns the default in-process access checker.
+// Production deployments rely on Heimdall to enforce committee write access
+// at the edge, so the default impl is a no-op (allow). The function exists
+// so unit tests can substitute a denying stub.
+func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker {
+	slog.InfoContext(ctx, "initializing Heimdall-edge committee access checker")
+	return auth.NewHeimdallEdgeAccessChecker()
+}
+
+// alwaysMissGroupWeeklyBriefReader is a stub used when REPOSITORY_SOURCE=mock
+// — it always reports "no brief", which is a valid 200/null response.
+type alwaysMissGroupWeeklyBriefReader struct{}
+
+func (alwaysMissGroupWeeklyBriefReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ string, _ model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
+	return nil, nil, nil
 }
 
 // CommitteeDocumentReaderWriterImpl initializes the committee document reader/writer implementation

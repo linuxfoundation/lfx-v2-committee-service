@@ -92,6 +92,10 @@ type Service interface {
 	DownloadCommitteeDocument(context.Context, *DownloadCommitteeDocumentPayload) (body io.ReadCloser, err error)
 	// Delete a document from a committee
 	DeleteCommitteeDocument(context.Context, *DeleteCommitteeDocumentPayload) (err error)
+	// Get the working-group weekly brief for the most recently completed UTC
+	// Sun→Sat window. Returns 200 with a null brief and throttle when no draft
+	// exists (BFF contract — do not return 404).
+	GetCurrentWeeklyBrief(context.Context, *GetCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefCurrentResult, err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -114,7 +118,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [35]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document"}
+var MethodNames = [36]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -901,6 +905,17 @@ type GetCommitteeSettingsResult struct {
 	Etag *string
 }
 
+// GetCurrentWeeklyBriefPayload is the payload type of the committee-service
+// service get-current-weekly-brief method.
+type GetCurrentWeeklyBriefPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+}
+
 // GetInvitePayload is the payload type of the committee-service service
 // get-invite method.
 type GetInvitePayload struct {
@@ -912,6 +927,65 @@ type GetInvitePayload struct {
 	UID string
 	// Committee invite UID
 	InviteUID string
+}
+
+// GroupWeeklyBriefCurrentResult is the result type of the committee-service
+// service get-current-weekly-brief method.
+type GroupWeeklyBriefCurrentResult struct {
+	// The weekly brief, or null if none exists for the current window
+	Brief *GroupWeeklyBriefWithReadonlyAttributes
+	// Throttle counters for the current window, or null
+	Throttle *GroupWeeklyBriefThrottle
+}
+
+// Reference to a source document considered by the weekly-brief generator.
+type GroupWeeklyBriefSourceRef struct {
+	// Source category (meeting, mailing-list, doc, …)
+	Kind *string
+	// Source-system identifier (URL or UID)
+	ID *string
+	// Short human label for the source
+	Title *string
+	// Excerpt consumed by the generator
+	Excerpt *string
+}
+
+// Per-window regeneration throttle counters.
+type GroupWeeklyBriefThrottle struct {
+	// Regeneration attempts in this window
+	Count *int
+	// Timestamp of the last regeneration attempt
+	LastAttemptAt *string
+}
+
+// A working-group weekly brief for a single committee and Sun→Sat window.
+type GroupWeeklyBriefWithReadonlyAttributes struct {
+	// Brief UID
+	UID *string
+	// Committee UID this brief belongs to
+	CommitteeUID *string
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string
+	// UTC Saturday 23:59:59 marking the end of the window
+	WindowEnd *string
+	// Lifecycle state
+	State *string
+	// Brief body markdown text
+	BriefText *string
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRef
+	// Prompt version used by the generator
+	PromptVersion *string
+	// AI model used by the generator
+	Model *string
+	// Number of regenerations triggered in this window
+	RegenerationCount *int
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string
 }
 
 // JoinCommitteePayload is the payload type of the committee-service service
