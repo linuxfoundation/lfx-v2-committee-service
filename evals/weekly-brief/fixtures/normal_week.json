@@ -1,0 +1,63 @@
+{
+  "name": "normal_week",
+  "description": "Two past meetings with summaries, three members (2 joined / 1 updated), no votes, no mailing lists.",
+  "committee_uid": "c-normal",
+  "committee_name": "Working Group Alpha",
+  "project_name": "LFX Demo Project",
+  "now": "2026-05-20T12:00:00Z",
+  "window_start": "2026-05-10T00:00:00Z",
+  "window_end": "2026-05-16T23:59:59Z",
+  "meetings": [
+    {
+      "uid": "m-101",
+      "title": "Weekly sync",
+      "start_time": "2026-05-11T15:00:00Z",
+      "summary": "Discussed roadmap updates and reviewed open action items from last week.",
+      "private": false,
+      "url": "https://example.invalid/meetings/m-101"
+    },
+    {
+      "uid": "m-102",
+      "title": "Architecture review",
+      "start_time": "2026-05-14T17:00:00Z",
+      "summary": "Reviewed the proposed indexer contract changes; agreed on follow-ups.",
+      "private": false,
+      "url": "https://example.invalid/meetings/m-102"
+    }
+  ],
+  "members": {
+    "joined": [
+      {
+        "uid": "u-201",
+        "username": "alice",
+        "email": "alice@example.invalid",
+        "first_name": "Alice",
+        "last_name": "Anderson",
+        "created_at": "2026-05-11T09:00:00Z",
+        "updated_at": "2026-05-11T09:00:00Z"
+      },
+      {
+        "uid": "u-202",
+        "username": "bob",
+        "email": "bob@example.invalid",
+        "first_name": "Bob",
+        "last_name": "Baker",
+        "created_at": "2026-05-12T10:30:00Z",
+        "updated_at": "2026-05-12T10:30:00Z"
+      }
+    ],
+    "updated": [
+      {
+        "uid": "u-203",
+        "username": "carol",
+        "email": "carol@example.invalid",
+        "first_name": "Carol",
+        "last_name": "Chen",
+        "created_at": "2026-03-01T08:00:00Z",
+        "updated_at": "2026-05-13T11:00:00Z"
+      }
+    ]
+  },
+  "mailing_lists": [],
+  "votes": []
+}
