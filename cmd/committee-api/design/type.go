@@ -1046,14 +1046,37 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 })
 
 // GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
-// returned alongside the brief. Phase 2 populates this; Phase 1 always returns null.
+// returned alongside the brief. Phase 2 introduces the generates_used /
+// regenerations_used / window_resets_at triple; the legacy count /
+// last_attempt_at attributes from Phase 1 are kept for backward compatibility.
 var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
-	dsl.Description("Per-window regeneration throttle counters.")
-	dsl.Attribute("count", dsl.Int, "Regeneration attempts in this window", func() {
+	dsl.Description("Per-committee/per-week regeneration throttle counters.")
+	dsl.Attribute("generates_used", dsl.Int, "Number of fresh generations used in this window", func() {
 		dsl.Minimum(0)
 		dsl.Example(0)
 	})
-	dsl.Attribute("last_attempt_at", dsl.String, "Timestamp of the last regeneration attempt", func() {
+	dsl.Attribute("generates_limit", dsl.Int, "Maximum fresh generations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Number of regenerations used in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Maximum regenerations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets (next UTC Sunday 00:00:00)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+	// Legacy Phase 1 fields preserved so existing readers continue to work.
+	dsl.Attribute("count", dsl.Int, "Deprecated: total regeneration attempts; use regenerations_used", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("last_attempt_at", dsl.String, "Deprecated: timestamp of last attempt", func() {
 		dsl.Format(dsl.FormatDateTime)
 	})
 })
@@ -1070,6 +1093,75 @@ var GroupWeeklyBriefCurrentResult = dsl.Type("group-weekly-brief-current-result"
 	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window")
 	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null")
 	dsl.Required("brief", "throttle")
+})
+
+// GroupWeeklyBriefGenerateResult is the envelope returned by
+// POST /committees/{uid}/weekly-briefs/generate.
+var GroupWeeklyBriefGenerateResult = dsl.Type("group-weekly-brief-generate-result", func() {
+	dsl.Description("Envelope returned by POST /committees/{uid}/weekly-briefs/generate. Both brief and throttle are populated on success.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The newly generated (or regenerated) brief")
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Updated throttle counters for the current window")
+})
+
+// GroupWeeklyBriefThrottleExceededError is the 429 body. It carries the throttle
+// counters so the BFF can render a precise "try again at" hint without a second
+// round-trip.
+var GroupWeeklyBriefThrottleExceededError = dsl.Type("group-weekly-brief-throttle-exceeded-error", func() {
+	dsl.Description("Returned when the per-committee/per-week generation or regeneration limit is exhausted.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("throttle_exceeded")
+		dsl.Example("throttle_exceeded")
+	})
+	dsl.Attribute("generates_used", dsl.Int, "Fresh generations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("generates_limit", dsl.Int, "Fresh-generation limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Regenerations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Regeneration limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets (next UTC Sunday 00:00:00)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+	dsl.Required("code", "generates_used", "generates_limit", "regenerations_used", "regenerations_limit", "window_resets_at")
+})
+
+// GroupWeeklyBriefEditedExistsError is the 409 body returned when a brief in
+// the "edited" state already exists for this window and the caller did not
+// pass force=true.
+var GroupWeeklyBriefEditedExistsError = dsl.Type("group-weekly-brief-edited-exists-error", func() {
+	dsl.Description("Returned when an edited brief already exists for this window and force was not set.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("edited_brief_exists")
+		dsl.Example("edited_brief_exists")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Current revision of the edited brief", func() {
+		dsl.Example(uint64(7))
+	})
+	dsl.Required("code", "revision")
+})
+
+// GroupWeeklyBriefNoSourceError is the 422 body returned when all source ports
+// came back empty — the generator has nothing to ground on.
+var GroupWeeklyBriefNoSourceError = dsl.Type("group-weekly-brief-no-source-error", func() {
+	dsl.Description("Returned when there is no activity in the window across any source.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("no_sources")
+		dsl.Example("no_sources")
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable explanation", func() {
+		dsl.Example("No activity found for this week")
+	})
+	dsl.Required("code", "message")
 })
 
 // ─── Committee Document Types ───

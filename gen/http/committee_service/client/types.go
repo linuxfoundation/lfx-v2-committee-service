@@ -956,6 +956,15 @@ type GetCurrentWeeklyBriefResponseBody struct {
 	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
 }
 
+// GenerateWeeklyBriefResponseBody is the type of the "committee-service"
+// service "generate-weekly-brief" endpoint HTTP response body.
+type GenerateWeeklyBriefResponseBody struct {
+	// The newly generated (or regenerated) brief
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
+	// Updated throttle counters for the current window
+	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+}
+
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"
 // service "create-committee" endpoint HTTP response body for the "BadRequest"
 // error.
@@ -2142,6 +2151,84 @@ type GetCurrentWeeklyBriefServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// GenerateWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "BadRequest" error.
+type GenerateWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GenerateWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "Forbidden" error.
+type GenerateWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GenerateWeeklyBriefEditedBriefExistsResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "EditedBriefExists" error.
+type GenerateWeeklyBriefEditedBriefExistsResponseBody struct {
+	// Stable machine code
+	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+	// Current revision of the edited brief
+	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
+}
+
+// GenerateWeeklyBriefNoSourcesResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "NoSources" error.
+type GenerateWeeklyBriefNoSourcesResponseBody struct {
+	// Stable machine code
+	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+	// Human-readable explanation
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GenerateWeeklyBriefThrottleExceededResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "ThrottleExceeded" error.
+type GenerateWeeklyBriefThrottleExceededResponseBody struct {
+	// Stable machine code
+	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+	// Fresh generations consumed in this window
+	GeneratesUsed *int `form:"generates_used,omitempty" json:"generates_used,omitempty" xml:"generates_used,omitempty"`
+	// Fresh-generation limit per window
+	GeneratesLimit *int `form:"generates_limit,omitempty" json:"generates_limit,omitempty" xml:"generates_limit,omitempty"`
+	// Regenerations consumed in this window
+	RegenerationsUsed *int `form:"regenerations_used,omitempty" json:"regenerations_used,omitempty" xml:"regenerations_used,omitempty"`
+	// Regeneration limit per window
+	RegenerationsLimit *int `form:"regenerations_limit,omitempty" json:"regenerations_limit,omitempty" xml:"regenerations_limit,omitempty"`
+	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	WindowResetsAt *string `form:"window_resets_at,omitempty" json:"window_resets_at,omitempty" xml:"window_resets_at,omitempty"`
+}
+
+// GenerateWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "InternalServerError" error.
+type GenerateWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GenerateWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "NotFound" error.
+type GenerateWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GenerateWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type GenerateWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image
@@ -2485,9 +2572,19 @@ type GroupWeeklyBriefSourceRefResponseBody struct {
 // GroupWeeklyBriefThrottleResponseBody is used to define fields on response
 // body types.
 type GroupWeeklyBriefThrottleResponseBody struct {
-	// Regeneration attempts in this window
+	// Number of fresh generations used in this window
+	GeneratesUsed *int `form:"generates_used,omitempty" json:"generates_used,omitempty" xml:"generates_used,omitempty"`
+	// Maximum fresh generations allowed in this window
+	GeneratesLimit *int `form:"generates_limit,omitempty" json:"generates_limit,omitempty" xml:"generates_limit,omitempty"`
+	// Number of regenerations used in this window
+	RegenerationsUsed *int `form:"regenerations_used,omitempty" json:"regenerations_used,omitempty" xml:"regenerations_used,omitempty"`
+	// Maximum regenerations allowed in this window
+	RegenerationsLimit *int `form:"regenerations_limit,omitempty" json:"regenerations_limit,omitempty" xml:"regenerations_limit,omitempty"`
+	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	WindowResetsAt *string `form:"window_resets_at,omitempty" json:"window_resets_at,omitempty" xml:"window_resets_at,omitempty"`
+	// Deprecated: total regeneration attempts; use regenerations_used
 	Count *int `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
-	// Timestamp of the last regeneration attempt
+	// Deprecated: timestamp of last attempt
 	LastAttemptAt *string `form:"last_attempt_at,omitempty" json:"last_attempt_at,omitempty" xml:"last_attempt_at,omitempty"`
 }
 
@@ -5578,6 +5675,108 @@ func NewGetCurrentWeeklyBriefServiceUnavailable(body *GetCurrentWeeklyBriefServi
 	return v
 }
 
+// NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK builds a
+// "committee-service" service "generate-weekly-brief" endpoint result from a
+// HTTP "OK" response.
+func NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK(body *GenerateWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefGenerateResult {
+	v := &committeeservice.GroupWeeklyBriefGenerateResult{}
+	if body.Brief != nil {
+		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
+	}
+	if body.Throttle != nil {
+		v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefBadRequest builds a committee-service service
+// generate-weekly-brief endpoint BadRequest error.
+func NewGenerateWeeklyBriefBadRequest(body *GenerateWeeklyBriefBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefForbidden builds a committee-service service
+// generate-weekly-brief endpoint Forbidden error.
+func NewGenerateWeeklyBriefForbidden(body *GenerateWeeklyBriefForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefEditedBriefExists builds a committee-service service
+// generate-weekly-brief endpoint EditedBriefExists error.
+func NewGenerateWeeklyBriefEditedBriefExists(body *GenerateWeeklyBriefEditedBriefExistsResponseBody) *committeeservice.GroupWeeklyBriefEditedExistsError {
+	v := &committeeservice.GroupWeeklyBriefEditedExistsError{
+		Code:     *body.Code,
+		Revision: *body.Revision,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefNoSources builds a committee-service service
+// generate-weekly-brief endpoint NoSources error.
+func NewGenerateWeeklyBriefNoSources(body *GenerateWeeklyBriefNoSourcesResponseBody) *committeeservice.GroupWeeklyBriefNoSourceError {
+	v := &committeeservice.GroupWeeklyBriefNoSourceError{
+		Code:    *body.Code,
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefThrottleExceeded builds a committee-service service
+// generate-weekly-brief endpoint ThrottleExceeded error.
+func NewGenerateWeeklyBriefThrottleExceeded(body *GenerateWeeklyBriefThrottleExceededResponseBody) *committeeservice.GroupWeeklyBriefThrottleExceededError {
+	v := &committeeservice.GroupWeeklyBriefThrottleExceededError{
+		Code:               *body.Code,
+		GeneratesUsed:      *body.GeneratesUsed,
+		GeneratesLimit:     *body.GeneratesLimit,
+		RegenerationsUsed:  *body.RegenerationsUsed,
+		RegenerationsLimit: *body.RegenerationsLimit,
+		WindowResetsAt:     *body.WindowResetsAt,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefInternalServerError builds a committee-service service
+// generate-weekly-brief endpoint InternalServerError error.
+func NewGenerateWeeklyBriefInternalServerError(body *GenerateWeeklyBriefInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefNotFound builds a committee-service service
+// generate-weekly-brief endpoint NotFound error.
+func NewGenerateWeeklyBriefNotFound(body *GenerateWeeklyBriefNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGenerateWeeklyBriefServiceUnavailable builds a committee-service service
+// generate-weekly-brief endpoint ServiceUnavailable error.
+func NewGenerateWeeklyBriefServiceUnavailable(body *GenerateWeeklyBriefServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // ValidateCreateCommitteeResponseBody runs the validations defined on
 // Create-CommitteeResponseBody
 func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err error) {
@@ -6862,6 +7061,22 @@ func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefRespon
 	if body.Throttle == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("throttle", "body"))
 	}
+	if body.Brief != nil {
+		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.Throttle != nil {
+		if err2 := ValidateGroupWeeklyBriefThrottleResponseBody(body.Throttle); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefResponseBody runs the validations defined on
+// Generate-Weekly-BriefResponseBody
+func ValidateGenerateWeeklyBriefResponseBody(body *GenerateWeeklyBriefResponseBody) (err error) {
 	if body.Brief != nil {
 		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
 			err = goa.MergeErrors(err, err2)
@@ -8247,6 +8462,138 @@ func ValidateGetCurrentWeeklyBriefServiceUnavailableResponseBody(body *GetCurren
 	return
 }
 
+// ValidateGenerateWeeklyBriefBadRequestResponseBody runs the validations
+// defined on generate-weekly-brief_BadRequest_response_body
+func ValidateGenerateWeeklyBriefBadRequestResponseBody(body *GenerateWeeklyBriefBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefForbiddenResponseBody runs the validations
+// defined on generate-weekly-brief_Forbidden_response_body
+func ValidateGenerateWeeklyBriefForbiddenResponseBody(body *GenerateWeeklyBriefForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefEditedBriefExistsResponseBody runs the
+// validations defined on generate-weekly-brief_EditedBriefExists_response_body
+func ValidateGenerateWeeklyBriefEditedBriefExistsResponseBody(body *GenerateWeeklyBriefEditedBriefExistsResponseBody) (err error) {
+	if body.Code == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
+	}
+	if body.Revision == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("revision", "body"))
+	}
+	if body.Code != nil {
+		if !(*body.Code == "edited_brief_exists") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"edited_brief_exists"}))
+		}
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefNoSourcesResponseBody runs the validations
+// defined on generate-weekly-brief_NoSources_response_body
+func ValidateGenerateWeeklyBriefNoSourcesResponseBody(body *GenerateWeeklyBriefNoSourcesResponseBody) (err error) {
+	if body.Code == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	if body.Code != nil {
+		if !(*body.Code == "no_sources") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"no_sources"}))
+		}
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefThrottleExceededResponseBody runs the validations
+// defined on generate-weekly-brief_ThrottleExceeded_response_body
+func ValidateGenerateWeeklyBriefThrottleExceededResponseBody(body *GenerateWeeklyBriefThrottleExceededResponseBody) (err error) {
+	if body.Code == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
+	}
+	if body.GeneratesUsed == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("generates_used", "body"))
+	}
+	if body.GeneratesLimit == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("generates_limit", "body"))
+	}
+	if body.RegenerationsUsed == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("regenerations_used", "body"))
+	}
+	if body.RegenerationsLimit == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("regenerations_limit", "body"))
+	}
+	if body.WindowResetsAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("window_resets_at", "body"))
+	}
+	if body.Code != nil {
+		if !(*body.Code == "throttle_exceeded") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"throttle_exceeded"}))
+		}
+	}
+	if body.GeneratesUsed != nil {
+		if *body.GeneratesUsed < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.generates_used", *body.GeneratesUsed, 0, true))
+		}
+	}
+	if body.GeneratesLimit != nil {
+		if *body.GeneratesLimit < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.generates_limit", *body.GeneratesLimit, 0, true))
+		}
+	}
+	if body.RegenerationsUsed != nil {
+		if *body.RegenerationsUsed < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.regenerations_used", *body.RegenerationsUsed, 0, true))
+		}
+	}
+	if body.RegenerationsLimit != nil {
+		if *body.RegenerationsLimit < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.regenerations_limit", *body.RegenerationsLimit, 0, true))
+		}
+	}
+	if body.WindowResetsAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.window_resets_at", *body.WindowResetsAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefInternalServerErrorResponseBody runs the
+// validations defined on
+// generate-weekly-brief_InternalServerError_response_body
+func ValidateGenerateWeeklyBriefInternalServerErrorResponseBody(body *GenerateWeeklyBriefInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefNotFoundResponseBody runs the validations defined
+// on generate-weekly-brief_NotFound_response_body
+func ValidateGenerateWeeklyBriefNotFoundResponseBody(body *GenerateWeeklyBriefNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGenerateWeeklyBriefServiceUnavailableResponseBody runs the
+// validations defined on generate-weekly-brief_ServiceUnavailable_response_body
+func ValidateGenerateWeeklyBriefServiceUnavailableResponseBody(body *GenerateWeeklyBriefServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateCommitteeUserRequestBody runs the validations defined on
 // committee-userRequestBody
 func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
@@ -8717,6 +9064,29 @@ func ValidateGroupWeeklyBriefSourceRefResponseBody(body *GroupWeeklyBriefSourceR
 // ValidateGroupWeeklyBriefThrottleResponseBody runs the validations defined on
 // group-weekly-brief-throttleResponseBody
 func ValidateGroupWeeklyBriefThrottleResponseBody(body *GroupWeeklyBriefThrottleResponseBody) (err error) {
+	if body.GeneratesUsed != nil {
+		if *body.GeneratesUsed < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.generates_used", *body.GeneratesUsed, 0, true))
+		}
+	}
+	if body.GeneratesLimit != nil {
+		if *body.GeneratesLimit < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.generates_limit", *body.GeneratesLimit, 0, true))
+		}
+	}
+	if body.RegenerationsUsed != nil {
+		if *body.RegenerationsUsed < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.regenerations_used", *body.RegenerationsUsed, 0, true))
+		}
+	}
+	if body.RegenerationsLimit != nil {
+		if *body.RegenerationsLimit < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.regenerations_limit", *body.RegenerationsLimit, 0, true))
+		}
+	}
+	if body.WindowResetsAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.window_resets_at", *body.WindowResetsAt, goa.FormatDateTime))
+	}
 	if body.Count != nil {
 		if *body.Count < 0 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.count", *body.Count, 0, true))

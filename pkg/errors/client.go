@@ -84,3 +84,78 @@ func NewForbidden(message string, errs ...error) Forbidden {
 		},
 	}
 }
+
+// TooManyRequests is a 429 — used by weekly-brief throttle enforcement to
+// carry the per-window throttle counters back to the HTTP layer without
+// stringifying them. Handlers extract the typed value via errors.As.
+type TooManyRequests struct {
+	base
+	// GeneratesUsed is the count consumed for fresh generations in this window.
+	GeneratesUsed int
+	// GeneratesLimit is the cap on fresh generations.
+	GeneratesLimit int
+	// RegenerationsUsed is the count consumed for regenerations.
+	RegenerationsUsed int
+	// RegenerationsLimit is the cap on regenerations.
+	RegenerationsLimit int
+	// WindowResetsAt is the timestamp at which the window resets.
+	WindowResetsAt string
+}
+
+// Error returns the error message for TooManyRequests.
+func (t TooManyRequests) Error() string {
+	return t.error()
+}
+
+// NewTooManyRequests creates a TooManyRequests error.
+func NewTooManyRequests(message string, generatesUsed, generatesLimit, regenerationsUsed, regenerationsLimit int, windowResetsAt string) TooManyRequests {
+	return TooManyRequests{
+		base:               base{message: message},
+		GeneratesUsed:      generatesUsed,
+		GeneratesLimit:     generatesLimit,
+		RegenerationsUsed:  regenerationsUsed,
+		RegenerationsLimit: regenerationsLimit,
+		WindowResetsAt:     windowResetsAt,
+	}
+}
+
+// Unprocessable is a 422 — used by the weekly-brief generate endpoint when no
+// sources contributed for the window. The Code field carries the stable
+// machine-readable code surfaced in the JSON body ("no_sources").
+type Unprocessable struct {
+	base
+	// Code is the machine-readable failure code (e.g. "no_sources").
+	Code string
+}
+
+// Error returns the error message for Unprocessable.
+func (u Unprocessable) Error() string {
+	return u.error()
+}
+
+// NewUnprocessable creates an Unprocessable error.
+func NewUnprocessable(code, message string) Unprocessable {
+	return Unprocessable{base: base{message: message}, Code: code}
+}
+
+// EditedBriefExists is a 409 specific to the weekly-brief generate flow —
+// distinguished from generic Conflict so the handler can attach the current
+// brief revision to the response body.
+type EditedBriefExists struct {
+	base
+	// Revision is the current revision of the edited brief.
+	Revision uint64
+}
+
+// Error returns the error message for EditedBriefExists.
+func (e EditedBriefExists) Error() string {
+	return e.error()
+}
+
+// NewEditedBriefExists creates an EditedBriefExists conflict error.
+func NewEditedBriefExists(revision uint64) EditedBriefExists {
+	return EditedBriefExists{
+		base:     base{message: "an edited brief already exists for this window"},
+		Revision: revision,
+	}
+}

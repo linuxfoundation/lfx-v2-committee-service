@@ -2425,3 +2425,59 @@ func BuildGetCurrentWeeklyBriefPayload(committeeServiceGetCurrentWeeklyBriefUID 
 
 	return v, nil
 }
+
+// BuildGenerateWeeklyBriefPayload builds the payload for the committee-service
+// generate-weekly-brief endpoint from CLI flags.
+func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody string, committeeServiceGenerateWeeklyBriefUID string, committeeServiceGenerateWeeklyBriefVersion string, committeeServiceGenerateWeeklyBriefBearerToken string) (*committeeservice.GenerateWeeklyBriefPayload, error) {
+	var err error
+	var body struct {
+		// Force regeneration even if an edited brief exists
+		Force bool `form:"force" json:"force" xml:"force"`
+	}
+	{
+		err = json.Unmarshal([]byte(committeeServiceGenerateWeeklyBriefBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"force\": false\n   }'")
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceGenerateWeeklyBriefUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGenerateWeeklyBriefVersion != "" {
+			version = &committeeServiceGenerateWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGenerateWeeklyBriefBearerToken != "" {
+			bearerToken = &committeeServiceGenerateWeeklyBriefBearerToken
+		}
+	}
+	v := &committeeservice.GenerateWeeklyBriefPayload{
+		Force: body.Force,
+	}
+	{
+		var zero bool
+		if v.Force == zero {
+			v.Force = false
+		}
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
@@ -17,11 +18,13 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/ai"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 var (
@@ -497,6 +500,154 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker {
 	slog.InfoContext(ctx, "initializing Heimdall-edge committee access checker")
 	return auth.NewHeimdallEdgeAccessChecker()
+}
+
+// m2mHTTPClient builds the *http.Client used to call other LFX services on
+// behalf of THIS service identity (NOT the caller's bearer token). The
+// returned client transparently exchanges client_credentials for an OAuth2
+// access token and refreshes it as needed.
+//
+// Env vars (all required for live mode):
+//   - M2M_AUTH_CLIENT_ID
+//   - M2M_AUTH_CLIENT_SECRET
+//   - M2M_AUTH_ISSUER      (token endpoint base, e.g. https://auth.example.org)
+//   - M2M_AUTH_AUDIENCE
+//
+// When any of those is empty the function returns a plain *http.Client (no
+// auth), letting deployments without M2M wiring still come up. The meeting
+// source detects that and degrades to "no meetings".
+func m2mHTTPClient(ctx context.Context) *http.Client {
+	clientID := os.Getenv("M2M_AUTH_CLIENT_ID")
+	clientSecret := os.Getenv("M2M_AUTH_CLIENT_SECRET")
+	issuer := os.Getenv("M2M_AUTH_ISSUER")
+	audience := os.Getenv("M2M_AUTH_AUDIENCE")
+
+	if clientID == "" || clientSecret == "" || issuer == "" {
+		slog.WarnContext(ctx, "M2M client credentials not configured; M2M HTTP client will be unauthenticated",
+			"client_id_set", clientID != "",
+			"client_secret_set", clientSecret != "",
+			"issuer_set", issuer != "",
+		)
+		return &http.Client{Timeout: 15 * time.Second}
+	}
+
+	cfg := clientcredentials.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		TokenURL:     issuer + "/oauth/token",
+	}
+	if audience != "" {
+		cfg.EndpointParams = map[string][]string{"audience": {audience}}
+	}
+	slog.InfoContext(ctx, "initializing M2M client_credentials HTTP client",
+		"token_url", cfg.TokenURL,
+		"audience_set", audience != "",
+	)
+	httpClient := cfg.Client(ctx)
+	httpClient.Timeout = 15 * time.Second
+	return httpClient
+}
+
+// MeetingSourceImpl builds the meeting source. When QUERY_SERVICE_URL is
+// unset the resulting source returns zero meetings (graceful degrade).
+func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; meeting source will return zero meetings")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewMeetingSource(m2m.MeetingSourceConfig{
+		BaseURL: baseURL,
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
+// MailingListSourceImpl returns the placeholder mailing-list source.
+// TODO(contract-TBD): wire M2M when contract defined.
+func MailingListSourceImpl(_ context.Context) port.MailingListSource {
+	return m2m.NewEmptyMailingListSource()
+}
+
+// VoteSourceImpl returns the placeholder vote source.
+// TODO(contract-TBD): wire M2M when contract defined.
+func VoteSourceImpl(_ context.Context) port.VoteSource {
+	return m2m.NewEmptyVoteSource()
+}
+
+// CommitteeWeeklyMemberReaderImpl builds the live weekly member reader. The
+// reader is backed by any port.CommitteeMemberReader — in production this is
+// the NATS storage adapter — and partitions members by created_at/updated_at
+// against the window.
+func CommitteeWeeklyMemberReaderImpl(ctx context.Context) port.CommitteeWeeklyMemberReader {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+	switch repoSource {
+	case "mock":
+		return &emptyWeeklyMemberReader{}
+	case "nats":
+		natsInit(ctx)
+		memberReader, ok := natsStorage.(port.CommitteeMemberReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
+		}
+		return nats.NewCommitteeWeeklyMemberReader(memberReader)
+	default:
+		log.Fatalf("unsupported repository source for weekly member reader: %s", repoSource)
+	}
+	return nil
+}
+
+// GroupWeeklyBriefWriterImpl returns the persistence port the generator uses
+// for brief + throttle writes.
+func GroupWeeklyBriefWriterImpl(ctx context.Context) port.GroupWeeklyBriefWriter {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+	switch repoSource {
+	case "mock":
+		return &inMemoryGroupWeeklyBriefWriter{}
+	case "nats":
+		natsInit(ctx)
+		writer, ok := natsStorage.(port.GroupWeeklyBriefWriter)
+		if !ok {
+			log.Fatalf("NATS storage does not implement GroupWeeklyBriefWriter")
+		}
+		return writer
+	default:
+		log.Fatalf("unsupported repository source for weekly brief writer: %s", repoSource)
+	}
+	return nil
+}
+
+// emptyWeeklyMemberReader is the mock-mode fallback: no joins, no updates.
+type emptyWeeklyMemberReader struct{}
+
+func (emptyWeeklyMemberReader) ListMemberActivityForWindow(_ context.Context, _ string, _, _ time.Time) (port.WeeklyMemberActivity, error) {
+	return port.WeeklyMemberActivity{}, nil
+}
+
+// inMemoryGroupWeeklyBriefWriter is the mock-mode fallback. It never persists
+// but satisfies the interface so the orchestrator can run end-to-end.
+type inMemoryGroupWeeklyBriefWriter struct{}
+
+func (inMemoryGroupWeeklyBriefWriter) PutGroupWeeklyBrief(_ context.Context, b *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error) {
+	if b.UID == "" {
+		b.UID = "mock-" + b.CommitteeUID
+	}
+	b.Revision++
+	return b, nil
+}
+
+func (inMemoryGroupWeeklyBriefWriter) GetGroupWeeklyBriefThrottle(_ context.Context, _ string, _ time.Time) (*model.GroupWeeklyBriefThrottle, error) {
+	return nil, nil
+}
+
+func (inMemoryGroupWeeklyBriefWriter) PutGroupWeeklyBriefThrottle(_ context.Context, t *model.GroupWeeklyBriefThrottle) (*model.GroupWeeklyBriefThrottle, error) {
+	t.Revision++
+	return t, nil
 }
 
 // alwaysMissGroupWeeklyBriefReader is a stub used when REPOSITORY_SOURCE=mock

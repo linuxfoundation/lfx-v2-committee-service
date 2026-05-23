@@ -5694,6 +5694,223 @@ func DecodeGetCurrentWeeklyBriefResponse(decoder func(*http.Response) goahttp.De
 	}
 }
 
+// BuildGenerateWeeklyBriefRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "generate-weekly-brief" endpoint
+func (c *Client) BuildGenerateWeeklyBriefRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.GenerateWeeklyBriefPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "generate-weekly-brief", "*committeeservice.GenerateWeeklyBriefPayload", v)
+		}
+		uid = p.UID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GenerateWeeklyBriefCommitteeServicePath(uid)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "generate-weekly-brief", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGenerateWeeklyBriefRequest returns an encoder for requests sent to the
+// committee-service generate-weekly-brief server.
+func EncodeGenerateWeeklyBriefRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GenerateWeeklyBriefPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "generate-weekly-brief", "*committeeservice.GenerateWeeklyBriefPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		body := p
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "generate-weekly-brief", err)
+		}
+		return nil
+	}
+}
+
+// DecodeGenerateWeeklyBriefResponse returns a decoder for responses returned
+// by the committee-service generate-weekly-brief endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeGenerateWeeklyBriefResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
+//   - "EditedBriefExists" (type *committeeservice.GroupWeeklyBriefEditedExistsError): http.StatusConflict
+//   - "NoSources" (type *committeeservice.GroupWeeklyBriefNoSourceError): http.StatusUnprocessableEntity
+//   - "ThrottleExceeded" (type *committeeservice.GroupWeeklyBriefThrottleExceededError): http.StatusTooManyRequests
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GenerateWeeklyBriefResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			res := NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body GenerateWeeklyBriefBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefBadRequest(&body)
+		case http.StatusForbidden:
+			var (
+				body GenerateWeeklyBriefForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefForbidden(&body)
+		case http.StatusConflict:
+			var (
+				body GenerateWeeklyBriefEditedBriefExistsResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefEditedBriefExistsResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefEditedBriefExists(&body)
+		case http.StatusUnprocessableEntity:
+			var (
+				body GenerateWeeklyBriefNoSourcesResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefNoSourcesResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefNoSources(&body)
+		case http.StatusTooManyRequests:
+			var (
+				body GenerateWeeklyBriefThrottleExceededResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefThrottleExceededResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefThrottleExceeded(&body)
+		case http.StatusInternalServerError:
+			var (
+				body GenerateWeeklyBriefInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body GenerateWeeklyBriefNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GenerateWeeklyBriefServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
+			}
+			err = ValidateGenerateWeeklyBriefServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
+			}
+			return nil, NewGenerateWeeklyBriefServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "generate-weekly-brief", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody builds a
 // value of type *CommitteeUserRequestBody from a value of type
 // *committeeservice.CommitteeUser.
@@ -5889,8 +6106,13 @@ func unmarshalGroupWeeklyBriefSourceRefResponseBodyToCommitteeserviceGroupWeekly
 // value of type *GroupWeeklyBriefThrottleResponseBody.
 func unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(v *GroupWeeklyBriefThrottleResponseBody) *committeeservice.GroupWeeklyBriefThrottle {
 	res := &committeeservice.GroupWeeklyBriefThrottle{
-		Count:         v.Count,
-		LastAttemptAt: v.LastAttemptAt,
+		GeneratesUsed:      v.GeneratesUsed,
+		GeneratesLimit:     v.GeneratesLimit,
+		RegenerationsUsed:  v.RegenerationsUsed,
+		RegenerationsLimit: v.RegenerationsLimit,
+		WindowResetsAt:     v.WindowResetsAt,
+		Count:              v.Count,
+		LastAttemptAt:      v.LastAttemptAt,
 	}
 
 	return res

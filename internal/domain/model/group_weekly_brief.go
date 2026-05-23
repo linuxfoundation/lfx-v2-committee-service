@@ -106,17 +106,56 @@ func (b *GroupWeeklyBrief) Validate() error {
 	return b.State.Validate()
 }
 
-// GroupWeeklyBriefThrottle records per-window regeneration throttling state.
-// Phase 1 does not write or read this struct; it is defined so Phase 2 can
-// land its throttle logic without touching this file's KV-bucket wiring.
+// GroupWeeklyBriefThrottle records per-committee/per-week throttle state.
+// Both GeneratesUsed and RegenerationsUsed are tracked separately so the
+// generate (fresh) and regenerate (force or follow-up) paths can have distinct
+// limits enforced against the same window key.
+//
+// Count and LastAttemptAt are Phase-1 legacy fields preserved on the JSON wire
+// so existing readers continue to function during the Phase 1 → Phase 2 cut-over.
 type GroupWeeklyBriefThrottle struct {
 	CommitteeUID string    `json:"committee_uid"`
 	WindowStart  time.Time `json:"window_start"`
 	WindowEnd    time.Time `json:"window_end"`
-	// Count is the number of regeneration attempts in this window.
-	Count int `json:"count"`
-	// LastAttemptAt is the timestamp of the most recent attempt.
+	// GeneratesUsed is the number of fresh generations consumed in this window.
+	GeneratesUsed int `json:"generates_used"`
+	// RegenerationsUsed is the number of regenerations consumed in this window.
+	RegenerationsUsed int `json:"regenerations_used"`
+	// WindowResetsAt is the timestamp at which the window resets (next UTC Sunday 00:00:00).
+	WindowResetsAt time.Time `json:"window_resets_at"`
+	// LastAttemptAt is the timestamp of the most recent attempt (advisory).
 	LastAttemptAt time.Time `json:"last_attempt_at,omitempty"`
+	// Count is the deprecated Phase 1 total (generates_used + regenerations_used).
+	// Kept for backward compatibility; new code should not rely on this field.
+	Count int `json:"count"`
+	// Revision is the NATS KV revision used for compare-and-swap updates.
+	// It is not persisted as JSON.
+	Revision uint64 `json:"-"`
+}
+
+// Limits enforced per (committee, week):
+//   - GenerateLimit:    fresh generations allowed before 429.
+//   - RegenerationLimit: regenerations allowed before 429.
+//
+// Per-committee/per-week (NOT per-user) so two writers cannot bypass the cap
+// by alternating calls.
+const (
+	GroupWeeklyBriefGenerateLimit     = 2
+	GroupWeeklyBriefRegenerationLimit = 3
+)
+
+// NextWindowReset returns the next UTC Sunday 00:00:00 relative to now. This is
+// the "throttle window resets at" timestamp surfaced in 429 responses.
+func NextWindowReset(now time.Time) time.Time {
+	nUTC := now.UTC()
+	today := time.Date(nUTC.Year(), nUTC.Month(), nUTC.Day(), 0, 0, 0, 0, time.UTC)
+	// Days forward to the next Sunday. If today is Sunday, jump 7 days.
+	wd := int(today.Weekday()) // Sunday=0..Saturday=6
+	daysToNextSun := (7 - wd) % 7
+	if daysToNextSun == 0 {
+		daysToNextSun = 7
+	}
+	return today.AddDate(0, 0, daysToNextSun)
 }
 
 // WeeklyWindow returns the most recently completed UTC Sun 00:00:00 →
