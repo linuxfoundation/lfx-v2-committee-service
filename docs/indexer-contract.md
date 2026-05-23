@@ -15,6 +15,7 @@ This document is the authoritative reference for all data the committee service 
 - [Committee Application](#committee-application)
 - [Committee Link](#committee-link)
 - [Committee Link Folder](#committee-link-folder)
+- [Group Weekly Brief](#group-weekly-brief)
 
 ---
 
@@ -473,6 +474,65 @@ _(none)_
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
 | `public` | inherits from parent committee |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Group Weekly Brief
+
+**Object type:** `group_weekly_brief`
+
+**NATS subject:** `lfx.index.group_weekly_brief`
+
+**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
+
+**Indexed on:** create, update, delete of a group weekly brief draft.
+
+> Published briefs will be a future separate entity; this entry covers the draft only.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Brief unique identifier |
+| `committee_uid` | string | UID of the committee this brief belongs to |
+| `window_start` | timestamp | Start of the brief's reporting window (RFC3339) |
+| `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
+| `state` | string | Draft state (e.g., `Pending`, `Generating`, `Ready`, `Failed`) |
+| `brief_text` | string | Generated brief body; included in the indexed data payload |
+| `source_refs` | []object | References to the source artifacts the brief was generated from |
+| `prompt_version` | string | Version identifier of the prompt used to generate the brief |
+| `model` | string | Identifier of the model used to generate the brief |
+| `regeneration_count` | int | Number of times the brief has been regenerated |
+| `private_source_present` | bool | Whether any source artifact used was private |
+| `created_at` | timestamp | Creation time (RFC3339) |
+| `updated_at` | timestamp | Last update time (RFC3339) |
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `committee:{committee_uid}` | `committee:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find weekly briefs for a committee |
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `writer` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `brief_text` |
+| `filterable` | `state`, `committee_uid`, `window_start`, `window_end`, `uid` |
+| `indexed_public` | `false` (always — intentional; even for public committees, brief drafts are never indexed as public) |
 
 ### Parent References
 
