@@ -181,6 +181,9 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		constants.KVBucketNameCommitteeLinks,
 		constants.KVBucketNameCommitteeFolders,
 		constants.KVBucketNameCommitteeDocuments,
+		constants.KVBucketNameGroupWeeklyBriefs,
+		constants.KVBucketNameGroupWeeklyBriefUIDIndex,
+		constants.KVBucketNameGroupWeeklyBriefThrottle,
 	} {
 		if err := client.KeyValueStore(ctx, bucketName); err != nil {
 			slog.ErrorContext(ctx, "failed to initialize NATS key-value store",

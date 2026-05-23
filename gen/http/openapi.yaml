@@ -2358,6 +2358,71 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/weekly-briefs/current:
+        get:
+            tags:
+                - committee-service
+            summary: get-current-weekly-brief committee-service
+            description: Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).
+            operationId: committee-service#get-current-weekly-brief
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefCurrentResult'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
 definitions:
     BadRequestError:
         title: BadRequestError
@@ -3263,12 +3328,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: qxz
+                example: pn8
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: d6fc9b72-ba63-4dd4-90db-5ada12d48ed2
+                example: 3352e864-6deb-412b-8429-3406094eae99
                 format: uuid
             name:
                 type: string
@@ -3281,8 +3346,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: 7cs
-            folder_uid: a7860d96-d93c-47fa-a309-9b278f2c3e25
+            description: li8
+            folder_uid: 75a775a2-7e32-40d7-a21e-db000c701c26
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4096,41 +4161,35 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Itaque omnis aliquam.
+                example: Sed sed.
             description:
                 type: string
                 description: Optional description
-                example: cjv
+                example: i63
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 81
-                    - 117
-                    - 105
-                    - 100
+                    - 82
                     - 101
                     - 109
                     - 32
-                    - 112
+                    - 115
+                    - 105
+                    - 109
+                    - 105
+                    - 108
+                    - 105
+                    - 113
+                    - 117
                     - 101
-                    - 114
-                    - 115
-                    - 112
-                    - 105
-                    - 99
-                    - 105
-                    - 97
-                    - 116
-                    - 105
-                    - 115
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Aperiam labore repudiandae atque quo et.
+                example: Officiis similique.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4142,44 +4201,35 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Adipisci nisi totam provident veniam assumenda.
-            description: bzo
+            content_type: Itaque repellat et nemo.
+            description: wmv
             file:
-                - 70
-                - 97
-                - 99
-                - 101
-                - 114
-                - 101
-                - 32
-                - 97
+                - 79
                 - 100
                 - 105
-                - 112
-                - 105
-                - 115
-                - 99
-                - 105
+                - 111
                 - 32
-                - 97
-                - 114
-                - 99
+                - 110
+                - 105
                 - 104
                 - 105
-                - 116
-                - 101
-                - 99
-                - 116
-                - 111
+                - 108
+                - 32
+                - 105
+                - 100
                 - 32
                 - 108
                 - 97
                 - 98
                 - 111
                 - 114
-                - 101
+                - 105
+                - 111
+                - 115
+                - 97
+                - 109
                 - 46
-            file_name: Eaque eum placeat soluta facere doloribus autem.
+            file_name: Unde eius quia sunt.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4353,6 +4403,202 @@ definitions:
             message: You do not have permission to perform this action.
         required:
             - message
+    GroupWeeklyBriefCurrentResult:
+        title: GroupWeeklyBriefCurrentResult
+        type: object
+        properties:
+            brief:
+                $ref: '#/definitions/GroupWeeklyBriefWithReadonlyAttributes'
+            throttle:
+                $ref: '#/definitions/GroupWeeklyBriefThrottle'
+        example:
+            brief:
+                brief_text: lvl
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                created_at: "2023-01-15T10:30:00Z"
+                model: fake
+                private_source_present: false
+                prompt_version: v1
+                regeneration_count: 0
+                source_refs:
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                state: generated
+                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                updated_at: "2023-06-20T14:45:30Z"
+                window_end: "2026-05-16T23:59:59Z"
+                window_start: "2026-05-10T00:00:00Z"
+            throttle:
+                count: 0
+                last_attempt_at: "1976-05-27T12:27:23Z"
+    GroupWeeklyBriefSourceRef:
+        title: GroupWeeklyBriefSourceRef
+        type: object
+        properties:
+            excerpt:
+                type: string
+                description: Excerpt consumed by the generator
+                example: bzh
+                maxLength: 5000
+            id:
+                type: string
+                description: Source-system identifier (URL or UID)
+                example: https://meet.example.org/abc123
+            kind:
+                type: string
+                description: Source category (meeting, mailing-list, doc, …)
+                example: meeting
+            title:
+                type: string
+                description: Short human label for the source
+                example: 2026-05-12 weekly sync
+        description: Reference to a source document considered by the weekly-brief generator.
+        example:
+            excerpt: mek
+            id: https://meet.example.org/abc123
+            kind: meeting
+            title: 2026-05-12 weekly sync
+    GroupWeeklyBriefThrottle:
+        title: GroupWeeklyBriefThrottle
+        type: object
+        properties:
+            count:
+                type: integer
+                description: Regeneration attempts in this window
+                example: 0
+                format: int64
+                minimum: 0
+            last_attempt_at:
+                type: string
+                description: Timestamp of the last regeneration attempt
+                example: "2009-01-10T04:33:58Z"
+                format: date-time
+        description: Per-window regeneration throttle counters.
+        example:
+            count: 0
+            last_attempt_at: "2004-01-18T19:15:43Z"
+    GroupWeeklyBriefWithReadonlyAttributes:
+        title: GroupWeeklyBriefWithReadonlyAttributes
+        type: object
+        properties:
+            brief_text:
+                type: string
+                description: Brief body markdown text
+                example: emo
+                maxLength: 20000
+            committee_uid:
+                type: string
+                description: Committee UID this brief belongs to
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
+            created_at:
+                type: string
+                description: The timestamp when the resource was created (read-only)
+                example: "2023-01-15T10:30:00Z"
+                format: date-time
+            model:
+                type: string
+                description: AI model used by the generator
+                example: fake
+            private_source_present:
+                type: boolean
+                description: Whether any non-public source was used
+                example: false
+            prompt_version:
+                type: string
+                description: Prompt version used by the generator
+                example: v1
+            regeneration_count:
+                type: integer
+                description: Number of regenerations triggered in this window
+                example: 0
+                format: int64
+                minimum: 0
+            source_refs:
+                type: array
+                items:
+                    $ref: '#/definitions/GroupWeeklyBriefSourceRef'
+                description: Sources considered by the generator
+                example:
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: lji
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+            state:
+                type: string
+                description: Lifecycle state
+                example: generated
+                enum:
+                    - empty
+                    - generating
+                    - generated
+                    - edited
+                    - approved
+                    - error
+            uid:
+                type: string
+                description: Brief UID
+                example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            updated_at:
+                type: string
+                description: The timestamp when the resource was last updated (read-only)
+                example: "2023-06-20T14:45:30Z"
+                format: date-time
+            window_end:
+                type: string
+                description: UTC Saturday 23:59:59 marking the end of the window
+                example: "2026-05-16T23:59:59Z"
+                format: date-time
+            window_start:
+                type: string
+                description: UTC Sunday 00:00:00 marking the start of the window
+                example: "2026-05-10T00:00:00Z"
+                format: date-time
+        description: A working-group weekly brief for a single committee and Sun→Sat window.
+        example:
+            brief_text: i6t
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            created_at: "2023-01-15T10:30:00Z"
+            model: fake
+            private_source_present: false
+            prompt_version: v1
+            regeneration_count: 0
+            source_refs:
+                - excerpt: lji
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+                - excerpt: lji
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+                - excerpt: lji
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+            state: generated
+            uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            updated_at: "2023-06-20T14:45:30Z"
+            window_end: "2026-05-16T23:59:59Z"
+            window_start: "2026-05-10T00:00:00Z"
     InternalServerError:
         title: InternalServerError
         type: object

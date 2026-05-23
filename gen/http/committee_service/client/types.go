@@ -947,6 +947,15 @@ type UploadCommitteeDocumentResponseBody struct {
 // service "get-committee-document" endpoint HTTP response body.
 type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesResponseBody
 
+// GetCurrentWeeklyBriefResponseBody is the type of the "committee-service"
+// service "get-current-weekly-brief" endpoint HTTP response body.
+type GetCurrentWeeklyBriefResponseBody struct {
+	// The weekly brief, or null if none exists for the current window
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
+	// Throttle counters for the current window, or null
+	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+}
+
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"
 // service "create-committee" endpoint HTTP response body for the "BadRequest"
 // error.
@@ -2093,6 +2102,46 @@ type DeleteCommitteeDocumentServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// GetCurrentWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "BadRequest" error.
+type GetCurrentWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCurrentWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "Forbidden" error.
+type GetCurrentWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCurrentWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCurrentWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCurrentWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCurrentWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// GetCurrentWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCurrentWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image
@@ -2387,6 +2436,59 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// GroupWeeklyBriefWithReadonlyAttributesResponseBody is used to define fields
+// on response body types.
+type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
+	// Brief UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID this brief belongs to
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string `form:"window_start,omitempty" json:"window_start,omitempty" xml:"window_start,omitempty"`
+	// UTC Saturday 23:59:59 marking the end of the window
+	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
+	// Lifecycle state
+	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Brief body markdown text
+	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRefResponseBody `form:"source_refs,omitempty" json:"source_refs,omitempty" xml:"source_refs,omitempty"`
+	// Prompt version used by the generator
+	PromptVersion *string `form:"prompt_version,omitempty" json:"prompt_version,omitempty" xml:"prompt_version,omitempty"`
+	// AI model used by the generator
+	Model *string `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
+	// Number of regenerations triggered in this window
+	RegenerationCount *int `form:"regeneration_count,omitempty" json:"regeneration_count,omitempty" xml:"regeneration_count,omitempty"`
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool `form:"private_source_present,omitempty" json:"private_source_present,omitempty" xml:"private_source_present,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// GroupWeeklyBriefSourceRefResponseBody is used to define fields on response
+// body types.
+type GroupWeeklyBriefSourceRefResponseBody struct {
+	// Source category (meeting, mailing-list, doc, …)
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	// Source-system identifier (URL or UID)
+	ID *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	// Short human label for the source
+	Title *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	// Excerpt consumed by the generator
+	Excerpt *string `form:"excerpt,omitempty" json:"excerpt,omitempty" xml:"excerpt,omitempty"`
+}
+
+// GroupWeeklyBriefThrottleResponseBody is used to define fields on response
+// body types.
+type GroupWeeklyBriefThrottleResponseBody struct {
+	// Regeneration attempts in this window
+	Count *int `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
+	// Timestamp of the last regeneration attempt
+	LastAttemptAt *string `form:"last_attempt_at,omitempty" json:"last_attempt_at,omitempty" xml:"last_attempt_at,omitempty"`
 }
 
 // NewCreateCommitteeRequestBody builds the HTTP request body from the payload
@@ -5415,6 +5517,71 @@ func NewDeleteCommitteeDocumentServiceUnavailable(body *DeleteCommitteeDocumentS
 	return v
 }
 
+// NewGetCurrentWeeklyBriefGroupWeeklyBriefCurrentResultOK builds a
+// "committee-service" service "get-current-weekly-brief" endpoint result from
+// a HTTP "OK" response.
+func NewGetCurrentWeeklyBriefGroupWeeklyBriefCurrentResultOK(body *GetCurrentWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefCurrentResult {
+	v := &committeeservice.GroupWeeklyBriefCurrentResult{}
+	if body.Brief != nil {
+		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
+	}
+	if body.Throttle != nil {
+		v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	}
+
+	return v
+}
+
+// NewGetCurrentWeeklyBriefBadRequest builds a committee-service service
+// get-current-weekly-brief endpoint BadRequest error.
+func NewGetCurrentWeeklyBriefBadRequest(body *GetCurrentWeeklyBriefBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCurrentWeeklyBriefForbidden builds a committee-service service
+// get-current-weekly-brief endpoint Forbidden error.
+func NewGetCurrentWeeklyBriefForbidden(body *GetCurrentWeeklyBriefForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCurrentWeeklyBriefInternalServerError builds a committee-service
+// service get-current-weekly-brief endpoint InternalServerError error.
+func NewGetCurrentWeeklyBriefInternalServerError(body *GetCurrentWeeklyBriefInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCurrentWeeklyBriefNotFound builds a committee-service service
+// get-current-weekly-brief endpoint NotFound error.
+func NewGetCurrentWeeklyBriefNotFound(body *GetCurrentWeeklyBriefNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewGetCurrentWeeklyBriefServiceUnavailable builds a committee-service
+// service get-current-weekly-brief endpoint ServiceUnavailable error.
+func NewGetCurrentWeeklyBriefServiceUnavailable(body *GetCurrentWeeklyBriefServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // ValidateCreateCommitteeResponseBody runs the validations defined on
 // Create-CommitteeResponseBody
 func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err error) {
@@ -6686,6 +6853,22 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetCurrentWeeklyBriefResponseBody runs the validations defined on
+// Get-Current-Weekly-BriefResponseBody
+func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefResponseBody) (err error) {
+	if body.Brief != nil {
+		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.Throttle != nil {
+		if err2 := ValidateGroupWeeklyBriefThrottleResponseBody(body.Throttle); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
 	}
 	return
 }
@@ -8015,6 +8198,53 @@ func ValidateDeleteCommitteeDocumentServiceUnavailableResponseBody(body *DeleteC
 	return
 }
 
+// ValidateGetCurrentWeeklyBriefBadRequestResponseBody runs the validations
+// defined on get-current-weekly-brief_BadRequest_response_body
+func ValidateGetCurrentWeeklyBriefBadRequestResponseBody(body *GetCurrentWeeklyBriefBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCurrentWeeklyBriefForbiddenResponseBody runs the validations
+// defined on get-current-weekly-brief_Forbidden_response_body
+func ValidateGetCurrentWeeklyBriefForbiddenResponseBody(body *GetCurrentWeeklyBriefForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCurrentWeeklyBriefInternalServerErrorResponseBody runs the
+// validations defined on
+// get-current-weekly-brief_InternalServerError_response_body
+func ValidateGetCurrentWeeklyBriefInternalServerErrorResponseBody(body *GetCurrentWeeklyBriefInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCurrentWeeklyBriefNotFoundResponseBody runs the validations
+// defined on get-current-weekly-brief_NotFound_response_body
+func ValidateGetCurrentWeeklyBriefNotFoundResponseBody(body *GetCurrentWeeklyBriefNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetCurrentWeeklyBriefServiceUnavailableResponseBody runs the
+// validations defined on
+// get-current-weekly-brief_ServiceUnavailable_response_body
+func ValidateGetCurrentWeeklyBriefServiceUnavailableResponseBody(body *GetCurrentWeeklyBriefServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateCommitteeUserRequestBody runs the validations defined on
 // committee-userRequestBody
 func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
@@ -8423,6 +8653,75 @@ func ValidateCommitteeDocumentWithReadonlyAttributesResponseBody(body *Committee
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody runs the
+// validations defined on
+// group-weekly-brief-with-readonly-attributesResponseBody
+func ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body *GroupWeeklyBriefWithReadonlyAttributesResponseBody) (err error) {
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.WindowStart != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.window_start", *body.WindowStart, goa.FormatDateTime))
+	}
+	if body.WindowEnd != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.window_end", *body.WindowEnd, goa.FormatDateTime))
+	}
+	if body.State != nil {
+		if !(*body.State == "empty" || *body.State == "generating" || *body.State == "generated" || *body.State == "edited" || *body.State == "approved" || *body.State == "error") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.state", *body.State, []any{"empty", "generating", "generated", "edited", "approved", "error"}))
+		}
+	}
+	if body.BriefText != nil {
+		if utf8.RuneCountInString(*body.BriefText) > 20000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.brief_text", *body.BriefText, utf8.RuneCountInString(*body.BriefText), 20000, false))
+		}
+	}
+	for _, e := range body.SourceRefs {
+		if e != nil {
+			if err2 := ValidateGroupWeeklyBriefSourceRefResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if body.RegenerationCount != nil {
+		if *body.RegenerationCount < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.regeneration_count", *body.RegenerationCount, 0, true))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGroupWeeklyBriefSourceRefResponseBody runs the validations defined
+// on group-weekly-brief-source-refResponseBody
+func ValidateGroupWeeklyBriefSourceRefResponseBody(body *GroupWeeklyBriefSourceRefResponseBody) (err error) {
+	if body.Excerpt != nil {
+		if utf8.RuneCountInString(*body.Excerpt) > 5000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.excerpt", *body.Excerpt, utf8.RuneCountInString(*body.Excerpt), 5000, false))
+		}
+	}
+	return
+}
+
+// ValidateGroupWeeklyBriefThrottleResponseBody runs the validations defined on
+// group-weekly-brief-throttleResponseBody
+func ValidateGroupWeeklyBriefThrottleResponseBody(body *GroupWeeklyBriefThrottleResponseBody) (err error) {
+	if body.Count != nil {
+		if *body.Count < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.count", *body.Count, 0, true))
+		}
+	}
+	if body.LastAttemptAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_attempt_at", *body.LastAttemptAt, goa.FormatDateTime))
 	}
 	return
 }

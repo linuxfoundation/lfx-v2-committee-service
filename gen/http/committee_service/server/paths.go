@@ -186,3 +186,8 @@ func DownloadCommitteeDocumentCommitteeServicePath(uid string, documentUID strin
 func DeleteCommitteeDocumentCommitteeServicePath(uid string, documentUID string) string {
 	return fmt.Sprintf("/committees/%v/documents/%v", uid, documentUID)
 }
+
+// GetCurrentWeeklyBriefCommitteeServicePath returns the URL path to the committee-service service get-current-weekly-brief HTTP endpoint.
+func GetCurrentWeeklyBriefCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/weekly-briefs/current", uid)
+}

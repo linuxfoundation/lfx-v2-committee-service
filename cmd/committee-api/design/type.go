@@ -982,6 +982,91 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 	UpdatedAtAttribute()
 })
 
+// ─── Working-Group Weekly Brief Types ───
+
+// GroupWeeklyBriefSourceRef is a reference to one source document considered
+// by the weekly-brief generator.
+var GroupWeeklyBriefSourceRef = dsl.Type("group-weekly-brief-source-ref", func() {
+	dsl.Description("Reference to a source document considered by the weekly-brief generator.")
+	dsl.Attribute("kind", dsl.String, "Source category (meeting, mailing-list, doc, …)", func() {
+		dsl.Example("meeting")
+	})
+	dsl.Attribute("id", dsl.String, "Source-system identifier (URL or UID)", func() {
+		dsl.Example("https://meet.example.org/abc123")
+	})
+	dsl.Attribute("title", dsl.String, "Short human label for the source", func() {
+		dsl.Example("2026-05-12 weekly sync")
+	})
+	dsl.Attribute("excerpt", dsl.String, "Excerpt consumed by the generator", func() {
+		dsl.MaxLength(5000)
+	})
+})
+
+// GroupWeeklyBriefWithReadonlyAttributes is the Goa type for a weekly brief.
+var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-readonly-attributes", func() {
+	dsl.Description("A working-group weekly brief for a single committee and Sun→Sat window.")
+	dsl.Attribute("uid", dsl.String, "Brief UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID this brief belongs to", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("window_start", dsl.String, "UTC Sunday 00:00:00 marking the start of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-10T00:00:00Z")
+	})
+	dsl.Attribute("window_end", dsl.String, "UTC Saturday 23:59:59 marking the end of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-16T23:59:59Z")
+	})
+	dsl.Attribute("state", dsl.String, "Lifecycle state", func() {
+		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
+		dsl.Example("generated")
+	})
+	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
+		dsl.MaxLength(20000)
+	})
+	dsl.Attribute("source_refs", dsl.ArrayOf(GroupWeeklyBriefSourceRef), "Sources considered by the generator")
+	dsl.Attribute("prompt_version", dsl.String, "Prompt version used by the generator", func() {
+		dsl.Example("v1")
+	})
+	dsl.Attribute("model", dsl.String, "AI model used by the generator", func() {
+		dsl.Example("fake")
+	})
+	dsl.Attribute("regeneration_count", dsl.Int, "Number of regenerations triggered in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("private_source_present", dsl.Boolean, "Whether any non-public source was used", func() {
+		dsl.Example(false)
+	})
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
+// returned alongside the brief. Phase 2 populates this; Phase 1 always returns null.
+var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
+	dsl.Description("Per-window regeneration throttle counters.")
+	dsl.Attribute("count", dsl.Int, "Regeneration attempts in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("last_attempt_at", dsl.String, "Timestamp of the last regeneration attempt", func() {
+		dsl.Format(dsl.FormatDateTime)
+	})
+})
+
+// GroupWeeklyBriefCurrentResult is the envelope returned by
+// GET /committees/{uid}/weekly-briefs/current. brief and throttle are both
+// nullable; on a miss BOTH are null and the HTTP status is 200 (NOT 404).
+var GroupWeeklyBriefCurrentResult = dsl.Type("group-weekly-brief-current-result", func() {
+	dsl.Description("Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window")
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null")
+})
+
 // ─── Committee Document Types ───
 
 // DocumentUIDAttribute is the DSL attribute for document UID in URL paths.
