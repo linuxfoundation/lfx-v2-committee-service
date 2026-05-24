@@ -6,10 +6,13 @@
 
 // This file is built only when -tags=live is passed. It documents and
 // implements the live-LLM eval path against a LiteLLM-compatible endpoint.
-// CI never compiles this file; run it manually pre-release:
+// CI never compiles this file; run it manually pre-release.
+//
+// The -tags flag is a build flag and MUST appear before the package pattern,
+// otherwise the test binary rejects it as an unknown flag:
 //
 //	AI_SOURCE=live LITELLM_BASE_URL=... LITELLM_API_KEY=... LITELLM_MODEL=... \
-//	  go test ./evals/weekly-brief/... -tags=live -run TestWeeklyBriefEvalLive
+//	  go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 
 package weeklybriefeval
 
