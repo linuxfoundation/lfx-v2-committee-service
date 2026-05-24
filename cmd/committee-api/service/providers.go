@@ -513,17 +513,33 @@ func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker
 //   - M2M_AUTH_ISSUER      (token endpoint base, e.g. https://auth.example.org)
 //   - M2M_AUTH_AUDIENCE
 //
-// When any of those is empty the function returns a plain *http.Client (no
-// auth), letting deployments without M2M wiring still come up. The meeting
-// source detects that and degrades to "no meetings".
+// Behaviour:
+//   - When QUERY_SERVICE_URL is unset, the *SourceImpl callers short-circuit
+//     to "no results" without making outbound requests; we return a plain
+//     *http.Client so wiring stays uniform and the service still boots.
+//   - When QUERY_SERVICE_URL IS set, M2M is required — we will be making
+//     outbound calls and must not do so unauthenticated. Missing credentials
+//     fail-fast at startup to prevent silent identity-less upstream calls.
 func m2mHTTPClient(ctx context.Context) *http.Client {
 	clientID := os.Getenv("M2M_AUTH_CLIENT_ID")
 	clientSecret := os.Getenv("M2M_AUTH_CLIENT_SECRET")
 	issuer := os.Getenv("M2M_AUTH_ISSUER")
 	audience := os.Getenv("M2M_AUTH_AUDIENCE")
 
+	queryURL := os.Getenv("QUERY_SERVICE_URL")
 	if clientID == "" || clientSecret == "" || issuer == "" {
-		slog.WarnContext(ctx, "M2M client credentials not configured; M2M HTTP client will be unauthenticated",
+		if queryURL != "" {
+			// QUERY_SERVICE_URL is set but M2M is incomplete — refuse to issue
+			// unauthenticated upstream calls (the reviewer flagged this as a
+			// silent fail-open that violated the documented M2M requirement).
+			log.Fatalf(
+				"QUERY_SERVICE_URL is set but M2M credentials are missing — refusing to issue unauthenticated upstream calls. "+
+					"Set M2M_AUTH_CLIENT_ID, M2M_AUTH_CLIENT_SECRET, M2M_AUTH_ISSUER (and optionally M2M_AUTH_AUDIENCE), or unset QUERY_SERVICE_URL. "+
+					"Got client_id_set=%t, client_secret_set=%t, issuer_set=%t",
+				clientID != "", clientSecret != "", issuer != "",
+			)
+		}
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; M2M HTTP client unused (returning unauthenticated client for uniform wiring)",
 			"client_id_set", clientID != "",
 			"client_secret_set", clientSecret != "",
 			"issuer_set", issuer != "",

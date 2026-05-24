@@ -3,7 +3,10 @@
 
 // Package ai contains AIAdapter implementations selected at startup via
 // AI_SOURCE. The fake adapter is deterministic (same input -> same output,
-// no network, no credentials) and is the default for local dev and CI.
+// no network, no credentials) and is selected by AI_SOURCE=fake — intended
+// for local dev, CI, and the prompt-eval harness. AI_SOURCE defaults to
+// "live" when unset, so dev environments must set AI_SOURCE=fake explicitly
+// to avoid accidental live network calls (see cmd/committee-api/service/providers.go).
 package ai
 
 import (
