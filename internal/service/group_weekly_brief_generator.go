@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -221,8 +222,21 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 	if errMembers != nil {
 		return nil, errMembers
 	}
-	mailing, _ := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	votes, _ := g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+	if errMailing != nil {
+		// Surface the partial failure but continue — matches meeting source
+		// handling so an upstream outage shows up in logs instead of being
+		// silently coerced into a no-activity 422.
+		slog.WarnContext(ctx, "mailing list source failed; continuing with zero threads",
+			"committee_uid", in.CommitteeUID, "error", errMailing)
+		mailing = nil
+	}
+	votes, errVotes := g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+	if errVotes != nil {
+		slog.WarnContext(ctx, "vote source failed; continuing with zero votes",
+			"committee_uid", in.CommitteeUID, "error", errVotes)
+		votes = nil
+	}
 
 	memberCount := len(members.Joined) + len(members.Updated)
 
@@ -261,10 +275,11 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 	// echoed by the fake adapter and we want the structural guarantee that
 	// untrusted input never appears verbatim in the brief text.
 	//
-	// The block is logged at debug-level so live adapters can pick it up
-	// out-of-band; future iterations should add an explicit "RawContext"
-	// field to port.WeeklyBriefInput once the live adapter contract calls
-	// for it.
+	// The block is currently discarded; it's defined so the contract is
+	// reviewable and a future iteration can wire it through a dedicated
+	// `RawContext` field on `port.WeeklyBriefInput` once the live adapter
+	// contract calls for it. Until then, live adapters receive only the
+	// sanitized claim labels.
 	_ = buildPromptDataBlock(meetings, members, mailing, votes)
 
 	// 7. AI call.
@@ -307,10 +322,16 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 	throttle.WindowResetsAt = windowReset
 	updatedThrottle, errTh := g.briefWriter.PutGroupWeeklyBriefThrottle(ctx, throttle)
 	if errTh != nil {
-		// Don't fail the whole call — the brief is persisted; surface a warning.
-		slog.WarnContext(ctx, "failed to update weekly-brief throttle counter",
+		// Surface throttle-update failures instead of swallowing them: a
+		// silent miss here means the counter never advances and subsequent
+		// callers can bypass the per-window limit. The brief itself is
+		// already persisted, so the caller will see a 503/5xx and can retry.
+		// Note: this leaves a small window where the brief exists without
+		// throttle bump — acceptable for MVP; a follow-up should reorder to
+		// pre-increment the throttle and roll back on AI/persist failures.
+		slog.ErrorContext(ctx, "failed to update weekly-brief throttle counter",
 			"committee_uid", in.CommitteeUID, "error", errTh)
-		updatedThrottle = throttle
+		return nil, errTh
 	}
 
 	return &GroupWeeklyBriefGenerateOutput{
@@ -391,8 +412,12 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 }
 
 // claimLabel returns a short identifier safe to surface back to the model. It
-// truncates and strips control characters so an attacker can't smuggle prompt
-// instructions through a meeting title.
+// strips newlines/carriage returns and truncates to 80 runes. This reduces the
+// risk of multi-line control-character tricks slipping through a meeting
+// title — it is NOT a complete prompt-injection defence (an 80-rune label can
+// still contain adversarial natural-language content). The model's system
+// prompt remains the primary line of defence; this layer just hardens the
+// surface.
 func claimLabel(kind, raw string) string {
 	s := strings.TrimSpace(raw)
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -400,8 +425,11 @@ func claimLabel(kind, raw string) string {
 	if s == "" {
 		return kind
 	}
-	if len(s) > 80 {
-		s = s[:80] + "…"
+	// Truncate by RUNE, not byte — byte slicing can cut multi-byte UTF-8
+	// sequences mid-character and produce invalid text.
+	if utf8.RuneCountInString(s) > 80 {
+		runes := []rune(s)
+		s = string(runes[:80]) + "…"
 	}
 	return kind + ": " + s
 }
