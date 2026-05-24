@@ -57,7 +57,7 @@ func TestWeeklyWindow(t *testing.T) {
 			wantEnd:   mustParse("2026-05-16T23:59:59.999999999Z"),
 		},
 		{
-			name:      "Saturday uses Sunday→Friday (current week ending today)",
+			name:      "Saturday uses Sunday→Saturday (current week ending today)",
 			now:       mustParse("2026-05-16T12:00:00Z"),
 			wantStart: mustParse("2026-05-10T00:00:00Z"),
 			wantEnd:   mustParse("2026-05-16T23:59:59.999999999Z"),
