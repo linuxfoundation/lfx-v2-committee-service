@@ -60,14 +60,16 @@ go test -v ./evals/weekly-brief/...
 ## Run with a live LLM (manual, pre-release)
 
 The live test is built only under `-tags=live` and skips automatically if any
-of the LiteLLM environment variables are missing.
+of the LiteLLM environment variables are missing. The `-tags` flag is a build
+flag — it must appear **before** the package pattern, otherwise `go test`
+passes it to the test binary and fails with "flag provided but not defined".
 
 ```sh
 AI_SOURCE=live \
 LITELLM_BASE_URL=https://litellm.example.com \
 LITELLM_API_KEY=... \
 LITELLM_MODEL=anthropic/claude-sonnet-4 \
-  go test ./evals/weekly-brief/... -tags=live -run TestWeeklyBriefEvalLive
+  go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 ```
 
 ## Fixture authoring notes
