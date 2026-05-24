@@ -241,8 +241,31 @@ func (s *storage) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mod
 		rev, putErr = thBucket.Update(ctx, key, payload, throttle.Revision)
 	}
 	if putErr != nil {
+		// JetStream KV signals CAS conflict (wrong last sequence) on Update when
+		// the caller-supplied Revision no longer matches the bucket's current
+		// sequence. Surface that as ServiceUnavailable so the API layer can
+		// return 503 and the caller can retry, per the documented throttle
+		// concurrency contract.
+		if isJetStreamCASConflict(putErr) {
+			return nil, errs.NewServiceUnavailable("weekly-brief throttle CAS conflict — retry", putErr)
+		}
 		return nil, errs.NewUnexpected("failed to write weekly-brief throttle entry", putErr)
 	}
 	throttle.Revision = rev
 	return throttle, nil
+}
+
+// isJetStreamCASConflict reports whether err indicates a JetStream KV
+// compare-and-swap revision mismatch on Update. Newer client versions return
+// jetstream.ErrKeyExists for this case; older / wrapped errors carry the
+// underlying "wrong last sequence" message — we match both so the surface
+// stays stable across client upgrades.
+func isJetStreamCASConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, jetstream.ErrKeyExists) {
+		return true
+	}
+	return strings.Contains(err.Error(), "wrong last sequence")
 }
