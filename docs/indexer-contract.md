@@ -489,7 +489,7 @@ _(none)_
 
 **NATS subject:** `lfx.index.group_weekly_brief`
 
-**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
+**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief` _(introduced in the entity-read-path PR; this contract entry lands first)_
 
 **Indexed on:** create, update, delete of a group weekly brief draft.
 
@@ -503,7 +503,7 @@ _(none)_
 | `committee_uid` | string | UID of the committee this brief belongs to |
 | `window_start` | timestamp | Start of the brief's reporting window (RFC3339) |
 | `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
-| `state` | string | Draft state (e.g., `Pending`, `Generating`, `Ready`, `Failed`) |
+| `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
 | `brief_text` | string | Generated brief body; included in the indexed data payload |
 | `source_refs` | []object | References to the source artifacts the brief was generated from |
 | `prompt_version` | string | Version identifier of the prompt used to generate the brief |
@@ -517,7 +517,10 @@ _(none)_
 
 | Tag Format | Example | Purpose |
 |---|---|---|
-| `committee:{committee_uid}` | `committee:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find weekly briefs for a committee |
+| `{uid}` | `c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Direct lookup by UID |
+| `group_weekly_brief_uid:{uid}` | `group_weekly_brief_uid:c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find weekly briefs for a committee |
+| `state:{value}` | `state:generated` | Find briefs by state |
 
 ### Access Control (IndexingConfig)
 
@@ -525,14 +528,17 @@ _(none)_
 |---|---|
 | `access_check_object` | `committee:{committee_uid}` |
 | `access_check_relation` | `writer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
 
 ### Search Behavior
 
 | Field | Value |
 |---|---|
 | `fulltext` | `brief_text` |
-| `filterable` | `state`, `committee_uid`, `window_start`, `window_end`, `uid` |
-| `indexed_public` | `false` (always — intentional; even for public committees, brief drafts are never indexed as public) |
+| `name_and_aliases` | _(none)_ |
+| `sort_name` | `created_at` |
+| `public` | `false` (always — intentional; even for public committees, brief drafts are never indexed as public) |
 
 ### Parent References
 
