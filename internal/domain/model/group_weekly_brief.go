@@ -120,12 +120,15 @@ type GroupWeeklyBriefThrottle struct {
 }
 
 // WeeklyWindow returns the most recently completed UTC Sun 00:00:00 →
-// Sat 23:59:59 window for the given reference time. If now is a Sunday a new
-// week has just started, so the returned window is the prior Sun→Sat that
-// just ended.
+// Sat 23:59:59.999999999 window (inclusive end, nanosecond precision) for the
+// given reference time. If now is a Sunday a new week has just started, so the
+// returned window is the prior Sun→Sat that just ended.
 //
 // Rule: find the last Saturday on/before today (if today is Sunday, the last
 // Saturday is yesterday); the window starts six days before that Saturday.
+// The end is computed as start + 7 days - 1ns, giving an inclusive Saturday
+// 23:59:59.999999999 so range filters work without an off-by-one at the
+// second-precision boundary.
 func WeeklyWindow(now time.Time) (start, end time.Time) {
 	nUTC := now.UTC()
 	today := time.Date(nUTC.Year(), nUTC.Month(), nUTC.Day(), 0, 0, 0, 0, time.UTC)

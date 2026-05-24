@@ -5522,12 +5522,8 @@ func NewDeleteCommitteeDocumentServiceUnavailable(body *DeleteCommitteeDocumentS
 // a HTTP "OK" response.
 func NewGetCurrentWeeklyBriefGroupWeeklyBriefCurrentResultOK(body *GetCurrentWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefCurrentResult {
 	v := &committeeservice.GroupWeeklyBriefCurrentResult{}
-	if body.Brief != nil {
-		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
-	}
-	if body.Throttle != nil {
-		v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
-	}
+	v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
+	v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
 
 	return v
 }
@@ -6860,6 +6856,12 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 // ValidateGetCurrentWeeklyBriefResponseBody runs the validations defined on
 // Get-Current-Weekly-BriefResponseBody
 func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefResponseBody) (err error) {
+	if body.Brief == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("brief", "body"))
+	}
+	if body.Throttle == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("throttle", "body"))
+	}
 	if body.Brief != nil {
 		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
 			err = goa.MergeErrors(err, err2)

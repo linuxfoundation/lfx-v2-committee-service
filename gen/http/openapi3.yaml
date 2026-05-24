@@ -5847,6 +5847,9 @@ components:
                 throttle:
                     count: 0
                     last_attempt_at: "1999-09-17T09:27:53Z"
+            required:
+                - brief
+                - throttle
         GroupWeeklyBriefSourceRef:
             type: object
             properties:
