@@ -2389,6 +2389,9 @@ paths:
                     description: OK response.
                     schema:
                         $ref: '#/definitions/GroupWeeklyBriefCurrentResult'
+                        required:
+                            - brief
+                            - throttle
                 "400":
                     description: Bad Request response.
                     schema:
@@ -4543,6 +4546,9 @@ definitions:
                 regenerations_limit: 3
                 regenerations_used: 0
                 window_resets_at: "2026-05-24T00:00:00Z"
+        required:
+            - brief
+            - throttle
     GroupWeeklyBriefEditedExistsError:
         title: GroupWeeklyBriefEditedExistsError
         type: object

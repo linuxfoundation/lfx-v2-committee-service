@@ -548,6 +548,18 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 	return httpClient
 }
 
+// Live query-service sources share the same base URL and M2M HTTP client; the
+// resource type each source queries can be overridden per-source:
+//
+//   - QUERY_SERVICE_URL         — base URL for all query-service calls.
+//     When empty, every source degrades to "no results".
+//   - QUERY_MAILING_LIST_TYPE   — resource type for the mailing-list source
+//     (defaults to "v1_mailing_list_thread").
+//   - QUERY_VOTE_TYPE           — resource type for the vote source
+//     (defaults to "v1_vote").
+//
+// The meeting source queries the fixed type "v1_past_meeting" — no override.
+
 // MeetingSourceImpl builds the meeting source. When QUERY_SERVICE_URL is
 // unset the resulting source returns zero meetings (graceful degrade).
 func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
@@ -562,16 +574,36 @@ func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
 	}, client)
 }
 
-// MailingListSourceImpl returns the placeholder mailing-list source.
-// TODO(contract-TBD): wire M2M when contract defined.
-func MailingListSourceImpl(_ context.Context) port.MailingListSource {
-	return m2m.NewEmptyMailingListSource()
+// MailingListSourceImpl builds the live mailing-list source. When
+// QUERY_SERVICE_URL is unset the source returns zero threads (graceful
+// degrade). QUERY_MAILING_LIST_TYPE overrides the queried resource type.
+func MailingListSourceImpl(ctx context.Context) port.MailingListSource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; mailing list source will return zero threads")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewMailingListSource(m2m.MailingListSourceConfig{
+		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_MAILING_LIST_TYPE"),
+		Timeout: 15 * time.Second,
+	}, client)
 }
 
-// VoteSourceImpl returns the placeholder vote source.
-// TODO(contract-TBD): wire M2M when contract defined.
-func VoteSourceImpl(_ context.Context) port.VoteSource {
-	return m2m.NewEmptyVoteSource()
+// VoteSourceImpl builds the live vote source. When QUERY_SERVICE_URL is unset
+// the source returns zero votes (graceful degrade). QUERY_VOTE_TYPE overrides
+// the queried resource type.
+func VoteSourceImpl(ctx context.Context) port.VoteSource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; vote source will return zero votes")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewVoteSource(m2m.VoteSourceConfig{
+		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_VOTE_TYPE"),
+		Timeout: 15 * time.Second,
+	}, client)
 }
 
 // CommitteeWeeklyMemberReaderImpl builds the live weekly member reader. The
