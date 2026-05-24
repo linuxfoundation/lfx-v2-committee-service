@@ -5012,9 +5012,6 @@ func marshalCommitteeserviceCommitteeLinkFolderWithReadonlyAttributesToCommittee
 // from a value of type
 // *committeeservice.GroupWeeklyBriefWithReadonlyAttributes.
 func marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyBriefWithReadonlyAttributesResponseBody(v *committeeservice.GroupWeeklyBriefWithReadonlyAttributes) *GroupWeeklyBriefWithReadonlyAttributesResponseBody {
-	if v == nil {
-		return nil
-	}
 	res := &GroupWeeklyBriefWithReadonlyAttributesResponseBody{
 		UID:                  v.UID,
 		CommitteeUID:         v.CommitteeUID,
@@ -5060,9 +5057,6 @@ func marshalCommitteeserviceGroupWeeklyBriefSourceRefToGroupWeeklyBriefSourceRef
 // builds a value of type *GroupWeeklyBriefThrottleResponseBody from a value of
 // type *committeeservice.GroupWeeklyBriefThrottle.
 func marshalCommitteeserviceGroupWeeklyBriefThrottleToGroupWeeklyBriefThrottleResponseBody(v *committeeservice.GroupWeeklyBriefThrottle) *GroupWeeklyBriefThrottleResponseBody {
-	if v == nil {
-		return nil
-	}
 	res := &GroupWeeklyBriefThrottleResponseBody{
 		Count:         v.Count,
 		LastAttemptAt: v.LastAttemptAt,
