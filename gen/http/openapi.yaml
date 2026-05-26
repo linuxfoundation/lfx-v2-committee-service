@@ -2389,9 +2389,6 @@ paths:
                     description: OK response.
                     schema:
                         $ref: '#/definitions/GroupWeeklyBriefCurrentResult'
-                        required:
-                            - brief
-                            - throttle
                 "400":
                     description: Bad Request response.
                     schema:
@@ -3432,12 +3429,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: pn8
+                example: xcs
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 3352e864-6deb-412b-8429-3406094eae99
+                example: 74716d5c-f7a8-4af3-93a4-dc7ddc0f2686
                 format: uuid
             name:
                 type: string
@@ -3450,8 +3447,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: li8
-            folder_uid: 75a775a2-7e32-40d7-a21e-db000c701c26
+            description: pm4
+            folder_uid: 20d8098a-647b-45d8-aa69-06be99d03b5a
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4265,35 +4262,38 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Sed sed.
+                example: Eligendi adipisci nisi totam.
             description:
                 type: string
                 description: Optional description
-                example: i63
+                example: bbz
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 82
+                    - 86
                     - 101
+                    - 110
+                    - 105
+                    - 97
                     - 109
                     - 32
+                    - 97
                     - 115
-                    - 105
-                    - 109
-                    - 105
-                    - 108
-                    - 105
-                    - 113
+                    - 115
                     - 117
+                    - 109
                     - 101
+                    - 110
+                    - 100
+                    - 97
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Officiis similique.
+                example: Ut eaque eum placeat soluta facere doloribus.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4305,35 +4305,30 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Itaque repellat et nemo.
-            description: wmv
+            content_type: Qui odit dolor temporibus eius.
+            description: 91e
             file:
-                - 79
-                - 100
-                - 105
-                - 111
-                - 32
-                - 110
-                - 105
-                - 104
-                - 105
-                - 108
-                - 32
-                - 105
-                - 100
-                - 32
-                - 108
-                - 97
-                - 98
-                - 111
-                - 114
-                - 105
+                - 69
                 - 111
                 - 115
+                - 32
                 - 97
-                - 109
+                - 117
+                - 116
+                - 32
+                - 100
+                - 111
+                - 108
+                - 111
+                - 114
+                - 32
+                - 101
+                - 97
+                - 32
+                - 101
+                - 116
                 - 46
-            file_name: Unde eius quia sunt.
+            file_name: Consectetur consectetur doloremque at.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4517,7 +4512,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: lvl
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4525,11 +4520,15 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: lji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: lji
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4539,16 +4538,11 @@ definitions:
                 window_end: "2026-05-16T23:59:59Z"
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
-                count: 0
                 generates_limit: 2
                 generates_used: 0
-                last_attempt_at: "1976-05-27T12:27:23Z"
                 regenerations_limit: 3
                 regenerations_used: 0
                 window_resets_at: "2026-05-24T00:00:00Z"
-        required:
-            - brief
-            - throttle
     GroupWeeklyBriefEditedExistsError:
         title: GroupWeeklyBriefEditedExistsError
         type: object
@@ -4581,7 +4575,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: lvl
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4589,11 +4583,15 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: lji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: lji
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4603,10 +4601,8 @@ definitions:
                 window_end: "2026-05-16T23:59:59Z"
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
-                count: 0
                 generates_limit: 2
                 generates_used: 0
-                last_attempt_at: "1976-05-27T12:27:23Z"
                 regenerations_limit: 3
                 regenerations_used: 0
                 window_resets_at: "2026-05-24T00:00:00Z"
@@ -4638,7 +4634,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: bzh
+                example: pys
                 maxLength: 5000
             id:
                 type: string
@@ -4654,7 +4650,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: mek
+            excerpt: xjn
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -4662,12 +4658,6 @@ definitions:
         title: GroupWeeklyBriefThrottle
         type: object
         properties:
-            count:
-                type: integer
-                description: 'Deprecated: total regeneration attempts; use regenerations_used'
-                example: 0
-                format: int64
-                minimum: 0
             generates_limit:
                 type: integer
                 description: Maximum fresh generations allowed in this window
@@ -4680,11 +4670,6 @@ definitions:
                 example: 0
                 format: int64
                 minimum: 0
-            last_attempt_at:
-                type: string
-                description: 'Deprecated: timestamp of last attempt'
-                example: "2009-01-10T04:33:58Z"
-                format: date-time
             regenerations_limit:
                 type: integer
                 description: Maximum regenerations allowed in this window
@@ -4699,15 +4684,13 @@ definitions:
                 minimum: 0
             window_resets_at:
                 type: string
-                description: Timestamp when the window resets (next UTC Sunday 00:00:00)
+                description: Timestamp when the window resets
                 example: "2026-05-24T00:00:00Z"
                 format: date-time
         description: Per-committee/per-week regeneration throttle counters.
         example:
-            count: 0
             generates_limit: 2
             generates_used: 0
-            last_attempt_at: "2004-01-18T19:15:43Z"
             regenerations_limit: 3
             regenerations_used: 0
             window_resets_at: "2026-05-24T00:00:00Z"
@@ -4772,7 +4755,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: emo
+                example: 5rc
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -4808,19 +4791,11 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: lji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: lji
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: lji
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: lji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4856,7 +4831,7 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: i6t
+            brief_text: 0st
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             model: fake
@@ -4864,15 +4839,19 @@ definitions:
             prompt_version: v1
             regeneration_count: 0
             source_refs:
-                - excerpt: lji
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: lji
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: lji
+                - excerpt: 0jc
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync

@@ -221,10 +221,6 @@ func (s *storage) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mod
 		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialised")
 	}
 
-	// Keep the legacy Count field in sync for any read path still using it.
-	throttle.Count = throttle.GeneratesUsed + throttle.RegenerationsUsed
-	throttle.LastAttemptAt = time.Now().UTC()
-
 	payload, err := json.Marshal(throttle)
 	if err != nil {
 		return nil, errs.NewUnexpected("failed to marshal throttle entry", err)
