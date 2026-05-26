@@ -1496,12 +1496,12 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 				assert.Contains(t, sender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
 				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
 			}
-			// Verify correct role labels in email content
+			// Verify correct display role labels in email content (Writer→Manage, Auditor→View)
 			if tt.name == "new writer added — one email sent with Writer role" {
-				assert.Contains(t, sender.calls[0].HTML, "Writer")
+				assert.Contains(t, sender.calls[0].HTML, "Manage")
 			}
 			if tt.name == "new auditor added — one email sent with Auditor role" {
-				assert.Contains(t, sender.calls[0].HTML, "Auditor")
+				assert.Contains(t, sender.calls[0].HTML, "View")
 			}
 			if tt.wantInviterName != "" {
 				assert.Contains(t, sender.calls[0].HTML, tt.wantInviterName)
