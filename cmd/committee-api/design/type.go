@@ -1062,14 +1062,20 @@ var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle",
 // GET /committees/{uid}/weekly-briefs/current. brief and throttle are both
 // nullable; on a miss BOTH are null and the HTTP status is 200 (NOT 404).
 //
-// Required is set so the JSON encoder emits the keys as explicit `null` on a
-// miss — without Required, Goa marks them omitempty and a miss serializes as
-// `{}`, which does not match the documented BFF contract.
+// The attributes are intentionally NOT Required: marking them Required forces
+// the generated client validation to reject a valid `{"brief":null,"throttle":null}`
+// miss response (MissingFieldError). Instead, an explicit json struct tag
+// without `omitempty` (via Meta) keeps the keys present and serializes a nil
+// pointer as `null`, matching the documented BFF contract without breaking
+// client decoding.
 var GroupWeeklyBriefCurrentResult = dsl.Type("group-weekly-brief-current-result", func() {
 	dsl.Description("Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.")
-	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window")
-	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null")
-	dsl.Required("brief", "throttle")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window", func() {
+		dsl.Meta("struct:tag:json", "brief")
+	})
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null", func() {
+		dsl.Meta("struct:tag:json", "throttle")
+	})
 })
 
 // ─── Committee Document Types ───

@@ -3607,7 +3607,7 @@ paths:
                             example:
                                 message: The request was invalid.
                 "403":
-                    description: 'Forbidden: Caller lacks writer access on the committee'
+                    description: 'Forbidden: Caller lacks viewer access on the committee'
                     content:
                         application/json:
                             schema:
@@ -5847,9 +5847,6 @@ components:
                 throttle:
                     count: 0
                     last_attempt_at: "1999-09-17T09:27:53Z"
-            required:
-                - brief
-                - throttle
         GroupWeeklyBriefSourceRef:
             type: object
             properties:

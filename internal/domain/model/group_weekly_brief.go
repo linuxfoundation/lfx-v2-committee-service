@@ -107,8 +107,6 @@ func (b *GroupWeeklyBrief) Validate() error {
 }
 
 // GroupWeeklyBriefThrottle records per-window regeneration throttling state.
-// Phase 1 does not write or read this struct; it is defined so Phase 2 can
-// land its throttle logic without touching this file's KV-bucket wiring.
 type GroupWeeklyBriefThrottle struct {
 	CommitteeUID string    `json:"committee_uid"`
 	WindowStart  time.Time `json:"window_start"`
@@ -119,34 +117,31 @@ type GroupWeeklyBriefThrottle struct {
 	LastAttemptAt time.Time `json:"last_attempt_at,omitempty"`
 }
 
-// WeeklyWindow returns the most recently completed UTC Sun 00:00:00 →
-// Sat 23:59:59.999999999 window (inclusive end, nanosecond precision) for the
-// given reference time. If now is a Sunday a new week has just started, so the
-// returned window is the prior Sun→Sat that just ended.
+// WeeklyWindow returns a UTC Sun 00:00:00 → Sat 23:59:59.999999999 window
+// (inclusive end, nanosecond precision) for the given reference time, anchored
+// on the most recent Saturday on or before today.
 //
-// Rule: find the last Saturday on/before today (if today is Sunday, the last
-// Saturday is yesterday); the window starts six days before that Saturday.
-// The end is computed as start + 7 days - 1ns, giving an inclusive Saturday
-// 23:59:59.999999999 so range filters work without an off-by-one at the
-// second-precision boundary.
+// For Sunday through Friday this is the previous, already-completed Sun→Sat
+// week. If today *is* Saturday, the anchor is today, so the returned window is
+// the current week — which is not yet complete: window_end is later today, in
+// the future relative to now. Callers that require a fully-completed window
+// must account for the Saturday case.
+//
+// Rule: find the last Saturday on/before today; the window starts six days
+// before that Saturday. The end is computed as start + 7 days - 1ns, giving an
+// inclusive Saturday 23:59:59.999999999 so range filters work without an
+// off-by-one at the second-precision boundary.
 func WeeklyWindow(now time.Time) (start, end time.Time) {
 	nUTC := now.UTC()
 	today := time.Date(nUTC.Year(), nUTC.Month(), nUTC.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Days back from today to the most recent Saturday.
-	// Mon→2, Tue→3, …, Sat→0, Sun→1.
+	// Days back from today to the most recent Saturday (Sat→0, Sun→1, …, Fri→6).
+	// time.Weekday is Sunday=0, Monday=1, …, Saturday=6.
 	wd := int(today.Weekday())
-	var daysToSat int
-	if wd == int(time.Saturday) {
-		daysToSat = 0
-	} else {
-		// time.Weekday: Sunday=0, Monday=1, …, Saturday=6.
-		// Distance back to Saturday is (wd + 1) mod 7.
-		daysToSat = (wd + 1) % 7
-	}
+	daysToSat := (wd - int(time.Saturday) + 7) % 7
 	sat := today.AddDate(0, 0, -daysToSat)
-	start = sat.AddDate(0, 0, -6)                                      // Sunday 00:00:00 UTC
-	end = start.AddDate(0, 0, 6).Add(24*time.Hour - 1*time.Nanosecond) // Saturday 23:59:59.999999999 UTC
+	start = sat.AddDate(0, 0, -6)                      // Sunday 00:00:00 UTC
+	end = start.AddDate(0, 0, 7).Add(-time.Nanosecond) // Saturday 23:59:59.999999999 UTC
 	return start, end
 }
 
