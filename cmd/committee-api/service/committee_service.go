@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+	"golang.org/x/sync/errgroup"
 
 	"goa.design/goa/v3/security"
 )
@@ -66,6 +68,16 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		"name", p.Name,
 		"x_sync", p.XSync,
 	)
+
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// After enrichment, every entry must have at least an email or a resolved username.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
@@ -212,8 +224,13 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Validate that every writer/auditor entry is identifiable (username or email)
-	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// After enrichment, every entry must have at least an email or a resolved username.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
@@ -249,6 +266,9 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, request)
 
 	// Execute use case
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
@@ -313,6 +333,9 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, committeeMember)
 
 	// Execute use case
 	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
@@ -716,6 +739,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		},
 	}
 
+	// Resolve username and profile fields from the applicant's email.
+	s.enrichMember(ctx, member)
+
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -878,31 +904,6 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
-// validateSettingsUsers returns a validation error if any entry in writers or
-// auditors has neither a username nor an email, since at least one is needed to
-// identify the user (LFID users by username, non-LFID users by email).
-func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
-	hasIdentity := func(u *committeeservice.CommitteeUser) bool {
-		if u == nil {
-			return false
-		}
-		hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
-		hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
-		return hasUsername || hasEmail
-	}
-	for i, u := range writers {
-		if !hasIdentity(u) {
-			return errors.NewValidation(fmt.Sprintf("writers[%d]: username or email is required", i))
-		}
-	}
-	for i, u := range auditors {
-		if !hasIdentity(u) {
-			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username or email is required", i))
-		}
-	}
-	return nil
-}
-
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1024,6 +1025,193 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 			"action", string(action),
 			"application_uid", application.UID,
 		)
+	}
+}
+
+// validateIdentityFields returns a validation error if any writer or auditor entry has
+// neither a username nor an email address, since such entries cannot be resolved or stored.
+// Email-only entries are allowed — enrichAllRoleFields may fill in the username if the email
+// resolves, but an entry is still valid even when the email is unresolvable (Username stays "").
+// Username-only entries (no email) are allowed — the caller-supplied LFID is persisted as-is.
+func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
+	check := func(role string, users []*committeeservice.CommitteeUser) error {
+		for i, u := range users {
+			if u == nil {
+				continue
+			}
+			hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+			hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
+			if !hasUsername && !hasEmail {
+				return errors.NewValidation(fmt.Sprintf("%s[%d]: username or email is required", role, i))
+			}
+		}
+		return nil
+	}
+	if err := check("writers", writers); err != nil {
+		return err
+	}
+	return check("auditors", auditors)
+}
+
+// enrichAllRoleFields overwrites the Username, Name, and Avatar fields on every CommitteeUser
+// across all supplied slices with authoritative values from the auth service.
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently.
+// Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
+// Entries with only a caller-supplied Username and no Email are left untouched —
+// they pass through and are persisted as-is.
+// Username transport errors fail the request so incorrect LFIDs are never silently kept.
+// Metadata (name/avatar) errors only log a warning; display fields do not block the write.
+func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
+	if s.userReader == nil {
+		return errors.NewServiceUnavailable("user reader is not configured")
+	}
+
+	byEmail := make(map[string][]*committeeservice.CommitteeUser)
+
+	for _, slice := range slices {
+		for _, u := range slice {
+			if u == nil {
+				continue
+			}
+			normEmail := ""
+			if u.Email != nil {
+				normEmail = strings.ToLower(strings.TrimSpace(*u.Email))
+			}
+			if normEmail == "" {
+				continue
+			}
+			byEmail[normEmail] = append(byEmail[normEmail], u)
+		}
+	}
+
+	if len(byEmail) == 0 {
+		return nil
+	}
+
+	// enrichResult holds the resolved identity and profile for one email address.
+	type enrichResult struct {
+		sub      string
+		metadata *model.UserMetadata
+	}
+
+	results := make(map[string]enrichResult, len(byEmail))
+	var mu sync.Mutex
+	const maxConcurrent = 8
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrent)
+
+	for email := range byEmail {
+		g.Go(func() error {
+			sub, err := s.userReader.SubByEmail(gCtx, email)
+			if err != nil {
+				var notFound errors.NotFound
+				if stderrors.As(err, &notFound) {
+					mu.Lock()
+					results[email] = enrichResult{}
+					mu.Unlock()
+					return nil
+				}
+				return err
+			}
+			if sub == "" {
+				// Empty sub with no error is treated as not found — no valid LFID to persist.
+				mu.Lock()
+				results[email] = enrichResult{}
+				mu.Unlock()
+				return nil
+			}
+
+			// Sub resolved — now fetch authoritative profile data.
+			// Metadata failures are non-fatal: display fields must not block the write.
+			var meta *model.UserMetadata
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			if metaErr != nil {
+				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
+					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
+			} else {
+				meta = m
+			}
+
+			mu.Lock()
+			results[email] = enrichResult{sub: sub, metadata: meta}
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return errors.NewUnexpected("enriching committee user role fields failed", err)
+	}
+
+	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
+	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
+	// not currently model; they are fetched now so the domain struct is complete for future callers.
+	for email, users := range byEmail {
+		r := results[email]
+		for _, u := range users {
+			sub := r.sub
+			u.Username = &sub
+			if r.metadata != nil {
+				if r.metadata.Name != "" {
+					name := r.metadata.Name
+					u.Name = &name
+				}
+				if r.metadata.Picture != "" {
+					picture := r.metadata.Picture
+					u.Avatar = &picture
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// enrichMember resolves the LFID (username) and profile metadata for a member when only their
+// email is known (Username is empty). All lookups are best-effort: failures log a warning and
+// leave the field unchanged so the caller's write is never blocked by an enrichment error.
+// FirstName and LastName are only overwritten when the auth service returns a non-empty value
+// and the caller did not supply them, so caller-provided display names are preserved.
+func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
+	if s.userReader == nil || strings.TrimSpace(member.Username) != "" {
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(member.Email))
+	if email == "" {
+		return
+	}
+
+	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
+	// failing the request. Individual member writes (create/update/approve) should not be blocked
+	// by a transient auth-service outage — the member is stored without an enriched LFID.
+	sub, err := s.userReader.SubByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed; member will be stored without LFID",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return
+	}
+	if sub == "" {
+		return
+	}
+	member.Username = sub
+
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	if metaErr != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
+			"sub", redaction.Redact(sub), "error", metaErr)
+		return
+	}
+	if meta == nil {
+		return
+	}
+	if member.FirstName == "" && meta.GivenName != "" {
+		member.FirstName = meta.GivenName
+	}
+	if member.LastName == "" && meta.FamilyName != "" {
+		member.LastName = meta.FamilyName
 	}
 }
 
