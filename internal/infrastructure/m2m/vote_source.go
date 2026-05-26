@@ -16,8 +16,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 )
 
-// DefaultVoteType is the query-service resource type the live vote source
-// queries when QUERY_VOTE_TYPE is unset.
+// DefaultVoteType is the fixed query-service resource type the live vote
+// source queries.
 const DefaultVoteType = "v1_vote"
 
 // VoteSourceConfig configures the live vote source. All fields are sourced

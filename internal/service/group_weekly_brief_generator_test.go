@@ -98,8 +98,10 @@ func (f *fakeVoteSource) ListVoteActivityForWindow(_ context.Context, _ string, 
 	return f.items, nil
 }
 
-// recordingAIAdapter captures the WeeklyBriefInput so tests can assert on
-// what the orchestrator passed in (including the fenced prompt-data block).
+// recordingAIAdapter captures the WeeklyBriefInput so tests can assert on what
+// the orchestrator passed in (Claims and the structured fields). Note: the
+// fenced prompt-data block built by buildPromptDataBlock is NOT passed through
+// WeeklyBriefInput today, so it cannot be asserted on here.
 type recordingAIAdapter struct {
 	gotInput port.WeeklyBriefInput
 }
