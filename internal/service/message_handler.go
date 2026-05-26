@@ -1076,12 +1076,18 @@ func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
 	}
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	for _, u := range old.GetWriters() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
 	for _, u := range old.GetAuditors() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}

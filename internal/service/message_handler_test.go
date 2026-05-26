@@ -1574,6 +1574,7 @@ func TestHandleCommitteeMemberDeleted(t *testing.T) {
 			LastName:      "Smith",
 			CommitteeUID:  "committee-1",
 			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Member"},
 		},
 	}
 	nonLFIDMember := &model.CommitteeMember{
@@ -1652,6 +1653,7 @@ func TestHandleCommitteeMemberDeleted(t *testing.T) {
 				assert.Equal(t, "alice@example.com", sender.calls[0].To)
 				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
 				assert.Contains(t, sender.calls[0].HTML, "Alice Smith")
+				assert.Contains(t, sender.calls[0].HTML, "Member", "previous role in removal email")
 			}
 		})
 	}
@@ -1751,6 +1753,7 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 		newAuditors     []model.CommitteeUser
 		wantEmailCount  int
 		wantInviteCount int
+		wantInviteRole  string
 		subjectContains string
 		htmlContains    string
 	}{
@@ -1811,6 +1814,7 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 			newAuditors:     []model.CommitteeUser{noLFID},
 			wantEmailCount:  0,
 			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
 		},
 	}
 
@@ -1844,8 +1848,15 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 
 			inviter.mu.Lock()
 			inviteCount := len(inviter.calls)
+			var inviteRole string
+			if inviteCount > 0 {
+				inviteRole = inviter.calls[0].Role
+			}
 			inviter.mu.Unlock()
 			assert.Equal(t, tt.wantInviteCount, inviteCount, "invite call count")
+			if tt.wantInviteRole != "" {
+				assert.Equal(t, tt.wantInviteRole, inviteRole, "invite role")
+			}
 		})
 	}
 }
