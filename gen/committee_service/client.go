@@ -669,7 +669,7 @@ func (c *Client) DeleteCommitteeDocument(ctx context.Context, p *DeleteCommittee
 // "committee-service" service.
 // GetCurrentWeeklyBrief may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
-//   - "Forbidden" (type *ForbiddenError): Caller lacks writer access on the committee
+//   - "Forbidden" (type *ForbiddenError): Caller lacks viewer access on the committee
 //   - "NotFound" (type *NotFoundError): Committee not found
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable

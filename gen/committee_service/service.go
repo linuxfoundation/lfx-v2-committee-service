@@ -933,9 +933,9 @@ type GetInvitePayload struct {
 // service get-current-weekly-brief method.
 type GroupWeeklyBriefCurrentResult struct {
 	// The weekly brief, or null if none exists for the current window
-	Brief *GroupWeeklyBriefWithReadonlyAttributes
+	Brief *GroupWeeklyBriefWithReadonlyAttributes `json:"brief"`
 	// Throttle counters for the current window, or null
-	Throttle *GroupWeeklyBriefThrottle
+	Throttle *GroupWeeklyBriefThrottle `json:"throttle"`
 }
 
 // Reference to a source document considered by the weekly-brief generator.

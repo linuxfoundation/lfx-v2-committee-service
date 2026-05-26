@@ -951,9 +951,9 @@ type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesRes
 // service "get-current-weekly-brief" endpoint HTTP response body.
 type GetCurrentWeeklyBriefResponseBody struct {
 	// The weekly brief, or null if none exists for the current window
-	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief" json:"brief" xml:"brief"`
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `json:"brief"`
 	// Throttle counters for the current window, or null
-	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle" json:"throttle" xml:"throttle"`
+	Throttle *GroupWeeklyBriefThrottleResponseBody `json:"throttle"`
 }
 
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"

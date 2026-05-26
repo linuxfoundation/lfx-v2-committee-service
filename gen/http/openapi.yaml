@@ -2389,9 +2389,6 @@ paths:
                     description: OK response.
                     schema:
                         $ref: '#/definitions/GroupWeeklyBriefCurrentResult'
-                        required:
-                            - brief
-                            - throttle
                 "400":
                     description: Bad Request response.
                     schema:
@@ -4440,9 +4437,6 @@ definitions:
             throttle:
                 count: 0
                 last_attempt_at: "1976-05-27T12:27:23Z"
-        required:
-            - brief
-            - throttle
     GroupWeeklyBriefSourceRef:
         title: GroupWeeklyBriefSourceRef
         type: object

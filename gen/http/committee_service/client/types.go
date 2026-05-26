@@ -951,9 +951,9 @@ type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesRes
 // service "get-current-weekly-brief" endpoint HTTP response body.
 type GetCurrentWeeklyBriefResponseBody struct {
 	// The weekly brief, or null if none exists for the current window
-	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `json:"brief"`
 	// Throttle counters for the current window, or null
-	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+	Throttle *GroupWeeklyBriefThrottleResponseBody `json:"throttle"`
 }
 
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"
@@ -5522,8 +5522,12 @@ func NewDeleteCommitteeDocumentServiceUnavailable(body *DeleteCommitteeDocumentS
 // a HTTP "OK" response.
 func NewGetCurrentWeeklyBriefGroupWeeklyBriefCurrentResultOK(body *GetCurrentWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefCurrentResult {
 	v := &committeeservice.GroupWeeklyBriefCurrentResult{}
-	v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
-	v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	if body.Brief != nil {
+		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
+	}
+	if body.Throttle != nil {
+		v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	}
 
 	return v
 }
@@ -6856,12 +6860,6 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 // ValidateGetCurrentWeeklyBriefResponseBody runs the validations defined on
 // Get-Current-Weekly-BriefResponseBody
 func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefResponseBody) (err error) {
-	if body.Brief == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("brief", "body"))
-	}
-	if body.Throttle == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("throttle", "body"))
-	}
 	if body.Brief != nil {
 		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
 			err = goa.MergeErrors(err, err2)
