@@ -1257,8 +1257,14 @@ func classifyCommitteeUsers(old, new *model.CommitteeSettings) []committeeUserRo
 		allKeys[k] = true
 	}
 
+	sortedKeys := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
 	var changes []committeeUserRoleChange
-	for key := range allKeys {
+	for _, key := range sortedKeys {
 		oldRoles := oldSet[key]
 		newRoleMap := newSet[key]
 
