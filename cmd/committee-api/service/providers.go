@@ -446,15 +446,6 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 	return nil
 }
 
-// CommitteeAccessCheckerImpl returns the default in-process access checker.
-// Production deployments rely on Heimdall to enforce committee write access
-// at the edge, so the default impl is a no-op (allow). The function exists
-// so unit tests can substitute a denying stub.
-func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker {
-	slog.InfoContext(ctx, "initializing Heimdall-edge committee access checker")
-	return auth.NewHeimdallEdgeAccessChecker()
-}
-
 // alwaysMissGroupWeeklyBriefReader is a stub used when REPOSITORY_SOURCE=mock
 // — it always reports "no brief", which is a valid 200/null response.
 type alwaysMissGroupWeeklyBriefReader struct{}

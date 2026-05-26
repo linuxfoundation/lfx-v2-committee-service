@@ -136,13 +136,10 @@ func main() {
 	weeklyBriefReaderUseCase := usecaseSvc.NewGroupWeeklyBriefReaderOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReader(weeklyBriefReader),
 	)
-	accessChecker := service.CommitteeAccessCheckerImpl(ctx)
-
 	committeeServiceSvc := service.NewCommitteeService(
 		writeCommitteeUseCase,
 		readCommitteeUseCase,
 		authService,
-		accessChecker,
 		storage,
 		committeePublisher,
 		userReader,
