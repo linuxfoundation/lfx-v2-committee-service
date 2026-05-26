@@ -505,7 +505,7 @@ _(none)_
 | `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
 | `brief_text` | string | Generated brief body; included in the indexed data payload |
-| `source_refs` | []object | References to the source artifacts the brief was generated from |
+| `source_refs` | []object | References to the source artifacts the brief was generated from. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty |
 | `prompt_version` | string | Version identifier of the prompt used to generate the brief |
 | `model` | string | Identifier of the model used to generate the brief |
 | `regeneration_count` | int | Number of times the brief has been regenerated |
