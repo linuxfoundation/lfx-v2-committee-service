@@ -513,6 +513,8 @@ _(none)_
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
+> **State lifecycle.** `empty` is the initial placeholder: a brief record exists for the (committee, window) pair but no generation has produced content yet. `generating` is set while a generation run is in flight. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state for a generation run. Typical flow: `empty → generating → generated → (edited) → approved`, with `error` reachable from `generating`.
+
 ### Tags
 
 | Tag Format | Example | Purpose |
@@ -537,7 +539,7 @@ _(none)_
 |---|---|
 | `fulltext` | `brief_text` |
 | `name_and_aliases` | _(none)_ |
-| `sort_name` | `created_at` |
+| `sort_name` | _(none)_ |
 | `public` | `false` (always — intentional; even for public committees, brief drafts are never indexed as public) |
 
 ### Parent References
