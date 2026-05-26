@@ -93,7 +93,7 @@ func RenderCommitteeRoleUpdated(data CommitteeRoleUpdatedData) (subject, html, t
 	data.OldJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.OldRoles))
 	data.NewJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.NewRoles))
 
-	subject = sanitizeHeader(data.InviterName) + " updated your role on " + data.CommitteeName
+	subject = sanitizeHeader(data.InviterName) + " updated your role on " + sanitizeHeader(data.CommitteeName)
 
 	var htmlBuf bytes.Buffer
 	if err = committeeRoleUpdatedHTMLTemplate.Execute(&htmlBuf, data); err != nil {
@@ -125,7 +125,7 @@ type CommitteeRoleRemovedData struct {
 func RenderCommitteeRoleRemoved(data CommitteeRoleRemovedData) (subject, html, text string, err error) {
 	data.OldJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.OldRoles))
 
-	subject = sanitizeHeader(data.InviterName) + " removed you from " + data.CommitteeName
+	subject = sanitizeHeader(data.InviterName) + " removed you from " + sanitizeHeader(data.CommitteeName)
 
 	var htmlBuf bytes.Buffer
 	if err = committeeRoleRemovedHTMLTemplate.Execute(&htmlBuf, data); err != nil {
