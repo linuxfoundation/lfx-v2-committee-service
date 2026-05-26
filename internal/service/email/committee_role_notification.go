@@ -16,15 +16,6 @@ import (
 //go:embed templates/committee_role_removed.html templates/committee_role_removed.txt
 var committeeNotificationTemplates embed.FS
 
-// joinFuncMap exposes a "join" function to templates that need to render []string.
-var joinFuncMap = htmltemplate.FuncMap{
-	"join": strings.Join,
-}
-
-var textJoinFuncMap = texttemplate.FuncMap{
-	"join": strings.Join,
-}
-
 var (
 	committeeRoleHTMLTemplate = htmltemplate.Must(
 		htmltemplate.New("committee_role_notification.html").
@@ -37,12 +28,10 @@ var (
 
 	committeeRoleUpdatedHTMLTemplate = htmltemplate.Must(
 		htmltemplate.New("committee_role_updated.html").
-			Funcs(joinFuncMap).
 			ParseFS(committeeNotificationTemplates, "templates/committee_role_updated.html"),
 	)
 	committeeRoleUpdatedTextTemplate = texttemplate.Must(
 		texttemplate.New("committee_role_updated.txt").
-			Funcs(textJoinFuncMap).
 			ParseFS(committeeNotificationTemplates, "templates/committee_role_updated.txt"),
 	)
 
@@ -85,18 +74,25 @@ func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subjec
 }
 
 // CommitteeRoleUpdatedData holds the template variables for a committee role-updated email.
+// OldRoles and NewRoles hold the internal role names (Writer, Auditor); the render function
+// converts them to display names (Manage, View) and populates OldJoinedRoles / NewJoinedRoles.
 type CommitteeRoleUpdatedData struct {
-	RecipientName string
-	CommitteeName string
-	CurrentRoles  []string
-	CommitteeURL  string
-	InviterName   string
+	RecipientName  string
+	CommitteeName  string
+	OldRoles       []string
+	NewRoles       []string
+	OldJoinedRoles string // computed by RenderCommitteeRoleUpdated
+	NewJoinedRoles string // computed by RenderCommitteeRoleUpdated
+	CommitteeURL   string
+	InviterName    string
 }
 
 // RenderCommitteeRoleUpdated renders the subject, HTML body, and plain-text body for an
-// email notifying an LF user that their role set on a committee changed (gain, swap, or
-// partial loss while still holding at least one role).
+// email notifying an LF user that their effective role on a committee changed.
 func RenderCommitteeRoleUpdated(data CommitteeRoleUpdatedData) (subject, html, text string, err error) {
+	data.OldJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.OldRoles))
+	data.NewJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.NewRoles))
+
 	subject = sanitizeHeader(data.InviterName) + " updated your role on " + data.CommitteeName
 
 	var htmlBuf bytes.Buffer
@@ -114,15 +110,21 @@ func RenderCommitteeRoleUpdated(data CommitteeRoleUpdatedData) (subject, html, t
 }
 
 // CommitteeRoleRemovedData holds the template variables for a committee removal email.
+// OldRoles holds the internal role names the user held before removal; the render function
+// converts them to display names and populates OldJoinedRoles.
 type CommitteeRoleRemovedData struct {
-	RecipientName string
-	CommitteeName string
-	InviterName   string
+	RecipientName  string
+	CommitteeName  string
+	OldRoles       []string
+	OldJoinedRoles string // computed by RenderCommitteeRoleRemoved
+	InviterName    string
 }
 
 // RenderCommitteeRoleRemoved renders the subject, HTML body, and plain-text body for an
-// email notifying an LF user that they were fully removed from a committee (settings or member).
+// email notifying an LF user that they were fully removed from a committee.
 func RenderCommitteeRoleRemoved(data CommitteeRoleRemovedData) (subject, html, text string, err error) {
+	data.OldJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.OldRoles))
+
 	subject = sanitizeHeader(data.InviterName) + " removed you from " + data.CommitteeName
 
 	var htmlBuf bytes.Buffer
@@ -137,6 +139,53 @@ func RenderCommitteeRoleRemoved(data CommitteeRoleRemovedData) (subject, html, t
 	}
 	text = textBuf.String()
 	return
+}
+
+// CommitteeRoleDisplayName maps an internal role name to its user-facing display name.
+// Writer → "Manage", Auditor → "View". Unknown roles pass through unchanged.
+func CommitteeRoleDisplayName(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "writer":
+		return "Manage"
+	case "auditor":
+		return "View"
+	default:
+		return role
+	}
+}
+
+// CommitteeRolesForDisplay converts internal role names to deduplicated display names and
+// collapses them: if "Manage" (Writer) is present it supersedes "View" (Auditor), so only
+// ["Manage"] is returned. Deduplication preserves the first occurrence order.
+func CommitteeRolesForDisplay(roles []string) []string {
+	seen := make(map[string]bool, len(roles))
+	result := make([]string, 0, len(roles))
+	for _, r := range roles {
+		d := CommitteeRoleDisplayName(r)
+		if !seen[d] {
+			seen[d] = true
+			result = append(result, d)
+		}
+	}
+	if seen["Manage"] {
+		return []string{"Manage"}
+	}
+	return result
+}
+
+// JoinCommitteeRoles returns a grammatically-joined string of role display names.
+// [] → "", ["Manage"] → "Manage", ["Manage", "View"] → "Manage and View".
+func JoinCommitteeRoles(roles []string) string {
+	switch len(roles) {
+	case 0:
+		return ""
+	case 1:
+		return roles[0]
+	case 2:
+		return roles[0] + " and " + roles[1]
+	default:
+		return strings.Join(roles[:len(roles)-1], ", ") + ", and " + roles[len(roles)-1]
+	}
 }
 
 // sanitizeHeader strips ASCII control characters (including CR/LF) from a string

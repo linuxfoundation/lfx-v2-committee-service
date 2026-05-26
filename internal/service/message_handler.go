@@ -661,7 +661,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 	for _, c := range changes {
 		g.Go(func() error {
-			u, kind, newRoles := c.user, c.kind, c.newRoles
+			u, kind, oldRoles, newRoles := c.user, c.kind, c.oldRoles, c.newRoles
 
 			// For LFID users, look up their email if not already provided.
 			if u.Email == "" && m.userReader != nil && u.Username != "" {
@@ -708,6 +708,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				// No LFID — added/updated paths go through the invite service; removed was handled above.
 				if m.inviteSender == nil {
 					slog.WarnContext(gctx, "invite sender not configured — skipping settings invite",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				// Skip re-invite when effective access is unchanged (e.g. gaining Auditor on top of Writer).
+				if kind == roleChangeKindUpdated && effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping non-LF invite — effective role unchanged",
 						"committee_uid", data.CommitteeUID)
 					return nil
 				}
@@ -777,10 +783,17 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					InviterName:   inviterName,
 				})
 			case roleChangeKindUpdated:
+				// Skip email when effective display role is unchanged (e.g. Auditor gained on top of Writer).
+				if effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping role-updated email — effective role unchanged",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
 				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleUpdated(emailsvc.CommitteeRoleUpdatedData{
 					RecipientName: recipientName,
 					CommitteeName: data.CommitteeName,
-					CurrentRoles:  newRoles,
+					OldRoles:      oldRoles,
+					NewRoles:      newRoles,
 					CommitteeURL:  committeeURL,
 					InviterName:   inviterName,
 				})
@@ -788,6 +801,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
 					RecipientName: recipientName,
 					CommitteeName: data.CommitteeName,
+					OldRoles:      oldRoles,
 					InviterName:   inviterName,
 				})
 			}
@@ -1151,9 +1165,14 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		recipientName = member.Email
 	}
 
+	var oldRoleNames []string
+	if member.Role.Name != "" {
+		oldRoleNames = []string{member.Role.Name}
+	}
 	subject, html, text, renderErr := emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
 		RecipientName: recipientName,
 		CommitteeName: member.CommitteeName,
+		OldRoles:      oldRoleNames,
 		InviterName:   "A committee administrator",
 	})
 	if renderErr != nil {
@@ -1193,6 +1212,7 @@ const (
 type committeeUserRoleChange struct {
 	user     model.CommitteeUser
 	kind     roleChangeKind
+	oldRoles []string // sorted; empty when kind == added
 	newRoles []string // sorted; empty when kind == removed
 }
 
@@ -1248,17 +1268,17 @@ func classifyCommitteeUsers(old, new *model.CommitteeSettings) []committeeUserRo
 
 		switch {
 		case !hadRoles && hasRoles:
-			// Representative user from the new set.
 			u := anyUser(newRoleMap)
 			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindAdded, newRoles: newRoleSlice})
 		case hadRoles && !hasRoles:
+			oldRoleSlice := sortedRoles(oldRoles)
 			u := anyUser(oldRoles)
-			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindRemoved, newRoles: nil})
+			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindRemoved, oldRoles: oldRoleSlice})
 		case hadRoles && hasRoles:
-			// Check whether the role-set actually changed.
-			if !roleSlicesEqual(sortedRoles(oldRoles), newRoleSlice) {
+			oldRoleSlice := sortedRoles(oldRoles)
+			if !roleSlicesEqual(oldRoleSlice, newRoleSlice) {
 				u := anyUser(newRoleMap)
-				changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindUpdated, newRoles: newRoleSlice})
+				changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindUpdated, oldRoles: oldRoleSlice, newRoles: newRoleSlice})
 			}
 		}
 	}
@@ -1299,6 +1319,17 @@ func roleSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// effectiveRoleUnchanged returns true when the user-facing display roles derived from
+// oldRoles and newRoles are identical — for example, gaining Auditor while already holding
+// Writer produces no visible change (both collapse to ["Manage"]), so no email is needed.
+func effectiveRoleUnchanged(oldRoles, newRoles []string) bool {
+	oldDisplay := emailsvc.CommitteeRolesForDisplay(oldRoles)
+	newDisplay := emailsvc.CommitteeRolesForDisplay(newRoles)
+	sort.Strings(oldDisplay)
+	sort.Strings(newDisplay)
+	return roleSlicesEqual(oldDisplay, newDisplay)
 }
 
 // highestRole returns the single highest-privilege role from a slice.
