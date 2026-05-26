@@ -103,6 +103,9 @@ func (b *GroupWeeklyBrief) Validate() error {
 	if !b.WindowEnd.After(b.WindowStart) {
 		return fmt.Errorf("window_end must be after window_start")
 	}
+	if b.RegenerationCount < 0 {
+		return fmt.Errorf("regeneration_count must be non-negative")
+	}
 	return b.State.Validate()
 }
 
