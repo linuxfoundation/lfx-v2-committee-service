@@ -139,6 +139,61 @@ func TestRenderCommitteeRoleNotification(t *testing.T) {
 	assert.False(t, strings.Contains(text, "<html"), "expected plain text output")
 }
 
+func TestCommitteeRoleCapabilities(t *testing.T) {
+	t.Run("Manage has 5 capabilities", func(t *testing.T) {
+		items := committeeRoleCapabilities("Manage")
+		assert.Len(t, items, 5)
+		assert.Contains(t, items, "Update committee settings")
+		assert.Contains(t, items, "Schedule a survey for a committee")
+	})
+	t.Run("View has 6 capabilities", func(t *testing.T) {
+		items := committeeRoleCapabilities("View")
+		assert.Len(t, items, 6)
+		assert.Contains(t, items, "View committee details")
+		assert.Contains(t, items, "Download committee documents")
+	})
+	t.Run("unknown role returns nil", func(t *testing.T) {
+		assert.Nil(t, committeeRoleCapabilities("Member"))
+		assert.Nil(t, committeeRoleCapabilities(""))
+	})
+}
+
+func TestRenderCommitteeRoleNotification_CapabilitiesInEmail(t *testing.T) {
+	data := CommitteeRoleNotificationData{
+		RecipientName: "Alice",
+		CommitteeName: "TSC Committee",
+		Role:          "Manage",
+		CommitteeURL:  "https://example.com",
+		InviterName:   "Admin",
+	}
+	_, html, text, err := RenderCommitteeRoleNotification(data)
+	require.NoError(t, err)
+	assert.Contains(t, html, "With the <strong>Manage</strong> role, you can:")
+	assert.Contains(t, html, "Update committee settings")
+	assert.Contains(t, html, "Schedule a survey for a committee")
+	assert.Contains(t, text, "With the Manage role, you can:")
+	assert.Contains(t, text, "- Update committee settings")
+}
+
+func TestRenderCommitteeRoleUpdated_CapabilitiesInEmail(t *testing.T) {
+	data := CommitteeRoleUpdatedData{
+		RecipientName: "Bob",
+		CommitteeName: "TSC Committee",
+		OldRoles:      []string{"Writer"},
+		NewRoles:      []string{"Auditor"},
+		CommitteeURL:  "https://example.com",
+		InviterName:   "Admin",
+	}
+	_, html, text, err := RenderCommitteeRoleUpdated(data)
+	require.NoError(t, err)
+	assert.Contains(t, html, "With the <strong>View</strong> role, you can:")
+	assert.Contains(t, html, "View committee details")
+	assert.Contains(t, text, "With the View role, you can:")
+	assert.Contains(t, text, "- View committee details")
+	// Old role capabilities should not appear
+	assert.NotContains(t, html, "Update committee settings")
+}
+
 func TestCommitteeRolesForDisplay(t *testing.T) {
 	tests := []struct {
 		name     string

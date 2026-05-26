@@ -45,19 +45,67 @@ var (
 	)
 )
 
+// CapabilityGroup holds a role display name and the list of capability bullet points for that role.
+type CapabilityGroup struct {
+	Role  string
+	Items []string
+}
+
 // CommitteeRoleNotificationData holds the template variables for a committee role notification email.
 type CommitteeRoleNotificationData struct {
-	RecipientName string
-	CommitteeName string
-	Role          string
-	CommitteeURL  string
-	InviterName   string
+	RecipientName    string
+	CommitteeName    string
+	Role             string
+	CommitteeURL     string
+	InviterName      string
+	CapabilityGroups []CapabilityGroup // populated by RenderCommitteeRoleNotification
+}
+
+// committeeRoleCapabilities returns the capability bullet points for a given display role name.
+// Returns nil for unknown roles so templates can conditionally omit the section.
+func committeeRoleCapabilities(displayRole string) []string {
+	switch displayRole {
+	case "Manage":
+		return []string{
+			"Update committee settings",
+			"Manage committee members, invites & applications",
+			"Manage committee links, folder, & documents",
+			"Download committee documents",
+			"Schedule a survey for a committee",
+		}
+	case "View":
+		return []string{
+			"View committee details",
+			"View committee settings",
+			"View committee members",
+			"View committee invites & applications",
+			"View committee links, folders and documents",
+			"Download committee documents",
+		}
+	default:
+		return nil
+	}
+}
+
+// capabilityGroupsForRoles builds a CapabilityGroup slice from display role names,
+// omitting any role whose capabilities are unknown (e.g. "Member").
+func capabilityGroupsForRoles(displayRoles []string) []CapabilityGroup {
+	groups := make([]CapabilityGroup, 0, len(displayRoles))
+	for _, r := range displayRoles {
+		if items := committeeRoleCapabilities(r); len(items) > 0 {
+			groups = append(groups, CapabilityGroup{Role: r, Items: items})
+		}
+	}
+	return groups
 }
 
 // RenderCommitteeRoleNotification renders the subject, HTML body, and plain-text body
 // for a committee role notification email.
 func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subject, html, text string, err error) {
-	subject = sanitizeHeader(data.InviterName) + " added you as a " + data.Role + " on " + data.CommitteeName
+	if len(data.CapabilityGroups) == 0 {
+		data.CapabilityGroups = capabilityGroupsForRoles([]string{data.Role})
+	}
+	subject = sanitizeHeader(data.InviterName) + " added you as a " + data.Role + " on " + sanitizeHeader(data.CommitteeName)
 
 	var htmlBuf bytes.Buffer
 	if err = committeeRoleHTMLTemplate.Execute(&htmlBuf, data); err != nil {
@@ -77,14 +125,15 @@ func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subjec
 // OldRoles and NewRoles hold the internal role names (Writer, Auditor); the render function
 // converts them to display names (Manage, View) and populates OldJoinedRoles / NewJoinedRoles.
 type CommitteeRoleUpdatedData struct {
-	RecipientName  string
-	CommitteeName  string
-	OldRoles       []string
-	NewRoles       []string
-	OldJoinedRoles string // computed by RenderCommitteeRoleUpdated
-	NewJoinedRoles string // computed by RenderCommitteeRoleUpdated
-	CommitteeURL   string
-	InviterName    string
+	RecipientName       string
+	CommitteeName       string
+	OldRoles            []string
+	NewRoles            []string
+	OldJoinedRoles      string // computed by RenderCommitteeRoleUpdated
+	NewJoinedRoles      string // computed by RenderCommitteeRoleUpdated
+	CommitteeURL        string
+	InviterName         string
+	NewCapabilityGroups []CapabilityGroup // computed by RenderCommitteeRoleUpdated
 }
 
 // RenderCommitteeRoleUpdated renders the subject, HTML body, and plain-text body for an
@@ -92,6 +141,9 @@ type CommitteeRoleUpdatedData struct {
 func RenderCommitteeRoleUpdated(data CommitteeRoleUpdatedData) (subject, html, text string, err error) {
 	data.OldJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.OldRoles))
 	data.NewJoinedRoles = JoinCommitteeRoles(CommitteeRolesForDisplay(data.NewRoles))
+	if len(data.NewCapabilityGroups) == 0 {
+		data.NewCapabilityGroups = capabilityGroupsForRoles(CommitteeRolesForDisplay(data.NewRoles))
+	}
 
 	subject = sanitizeHeader(data.InviterName) + " updated your role on " + sanitizeHeader(data.CommitteeName)
 

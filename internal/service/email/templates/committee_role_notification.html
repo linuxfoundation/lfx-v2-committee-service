@@ -39,7 +39,11 @@
     <p class="greeting">Hi {{.RecipientName}},</p>
 
     <p>{{.InviterName}} has added you as a <strong>{{.Role}}</strong> on the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
-    <p>You can view the committee dashboard by visiting the link below.</p>
+    {{range .CapabilityGroups}}<p>With the <strong>{{.Role}}</strong> role, you can:</p>
+    <ul style="margin: 0 0 16px 0; padding-left: 24px; color: #374151; font-size: 15px; line-height: 1.8;">
+      {{range .Items}}<li>{{.}}</li>
+      {{end}}</ul>
+    {{end}}
 
     <!-- djlint:off H021 --><a href="{{.CommitteeURL}}" class="btn" style="color:#ffffff!important;">View Committee</a><!-- djlint:on H021 -->
     <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.CommitteeURL}}">{{.CommitteeURL}}</a></p>

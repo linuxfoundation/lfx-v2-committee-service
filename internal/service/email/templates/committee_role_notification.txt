@@ -3,7 +3,10 @@
 Hi {{.RecipientName}},
 
 {{.InviterName}} has added you as a {{.Role}} on the {{.CommitteeName}} committee in LFX Self-Serve.
-
+{{range .CapabilityGroups}}
+With the {{.Role}} role, you can:
+{{range .Items}}- {{.}}
+{{end}}{{end}}
 You can view the committee here:
 {{.CommitteeURL}}
 
