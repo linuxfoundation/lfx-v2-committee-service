@@ -507,11 +507,11 @@ func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker
 // returned client transparently exchanges client_credentials for an OAuth2
 // access token and refreshes it as needed.
 //
-// Env vars (all required for live mode):
+// Env vars (required for live mode, i.e. when QUERY_SERVICE_URL is set):
 //   - M2M_AUTH_CLIENT_ID
 //   - M2M_AUTH_CLIENT_SECRET
 //   - M2M_AUTH_ISSUER      (token endpoint base, e.g. https://auth.example.org)
-//   - M2M_AUTH_AUDIENCE
+//   - M2M_AUTH_AUDIENCE    (optional; the token exchange omits the audience when unset)
 //
 // Behaviour:
 //   - When QUERY_SERVICE_URL is unset, the *SourceImpl callers short-circuit
