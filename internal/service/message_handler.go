@@ -544,15 +544,10 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
-	roleDisplay := member.Role.Name
-	if roleDisplay == "" {
-		roleDisplay = "Member"
-	}
-
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
 		CommitteeName: member.CommitteeName,
-		Role:          roleDisplay,
+		Role:          "Member",
 		CommitteeURL:  committeeURL,
 		InviterName:   "A committee administrator",
 	})
@@ -599,7 +594,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		ResourceUID:    member.CommitteeUID,
 		ResourceName:   member.CommitteeName,
 		ResourceType:   "group",
-		Role:           mapRoleToInviteRole(member.Role.Name),
+		Role:           "Member",
 		ReturnURL:      deepLinkURL,
 	})
 	if err != nil {
