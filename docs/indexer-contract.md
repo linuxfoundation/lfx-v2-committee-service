@@ -527,7 +527,7 @@ _(none)_
 | Field | Value |
 |---|---|
 | `access_check_object` | `committee:{committee_uid}` |
-| `access_check_relation` | `writer` |
+| `access_check_relation` | `viewer` |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
 
