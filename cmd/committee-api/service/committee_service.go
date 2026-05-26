@@ -34,7 +34,6 @@ type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
 	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
-	accessChecker               port.CommitteeAccessChecker
 	storage                     port.CommitteeReaderWriter
 	publisher                   port.CommitteePublisher
 	userReader                  port.UserReader
@@ -1224,7 +1223,6 @@ func NewCommitteeService(
 	createCommitteeUseCase service.CommitteeWriter,
 	readCommitteeUseCase service.CommitteeReader,
 	authService port.Authenticator,
-	accessChecker port.CommitteeAccessChecker,
 	storage port.CommitteeReaderWriter,
 	publisher port.CommitteePublisher,
 	userReader port.UserReader,
@@ -1239,7 +1237,6 @@ func NewCommitteeService(
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
-		accessChecker:               accessChecker,
 		storage:                     storage,
 		publisher:                   publisher,
 		userReader:                  userReader,
@@ -1260,11 +1257,8 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 		"committee_uid", p.UID,
 	)
 
-	if s.accessChecker != nil {
-		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
-			return nil, wrapError(ctx, err)
-		}
-	}
+	// Authorization (committee viewer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
 
 	// Verify the committee exists so a typo'd UID returns 404, not 200/null.
 	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
@@ -1382,26 +1376,23 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		"force", p.Force,
 	)
 
-	if s.accessChecker != nil {
-		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
-			return nil, wrapError(ctx, err)
-		}
-	}
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
 
 	// Verify the committee exists so a typo'd UID returns 404, not 422/429.
 	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
 
 	if s.weeklyBriefGenerator == nil {
 		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
 	}
 
-	committeeName := ""
-	if base != nil && base.Name != "" {
-		committeeName = base.Name
-	}
+	committeeName := base.Name
 
 	out, errGen := s.weeklyBriefGenerator.Generate(ctx, service.GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  p.UID,
