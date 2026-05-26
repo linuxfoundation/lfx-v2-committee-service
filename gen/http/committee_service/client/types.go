@@ -951,9 +951,9 @@ type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesRes
 // service "get-current-weekly-brief" endpoint HTTP response body.
 type GetCurrentWeeklyBriefResponseBody struct {
 	// The weekly brief, or null if none exists for the current window
-	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `json:"brief"`
 	// Throttle counters for the current window, or null
-	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+	Throttle *GroupWeeklyBriefThrottleResponseBody `json:"throttle"`
 }
 
 // GenerateWeeklyBriefResponseBody is the type of the "committee-service"
@@ -2580,12 +2580,8 @@ type GroupWeeklyBriefThrottleResponseBody struct {
 	RegenerationsUsed *int `form:"regenerations_used,omitempty" json:"regenerations_used,omitempty" xml:"regenerations_used,omitempty"`
 	// Maximum regenerations allowed in this window
 	RegenerationsLimit *int `form:"regenerations_limit,omitempty" json:"regenerations_limit,omitempty" xml:"regenerations_limit,omitempty"`
-	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	// Timestamp when the window resets
 	WindowResetsAt *string `form:"window_resets_at,omitempty" json:"window_resets_at,omitempty" xml:"window_resets_at,omitempty"`
-	// Deprecated: total regeneration attempts; use regenerations_used
-	Count *int `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
-	// Deprecated: timestamp of last attempt
-	LastAttemptAt *string `form:"last_attempt_at,omitempty" json:"last_attempt_at,omitempty" xml:"last_attempt_at,omitempty"`
 }
 
 // NewCreateCommitteeRequestBody builds the HTTP request body from the payload
@@ -5619,8 +5615,12 @@ func NewDeleteCommitteeDocumentServiceUnavailable(body *DeleteCommitteeDocumentS
 // a HTTP "OK" response.
 func NewGetCurrentWeeklyBriefGroupWeeklyBriefCurrentResultOK(body *GetCurrentWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefCurrentResult {
 	v := &committeeservice.GroupWeeklyBriefCurrentResult{}
-	v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
-	v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	if body.Brief != nil {
+		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
+	}
+	if body.Throttle != nil {
+		v.Throttle = unmarshalGroupWeeklyBriefThrottleResponseBodyToCommitteeserviceGroupWeeklyBriefThrottle(body.Throttle)
+	}
 
 	return v
 }
@@ -7055,12 +7055,6 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 // ValidateGetCurrentWeeklyBriefResponseBody runs the validations defined on
 // Get-Current-Weekly-BriefResponseBody
 func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefResponseBody) (err error) {
-	if body.Brief == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("brief", "body"))
-	}
-	if body.Throttle == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("throttle", "body"))
-	}
 	if body.Brief != nil {
 		if err2 := ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body.Brief); err2 != nil {
 			err = goa.MergeErrors(err, err2)
@@ -9086,14 +9080,6 @@ func ValidateGroupWeeklyBriefThrottleResponseBody(body *GroupWeeklyBriefThrottle
 	}
 	if body.WindowResetsAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.window_resets_at", *body.WindowResetsAt, goa.FormatDateTime))
-	}
-	if body.Count != nil {
-		if *body.Count < 0 {
-			err = goa.MergeErrors(err, goa.InvalidRangeError("body.count", *body.Count, 0, true))
-		}
-	}
-	if body.LastAttemptAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_attempt_at", *body.LastAttemptAt, goa.FormatDateTime))
 	}
 	return
 }

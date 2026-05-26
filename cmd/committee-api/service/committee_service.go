@@ -1356,10 +1356,6 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 // plus the window reset timestamp; the legacy count / last_attempt_at fields
 // are still populated so older clients keep working.
 func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
-	count := t.Count
-	if count == 0 {
-		count = t.GeneratesUsed + t.RegenerationsUsed
-	}
 	gUsed := t.GeneratesUsed
 	gLimit := model.GroupWeeklyBriefGenerateLimit
 	rUsed := t.RegenerationsUsed
@@ -1369,15 +1365,10 @@ func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *com
 		GeneratesLimit:     &gLimit,
 		RegenerationsUsed:  &rUsed,
 		RegenerationsLimit: &rLimit,
-		Count:              &count,
 	}
 	if !t.WindowResetsAt.IsZero() {
 		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
 		out.WindowResetsAt = &v
-	}
-	if !t.LastAttemptAt.IsZero() {
-		v := t.LastAttemptAt.UTC().Format(time.RFC3339)
-		out.LastAttemptAt = &v
 	}
 	return out
 }

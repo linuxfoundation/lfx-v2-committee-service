@@ -107,12 +107,9 @@ func (b *GroupWeeklyBrief) Validate() error {
 }
 
 // GroupWeeklyBriefThrottle records per-committee/per-week throttle state.
-// Both GeneratesUsed and RegenerationsUsed are tracked separately so the
-// generate (fresh) and regenerate (force or follow-up) paths can have distinct
-// limits enforced against the same window key.
-//
-// Count and LastAttemptAt are Phase-1 legacy fields preserved on the JSON wire
-// so existing readers continue to function during the Phase 1 → Phase 2 cut-over.
+// GeneratesUsed and RegenerationsUsed are tracked separately so the generate
+// (fresh) and regenerate (force or follow-up) paths can have distinct limits
+// enforced against the same window key.
 type GroupWeeklyBriefThrottle struct {
 	CommitteeUID string    `json:"committee_uid"`
 	WindowStart  time.Time `json:"window_start"`
@@ -121,13 +118,8 @@ type GroupWeeklyBriefThrottle struct {
 	GeneratesUsed int `json:"generates_used"`
 	// RegenerationsUsed is the number of regenerations consumed in this window.
 	RegenerationsUsed int `json:"regenerations_used"`
-	// WindowResetsAt is the timestamp at which the window resets (next UTC Sunday 00:00:00).
+	// WindowResetsAt is the timestamp at which the window resets.
 	WindowResetsAt time.Time `json:"window_resets_at"`
-	// LastAttemptAt is the timestamp of the most recent attempt (advisory).
-	LastAttemptAt time.Time `json:"last_attempt_at,omitempty"`
-	// Count is the deprecated Phase 1 total (generates_used + regenerations_used).
-	// Kept for backward compatibility; new code should not rely on this field.
-	Count int `json:"count"`
 	// Revision is the NATS KV revision used for compare-and-swap updates.
 	// It is not persisted as JSON.
 	Revision uint64 `json:"-"`
