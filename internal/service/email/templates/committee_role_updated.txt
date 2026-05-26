@@ -6,7 +6,10 @@ Hi {{.RecipientName}},
 
 Previous role: {{.OldJoinedRoles}}
 New role: {{.NewJoinedRoles}}
-
+{{range .NewCapabilityGroups}}
+With the {{.Role}} role, you can:
+{{range .Items}}- {{.}}
+{{end}}{{end}}
 You can view the committee here:
 {{.CommitteeURL}}
 
