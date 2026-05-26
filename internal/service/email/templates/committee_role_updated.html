@@ -49,7 +49,7 @@
     </table>
 
     {{range .NewCapabilityGroups}}<p>With the <strong>{{.Role}}</strong> role, you can:</p>
-    <ul style="margin: 0 0 16px 0; padding-left: 24px; color: #374151; font-size: 15px; line-height: 1.8;">
+    <!-- djlint:off H021 --><ul style="margin: 0 0 16px 0; padding-left: 24px; color: #374151; font-size: 15px; line-height: 1.8;"><!-- djlint:on H021 -->
       {{range .Items}}<li>{{.}}</li>
       {{end}}</ul>
     {{end}}

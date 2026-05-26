@@ -105,7 +105,7 @@ func RenderCommitteeRoleNotification(data CommitteeRoleNotificationData) (subjec
 	if len(data.CapabilityGroups) == 0 {
 		data.CapabilityGroups = capabilityGroupsForRoles([]string{data.Role})
 	}
-	subject = sanitizeHeader(data.InviterName) + " added you as a " + data.Role + " on " + sanitizeHeader(data.CommitteeName)
+	subject = sanitizeHeader(data.InviterName) + " added you as a " + sanitizeHeader(data.Role) + " on " + sanitizeHeader(data.CommitteeName)
 
 	var htmlBuf bytes.Buffer
 	if err = committeeRoleHTMLTemplate.Execute(&htmlBuf, data); err != nil {
