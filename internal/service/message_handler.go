@@ -768,7 +768,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			switch kind {
 			case roleChangeKindAdded:
 				// Newly added — use the original "added you as a <role>" email.
-				// For the added path, newRoles contains exactly one role (the single highest).
+				// newRoles may contain multiple roles; display only the highest-privilege one.
 				roleDisplay := emailsvc.CommitteeRoleDisplayName(highestRole(newRoles))
 				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 					RecipientName: recipientName,

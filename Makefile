@@ -11,7 +11,7 @@ GIT_COMMIT := $(shell git rev-parse HEAD)
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-api
 DOCKER_CLI_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-cli
-DOCKER_TAG := latest
+DOCKER_TAG ?= $(VERSION)
 
 # Helm variables
 HELM_CHART_PATH=./charts/lfx-v2-committee-service
