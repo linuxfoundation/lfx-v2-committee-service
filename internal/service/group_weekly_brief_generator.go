@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -307,13 +306,14 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 		brief.Revision = existing.Revision
 	}
 
-	// 9. Persist brief.
-	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
-	if errPut != nil {
-		return nil, errPut
-	}
-
-	// 10. Throttle accounting.
+	// 9. Throttle accounting — bumped BEFORE persisting the brief. If the
+	// throttle write fails we return early with no brief persisted, so a retry
+	// is a clean generate rather than a regeneration and the caller isn't
+	// charged quota for what they experienced as a failed request. Surfacing
+	// the error (rather than swallowing it) keeps the per-window limit honest.
+	// The remaining edge — brief persist failing after this point — leaves the
+	// throttle over-counted by one for the window, which is fail-safe (the
+	// limit stays enforced) and self-corrects at the next window reset.
 	if isRegeneration {
 		throttle.RegenerationsUsed++
 	} else {
@@ -322,16 +322,15 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 	throttle.WindowResetsAt = windowReset
 	updatedThrottle, errTh := g.briefWriter.PutGroupWeeklyBriefThrottle(ctx, throttle)
 	if errTh != nil {
-		// Surface throttle-update failures instead of swallowing them: a
-		// silent miss here means the counter never advances and subsequent
-		// callers can bypass the per-window limit. The brief itself is
-		// already persisted, so the caller will see a 503/5xx and can retry.
-		// Note: this leaves a small window where the brief exists without
-		// throttle bump — acceptable for MVP; a follow-up should reorder to
-		// pre-increment the throttle and roll back on AI/persist failures.
 		slog.ErrorContext(ctx, "failed to update weekly-brief throttle counter",
 			"committee_uid", in.CommitteeUID, "error", errTh)
 		return nil, errTh
+	}
+
+	// 10. Persist brief.
+	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if errPut != nil {
+		return nil, errPut
 	}
 
 	return &GroupWeeklyBriefGenerateOutput{
@@ -425,11 +424,22 @@ func claimLabel(kind, raw string) string {
 	if s == "" {
 		return kind
 	}
-	// Truncate by RUNE, not byte — byte slicing can cut multi-byte UTF-8
-	// sequences mid-character and produce invalid text.
-	if utf8.RuneCountInString(s) > 80 {
-		runes := []rune(s)
-		s = string(runes[:80]) + "…"
+	// Truncate to 80 runes without scanning the whole string or allocating a
+	// full []rune for the entire input — an attacker-controlled title/subject
+	// could be very large. Byte slicing alone could cut a multi-byte UTF-8
+	// sequence, so we find the cut on a rune boundary by ranging the string and
+	// stop as soon as we reach the limit.
+	const maxRunes = 80
+	n, cut := 0, len(s)
+	for i := range s {
+		if n == maxRunes {
+			cut = i
+			break
+		}
+		n++
+	}
+	if cut < len(s) {
+		s = s[:cut] + "…"
 	}
 	return kind + ": " + s
 }
