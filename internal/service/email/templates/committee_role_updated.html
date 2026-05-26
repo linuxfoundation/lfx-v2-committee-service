@@ -16,6 +16,9 @@
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 0 0 32px 0; }
         p { font-size: 16px; color: #374151; line-height: 1.6; margin: 0 0 16px 0; }
         .greeting { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
+        .role-table { width: 100%; border-collapse: collapse; margin: 0 0 20px 0; }
+        .role-table td { font-size: 15px; color: #374151; padding: 6px 0; }
+        .role-label { color: #6b7280; width: 140px; }
         .btn { display: inline-block; background-color: #009AFF; color: #ffffff !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 24px; border-radius: 8px; margin-bottom: 12px; }
         .btn-note { font-size: 13px; color: #6b7280; margin: 0 0 28px 0; }
         .btn-note a { color: #009AFF; text-decoration: none; }
@@ -39,8 +42,11 @@
     <p class="greeting">Hi {{.RecipientName}},</p>
 
     <p>{{.InviterName}} has updated your role on the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
-    <p>Your current role(s): <strong>{{join .CurrentRoles ", "}}</strong></p>
-    <p>You can view the committee dashboard by visiting the link below.</p>
+
+    <table class="role-table">
+        <tr><td class="role-label">Previous role:</td><td>{{.OldJoinedRoles}}</td></tr>
+        <tr><td class="role-label">New role:</td><td><strong>{{.NewJoinedRoles}}</strong></td></tr>
+    </table>
 
     <!-- djlint:off H021 --><a href="{{.CommitteeURL}}" class="btn" style="color:#ffffff!important;">View Committee</a><!-- djlint:on H021 -->
     <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.CommitteeURL}}">{{.CommitteeURL}}</a></p>

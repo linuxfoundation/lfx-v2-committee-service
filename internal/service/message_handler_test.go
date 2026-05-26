@@ -1760,25 +1760,38 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 			newAuditors:     []model.CommitteeUser{alice},
 			wantEmailCount:  1,
 			subjectContains: "updated your role",
-			htmlContains:    "Auditor",
+			htmlContains:    "View", // Auditor → View display name
 		},
 		{
-			name:            "LF user: gained auditor on top of writer — role updated email",
+			// Gaining Auditor on top of Writer collapses to the same effective display role
+			// ("Manage" supersedes "View"), so no email is sent — effective access is unchanged.
+			name:            "LF user: gained auditor on top of writer — no email (effective role unchanged)",
 			oldWriters:      []model.CommitteeUser{alice},
 			newWriters:      []model.CommitteeUser{alice},
 			newAuditors:     []model.CommitteeUser{alice},
-			wantEmailCount:  1,
-			subjectContains: "updated your role",
-			htmlContains:    "Writer",
+			wantEmailCount:  0,
+			wantInviteCount: 0,
 		},
 		{
-			name:            "LF user: lost one of two roles — role updated email",
+			// Losing Auditor while keeping Writer: old=Writer+Auditor→["Manage"], new=Writer→["Manage"].
+			// Effective display role is unchanged so no email is sent.
+			name:            "LF user: lost auditor but kept writer — no email (effective role unchanged)",
 			oldWriters:      []model.CommitteeUser{alice},
 			oldAuditors:     []model.CommitteeUser{alice},
 			newWriters:      []model.CommitteeUser{alice},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			// Losing Writer while keeping Auditor: old=Writer+Auditor→["Manage"], new=Auditor→["View"].
+			// Effective role changed from Manage to View, so an update email is sent.
+			name:            "LF user: lost writer but kept auditor — role updated email",
+			oldWriters:      []model.CommitteeUser{alice},
+			oldAuditors:     []model.CommitteeUser{alice},
+			newAuditors:     []model.CommitteeUser{alice},
 			wantEmailCount:  1,
 			subjectContains: "updated your role",
-			htmlContains:    "Writer",
+			htmlContains:    "View", // new effective role
 		},
 		{
 			name:            "LF user: fully removed — removal email",

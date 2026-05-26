@@ -36,6 +36,7 @@
     <p class="greeting">Hi {{.RecipientName}},</p>
 
     <p>{{.InviterName}} has removed you from the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
+    {{if .OldJoinedRoles}}<p>Your previous role was <strong>{{.OldJoinedRoles}}</strong>. You no longer have access to this committee's resources.</p>{{else}}<p>You no longer have access to this committee's resources.</p>{{end}}
 
     <p class="signoff">Thank you,<br><strong>The Linux Foundation Team</strong></p>
 
