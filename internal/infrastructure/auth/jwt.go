@@ -7,11 +7,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"net/http"
 
 	"github.com/auth0/go-jwt-middleware/v2/jwks"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -24,6 +23,7 @@ const (
 	defaultIssuer      = "heimdall"
 	defaultAudience    = "lfx-v2-committee-service"
 	defaultJWKSURL     = "http://heimdall:4457/.well-known/jwks"
+	jwksClientTimeout  = 10 * time.Second
 )
 
 // JWTAuthConfig holds the configuration parameters for JWT authentication.
@@ -134,7 +134,10 @@ func NewJWTAuth(config JWTAuthConfig) (*JWTAuth, error) {
 		slog.Error("unexpected URL parsing of default issuer")
 		return nil, err
 	}
-	otelClient := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+	otelClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:   jwksClientTimeout,
+	}
 	provider := jwks.NewCachingProvider(issuer, 5*time.Minute, jwks.WithCustomJWKSURI(jwksURL), jwks.WithCustomClient(otelClient))
 
 	// Set up the JWT validator.
