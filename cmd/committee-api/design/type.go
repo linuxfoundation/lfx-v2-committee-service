@@ -1016,9 +1016,9 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2026-05-10T00:00:00Z")
 	})
-	dsl.Attribute("window_end", dsl.String, "UTC Saturday 23:59:59 marking the end of the window", func() {
+	dsl.Attribute("window_end", dsl.String, "Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond precision)", func() {
 		dsl.Format(dsl.FormatDateTime)
-		dsl.Example("2026-05-16T23:59:59Z")
+		dsl.Example("2026-05-16T23:59:59.999999999Z")
 	})
 	dsl.Attribute("state", dsl.String, "Lifecycle state", func() {
 		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")

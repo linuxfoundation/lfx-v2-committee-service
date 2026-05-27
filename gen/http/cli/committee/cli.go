@@ -637,7 +637,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
 	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
-	fmt.Fprintln(os.Stderr, `    get-current-weekly-brief: Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
+	fmt.Fprintln(os.Stderr, `    get-current-weekly-brief: Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1518,7 +1518,7 @@ func committeeServiceGetCurrentWeeklyBriefUsage() {
 
 	// Description
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
+	fmt.Fprintln(os.Stderr, `Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
 
 	// Flags list
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)

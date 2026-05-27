@@ -2447,7 +2447,8 @@ type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// UTC Sunday 00:00:00 marking the start of the window
 	WindowStart *string `form:"window_start,omitempty" json:"window_start,omitempty" xml:"window_start,omitempty"`
-	// UTC Saturday 23:59:59 marking the end of the window
+	// Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond
+	// precision)
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`

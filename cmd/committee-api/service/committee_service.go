@@ -1246,8 +1246,9 @@ func NewCommitteeService(
 	}
 }
 
-// GetCurrentWeeklyBrief returns the working-group weekly brief for the most
-// recently completed UTC Sun→Sat window, plus optional throttle counters.
+// GetCurrentWeeklyBrief returns the working-group weekly brief for the UTC
+// Sun→Sat window selected by model.WeeklyWindow (on a Saturday this is the
+// current, not-yet-completed week), plus optional throttle counters.
 // On a miss, both fields are nil and the HTTP status is 200 (per BFF contract).
 func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *committeeservice.GetCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefCurrentResult, error) {
 	slog.DebugContext(ctx, "committeeService.get-current-weekly-brief",
