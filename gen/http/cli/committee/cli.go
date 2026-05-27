@@ -651,7 +651,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
 	fmt.Fprintln(os.Stderr, `    get-current-weekly-brief: Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
-	fmt.Fprintln(os.Stderr, `    generate-weekly-brief: Generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations. Returns 409 when an edited brief exists and force is not set, 422 when no sources contributed, 429 when the throttle is exhausted.`)
+	fmt.Fprintln(os.Stderr, `    generate-weekly-brief: Asynchronously generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1555,7 +1555,7 @@ func committeeServiceGenerateWeeklyBriefUsage() {
 
 	// Description
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `Generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations. Returns 409 when an edited brief exists and force is not set, 422 when no sources contributed, 429 when the throttle is exhausted.`)
+	fmt.Fprintln(os.Stderr, `Asynchronously generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.`)
 
 	// Flags list
 	fmt.Fprintln(os.Stderr, `    -body JSON: `)

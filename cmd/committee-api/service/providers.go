@@ -728,9 +728,22 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	// Initialize NATS client first
 	natsInit(ctx)
 
+	// Build the weekly-brief generator so the message handler can fulfill async
+	// generate requests off the durable stream (same wiring as the HTTP path).
+	weeklyBriefGenerator := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(GroupWeeklyBriefReaderImpl(ctx)),
+		usecaseSvc.WithGroupWeeklyBriefWriter(GroupWeeklyBriefWriterImpl(ctx)),
+		usecaseSvc.WithMeetingSource(MeetingSourceImpl(ctx)),
+		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
+		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
+		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
+		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
+	)
+
 	// Create message handler service
 	messageHandlerService := &MessageHandlerService{
 		messageHandler: usecaseSvc.NewMessageHandlerOrchestrator(
+			usecaseSvc.WithGroupWeeklyBriefGeneratorForMessageHandler(weeklyBriefGenerator),
 			usecaseSvc.WithCommitteeReaderForMessageHandler(
 				// get the committee reader directly from the repository implementation
 				usecaseSvc.NewCommitteeReaderOrchestrator(
@@ -796,6 +809,13 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			)
 			return fmt.Errorf("failed to start stream consumer %s: %w", consumer, err)
 		}
+	}
+
+	// Start the durable consumer that fulfills async weekly-brief generation.
+	slog.InfoContext(ctx, "starting stream consumer", "consumer", constants.ConsumerNameWeeklyBriefGenerate)
+	if _, err := natsClient.StartWeeklyBriefGenerateConsumer(ctx, messageHandlerService.messageHandler.HandleGenerateWeeklyBriefRequested); err != nil {
+		slog.ErrorContext(ctx, "failed to start weekly-brief generate consumer", "error", err)
+		return fmt.Errorf("failed to start weekly-brief generate consumer: %w", err)
 	}
 
 	slog.InfoContext(ctx, "NATS subscriptions started successfully")

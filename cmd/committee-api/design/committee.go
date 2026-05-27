@@ -1391,9 +1391,13 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	dsl.Method("generate-weekly-brief", func() {
-		dsl.Description("Generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. " +
-			"Per-committee/per-week throttle: 2 fresh generations and 3 regenerations. Returns 409 when an edited " +
-			"brief exists and force is not set, 422 when no sources contributed, 429 when the throttle is exhausted.")
+		dsl.Description("Asynchronously generate (or regenerate) the working-group weekly brief for the current " +
+			"Sun→Sat window. Responds 202 with the brief in the \"generating\" state; the source gather + LLM call run " +
+			"out-of-band via a durable consumer. Clients poll GET /current to observe the terminal \"generated\" or " +
+			"\"error\" state — a window with no activity or an AI failure finalizes the brief as \"error\" rather than a " +
+			"synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, " +
+			"enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the " +
+			"throttle is exhausted.")
 
 		dsl.Security(JWTAuth)
 
@@ -1415,7 +1419,6 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
 		dsl.Error("NotFound", NotFoundError, "Committee not found")
 		dsl.Error("EditedBriefExists", GroupWeeklyBriefEditedExistsError, "An edited brief exists and force is not set")
-		dsl.Error("NoSources", GroupWeeklyBriefNoSourceError, "No activity in the window across any source")
 		dsl.Error("ThrottleExceeded", GroupWeeklyBriefThrottleExceededError, "Per-committee/per-week generation or regeneration limit exhausted")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
@@ -1428,12 +1431,11 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Body(func() {
 				dsl.Attribute("force")
 			})
-			dsl.Response(dsl.StatusOK)
+			dsl.Response(dsl.StatusAccepted)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("EditedBriefExists", dsl.StatusConflict)
-			dsl.Response("NoSources", dsl.StatusUnprocessableEntity)
 			dsl.Response("ThrottleExceeded", dsl.StatusTooManyRequests)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)

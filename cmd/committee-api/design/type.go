@@ -1147,20 +1147,6 @@ var GroupWeeklyBriefEditedExistsError = dsl.Type("group-weekly-brief-edited-exis
 	dsl.Required("code", "revision")
 })
 
-// GroupWeeklyBriefNoSourceError is the 422 body returned when all source ports
-// came back empty — the generator has nothing to ground on.
-var GroupWeeklyBriefNoSourceError = dsl.Type("group-weekly-brief-no-source-error", func() {
-	dsl.Description("Returned when there is no activity in the window across any source.")
-	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
-		dsl.Enum("no_sources")
-		dsl.Example("no_sources")
-	})
-	dsl.Attribute("message", dsl.String, "Human-readable explanation", func() {
-		dsl.Example("No activity found for this week")
-	})
-	dsl.Required("code", "message")
-})
-
 // ─── Committee Document Types ───
 
 // DocumentUIDAttribute is the DSL attribute for document UID in URL paths.

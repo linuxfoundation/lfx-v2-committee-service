@@ -2177,16 +2177,6 @@ type GenerateWeeklyBriefEditedBriefExistsResponseBody struct {
 	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
 }
 
-// GenerateWeeklyBriefNoSourcesResponseBody is the type of the
-// "committee-service" service "generate-weekly-brief" endpoint HTTP response
-// body for the "NoSources" error.
-type GenerateWeeklyBriefNoSourcesResponseBody struct {
-	// Stable machine code
-	Code string `form:"code" json:"code" xml:"code"`
-	// Human-readable explanation
-	Message string `form:"message" json:"message" xml:"message"`
-}
-
 // GenerateWeeklyBriefThrottleExceededResponseBody is the type of the
 // "committee-service" service "generate-weekly-brief" endpoint HTTP response
 // body for the "ThrottleExceeded" error.
@@ -5259,17 +5249,6 @@ func NewGenerateWeeklyBriefEditedBriefExistsResponseBody(res *committeeservice.G
 	body := &GenerateWeeklyBriefEditedBriefExistsResponseBody{
 		Code:     res.Code,
 		Revision: res.Revision,
-	}
-	return body
-}
-
-// NewGenerateWeeklyBriefNoSourcesResponseBody builds the HTTP response body
-// from the result of the "generate-weekly-brief" endpoint of the
-// "committee-service" service.
-func NewGenerateWeeklyBriefNoSourcesResponseBody(res *committeeservice.GroupWeeklyBriefNoSourceError) *GenerateWeeklyBriefNoSourcesResponseBody {
-	body := &GenerateWeeklyBriefNoSourcesResponseBody{
-		Code:    res.Code,
-		Message: res.Message,
 	}
 	return body
 }
