@@ -540,7 +540,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 
 	// LFID present — send a direct notification email.
 	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+		slog.DebugContext(ctx, "email sender not configured — skipping member notification")
 		return nil, nil
 	}
 
@@ -580,7 +580,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 // caller can persist it; errors are propagated to the caller to handle best-effort.
 func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
 	if m.inviteSender == nil {
-		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
+		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
 		return port.InviteResult{}, nil
 	}
@@ -702,7 +702,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			if u.Username == "" {
 				// No LFID — added/updated paths go through the invite service; removed was handled above.
 				if m.inviteSender == nil {
-					slog.WarnContext(gctx, "invite sender not configured — skipping settings invite",
+					slog.DebugContext(gctx, "invite sender not configured — skipping settings invite",
 						"committee_uid", data.CommitteeUID)
 					return nil
 				}
@@ -757,7 +757,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 			// LFID present — send a direct notification email.
 			if m.emailSender == nil {
-				slog.WarnContext(gctx, "email sender not configured — skipping settings notification",
+				slog.DebugContext(gctx, "email sender not configured — skipping settings notification",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
@@ -1154,7 +1154,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 	}
 
 	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping member-deleted notification")
+		slog.DebugContext(ctx, "email sender not configured — skipping member-deleted notification")
 		return nil, nil
 	}
 
