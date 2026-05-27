@@ -142,9 +142,10 @@ func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorO
 	return g
 }
 
-// Generate runs the Phase 2 orchestration. Order of operations matches the
-// Phase 2 spec: edited-brief guard → throttle pre-check → source gather →
-// no-source guard → prompt build → LLM → persist brief → throttle increment.
+// Generate orchestrates a single weekly-brief generation. Order of operations:
+// read existing brief (edited-brief guard + regeneration accounting) → throttle
+// pre-check → source gather → no-source guard → prompt build → LLM call →
+// persist brief → throttle increment.
 func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefGenerateOutput, error) {
 	if in.CommitteeUID == "" {
 		return nil, errors.NewValidation("committee_uid is required")
@@ -210,22 +211,28 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 		}
 	}
 
-	// 4. Source gathering.
+	// 4. Source gathering. The sources fall into two classes with deliberately
+	// different failure handling:
+	//   - The member source is INTERNAL (committee KV). A read failure there is
+	//     a genuine internal error, so we fail the whole request rather than
+	//     pretend there was no member activity.
+	//   - The meeting, mailing-list and vote sources are EXTERNAL M2M
+	//     (query-service) calls. An upstream outage degrades that one source to
+	//     empty — logged, not fatal — so a single outage doesn't masquerade as
+	//     "no activity" and the brief still generates from whatever remains.
 	meetings, errMeetings := g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMeetings != nil {
 		slog.WarnContext(ctx, "meeting source failed; continuing with zero meetings",
 			"committee_uid", in.CommitteeUID, "error", errMeetings)
 		meetings = nil
 	}
+	// Internal source — a failure is a real error (see note above), not a 422.
 	members, errMembers := g.memberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMembers != nil {
 		return nil, errMembers
 	}
 	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMailing != nil {
-		// Surface the partial failure but continue — matches meeting source
-		// handling so an upstream outage shows up in logs instead of being
-		// silently coerced into a no-activity 422.
 		slog.WarnContext(ctx, "mailing list source failed; continuing with zero threads",
 			"committee_uid", in.CommitteeUID, "error", errMailing)
 		mailing = nil
@@ -241,6 +248,18 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 
 	// 5. No-source guard.
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
+		if errMeetings != nil || errMailing != nil || errVotes != nil {
+			// Distinguish "every external source errored" from a genuinely quiet
+			// week. The response is still 422, but logging it lets operators tell
+			// a real upstream outage (worth a retry / investigation) apart from a
+			// week with no activity.
+			slog.WarnContext(ctx, "weekly-brief generate: no activity and one or more external sources errored",
+				"committee_uid", in.CommitteeUID,
+				"meetings_errored", errMeetings != nil,
+				"mailing_errored", errMailing != nil,
+				"votes_errored", errVotes != nil,
+			)
+		}
 		return nil, errors.NewUnprocessable("no_sources", "No activity found for this week")
 	}
 
@@ -540,18 +559,16 @@ func memberNames(members []*model.CommitteeMember) []string {
 	return out
 }
 
+// memberLabel returns a non-PII identifier for a member to cite in the prompt.
+// Member claims are "usernames + counts only" — deliberately never names or
+// email addresses, so PII is not leaked into the AI prompt or the generated
+// brief. Falls back to the opaque UID when no username is set.
 func memberLabel(m *model.CommitteeMember) string {
 	if m == nil {
 		return ""
 	}
-	if name := strings.TrimSpace(m.FirstName + " " + m.LastName); name != "" {
-		return name
-	}
 	if m.Username != "" {
 		return m.Username
-	}
-	if m.Email != "" {
-		return m.Email
 	}
 	return m.UID
 }

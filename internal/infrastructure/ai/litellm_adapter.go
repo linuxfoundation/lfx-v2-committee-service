@@ -156,6 +156,17 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 	if strings.TrimSpace(bp.BriefText) == "" {
 		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: model returned empty brief_text")
 	}
+	// The port contract (and system prompt) require at least two paragraphs
+	// separated by a blank line. Reject schema-invalid briefs here.
+	paragraphs := 0
+	for _, p := range strings.Split(bp.BriefText, "\n\n") {
+		if strings.TrimSpace(p) != "" {
+			paragraphs++
+		}
+	}
+	if paragraphs < 2 {
+		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: brief_text must contain at least two paragraphs separated by a blank line")
+	}
 
 	return port.WeeklyBrief{
 		ClaimIDs:   bp.ClaimIDs,

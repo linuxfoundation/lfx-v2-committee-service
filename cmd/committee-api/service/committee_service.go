@@ -34,7 +34,6 @@ type committeeServicesrvc struct {
 	committeeWriterOrchestrator service.CommitteeWriter
 	committeeReaderOrchestrator service.CommitteeReader
 	auth                        port.Authenticator
-	accessChecker               port.CommitteeAccessChecker
 	storage                     port.CommitteeReaderWriter
 	publisher                   port.CommitteePublisher
 	userReader                  port.UserReader
@@ -1224,7 +1223,6 @@ func NewCommitteeService(
 	createCommitteeUseCase service.CommitteeWriter,
 	readCommitteeUseCase service.CommitteeReader,
 	authService port.Authenticator,
-	accessChecker port.CommitteeAccessChecker,
 	storage port.CommitteeReaderWriter,
 	publisher port.CommitteePublisher,
 	userReader port.UserReader,
@@ -1239,7 +1237,6 @@ func NewCommitteeService(
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
 		auth:                        authService,
-		accessChecker:               accessChecker,
 		storage:                     storage,
 		publisher:                   publisher,
 		userReader:                  userReader,
@@ -1260,11 +1257,8 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 		"committee_uid", p.UID,
 	)
 
-	if s.accessChecker != nil {
-		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
-			return nil, wrapError(ctx, err)
-		}
-	}
+	// Authorization (committee viewer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
 
 	// Verify the committee exists so a typo'd UID returns 404, not 200/null.
 	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
@@ -1284,7 +1278,7 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 	if brief != nil {
 		res.Brief = domainGroupWeeklyBriefToGoa(brief)
 	}
-	if len(throttleBytes) > 0 {
+	if brief != nil && len(throttleBytes) > 0 {
 		throttle := &model.GroupWeeklyBriefThrottle{}
 		if err := json.Unmarshal(throttleBytes, throttle); err == nil {
 			res.Throttle = domainGroupWeeklyBriefThrottleToGoa(throttle)
@@ -1352,14 +1346,9 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 }
 
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
-// response type. Phase 2 surfaces the split counters (generates / regenerations)
-// plus the window reset timestamp; the legacy count / last_attempt_at fields
-// are still populated so older clients keep working.
+// response type: the split counters (generates / regenerations) with their
+// limits, plus the window reset timestamp.
 func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
-	count := t.Count
-	if count == 0 {
-		count = t.GeneratesUsed + t.RegenerationsUsed
-	}
 	gUsed := t.GeneratesUsed
 	gLimit := model.GroupWeeklyBriefGenerateLimit
 	rUsed := t.RegenerationsUsed
@@ -1369,15 +1358,10 @@ func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *com
 		GeneratesLimit:     &gLimit,
 		RegenerationsUsed:  &rUsed,
 		RegenerationsLimit: &rLimit,
-		Count:              &count,
 	}
 	if !t.WindowResetsAt.IsZero() {
 		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
 		out.WindowResetsAt = &v
-	}
-	if !t.LastAttemptAt.IsZero() {
-		v := t.LastAttemptAt.UTC().Format(time.RFC3339)
-		out.LastAttemptAt = &v
 	}
 	return out
 }
@@ -1391,26 +1375,23 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		"force", p.Force,
 	)
 
-	if s.accessChecker != nil {
-		if err := s.accessChecker.CanWriteCommittee(ctx, p.UID); err != nil {
-			return nil, wrapError(ctx, err)
-		}
-	}
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
 
 	// Verify the committee exists so a typo'd UID returns 404, not 422/429.
 	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
 
 	if s.weeklyBriefGenerator == nil {
 		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
 	}
 
-	committeeName := ""
-	if base != nil && base.Name != "" {
-		committeeName = base.Name
-	}
+	committeeName := base.Name
 
 	out, errGen := s.weeklyBriefGenerator.Generate(ctx, service.GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  p.UID,

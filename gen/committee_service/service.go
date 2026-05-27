@@ -951,9 +951,9 @@ type GetInvitePayload struct {
 // service get-current-weekly-brief method.
 type GroupWeeklyBriefCurrentResult struct {
 	// The weekly brief, or null if none exists for the current window
-	Brief *GroupWeeklyBriefWithReadonlyAttributes
+	Brief *GroupWeeklyBriefWithReadonlyAttributes `json:"brief"`
 	// Throttle counters for the current window, or null
-	Throttle *GroupWeeklyBriefThrottle
+	Throttle *GroupWeeklyBriefThrottle `json:"throttle"`
 }
 
 // GroupWeeklyBriefGenerateResult is the result type of the committee-service
@@ -987,12 +987,8 @@ type GroupWeeklyBriefThrottle struct {
 	RegenerationsUsed *int
 	// Maximum regenerations allowed in this window
 	RegenerationsLimit *int
-	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	// Timestamp when the window resets
 	WindowResetsAt *string
-	// Deprecated: total regeneration attempts; use regenerations_used
-	Count *int
-	// Deprecated: timestamp of last attempt
-	LastAttemptAt *string
 }
 
 // A working-group weekly brief for a single committee and Sun→Sat window.
