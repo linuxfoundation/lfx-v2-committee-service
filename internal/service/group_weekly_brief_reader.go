@@ -15,8 +15,10 @@ import (
 // weekly briefs. Phase 1 only exposes the current-window read; later phases
 // will add list/history reads here.
 type GroupWeeklyBriefDataReader interface {
-	// GetCurrent returns the brief and throttle bytes for the most recently
-	// completed UTC weekly window. A miss yields (nil, nil, nil).
+	// GetCurrent returns the brief and throttle bytes for the UTC weekly window
+	// selected by model.WeeklyWindow(now). Note that on a Saturday this is the
+	// current, not-yet-completed window (window_end is later that day). A miss
+	// yields (nil, nil, nil).
 	GetCurrent(ctx context.Context, committeeUID string, now time.Time) (*model.GroupWeeklyBrief, []byte, error)
 }
 

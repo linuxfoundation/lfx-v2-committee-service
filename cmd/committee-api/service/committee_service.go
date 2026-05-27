@@ -1278,7 +1278,7 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 	if brief != nil {
 		res.Brief = domainGroupWeeklyBriefToGoa(brief)
 	}
-	if len(throttleBytes) > 0 {
+	if brief != nil && len(throttleBytes) > 0 {
 		throttle := &model.GroupWeeklyBriefThrottle{}
 		if err := json.Unmarshal(throttleBytes, throttle); err == nil {
 			res.Throttle = domainGroupWeeklyBriefThrottleToGoa(throttle)
