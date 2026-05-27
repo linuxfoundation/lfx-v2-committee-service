@@ -32,6 +32,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.MailingListCommitteeChangedSubject: mhs.handleMailingListChanged,
 		constants.CommitteeUpdatedSubject:            mhs.handleCommitteeUpdated,
 		constants.CommitteeMemberCreatedSubject:      mhs.handleCommitteeMemberCreated,
+		constants.CommitteeMemberDeletedSubject:      mhs.handleCommitteeMemberDeleted,
 		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
 		inviteapi.InviteAcceptedSubject:              mhs.handleInviteAccepted,
 	}
@@ -85,6 +86,10 @@ func (mhs *MessageHandlerService) handleCommitteeUpdated(ctx context.Context, ms
 
 func (mhs *MessageHandlerService) handleCommitteeMemberCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeMemberCreated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeMemberDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeMemberDeleted(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) handleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
