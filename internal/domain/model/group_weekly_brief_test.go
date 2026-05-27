@@ -109,4 +109,11 @@ func TestGroupWeeklyBrief_Validate(t *testing.T) {
 	b.State = GroupWeeklyBriefStateGenerated
 	b.UID = ""
 	require.Error(t, b.Validate())
+
+	// regeneration_count must be non-negative.
+	b.UID = "brief-1"
+	b.RegenerationCount = -1
+	require.Error(t, b.Validate(), "expected negative regeneration_count to be rejected")
+	b.RegenerationCount = 0
+	require.NoError(t, b.Validate())
 }
