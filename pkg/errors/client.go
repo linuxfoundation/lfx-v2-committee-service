@@ -119,25 +119,6 @@ func NewTooManyRequests(message string, generatesUsed, generatesLimit, regenerat
 	}
 }
 
-// Unprocessable is a 422 — used by the weekly-brief generate endpoint when no
-// sources contributed for the window. The Code field carries the stable
-// machine-readable code surfaced in the JSON body ("no_sources").
-type Unprocessable struct {
-	base
-	// Code is the machine-readable failure code (e.g. "no_sources").
-	Code string
-}
-
-// Error returns the error message for Unprocessable.
-func (u Unprocessable) Error() string {
-	return u.error()
-}
-
-// NewUnprocessable creates an Unprocessable error.
-func NewUnprocessable(code, message string) Unprocessable {
-	return Unprocessable{base: base{message: message}, Code: code}
-}
-
 // EditedBriefExists is a 409 specific to the weekly-brief generate flow —
 // distinguished from generic Conflict so the handler can attach the current
 // brief revision to the response body.

@@ -692,7 +692,6 @@ func (c *Client) GetCurrentWeeklyBrief(ctx context.Context, p *GetCurrentWeeklyB
 //   - "Forbidden" (type *ForbiddenError): Caller lacks writer access on the committee
 //   - "NotFound" (type *NotFoundError): Committee not found
 //   - "EditedBriefExists" (type *GroupWeeklyBriefEditedExistsError): An edited brief exists and force is not set
-//   - "NoSources" (type *GroupWeeklyBriefNoSourceError): No activity in the window across any source
 //   - "ThrottleExceeded" (type *GroupWeeklyBriefThrottleExceededError): Per-committee/per-week generation or regeneration limit exhausted
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable

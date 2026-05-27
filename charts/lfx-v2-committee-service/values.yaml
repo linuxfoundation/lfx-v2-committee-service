@@ -349,6 +349,33 @@ nats:
     # compression reduces storage cost for JSON payloads
     compression: s2
 
+  # stream_weekly_brief_events is the JetStream stream backing the durable async
+  # weekly-brief generate workflow (generate-requested events).
+  stream_weekly_brief_events:
+    # creation controls whether the stream CRD is provisioned by this chart
+    creation: true
+    # keep preserves the stream during helm uninstall so in-flight work is not lost
+    keep: true
+    # name is the NATS stream name
+    name: weekly-brief-events
+    # subjects captures the weekly-brief generation events published by this service
+    subjects:
+      - lfx.committee-api.weekly_brief.*
+    # storage is the storage backend for the stream
+    storage: file
+    # retention keeps messages up to maxAge
+    retention: limits
+    # maxAge bounds how long an unprocessed generate request is retained
+    maxAge: 24h
+    # maxBytes is unlimited; maxAge is the primary eviction mechanism
+    maxBytes: -1
+    # maxMsgs is unlimited; maxAge is the primary eviction mechanism
+    maxMsgs: -1
+    # replicas matches the NATS cluster size for durability
+    replicas: 3
+    # compression reduces storage cost for JSON payloads
+    compression: s2
+
   # object_store_committee_documents is the configuration for the Object Store for storing committee document files
   object_store_committee_documents:
     # creation is a boolean to determine if the Object Store should be created via the helm chart.

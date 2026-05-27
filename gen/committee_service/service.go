@@ -96,10 +96,15 @@ type Service interface {
 	// Sun→Sat window. Returns 200 with a null brief and throttle when no draft
 	// exists (BFF contract — do not return 404).
 	GetCurrentWeeklyBrief(context.Context, *GetCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefCurrentResult, err error)
-	// Generate (or regenerate) the working-group weekly brief for the current
-	// Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3
-	// regenerations. Returns 409 when an edited brief exists and force is not set,
-	// 422 when no sources contributed, 429 when the throttle is exhausted.
+	// Asynchronously generate (or regenerate) the working-group weekly brief for
+	// the current Sun→Sat window. Responds 202 with the brief in the "generating"
+	// state; the source gather + LLM call run out-of-band via a durable consumer.
+	// Clients poll GET /current to observe the terminal "generated" or "error"
+	// state — a window with no activity or an AI failure finalizes the brief as
+	// "error" rather than a synchronous error response. Per-committee/per-week
+	// throttle: 2 fresh generations and 3 regenerations, enforced synchronously.
+	// Returns 409 when an edited brief exists and force is not set, 429 when the
+	// throttle is exhausted.
 	GenerateWeeklyBrief(context.Context, *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error)
 }
 
@@ -1312,14 +1317,6 @@ type GroupWeeklyBriefEditedExistsError struct {
 	Revision uint64
 }
 
-// Returned when there is no activity in the window across any source.
-type GroupWeeklyBriefNoSourceError struct {
-	// Stable machine code
-	Code string
-	// Human-readable explanation
-	Message string
-}
-
 // Returned when the per-committee/per-week generation or regeneration limit is
 // exhausted.
 type GroupWeeklyBriefThrottleExceededError struct {
@@ -1418,23 +1415,6 @@ func (e *GroupWeeklyBriefEditedExistsError) ErrorName() string {
 // GoaErrorName returns "group-weekly-brief-edited-exists-error".
 func (e *GroupWeeklyBriefEditedExistsError) GoaErrorName() string {
 	return "EditedBriefExists"
-}
-
-// Error returns an error description.
-func (e *GroupWeeklyBriefNoSourceError) Error() string {
-	return "Returned when there is no activity in the window across any source."
-}
-
-// ErrorName returns "group-weekly-brief-no-source-error".
-//
-// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
-func (e *GroupWeeklyBriefNoSourceError) ErrorName() string {
-	return e.GoaErrorName()
-}
-
-// GoaErrorName returns "group-weekly-brief-no-source-error".
-func (e *GroupWeeklyBriefNoSourceError) GoaErrorName() string {
-	return "NoSources"
 }
 
 // Error returns an error description.
