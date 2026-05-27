@@ -599,8 +599,10 @@ func cleanSummary(s string) string {
 	if s == "" {
 		return s
 	}
-	// Collapse newlines so the prompt is compact; leave other whitespace alone.
-	return strings.ReplaceAll(s, "\n", " ")
+	// Collapse newlines and carriage returns so the prompt is compact and no
+	// stray control characters leak into the prompt-data block; leave other
+	// whitespace alone.
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 }
 
 func memberNames(members []*model.CommitteeMember) []string {
