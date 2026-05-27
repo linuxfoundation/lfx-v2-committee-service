@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // mockTransportMessenger implements port.TransportMessenger for testing
@@ -1046,6 +1047,21 @@ func (m *mockEmailSender) SendEmail(_ context.Context, req emailapi.SendEmailReq
 	return m.retErr
 }
 
+// mockInviteSender records SendInvite calls for assertions.
+type mockInviteSender struct {
+	mu        sync.Mutex
+	calls     []inviteapi.SendInviteRequest
+	retErr    error
+	retResult port.InviteResult
+}
+
+func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInviteRequest) (port.InviteResult, error) {
+	m.mu.Lock()
+	m.calls = append(m.calls, req)
+	m.mu.Unlock()
+	return m.retResult, m.retErr
+}
+
 // mockUserReader is a simple UserReader for tests that returns fixed metadata.
 type mockUserReader struct {
 	meta         *model.UserMetadata
@@ -1089,9 +1105,11 @@ func buildSettingsUpdatedPayload(t *testing.T, data *model.CommitteeSettingsUpda
 }
 
 func TestHandleCommitteeMemberCreated(t *testing.T) {
-	member := &model.CommitteeMember{
+	// LFID member: has username → email notification path
+	lfidMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:           "member-uid-1",
+			Username:      "alice_lfid",
 			Email:         "alice@example.com",
 			FirstName:     "Alice",
 			LastName:      "Smith",
@@ -1100,19 +1118,88 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			Role:          model.CommitteeMemberRole{Name: "writer"},
 		},
 	}
+	// Non-LFID member: no username → invite path
+	nonLFIDMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-2",
+			Email:         "bob@example.com",
+			FirstName:     "Bob",
+			LastName:      "Jones",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Member"},
+		},
+	}
+	// Non-LFID auditor: should receive InviteRoleView, not Manage
+	nonLFIDAuditor := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-3",
+			Email:         "carol@example.com",
+			FirstName:     "Carol",
+			LastName:      "Lee",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Auditor"},
+		},
+	}
+	// Non-LFID auditor with lowercase role name — role matching must be case-insensitive
+	nonLFIDAuditorLower := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-4",
+			Email:         "diana@example.com",
+			FirstName:     "Diana",
+			LastName:      "Kim",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "auditor"},
+		},
+	}
 
 	tests := []struct {
-		name            string
-		msgData         []byte
-		emailSender     *mockEmailSender
-		omitEmailSender bool
-		wantSendCount   int
+		name             string
+		msgData          []byte
+		emailSender      *mockEmailSender
+		inviteSender     *mockInviteSender
+		omitEmailSender  bool
+		omitInviteSender bool
+		wantEmailCount   int
+		wantInviteCount  int
+		wantInviteRole   string
 	}{
 		{
-			name:          "member with email — notification sent",
-			msgData:       buildMemberCreatedPayload(t, member),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 1,
+			name:            "LFID member — email notification sent",
+			msgData:         buildMemberCreatedPayload(t, lfidMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  1,
+			wantInviteCount: 0,
+		},
+		{
+			name:            "non-LFID member — invite sent with Member role",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  "Member",
+		},
+		{
+			name:            "non-LFID auditor member — invite sent with Member role",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDAuditor),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  "Member",
+		},
+		{
+			name:            "non-LFID auditor member lowercase role — invite sent with Member role",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDAuditorLower),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  "Member",
 		},
 		{
 			name: "member without email — no notification sent",
@@ -1124,26 +1211,50 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					Role:          model.CommitteeMemberRole{Name: "writer"},
 				},
 			}),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 0,
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
 		},
 		{
-			name:          "send error — handler still returns nil",
-			msgData:       buildMemberCreatedPayload(t, member),
-			emailSender:   &mockEmailSender{retErr: assert.AnError},
-			wantSendCount: 1,
+			name:            "LFID member — email send error — handler still returns nil",
+			msgData:         buildMemberCreatedPayload(t, lfidMember),
+			emailSender:     &mockEmailSender{retErr: assert.AnError},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  1,
+			wantInviteCount: 0,
 		},
 		{
-			name:          "invalid JSON — handler returns nil",
-			msgData:       []byte("not json"),
-			emailSender:   &mockEmailSender{},
-			wantSendCount: 0,
+			name:            "non-LFID member — invite send error — handler still returns nil",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{retErr: assert.AnError},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
 		},
 		{
-			name:            "no email sender configured — handler returns nil",
-			msgData:         buildMemberCreatedPayload(t, member),
-			omitEmailSender: true,
-			wantSendCount:   0,
+			name:            "invalid JSON — handler returns nil",
+			msgData:         []byte("not json"),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			name:             "no email sender and no invite sender — LFID member skipped",
+			msgData:          buildMemberCreatedPayload(t, lfidMember),
+			omitEmailSender:  true,
+			omitInviteSender: true,
+			wantEmailCount:   0,
+			wantInviteCount:  0,
+		},
+		{
+			name:             "no invite sender — non-LFID member skipped",
+			msgData:          buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:      &mockEmailSender{},
+			omitInviteSender: true,
+			wantEmailCount:   0,
+			wantInviteCount:  0,
 		},
 	}
 
@@ -1153,6 +1264,9 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			if !tt.omitEmailSender {
 				h.emailSender = tt.emailSender
 			}
+			if !tt.omitInviteSender {
+				h.inviteSender = tt.inviteSender
+			}
 
 			msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, tt.msgData)
 			resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
@@ -1161,12 +1275,24 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			assert.Nil(t, resp)
 
 			if tt.emailSender != nil {
-				assert.Len(t, tt.emailSender.calls, tt.wantSendCount)
-				if tt.wantSendCount > 0 {
+				assert.Len(t, tt.emailSender.calls, tt.wantEmailCount, "email call count")
+				if tt.wantEmailCount > 0 {
 					assert.Equal(t, "alice@example.com", tt.emailSender.calls[0].To)
 					assert.Contains(t, tt.emailSender.calls[0].Subject, "TSC Committee")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "Alice Smith")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
+				}
+			}
+			if tt.inviteSender != nil {
+				assert.Len(t, tt.inviteSender.calls, tt.wantInviteCount, "invite call count")
+				if tt.wantInviteCount > 0 {
+					assert.Equal(t, "committee-1", tt.inviteSender.calls[0].ResourceUID)
+					assert.Equal(t, "TSC Committee", tt.inviteSender.calls[0].ResourceName)
+					assert.Equal(t, "group", tt.inviteSender.calls[0].ResourceType)
+					assert.Contains(t, tt.inviteSender.calls[0].ReturnURL, "committee-1")
+					if tt.wantInviteRole != "" {
+						assert.Equal(t, tt.wantInviteRole, tt.inviteSender.calls[0].Role, "invite role")
+					}
 				}
 			}
 		})
@@ -1177,6 +1303,7 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
 	bob := model.CommitteeUser{Username: "bob", Email: "bob@example.com", Name: "Bob"}
 	noemail := model.CommitteeUser{Username: "noemail"}
+	noLFIDUser := model.CommitteeUser{Email: "nolfid@example.com", Name: "No LFID User"}
 
 	base := &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  "committee-1",
@@ -1184,17 +1311,21 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		oldWriters      []model.CommitteeUser
-		newWriters      []model.CommitteeUser
-		oldAuditors     []model.CommitteeUser
-		newAuditors     []model.CommitteeUser
-		updatedBy       string
-		userReader      *mockUserReader
-		omitEmailSender bool
-		invalidJSON     bool
-		wantSendCount   int
-		wantInviterName string
+		name             string
+		oldWriters       []model.CommitteeUser
+		newWriters       []model.CommitteeUser
+		oldAuditors      []model.CommitteeUser
+		newAuditors      []model.CommitteeUser
+		updatedBy        string
+		userReader       *mockUserReader
+		omitEmailSender  bool
+		inviteSender     *mockInviteSender
+		omitInviteSender bool
+		invalidJSON      bool
+		wantSendCount    int
+		wantInviteCount  int
+		wantInviteRole   string
+		wantInviterName  string
 	}{
 		{
 			name:          "new writer added — one email sent with Writer role",
@@ -1284,6 +1415,50 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantSendCount:   1,
 			wantInviterName: "A committee administrator",
 		},
+		{
+			name:            "non-LFID writer added — invite sent with Manage role",
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleManage),
+		},
+		{
+			name:            "non-LFID auditor added — invite sent with View role",
+			newAuditors:     []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
+		},
+		{
+			name:             "no invite sender — non-LFID writer skipped",
+			newWriters:       []model.CommitteeUser{noLFIDUser},
+			omitEmailSender:  true,
+			omitInviteSender: true,
+			wantSendCount:    0,
+			wantInviteCount:  0,
+		},
+		{
+			name:            "non-LFID user in both writer and auditor — deduplicated to one invite",
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			newAuditors:     []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 1,
+		},
+		{
+			name:            "non-LFID writer already existed — no invite sent",
+			oldWriters:      []model.CommitteeUser{noLFIDUser},
+			newWriters:      []model.CommitteeUser{noLFIDUser},
+			omitEmailSender: true,
+			inviteSender:    &mockInviteSender{},
+			wantSendCount:   0,
+			wantInviteCount: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1292,6 +1467,9 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
 			if !tt.omitEmailSender {
 				h.emailSender = sender
+			}
+			if !tt.omitInviteSender && tt.inviteSender != nil {
+				h.inviteSender = tt.inviteSender
 			}
 			if tt.userReader != nil {
 				h.userReader = tt.userReader
@@ -1318,15 +1496,25 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 				assert.Contains(t, sender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
 				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
 			}
-			// Verify correct role labels in email content
+			// Verify correct display role labels in email content (Writer→Manage, Auditor→View)
 			if tt.name == "new writer added — one email sent with Writer role" {
-				assert.Contains(t, sender.calls[0].HTML, "Writer")
+				assert.Contains(t, sender.calls[0].HTML, "Manage")
 			}
 			if tt.name == "new auditor added — one email sent with Auditor role" {
-				assert.Contains(t, sender.calls[0].HTML, "Auditor")
+				assert.Contains(t, sender.calls[0].HTML, "View")
 			}
 			if tt.wantInviterName != "" {
 				assert.Contains(t, sender.calls[0].HTML, tt.wantInviterName)
+			}
+			if tt.inviteSender != nil {
+				tt.inviteSender.mu.Lock()
+				inviteCalls := make([]inviteapi.SendInviteRequest, len(tt.inviteSender.calls))
+				copy(inviteCalls, tt.inviteSender.calls)
+				tt.inviteSender.mu.Unlock()
+				assert.Len(t, inviteCalls, tt.wantInviteCount, "invite call count")
+				if tt.wantInviteCount > 0 && tt.wantInviteRole != "" {
+					assert.Equal(t, tt.wantInviteRole, inviteCalls[0].Role, "invite role")
+				}
 			}
 		})
 	}
@@ -1340,7 +1528,10 @@ func TestBuildCommitteeURL(t *testing.T) {
 func TestDiffNewCommitteeUsers(t *testing.T) {
 	alice := model.CommitteeUser{Username: "alice"}
 	bob := model.CommitteeUser{Username: "bob"}
+	noLFID := model.CommitteeUser{Email: "nolfid@example.com"}
+	noLFID2 := model.CommitteeUser{Email: "other@example.com"}
 
+	// LFID users: diff by Username
 	got := diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice, bob})
 	assert.Equal(t, []model.CommitteeUser{bob}, got)
 
@@ -1349,4 +1540,323 @@ func TestDiffNewCommitteeUsers(t *testing.T) {
 
 	got = diffNewCommitteeUsers([]model.CommitteeUser{alice}, []model.CommitteeUser{alice})
 	assert.Empty(t, got)
+
+	// Non-LFID users: diff by Email
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFID, noLFID2})
+	assert.Equal(t, []model.CommitteeUser{noLFID2}, got)
+
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFID})
+	assert.Empty(t, got, "non-LFID user already in old list should not appear as new")
+
+	// Email normalization: different casing/whitespace must not produce a duplicate.
+	noLFIDUpper := model.CommitteeUser{Email: "  NOLFID@EXAMPLE.COM  "}
+	got = diffNewCommitteeUsers([]model.CommitteeUser{noLFID}, []model.CommitteeUser{noLFIDUpper})
+	assert.Empty(t, got, "email match should be case- and whitespace-insensitive")
+}
+
+func buildMemberDeletedPayload(t *testing.T, member *model.CommitteeMember) []byte {
+	t.Helper()
+	event := model.CommitteeEvent{}
+	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionDeleted, member)
+	require.NoError(t, err)
+	data, err := json.Marshal(built)
+	require.NoError(t, err)
+	return data
+}
+
+func TestHandleCommitteeMemberDeleted(t *testing.T) {
+	lfidMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-1",
+			Username:      "alice_lfid",
+			Email:         "alice@example.com",
+			FirstName:     "Alice",
+			LastName:      "Smith",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Member"},
+		},
+	}
+	nonLFIDMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-2",
+			Email:         "bob@example.com",
+			FirstName:     "Bob",
+			LastName:      "Jones",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+		},
+	}
+
+	tests := []struct {
+		name            string
+		msgData         []byte
+		omitEmailSender bool
+		emailSenderErr  error
+		wantEmailCount  int
+	}{
+		{
+			name:           "LF member deleted — removal email sent",
+			msgData:        buildMemberDeletedPayload(t, lfidMember),
+			wantEmailCount: 1,
+		},
+		{
+			name:           "non-LF member deleted — no email sent",
+			msgData:        buildMemberDeletedPayload(t, nonLFIDMember),
+			wantEmailCount: 0,
+		},
+		{
+			name: "LF member without email — no email sent",
+			msgData: buildMemberDeletedPayload(t, &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					Username:      "alice_lfid",
+					CommitteeUID:  "committee-1",
+					CommitteeName: "TSC Committee",
+				},
+			}),
+			wantEmailCount: 0,
+		},
+		{
+			name:            "no email sender configured — no email sent",
+			msgData:         buildMemberDeletedPayload(t, lfidMember),
+			omitEmailSender: true,
+			wantEmailCount:  0,
+		},
+		{
+			name:           "email send error — handler returns nil (best-effort)",
+			msgData:        buildMemberDeletedPayload(t, lfidMember),
+			emailSenderErr: assert.AnError,
+			wantEmailCount: 1,
+		},
+		{
+			name:           "invalid JSON — handler returns nil without panic",
+			msgData:        []byte("not json"),
+			wantEmailCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &mockEmailSender{retErr: tt.emailSenderErr}
+			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			if !tt.omitEmailSender {
+				h.emailSender = sender
+			}
+
+			msg := newMockTransportMessenger(constants.CommitteeMemberDeletedSubject, tt.msgData)
+			resp, err := h.HandleCommitteeMemberDeleted(context.Background(), msg)
+
+			assert.NoError(t, err)
+			assert.Nil(t, resp)
+			assert.Len(t, sender.calls, tt.wantEmailCount, "email call count")
+			if tt.wantEmailCount > 0 {
+				assert.Equal(t, "alice@example.com", sender.calls[0].To)
+				assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
+				assert.Contains(t, sender.calls[0].HTML, "Alice Smith")
+				assert.Contains(t, sender.calls[0].HTML, "Member", "previous role in removal email")
+			}
+		})
+	}
+}
+
+func TestClassifyCommitteeUsers(t *testing.T) {
+	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
+	bob := model.CommitteeUser{Username: "bob", Email: "bob@example.com", Name: "Bob"}
+	noLFID := model.CommitteeUser{Email: "nolfid@example.com", Name: "No LFID"}
+
+	buildSettings := func(writers, auditors []model.CommitteeUser) *model.CommitteeSettings {
+		return &model.CommitteeSettings{Writers: writers, Auditors: auditors}
+	}
+
+	t.Run("new user added as writer", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings(nil, nil), buildSettings([]model.CommitteeUser{alice}, nil))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindAdded, changes[0].kind)
+		assert.Equal(t, []string{"Writer"}, changes[0].newRoles)
+	})
+
+	t.Run("user added as both writer and auditor — one added entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings(nil, nil), buildSettings([]model.CommitteeUser{alice}, []model.CommitteeUser{alice}))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindAdded, changes[0].kind)
+		assert.Equal(t, []string{"Auditor", "Writer"}, changes[0].newRoles)
+	})
+
+	t.Run("writer swapped to auditor — one updated entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings([]model.CommitteeUser{alice}, nil), buildSettings(nil, []model.CommitteeUser{alice}))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindUpdated, changes[0].kind)
+		assert.Equal(t, []string{"Auditor"}, changes[0].newRoles)
+	})
+
+	t.Run("user gained additional role — one updated entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings([]model.CommitteeUser{alice}, nil), buildSettings([]model.CommitteeUser{alice}, []model.CommitteeUser{alice}))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindUpdated, changes[0].kind)
+		assert.Equal(t, []string{"Auditor", "Writer"}, changes[0].newRoles)
+	})
+
+	t.Run("user lost one of two roles — one updated entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings([]model.CommitteeUser{alice}, []model.CommitteeUser{alice}), buildSettings([]model.CommitteeUser{alice}, nil))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindUpdated, changes[0].kind)
+		assert.Equal(t, []string{"Writer"}, changes[0].newRoles)
+	})
+
+	t.Run("user fully removed — one removed entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings([]model.CommitteeUser{alice}, nil), buildSettings(nil, nil))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindRemoved, changes[0].kind)
+		assert.Empty(t, changes[0].newRoles)
+	})
+
+	t.Run("unchanged user — no entry", func(t *testing.T) {
+		changes := classifyCommitteeUsers(buildSettings([]model.CommitteeUser{alice}, nil), buildSettings([]model.CommitteeUser{alice}, nil))
+		assert.Empty(t, changes)
+	})
+
+	t.Run("multiple users with different outcomes", func(t *testing.T) {
+		old := buildSettings([]model.CommitteeUser{alice}, []model.CommitteeUser{bob})
+		new := buildSettings([]model.CommitteeUser{alice, noLFID}, nil)
+		changes := classifyCommitteeUsers(old, new)
+		// alice: Writer in both → no change; bob: Auditor removed; noLFID: added as Writer
+		require.Len(t, changes, 2)
+		kinds := map[roleChangeKind]bool{}
+		for _, c := range changes {
+			kinds[c.kind] = true
+		}
+		assert.True(t, kinds[roleChangeKindAdded], "noLFID should be added")
+		assert.True(t, kinds[roleChangeKindRemoved], "bob should be removed")
+	})
+
+	t.Run("nil old settings — all users added", func(t *testing.T) {
+		changes := classifyCommitteeUsers(nil, buildSettings([]model.CommitteeUser{alice}, nil))
+		require.Len(t, changes, 1)
+		assert.Equal(t, roleChangeKindAdded, changes[0].kind)
+	})
+}
+
+func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
+	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
+	noLFID := model.CommitteeUser{Email: "nolfid@example.com", Name: "No LFID"}
+
+	base := &model.CommitteeSettingsUpdateEventData{
+		CommitteeUID:  "committee-1",
+		CommitteeName: "TSC Committee",
+	}
+
+	tests := []struct {
+		name            string
+		oldWriters      []model.CommitteeUser
+		oldAuditors     []model.CommitteeUser
+		newWriters      []model.CommitteeUser
+		newAuditors     []model.CommitteeUser
+		wantEmailCount  int
+		wantInviteCount int
+		wantInviteRole  string
+		subjectContains string
+		htmlContains    string
+	}{
+		{
+			name:            "LF user: writer swapped to auditor — role updated email",
+			oldWriters:      []model.CommitteeUser{alice},
+			newAuditors:     []model.CommitteeUser{alice},
+			wantEmailCount:  1,
+			subjectContains: "updated your role",
+			htmlContains:    "View", // Auditor → View display name
+		},
+		{
+			// Gaining Auditor on top of Writer collapses to the same effective display role
+			// ("Manage" supersedes "View"), so no email is sent — effective access is unchanged.
+			name:            "LF user: gained auditor on top of writer — no email (effective role unchanged)",
+			oldWriters:      []model.CommitteeUser{alice},
+			newWriters:      []model.CommitteeUser{alice},
+			newAuditors:     []model.CommitteeUser{alice},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			// Losing Auditor while keeping Writer: old=Writer+Auditor→["Manage"], new=Writer→["Manage"].
+			// Effective display role is unchanged so no email is sent.
+			name:            "LF user: lost auditor but kept writer — no email (effective role unchanged)",
+			oldWriters:      []model.CommitteeUser{alice},
+			oldAuditors:     []model.CommitteeUser{alice},
+			newWriters:      []model.CommitteeUser{alice},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			// Losing Writer while keeping Auditor: old=Writer+Auditor→["Manage"], new=Auditor→["View"].
+			// Effective role changed from Manage to View, so an update email is sent.
+			name:            "LF user: lost writer but kept auditor — role updated email",
+			oldWriters:      []model.CommitteeUser{alice},
+			oldAuditors:     []model.CommitteeUser{alice},
+			newAuditors:     []model.CommitteeUser{alice},
+			wantEmailCount:  1,
+			subjectContains: "updated your role",
+			htmlContains:    "View", // new effective role
+		},
+		{
+			name:            "LF user: fully removed — removal email",
+			oldWriters:      []model.CommitteeUser{alice},
+			wantEmailCount:  1,
+			subjectContains: "removed you from",
+		},
+		{
+			name:            "non-LF user: fully removed — no email, no invite",
+			oldWriters:      []model.CommitteeUser{noLFID},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			name:            "non-LF user: writer swapped to auditor — re-invite with View role",
+			oldWriters:      []model.CommitteeUser{noLFID},
+			newAuditors:     []model.CommitteeUser{noLFID},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviteRole:  string(inviteapi.InviteRoleView),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &mockEmailSender{}
+			inviter := &mockInviteSender{}
+			h := &messageHandlerOrchestrator{
+				lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+				emailSender:         sender,
+				inviteSender:        inviter,
+			}
+
+			d := *base
+			d.OldSettings = &model.CommitteeSettings{Writers: tt.oldWriters, Auditors: tt.oldAuditors}
+			d.Settings = &model.CommitteeSettings{Writers: tt.newWriters, Auditors: tt.newAuditors}
+			payload := buildSettingsUpdatedPayload(t, &d)
+
+			msg := newMockTransportMessenger(constants.CommitteeSettingsUpdatedSubject, payload)
+			resp, err := h.HandleCommitteeSettingsUpdated(context.Background(), msg)
+
+			assert.NoError(t, err)
+			assert.Nil(t, resp)
+			assert.Len(t, sender.calls, tt.wantEmailCount, "email call count")
+			if tt.wantEmailCount > 0 && tt.subjectContains != "" {
+				assert.Contains(t, sender.calls[0].Subject, tt.subjectContains, "email subject")
+			}
+			if tt.wantEmailCount > 0 && tt.htmlContains != "" {
+				assert.Contains(t, sender.calls[0].HTML, tt.htmlContains, "email HTML content")
+			}
+
+			inviter.mu.Lock()
+			inviteCount := len(inviter.calls)
+			var inviteRole string
+			if inviteCount > 0 {
+				inviteRole = inviter.calls[0].Role
+			}
+			inviter.mu.Unlock()
+			assert.Equal(t, tt.wantInviteCount, inviteCount, "invite call count")
+			if tt.wantInviteRole != "" {
+				assert.Equal(t, tt.wantInviteRole, inviteRole, "invite role")
+			}
+		})
+	}
 }
