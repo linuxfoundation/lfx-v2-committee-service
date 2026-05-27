@@ -1046,9 +1046,8 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 })
 
 // GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
-// returned alongside the brief. Phase 2 introduces the generates_used /
-// regenerations_used / window_resets_at triple; the legacy count /
-// last_attempt_at attributes from Phase 1 are kept for backward compatibility.
+// returned alongside the brief: generates_used / regenerations_used with their
+// limits, plus window_resets_at.
 var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
 	dsl.Description("Per-committee/per-week regeneration throttle counters.")
 	dsl.Attribute("generates_used", dsl.Int, "Number of fresh generations used in this window", func() {

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -541,7 +542,7 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 	cfg := clientcredentials.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		TokenURL:     issuer + "/oauth/token",
+		TokenURL:     strings.TrimRight(issuer, "/") + "/oauth/token",
 	}
 	if audience != "" {
 		cfg.EndpointParams = map[string][]string{"audience": {audience}}
