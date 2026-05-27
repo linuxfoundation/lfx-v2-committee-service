@@ -65,12 +65,14 @@ flag — it must appear **before** the package pattern, otherwise `go test`
 passes it to the test binary and fails with "flag provided but not defined".
 
 ```sh
-AI_SOURCE=live \
 LITELLM_BASE_URL=https://litellm.example.com \
 LITELLM_API_KEY=... \
 LITELLM_MODEL=anthropic/claude-sonnet-4 \
   go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 ```
+
+(The live eval wires the LiteLLM adapter directly from the `LITELLM_*` vars; it
+does not read `AI_SOURCE`.)
 
 ## Fixture authoring notes
 
