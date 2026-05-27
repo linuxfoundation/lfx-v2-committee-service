@@ -1169,19 +1169,24 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	return nil
 }
 
-// enrichMember resolves the LFID (username) and profile metadata for a member when only their
-// email is known (Username is empty). All lookups are best-effort: failures log a warning and
-// leave the field unchanged so the caller's write is never blocked by an enrichment error.
+// enrichMember resolves the subject identifier (username) and profile metadata for a member from
+// their email address. When email is present the auth-service lookup always runs, overriding any
+// caller-supplied plain LFID so only subject identifiers are persisted.
+// All lookups are best-effort: failures log a warning and leave the field unchanged so the
+// caller's write is never blocked by an enrichment error.
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
-	if s.userReader == nil || strings.TrimSpace(member.Username) != "" {
+	if s.userReader == nil {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))
 	if email == "" {
 		return
 	}
+
+	// Clear any caller-supplied value so a failed lookup never leaves a plain LFID at rest.
+	member.Username = ""
 
 	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
 	// failing the request. Individual member writes (create/update/approve) should not be blocked
