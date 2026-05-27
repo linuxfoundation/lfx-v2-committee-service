@@ -72,15 +72,6 @@ type GroupWeeklyBriefGenerator interface {
 // pick the right rendering rules.
 const PromptVersion = "v1"
 
-// Source-content markers used to fence untrusted input passed to the model.
-// The system prompt instructs the model to treat content between these markers
-// as DATA, never as instructions — defending against prompt-injection attempts
-// embedded in meeting summaries, mailing-list posts, etc.
-const (
-	sourceMarkerOpenFmt  = "<<SOURCE:%s:BEGIN>>"
-	sourceMarkerCloseFmt = "<<SOURCE:%s:END>>"
-)
-
 type groupWeeklyBriefGenerator struct {
 	briefReader   port.GroupWeeklyBriefReader
 	briefWriter   port.GroupWeeklyBriefWriter
@@ -310,48 +301,59 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		return nil
 	}
 	if brief.State != model.GroupWeeklyBriefStateGenerating {
-		slog.InfoContext(ctx, "weekly-brief fulfill: brief not in generating state — skipping",
+		// A claimed brief should still be "generating" when its event is handled.
+		// If it isn't, another worker already finalized it (or it was edited) yet
+		// we still received the message — worth a warning, not a silent skip.
+		slog.WarnContext(ctx, "weekly-brief fulfill: brief not in generating state — skipping",
 			"committee_uid", in.CommitteeUID, "state", brief.State.String())
 		return nil
 	}
 
 	// Source gathering. Internal (member) source failure is fatal — return it so
-	// the consumer retries. External M2M sources degrade to empty (logged), so a
-	// single upstream outage doesn't masquerade as "no activity".
+	// the consumer retries. External M2M sources degrade to empty so a single
+	// upstream outage doesn't masquerade as "no activity"; the failure is logged
+	// at error level since a down source is an operational problem.
 	meetings, errMeetings := g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMeetings != nil {
-		slog.WarnContext(ctx, "meeting source failed; continuing with zero meetings",
+		slog.ErrorContext(ctx, "weekly-brief fulfill: meeting source failed; continuing with zero meetings",
 			"committee_uid", in.CommitteeUID, "error", errMeetings)
 		meetings = nil
 	}
 	members, errMembers := g.memberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMembers != nil {
+		slog.ErrorContext(ctx, "weekly-brief fulfill: member source failed; will retry",
+			"committee_uid", in.CommitteeUID, "error", errMembers)
 		return errMembers // internal source error → retry
 	}
 	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMailing != nil {
-		slog.WarnContext(ctx, "mailing list source failed; continuing with zero threads",
+		slog.ErrorContext(ctx, "weekly-brief fulfill: mailing list source failed; continuing with zero threads",
 			"committee_uid", in.CommitteeUID, "error", errMailing)
 		mailing = nil
 	}
 	votes, errVotes := g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errVotes != nil {
-		slog.WarnContext(ctx, "vote source failed; continuing with zero votes",
+		slog.ErrorContext(ctx, "weekly-brief fulfill: vote source failed; continuing with zero votes",
 			"committee_uid", in.CommitteeUID, "error", errVotes)
 		votes = nil
 	}
 
 	memberCount := len(members.Joined) + len(members.Updated)
 
-	// No-source → terminal error state (nothing to ground the brief on).
+	// No-source → terminal "error" state (nothing to ground the brief on). This
+	// is NOT retryable: the brief is finalized and the message is ACKed (nil
+	// return), since re-delivering the same empty window would just fail again.
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
 		if errMeetings != nil || errMailing != nil || errVotes != nil {
-			slog.WarnContext(ctx, "weekly-brief fulfill: no activity and one or more external sources errored",
+			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity and one or more external sources errored",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
 			)
+		} else {
+			slog.InfoContext(ctx, "weekly-brief fulfill: no activity found in window — finalizing brief as error",
+				"committee_uid", in.CommitteeUID)
 		}
 		return g.finalizeError(ctx, brief, "no_sources")
 	}
@@ -379,11 +381,12 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		Claims:        claims,
 	}
 
-	// The boundary-marker block fences untrusted source content for the live
-	// adapter's system prompt; it is deliberately NOT threaded back through
-	// ClaimEvidence so untrusted input never appears verbatim in the brief text.
-	// Currently discarded until a dedicated RawContext field exists.
-	_ = buildPromptDataBlock(meetings, members, mailing, votes)
+	// TODO(raw-context): the live adapter does not yet receive a fenced block of
+	// raw source text — only the sanitized claim labels. When raw context is
+	// wired through (e.g. a RawContext field on port.WeeklyBriefInput), the
+	// source content MUST be sanitized FIRST: boundary/fence markers can be
+	// spoofed by an attacker embedding a close marker + instructions in a
+	// title/summary, so fencing alone is not a sufficient injection defence.
 
 	aiOut, errAI := g.ai.GenerateWeeklyBrief(ctx, aiInput)
 	if errAI != nil {
@@ -428,11 +431,12 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 
 	// IMPORTANT: do NOT pass raw untrusted source text (meeting summaries,
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
-	// Claim summaries flow through the AI adapter and may be echoed back in
-	// the output; raw source text only travels through the boundary-fenced
-	// prompt-data block (see buildPromptDataBlock) so the model's system
-	// prompt can treat it as untrusted DATA. Excerpts ARE persisted into
-	// SourceRef.Excerpt for the response but are not surfaced through claims.
+	// Claim summaries flow through the AI adapter and may be echoed back in the
+	// output, so only sanitized labels (titles via claimLabel) travel through
+	// claims. Raw excerpts ARE persisted into SourceRef.Excerpt for the response
+	// (sanitized + length-capped) but are not surfaced through claims. Any future
+	// path that feeds raw source text to the model must sanitize it first (see
+	// the raw-context TODO in Fulfill).
 	for _, m := range meetings {
 		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
 		refs = append(refs, ref)
@@ -530,54 +534,6 @@ func truncateRunes(s string, maxRunes int) string {
 		return s[:cut] + "…"
 	}
 	return s
-}
-
-// buildPromptDataBlock builds the boundary-fenced source data block that we
-// inject as a synthetic claim. The fence markers signal to the model (via the
-// adapter's system prompt) that the enclosed content is DATA, not
-// instructions.
-func buildPromptDataBlock(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) string {
-	var b strings.Builder
-	if len(meetings) > 0 {
-		b.WriteString(fmt.Sprintf(sourceMarkerOpenFmt, "meetings"))
-		b.WriteString("\n")
-		for _, m := range meetings {
-			fmt.Fprintf(&b, "- %s | %s | %s\n", m.UID, m.Title, cleanSummary(m.Summary))
-		}
-		b.WriteString(fmt.Sprintf(sourceMarkerCloseFmt, "meetings"))
-		b.WriteString("\n")
-	}
-	if len(members.Joined) > 0 || len(members.Updated) > 0 {
-		b.WriteString(fmt.Sprintf(sourceMarkerOpenFmt, "members"))
-		b.WriteString("\n")
-		for _, m := range members.Joined {
-			fmt.Fprintf(&b, "- joined %s\n", memberLabel(m))
-		}
-		for _, m := range members.Updated {
-			fmt.Fprintf(&b, "- updated %s\n", memberLabel(m))
-		}
-		b.WriteString(fmt.Sprintf(sourceMarkerCloseFmt, "members"))
-		b.WriteString("\n")
-	}
-	if len(mailing) > 0 {
-		b.WriteString(fmt.Sprintf(sourceMarkerOpenFmt, "mailing-list"))
-		b.WriteString("\n")
-		for _, ml := range mailing {
-			fmt.Fprintf(&b, "- %s | %s | %s\n", ml.ThreadID, ml.Subject, cleanSummary(ml.Excerpt))
-		}
-		b.WriteString(fmt.Sprintf(sourceMarkerCloseFmt, "mailing-list"))
-		b.WriteString("\n")
-	}
-	if len(votes) > 0 {
-		b.WriteString(fmt.Sprintf(sourceMarkerOpenFmt, "votes"))
-		b.WriteString("\n")
-		for _, v := range votes {
-			fmt.Fprintf(&b, "- %s | %s | %s\n", v.VoteID, v.Subject, cleanSummary(v.Outcome))
-		}
-		b.WriteString(fmt.Sprintf(sourceMarkerCloseFmt, "votes"))
-		b.WriteString("\n")
-	}
-	return b.String()
 }
 
 // derivePrivateSourcePresent flags the brief as containing private source
