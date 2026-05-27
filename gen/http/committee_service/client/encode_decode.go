@@ -5756,7 +5756,6 @@ func EncodeGenerateWeeklyBriefRequest(encoder func(*http.Request) goahttp.Encode
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
 //   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
 //   - "EditedBriefExists" (type *committeeservice.GroupWeeklyBriefEditedExistsError): http.StatusConflict
-//   - "NoSources" (type *committeeservice.GroupWeeklyBriefNoSourceError): http.StatusUnprocessableEntity
 //   - "ThrottleExceeded" (type *committeeservice.GroupWeeklyBriefThrottleExceededError): http.StatusTooManyRequests
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
@@ -5777,7 +5776,7 @@ func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Deco
 			defer resp.Body.Close()
 		}
 		switch resp.StatusCode {
-		case http.StatusOK:
+		case http.StatusAccepted:
 			var (
 				body GenerateWeeklyBriefResponseBody
 				err  error
@@ -5790,7 +5789,7 @@ func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Deco
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
 			}
-			res := NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK(&body)
+			res := NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultAccepted(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (
@@ -5834,20 +5833,6 @@ func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Deco
 				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
 			}
 			return nil, NewGenerateWeeklyBriefEditedBriefExists(&body)
-		case http.StatusUnprocessableEntity:
-			var (
-				body GenerateWeeklyBriefNoSourcesResponseBody
-				err  error
-			)
-			err = decoder(resp).Decode(&body)
-			if err != nil {
-				return nil, goahttp.ErrDecodingError("committee-service", "generate-weekly-brief", err)
-			}
-			err = ValidateGenerateWeeklyBriefNoSourcesResponseBody(&body)
-			if err != nil {
-				return nil, goahttp.ErrValidationError("committee-service", "generate-weekly-brief", err)
-			}
-			return nil, NewGenerateWeeklyBriefNoSources(&body)
 		case http.StatusTooManyRequests:
 			var (
 				body GenerateWeeklyBriefThrottleExceededResponseBody

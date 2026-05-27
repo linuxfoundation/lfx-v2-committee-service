@@ -4906,7 +4906,7 @@ func EncodeGenerateWeeklyBriefResponse(encoder func(context.Context, http.Respon
 		res, _ := v.(*committeeservice.GroupWeeklyBriefGenerateResult)
 		enc := encoder(ctx, w)
 		body := NewGenerateWeeklyBriefResponseBody(res)
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusAccepted)
 		return enc.Encode(body)
 	}
 }
@@ -5020,19 +5020,6 @@ func EncodeGenerateWeeklyBriefError(encoder func(context.Context, http.ResponseW
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusConflict)
-			return enc.Encode(body)
-		case "NoSources":
-			var res *committeeservice.GroupWeeklyBriefNoSourceError
-			errors.As(v, &res)
-			enc := encoder(ctx, w)
-			var body any
-			if formatter != nil {
-				body = formatter(ctx, res)
-			} else {
-				body = NewGenerateWeeklyBriefNoSourcesResponseBody(res)
-			}
-			w.Header().Set("goa-error", res.GoaErrorName())
-			w.WriteHeader(http.StatusUnprocessableEntity)
 			return enc.Encode(body)
 		case "ThrottleExceeded":
 			var res *committeeservice.GroupWeeklyBriefThrottleExceededError

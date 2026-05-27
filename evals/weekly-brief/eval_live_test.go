@@ -65,19 +65,23 @@ func TestWeeklyBriefEvalLive(t *testing.T) {
 		tc := tc
 		t.Run(tc.fixtureName, func(t *testing.T) {
 			fx := loadFixture(t, tc.fixtureName)
-			g, _ := buildOrchestrator(fx, adapter)
+			g, bw := buildOrchestrator(fx, adapter)
 
-			out, err := g.Generate(context.Background(), service.GroupWeeklyBriefGenerateInput{
+			in := service.GroupWeeklyBriefGenerateInput{
 				CommitteeUID:  fx.CommitteeUID,
 				CommitteeName: fx.CommitteeName,
 				ProjectName:   fx.ProjectName,
 				Now:           fx.Now,
-			})
-			require.NoErrorf(t, err, "[%s] live orchestrator returned error", fx.Name)
-			require.NotNil(t, out)
-			assertCommonBriefShape(t, fx, out.Brief)
+			}
+			_, err := g.Claim(context.Background(), in)
+			require.NoErrorf(t, err, "[%s] live claim returned error", fx.Name)
+			require.NoErrorf(t, g.Fulfill(context.Background(), in), "[%s] live fulfill returned error", fx.Name)
+
+			brief := bw.lastBrief
+			require.NotNilf(t, brief, "[%s] no brief was persisted", fx.Name)
+			assertCommonBriefShape(t, fx, brief)
 			if tc.extra != nil {
-				tc.extra(t, out.Brief)
+				tc.extra(t, brief)
 			}
 		})
 	}
