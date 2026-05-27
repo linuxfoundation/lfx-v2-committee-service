@@ -86,8 +86,8 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 	q := u.Query()
 	q.Set("type", v.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
-	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339))
-	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339))
+	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)

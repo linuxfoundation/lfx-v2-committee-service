@@ -1355,7 +1355,8 @@ var _ = dsl.Service("committee-service", func() {
 	// ─── Working-Group Weekly Brief endpoints ───
 
 	dsl.Method("get-current-weekly-brief", func() {
-		dsl.Description("Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. " +
+		dsl.Description("Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. " +
+			"For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. " +
 			"Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).")
 
 		dsl.Security(JWTAuth)
