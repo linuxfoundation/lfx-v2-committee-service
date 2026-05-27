@@ -1346,9 +1346,8 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 }
 
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
-// response type. Phase 2 surfaces the split counters (generates / regenerations)
-// plus the window reset timestamp; the legacy count / last_attempt_at fields
-// are still populated so older clients keep working.
+// response type: the split counters (generates / regenerations) with their
+// limits, plus the window reset timestamp.
 func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
 	gUsed := t.GeneratesUsed
 	gLimit := model.GroupWeeklyBriefGenerateLimit

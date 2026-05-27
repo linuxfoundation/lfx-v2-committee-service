@@ -160,6 +160,11 @@ func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWee
 		rev, putErr = briefBucket.Put(ctx, briefKey, payload)
 	}
 	if putErr != nil {
+		// A CAS conflict (concurrent regeneration) on the Update path is
+		// retryable — surface 503 rather than 500, mirroring the throttle write.
+		if isJetStreamCASConflict(putErr) {
+			return nil, errs.NewServiceUnavailable("weekly brief CAS conflict — retry", putErr)
+		}
 		return nil, errs.NewUnexpected("failed to write weekly brief", putErr)
 	}
 	brief.Revision = rev
