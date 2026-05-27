@@ -499,11 +499,11 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 // returned client transparently exchanges client_credentials for an OAuth2
 // access token and refreshes it as needed.
 //
-// Env vars (all required for live mode):
-//   - M2M_AUTH_CLIENT_ID
-//   - M2M_AUTH_CLIENT_SECRET
-//   - M2M_AUTH_ISSUER      (token endpoint base, e.g. https://auth.example.org)
-//   - M2M_AUTH_AUDIENCE
+// Env vars for live mode (required when QUERY_SERVICE_URL is set, except where noted):
+//   - M2M_AUTH_CLIENT_ID       (required)
+//   - M2M_AUTH_CLIENT_SECRET   (required)
+//   - M2M_AUTH_ISSUER          (required; token endpoint base, e.g. https://auth.example.org)
+//   - M2M_AUTH_AUDIENCE        (optional)
 //
 // Behaviour:
 //   - When QUERY_SERVICE_URL is unset, the *SourceImpl callers short-circuit
