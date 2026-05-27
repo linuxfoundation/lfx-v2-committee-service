@@ -98,14 +98,15 @@ type Service interface {
 	// brief and throttle when no draft exists (BFF contract — do not return 404).
 	GetCurrentWeeklyBrief(context.Context, *GetCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefCurrentResult, err error)
 	// Asynchronously generate (or regenerate) the working-group weekly brief for
-	// the current Sun→Sat window. Responds 202 with the brief in the "generating"
-	// state; the source gather + LLM call run out-of-band via a durable consumer.
-	// Clients poll GET /current to observe the terminal "generated" or "error"
-	// state — a window with no activity or an AI failure finalizes the brief as
-	// "error" rather than a synchronous error response. Per-committee/per-week
-	// throttle: 2 fresh generations and 3 regenerations, enforced synchronously.
-	// Returns 409 when an edited brief exists and force is not set, 429 when the
-	// throttle is exhausted.
+	// the UTC Sun→Sat window selected by the service (Sunday–Friday → the
+	// previous, completed week; Saturday → the current, not-yet-completed week).
+	// Responds 202 with the brief in the "generating" state; the source gather +
+	// LLM call run out-of-band via a durable consumer. Clients poll GET /current
+	// to observe the terminal "generated" or "error" state — a window with no
+	// activity or an AI failure finalizes the brief as "error" rather than a
+	// synchronous error response. Per-committee/per-week throttle: 2 fresh
+	// generations and 3 regenerations, enforced synchronously. Returns 409 when an
+	// edited brief exists and force is not set, 429 when the throttle is exhausted.
 	GenerateWeeklyBrief(context.Context, *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error)
 }
 
