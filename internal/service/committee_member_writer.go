@@ -163,9 +163,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		}
 	}
 
-	// Step 4: Lookup username by email if username is not provided
-	if member.Username == "" && member.Email != "" {
-		slog.DebugContext(ctx, "username not provided, attempting lookup by email",
+	// Step 4: Resolve subject identifier from email, overriding any caller-supplied plain LFID.
+	// Clear first so a failed lookup never leaves an unverified value at rest.
+	if member.Email != "" {
+		member.Username = ""
+		slog.DebugContext(ctx, "resolving subject identifier from email",
 			"email", redaction.RedactEmail(member.Email),
 		)
 		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
@@ -177,7 +179,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 			// Continue without username - it's an optional field
 		} else if sub != "" {
 			member.Username = sub
-			slog.DebugContext(ctx, "username set from email lookup",
+			slog.DebugContext(ctx, "username resolved to subject identifier",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
@@ -430,9 +432,11 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		staleKeys = append(staleKeys, oldLookupKey)
 	}
 
-	// Lookup username by email if username is not provided
-	if member.Username == "" && member.Email != "" {
-		slog.DebugContext(ctx, "username not provided in update, attempting lookup by email",
+	// Resolve subject identifier from email, overriding any caller-supplied plain LFID.
+	// Clear first so a failed lookup never leaves an unverified value at rest.
+	if member.Email != "" {
+		member.Username = ""
+		slog.DebugContext(ctx, "resolving subject identifier from email during update",
 			"email", redaction.RedactEmail(member.Email),
 		)
 		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
@@ -444,7 +448,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			// Continue without username - it's an optional field
 		} else if sub != "" {
 			member.Username = sub
-			slog.DebugContext(ctx, "username set from email lookup during update",
+			slog.DebugContext(ctx, "username resolved to subject identifier during update",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)

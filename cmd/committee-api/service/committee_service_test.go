@@ -1943,7 +1943,7 @@ func TestEnrichMember(t *testing.T) {
 			},
 		},
 		{
-			name: "username already set — skipped entirely",
+			name: "caller-supplied plain LFID overridden by sub when email is present",
 			member: func() *model.CommitteeMember {
 				return &model.CommitteeMember{
 					CommitteeMemberBase: model.CommitteeMemberBase{
@@ -1953,10 +1953,10 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("alice@example.com", "other-lfid")
+				r.withSubs("alice@example.com", "auth0|other-lfid")
 			},
 			validate: func(t *testing.T, m *model.CommitteeMember) {
-				assert.Equal(t, "existing-lfid", m.Username)
+				assert.Equal(t, "auth0|other-lfid", m.Username)
 			},
 		},
 		{
