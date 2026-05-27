@@ -92,9 +92,10 @@ type Service interface {
 	DownloadCommitteeDocument(context.Context, *DownloadCommitteeDocumentPayload) (body io.ReadCloser, err error)
 	// Delete a document from a committee
 	DeleteCommitteeDocument(context.Context, *DeleteCommitteeDocumentPayload) (err error)
-	// Get the working-group weekly brief for the most recently completed UTC
-	// Sun→Sat window. Returns 200 with a null brief and throttle when no draft
-	// exists (BFF contract — do not return 404).
+	// Get the working-group weekly brief for the UTC Sun→Sat window selected by
+	// the service. For Sunday–Friday this is the previous, completed week; on a
+	// Saturday it is the current (not-yet-completed) week. Returns 200 with a null
+	// brief and throttle when no draft exists (BFF contract — do not return 404).
 	GetCurrentWeeklyBrief(context.Context, *GetCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefCurrentResult, err error)
 }
 
@@ -966,7 +967,8 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	CommitteeUID *string
 	// UTC Sunday 00:00:00 marking the start of the window
 	WindowStart *string
-	// UTC Saturday 23:59:59 marking the end of the window
+	// Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond
+	// precision)
 	WindowEnd *string
 	// Lifecycle state
 	State *string

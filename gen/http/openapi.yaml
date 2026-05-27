@@ -2363,7 +2363,7 @@ paths:
             tags:
                 - committee-service
             summary: get-current-weekly-brief committee-service
-            description: Get the working-group weekly brief for the most recently completed UTC Sun→Sat window. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).
+            description: Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).
             operationId: committee-service#get-current-weekly-brief
             parameters:
                 - name: v
@@ -4432,7 +4432,7 @@ definitions:
                 state: generated
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 updated_at: "2023-06-20T14:45:30Z"
-                window_end: "2026-05-16T23:59:59Z"
+                window_end: "2026-05-16T23:59:59.999999999Z"
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
                 count: 0
@@ -4564,8 +4564,8 @@ definitions:
                 format: date-time
             window_end:
                 type: string
-                description: UTC Saturday 23:59:59 marking the end of the window
-                example: "2026-05-16T23:59:59Z"
+                description: Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond precision)
+                example: "2026-05-16T23:59:59.999999999Z"
                 format: date-time
             window_start:
                 type: string
@@ -4597,7 +4597,7 @@ definitions:
             state: generated
             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
             updated_at: "2023-06-20T14:45:30Z"
-            window_end: "2026-05-16T23:59:59Z"
+            window_end: "2026-05-16T23:59:59.999999999Z"
             window_start: "2026-05-10T00:00:00Z"
     InternalServerError:
         title: InternalServerError

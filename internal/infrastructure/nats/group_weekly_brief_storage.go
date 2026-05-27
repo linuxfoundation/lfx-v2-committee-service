@@ -44,7 +44,7 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 
 	idxBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefUIDIndex]
 	if !ok {
-		return nil, nil, errs.NewServiceUnavailable("group-weekly-brief-uid-index bucket not initialised")
+		return nil, nil, errs.NewServiceUnavailable("group-weekly-brief-uid-index bucket not initialized")
 	}
 
 	entry, err := idxBucket.Get(ctx, indexKey)
@@ -61,7 +61,7 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 
 	briefBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefs]
 	if !ok {
-		return nil, nil, errs.NewServiceUnavailable("group-weekly-briefs bucket not initialised")
+		return nil, nil, errs.NewServiceUnavailable("group-weekly-briefs bucket not initialized")
 	}
 	briefEntry, errGet := briefBucket.Get(ctx, sanitizeKVKey(briefUID))
 	if errGet != nil {
