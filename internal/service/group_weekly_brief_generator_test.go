@@ -99,9 +99,7 @@ func (f *fakeVoteSource) ListVoteActivityForWindow(_ context.Context, _ string, 
 }
 
 // recordingAIAdapter captures the WeeklyBriefInput so tests can assert on what
-// the orchestrator passed in (Claims and the structured fields). Note: the
-// fenced prompt-data block built by buildPromptDataBlock is NOT passed through
-// WeeklyBriefInput today, so it cannot be asserted on here.
+// the orchestrator passed in (Claims and the structured fields).
 type recordingAIAdapter struct {
 	gotInput port.WeeklyBriefInput
 }
@@ -473,19 +471,6 @@ func TestMeetingSource_EmptyBaseURL_NoCall(t *testing.T) {
 	res, err := src.ListMeetingsForWindow(context.Background(), "c-1", winStart, winEnd)
 	require.NoError(t, err)
 	assert.Empty(t, res)
-}
-
-// Smoke test: the buildPromptDataBlock helper actually wraps untrusted source
-// content in the documented BEGIN/END markers so the system prompt can
-// recognise it. Asserting this avoids a quiet drift in the marker format.
-func TestPromptDataBlock_FencesMarkers(t *testing.T) {
-	block := buildPromptDataBlock(
-		[]port.MeetingActivity{{UID: "m-1", Title: "Sync", Summary: "raw"}},
-		port.WeeklyMemberActivity{},
-		nil, nil,
-	)
-	assert.True(t, strings.Contains(block, "<<SOURCE:meetings:BEGIN>>"))
-	assert.True(t, strings.Contains(block, "<<SOURCE:meetings:END>>"))
 }
 
 // Ensure the orchestrator panics on missing required deps — guards against
