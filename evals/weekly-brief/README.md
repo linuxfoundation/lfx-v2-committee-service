@@ -1,7 +1,7 @@
 # Working-Group Weekly Brief — Prompt Eval Harness
 
-Phase 3 of the WG Weekly Brief feature. This harness loads JSON fixtures from
-`./fixtures/`, runs each end-to-end through the Phase 2 generate orchestrator
+This harness loads JSON fixtures from `./fixtures/`, runs each end-to-end
+through the weekly-brief generate orchestrator
 (`internal/service.GroupWeeklyBriefGenerator`) with the deterministic fake AI
 adapter wired in, and asserts on the resulting brief.
 
@@ -71,8 +71,10 @@ LITELLM_MODEL=anthropic/claude-sonnet-4 \
   go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 ```
 
-(The live eval wires the LiteLLM adapter directly from the `LITELLM_*` vars; it
-does not read `AI_SOURCE`.)
+(`AI_SOURCE` is not used here. It selects the *deployed service's* AI adapter —
+`fake` for local/CI, `live` (LiteLLM) in production — via `AIAdapterImpl` in
+`providers.go`. This eval harness ignores it and wires the LiteLLM adapter
+directly from the `LITELLM_*` vars.)
 
 ## Fixture authoring notes
 
