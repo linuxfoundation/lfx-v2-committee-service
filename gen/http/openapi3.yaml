@@ -3648,7 +3648,7 @@ paths:
             tags:
                 - committee-service
             summary: generate-weekly-brief committee-service
-            description: 'Generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations. Returns 409 when an edited brief exists and force is not set, 422 when no sources contributed, 429 when the throttle is exhausted.'
+            description: 'Asynchronously generate (or regenerate) the working-group weekly brief for the current Sun→Sat window. Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.'
             operationId: committee-service#generate-weekly-brief
             parameters:
                 - name: v
@@ -3689,8 +3689,8 @@ paths:
                         example:
                             force: false
             responses:
-                "200":
-                    description: OK response.
+                "202":
+                    description: Accepted response.
                     content:
                         application/json:
                             schema:
@@ -3761,15 +3761,6 @@ paths:
                             example:
                                 code: edited_brief_exists
                                 revision: 7
-                "422":
-                    description: 'NoSources: No activity in the window across any source'
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GroupWeeklyBriefNoSourceError'
-                            example:
-                                code: no_sources
-                                message: No activity found for this week
                 "429":
                     description: 'ThrottleExceeded: Per-committee/per-week generation or regeneration limit exhausted'
                     content:
@@ -6077,26 +6068,6 @@ components:
                     regenerations_limit: 3
                     regenerations_used: 0
                     window_resets_at: "2026-05-24T00:00:00Z"
-        GroupWeeklyBriefNoSourceError:
-            type: object
-            properties:
-                code:
-                    type: string
-                    description: Stable machine code
-                    example: no_sources
-                    enum:
-                        - no_sources
-                message:
-                    type: string
-                    description: Human-readable explanation
-                    example: No activity found for this week
-            description: Returned when there is no activity in the window across any source.
-            example:
-                code: no_sources
-                message: No activity found for this week
-            required:
-                - code
-                - message
         GroupWeeklyBriefSourceRef:
             type: object
             properties:

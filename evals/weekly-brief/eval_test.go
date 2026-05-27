@@ -96,10 +96,16 @@ type fixtureVote struct {
 //  Mock source ports — all return canned data from the loaded fixture.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type stubBriefReader struct{}
+// stubBriefReader is backed by the writer so the async flow works: Claim
+// persists the "generating" brief into the writer, and Fulfill's re-read returns
+// it. Before anything is persisted it returns a miss (nil).
+type stubBriefReader struct{ w *stubBriefWriter }
 
-func (stubBriefReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ string, _ model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
-	return nil, nil, nil
+func (r stubBriefReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ string, _ model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
+	if r.w == nil {
+		return nil, nil, nil
+	}
+	return r.w.lastBrief, nil, nil
 }
 
 type stubBriefWriter struct {
@@ -238,7 +244,7 @@ func votesFromFixture(fx fixture) []port.VoteActivity {
 func buildOrchestrator(fx fixture, adapter port.AIAdapter) (service.GroupWeeklyBriefGenerator, *stubBriefWriter) {
 	bw := &stubBriefWriter{}
 	g := service.NewGroupWeeklyBriefGeneratorOrchestrator(
-		service.WithGroupWeeklyBriefReaderForGenerator(stubBriefReader{}),
+		service.WithGroupWeeklyBriefReaderForGenerator(stubBriefReader{w: bw}),
 		service.WithGroupWeeklyBriefWriter(bw),
 		service.WithMeetingSource(stubMeetingSource{meetings: meetingsFromFixture(fx)}),
 		service.WithCommitteeWeeklyMemberReader(stubMemberReader{activity: memberActivityFromFixture(fx)}),
@@ -322,20 +328,27 @@ func TestWeeklyBriefEvalFake(t *testing.T) {
 		tc := tc
 		t.Run(tc.fixtureName, func(t *testing.T) {
 			fx := loadFixture(t, tc.fixtureName)
-			g, _ := buildOrchestrator(fx, ai.NewFakeAdapter())
+			g, bw := buildOrchestrator(fx, ai.NewFakeAdapter())
 
-			out, err := g.Generate(context.Background(), service.GroupWeeklyBriefGenerateInput{
+			in := service.GroupWeeklyBriefGenerateInput{
 				CommitteeUID:  fx.CommitteeUID,
 				CommitteeName: fx.CommitteeName,
 				ProjectName:   fx.ProjectName,
 				Now:           fx.Now,
-			})
-			require.NoErrorf(t, err, "[%s] orchestrator returned error", fx.Name)
-			require.NotNil(t, out)
+			}
+			// Claim (sync) persists the "generating" brief; Fulfill (async) runs
+			// the source gather + LLM + finalize. The eval inspects the brief the
+			// writer ends up with.
+			_, err := g.Claim(context.Background(), in)
+			require.NoErrorf(t, err, "[%s] claim returned error", fx.Name)
+			require.NoErrorf(t, g.Fulfill(context.Background(), in), "[%s] fulfill returned error", fx.Name)
 
-			assertCommonBriefShape(t, fx, out.Brief)
+			brief := bw.lastBrief
+			require.NotNilf(t, brief, "[%s] no brief was persisted", fx.Name)
+
+			assertCommonBriefShape(t, fx, brief)
 			if tc.extra != nil {
-				tc.extra(t, fx, out.Brief)
+				tc.extra(t, fx, brief)
 			}
 		})
 	}

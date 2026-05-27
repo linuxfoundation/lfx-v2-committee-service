@@ -2177,16 +2177,6 @@ type GenerateWeeklyBriefEditedBriefExistsResponseBody struct {
 	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
 }
 
-// GenerateWeeklyBriefNoSourcesResponseBody is the type of the
-// "committee-service" service "generate-weekly-brief" endpoint HTTP response
-// body for the "NoSources" error.
-type GenerateWeeklyBriefNoSourcesResponseBody struct {
-	// Stable machine code
-	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
-	// Human-readable explanation
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-}
-
 // GenerateWeeklyBriefThrottleExceededResponseBody is the type of the
 // "committee-service" service "generate-weekly-brief" endpoint HTTP response
 // body for the "ThrottleExceeded" error.
@@ -5675,10 +5665,10 @@ func NewGetCurrentWeeklyBriefServiceUnavailable(body *GetCurrentWeeklyBriefServi
 	return v
 }
 
-// NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK builds a
+// NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultAccepted builds a
 // "committee-service" service "generate-weekly-brief" endpoint result from a
-// HTTP "OK" response.
-func NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultOK(body *GenerateWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefGenerateResult {
+// HTTP "Accepted" response.
+func NewGenerateWeeklyBriefGroupWeeklyBriefGenerateResultAccepted(body *GenerateWeeklyBriefResponseBody) *committeeservice.GroupWeeklyBriefGenerateResult {
 	v := &committeeservice.GroupWeeklyBriefGenerateResult{}
 	if body.Brief != nil {
 		v.Brief = unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeserviceGroupWeeklyBriefWithReadonlyAttributes(body.Brief)
@@ -5716,17 +5706,6 @@ func NewGenerateWeeklyBriefEditedBriefExists(body *GenerateWeeklyBriefEditedBrie
 	v := &committeeservice.GroupWeeklyBriefEditedExistsError{
 		Code:     *body.Code,
 		Revision: *body.Revision,
-	}
-
-	return v
-}
-
-// NewGenerateWeeklyBriefNoSources builds a committee-service service
-// generate-weekly-brief endpoint NoSources error.
-func NewGenerateWeeklyBriefNoSources(body *GenerateWeeklyBriefNoSourcesResponseBody) *committeeservice.GroupWeeklyBriefNoSourceError {
-	v := &committeeservice.GroupWeeklyBriefNoSourceError{
-		Code:    *body.Code,
-		Message: *body.Message,
 	}
 
 	return v
@@ -8486,23 +8465,6 @@ func ValidateGenerateWeeklyBriefEditedBriefExistsResponseBody(body *GenerateWeek
 	if body.Code != nil {
 		if !(*body.Code == "edited_brief_exists") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"edited_brief_exists"}))
-		}
-	}
-	return
-}
-
-// ValidateGenerateWeeklyBriefNoSourcesResponseBody runs the validations
-// defined on generate-weekly-brief_NoSources_response_body
-func ValidateGenerateWeeklyBriefNoSourcesResponseBody(body *GenerateWeeklyBriefNoSourcesResponseBody) (err error) {
-	if body.Code == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
-	}
-	if body.Message == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
-	}
-	if body.Code != nil {
-		if !(*body.Code == "no_sources") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"no_sources"}))
 		}
 	}
 	return

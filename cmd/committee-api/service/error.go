@@ -36,11 +36,6 @@ func wrapError(ctx context.Context, err error) error {
 			return &committeeservice.ForbiddenError{
 				Message: e.Error(),
 			}
-		case errors.Unprocessable:
-			return &committeeservice.GroupWeeklyBriefNoSourceError{
-				Code:    e.Code,
-				Message: e.Error(),
-			}
 		case errors.TooManyRequests:
 			return &committeeservice.GroupWeeklyBriefThrottleExceededError{
 				Code:               "throttle_exceeded",

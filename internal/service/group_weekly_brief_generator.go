@@ -32,11 +32,38 @@ type GroupWeeklyBriefGenerateOutput struct {
 	Throttle *model.GroupWeeklyBriefThrottle
 }
 
-// GroupWeeklyBriefGenerator is the orchestration port the HTTP handler depends
-// on. Phase 2 is the only implementation; the interface exists so handler
+// GenerateWeeklyBriefRequestedEvent is the payload published on
+// GenerateWeeklyBriefRequestedSubject after a brief is claimed. The durable
+// generate consumer decodes it and calls Fulfill. RequestedAt pins the window
+// so the async phase computes exactly the same window as the synchronous claim.
+type GenerateWeeklyBriefRequestedEvent struct {
+	CommitteeUID  string    `json:"committee_uid"`
+	CommitteeName string    `json:"committee_name,omitempty"`
+	ProjectName   string    `json:"project_name,omitempty"`
+	Force         bool      `json:"force"`
+	RequestedAt   time.Time `json:"requested_at"`
+}
+
+// GroupWeeklyBriefGenerator is the orchestration port the HTTP handler and the
+// durable generate consumer depend on. The interface exists so handler/consumer
 // tests can stub it without spinning up the full graph.
+//
+// Generation is split into two phases so the HTTP request returns promptly while
+// the (potentially slow) LLM call runs out-of-band:
+//   - Claim is synchronous: it enforces the edited-brief guard and throttle
+//     limits and persists the brief in the "generating" state.
+//   - Fulfill is asynchronous: driven by the durable generate consumer, it
+//     gathers sources, calls the AI adapter, and finalizes the brief.
 type GroupWeeklyBriefGenerator interface {
-	Generate(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefGenerateOutput, error)
+	// Claim validates the request, applies the edited-brief guard and throttle
+	// limits, increments the throttle, and persists the brief in the
+	// "generating" state — returning it so the handler can respond 202.
+	Claim(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefGenerateOutput, error)
+	// Fulfill gathers sources, calls the AI adapter, and finalizes the
+	// "generating" brief to "generated" (or "error" on no-activity / AI
+	// failure). A nil return ACKs the consumer message; a non-nil return NAKs it
+	// for retry (used for infrastructure errors).
+	Fulfill(ctx context.Context, in GroupWeeklyBriefGenerateInput) error
 }
 
 // PromptVersion is the only supported prompt version for the Phase 2 generate
@@ -142,11 +169,18 @@ func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorO
 	return g
 }
 
-// Generate orchestrates a single weekly-brief generation. Order of operations:
-// read existing brief (edited-brief guard + regeneration accounting) → throttle
-// pre-check → source gather → no-source guard → prompt build → LLM call →
-// persist brief → throttle increment.
-func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefGenerateOutput, error) {
+// Claim is the synchronous phase of a generate request. It validates the
+// request, applies the edited-brief guard and throttle limits, increments the
+// throttle, and persists the brief in the "generating" state — then returns it
+// so the handler can respond 202. The source gather + LLM call run later in
+// Fulfill, driven by the durable generate consumer.
+//
+// The throttle is incremented BEFORE persisting the brief so that a throttle
+// write failure leaves no brief behind and a retry is a clean generate (the
+// caller isn't charged quota for a failed request). The only remaining edge —
+// the brief persist failing after the throttle bump — over-counts the throttle
+// by one for the window, which is fail-safe and self-corrects at window reset.
+func (g *groupWeeklyBriefGenerator) Claim(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefGenerateOutput, error) {
 	if in.CommitteeUID == "" {
 		return nil, errors.NewValidation("committee_uid is required")
 	}
@@ -183,9 +217,6 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 			WindowResetsAt: windowReset,
 		}
 	}
-	// Whether this call counts as a regeneration is determined NOW, before we
-	// touch any sources, so the user gets a consistent 429 payload even if
-	// source gathering would have failed.
 	isRegeneration := existing != nil
 	if isRegeneration {
 		if throttle.RegenerationsUsed >= model.GroupWeeklyBriefRegenerationLimit {
@@ -211,25 +242,91 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 		}
 	}
 
-	// 4. Source gathering. The sources fall into two classes with deliberately
-	// different failure handling:
-	//   - The member source is INTERNAL (committee KV). A read failure there is
-	//     a genuine internal error, so we fail the whole request rather than
-	//     pretend there was no member activity.
-	//   - The meeting, mailing-list and vote sources are EXTERNAL M2M
-	//     (query-service) calls. An upstream outage degrades that one source to
-	//     empty — logged, not fatal — so a single outage doesn't masquerade as
-	//     "no activity" and the brief still generates from whatever remains.
+	// 4. Throttle accounting — bumped before persisting the brief (see method doc).
+	if isRegeneration {
+		throttle.RegenerationsUsed++
+	} else {
+		throttle.GeneratesUsed++
+	}
+	throttle.WindowResetsAt = windowReset
+	updatedThrottle, errTh := g.briefWriter.PutGroupWeeklyBriefThrottle(ctx, throttle)
+	if errTh != nil {
+		slog.ErrorContext(ctx, "failed to update weekly-brief throttle counter",
+			"committee_uid", in.CommitteeUID, "error", errTh)
+		return nil, errTh
+	}
+
+	// 5. Persist the brief in the "generating" state; Fulfill finalizes it.
+	brief := &model.GroupWeeklyBrief{
+		CommitteeUID: in.CommitteeUID,
+		WindowStart:  windowStart,
+		WindowEnd:    windowEnd,
+		State:        model.GroupWeeklyBriefStateGenerating,
+	}
+	if existing != nil {
+		brief.UID = existing.UID
+		brief.CreatedAt = existing.CreatedAt
+		brief.RegenerationCount = existing.RegenerationCount + 1
+		brief.Revision = existing.Revision
+	}
+	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if errPut != nil {
+		return nil, errPut
+	}
+
+	return &GroupWeeklyBriefGenerateOutput{
+		Brief:    persisted,
+		Throttle: updatedThrottle,
+	}, nil
+}
+
+// Fulfill is the asynchronous phase, driven by the durable generate consumer.
+// It re-reads the "generating" brief for the window, gathers sources, calls the
+// AI adapter, and finalizes the brief to "generated" — or to "error" when there
+// is no activity or the AI call fails. Terminal outcomes are persisted and the
+// message is ACKed (nil return); only infrastructure errors are returned so the
+// consumer retries with backoff.
+func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyBriefGenerateInput) error {
+	if in.CommitteeUID == "" {
+		return errors.NewValidation("committee_uid is required")
+	}
+	if in.Now.IsZero() {
+		in.Now = time.Now().UTC()
+	}
+	windowStart, windowEnd := model.WeeklyWindow(in.Now)
+
+	// Re-read the claimed brief. If it's gone or no longer "generating", a
+	// concurrent worker already handled it — ACK and move on.
+	brief, _, err := g.briefReader.GetGroupWeeklyBriefForWindow(ctx, in.CommitteeUID, model.GroupWeeklyBrief{
+		WindowStart: windowStart,
+		WindowEnd:   windowEnd,
+	})
+	if err != nil {
+		return err // infrastructure error → retry
+	}
+	if brief == nil {
+		slog.WarnContext(ctx, "weekly-brief fulfill: no brief found for window — skipping",
+			"committee_uid", in.CommitteeUID)
+		return nil
+	}
+	if brief.State != model.GroupWeeklyBriefStateGenerating {
+		slog.InfoContext(ctx, "weekly-brief fulfill: brief not in generating state — skipping",
+			"committee_uid", in.CommitteeUID, "state", brief.State.String())
+		return nil
+	}
+
+	// Source gathering. Internal (member) source failure is fatal — return it so
+	// the consumer retries. External M2M sources degrade to empty (logged), so a
+	// single upstream outage doesn't masquerade as "no activity".
 	meetings, errMeetings := g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMeetings != nil {
 		slog.WarnContext(ctx, "meeting source failed; continuing with zero meetings",
 			"committee_uid", in.CommitteeUID, "error", errMeetings)
 		meetings = nil
 	}
-	// Internal source — a failure is a real error (see note above), not a 422.
 	members, errMembers := g.memberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMembers != nil {
-		return nil, errMembers
+		return errMembers // internal source error → retry
 	}
 	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMailing != nil {
@@ -246,24 +343,20 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 
 	memberCount := len(members.Joined) + len(members.Updated)
 
-	// 5. No-source guard.
+	// No-source → terminal error state (nothing to ground the brief on).
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
 		if errMeetings != nil || errMailing != nil || errVotes != nil {
-			// Distinguish "every external source errored" from a genuinely quiet
-			// week. The response is still 422, but logging it lets operators tell
-			// a real upstream outage (worth a retry / investigation) apart from a
-			// week with no activity.
-			slog.WarnContext(ctx, "weekly-brief generate: no activity and one or more external sources errored",
+			slog.WarnContext(ctx, "weekly-brief fulfill: no activity and one or more external sources errored",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
 			)
 		}
-		return nil, errors.NewUnprocessable("no_sources", "No activity found for this week")
+		return g.finalizeError(ctx, brief, "no_sources")
 	}
 
-	// 6. Prompt construction (fenced source markers prevent injection).
+	// Prompt construction (fenced source markers prevent injection).
 	committeeName, projectName := in.CommitteeName, in.ProjectName
 	if (committeeName == "" || projectName == "") && g.committeeName != nil {
 		if cn, pn, errLookup := g.committeeName(ctx, in.CommitteeUID); errLookup == nil {
@@ -286,76 +379,45 @@ func (g *groupWeeklyBriefGenerator) Generate(ctx context.Context, in GroupWeekly
 		Claims:        claims,
 	}
 
-	// The boundary-marker block is built here as a side-effect document so the
-	// system prompt construction (live adapter) can fence untrusted source
-	// content with explicit BEGIN/END markers. The fake adapter ignores it.
-	// We DO NOT thread the block back through ClaimEvidence — that channel is
-	// echoed by the fake adapter and we want the structural guarantee that
-	// untrusted input never appears verbatim in the brief text.
-	//
-	// The block is currently discarded; it's defined so the contract is
-	// reviewable and a future iteration can wire it through a dedicated
-	// `RawContext` field on `port.WeeklyBriefInput` once the live adapter
-	// contract calls for it. Until then, live adapters receive only the
-	// sanitized claim labels.
+	// The boundary-marker block fences untrusted source content for the live
+	// adapter's system prompt; it is deliberately NOT threaded back through
+	// ClaimEvidence so untrusted input never appears verbatim in the brief text.
+	// Currently discarded until a dedicated RawContext field exists.
 	_ = buildPromptDataBlock(meetings, members, mailing, votes)
 
-	// 7. AI call.
 	aiOut, errAI := g.ai.GenerateWeeklyBrief(ctx, aiInput)
 	if errAI != nil {
-		return nil, errAI
+		// Mark the brief as errored so it doesn't stay "generating" forever; the
+		// caller can re-trigger generation. (A bounded retry policy could be
+		// added later.)
+		slog.ErrorContext(ctx, "weekly-brief fulfill: AI generation failed",
+			"committee_uid", in.CommitteeUID, "error", errAI)
+		return g.finalizeError(ctx, brief, "ai_error")
 	}
 
-	// 8. Build domain brief.
-	brief := &model.GroupWeeklyBrief{
-		CommitteeUID:         in.CommitteeUID,
-		WindowStart:          windowStart,
-		WindowEnd:            windowEnd,
-		State:                model.GroupWeeklyBriefStateGenerated,
-		BriefText:            aiOut.BriefText,
-		PromptVersion:        PromptVersion,
-		Model:                modelLabelFromAdapter(g.ai),
-		PrivateSourcePresent: derivePrivateSourcePresent(memberCount, meetings),
-		SourceRefs:           append([]model.SourceRef(nil), sourceRefs...),
+	// Finalize → generated.
+	brief.State = model.GroupWeeklyBriefStateGenerated
+	brief.BriefText = aiOut.BriefText
+	brief.PromptVersion = PromptVersion
+	brief.Model = modelLabelFromAdapter(g.ai)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings)
+	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
+	if _, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); errPut != nil {
+		return errPut // infrastructure / CAS error → retry
 	}
-	if existing != nil {
-		brief.UID = existing.UID
-		brief.CreatedAt = existing.CreatedAt
-		brief.RegenerationCount = existing.RegenerationCount + 1
-		brief.Revision = existing.Revision
-	}
+	return nil
+}
 
-	// 9. Throttle accounting — bumped BEFORE persisting the brief. If the
-	// throttle write fails we return early with no brief persisted, so a retry
-	// is a clean generate rather than a regeneration and the caller isn't
-	// charged quota for what they experienced as a failed request. Surfacing
-	// the error (rather than swallowing it) keeps the per-window limit honest.
-	// The remaining edge — brief persist failing after this point — leaves the
-	// throttle over-counted by one for the window, which is fail-safe (the
-	// limit stays enforced) and self-corrects at the next window reset.
-	if isRegeneration {
-		throttle.RegenerationsUsed++
-	} else {
-		throttle.GeneratesUsed++
+// finalizeError transitions the brief to the "error" state and persists it. A
+// persist failure is returned so the consumer retries; otherwise it ACKs.
+func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *model.GroupWeeklyBrief, reason string) error {
+	slog.WarnContext(ctx, "weekly-brief fulfill: finalizing brief in error state",
+		"committee_uid", brief.CommitteeUID, "reason", reason)
+	brief.State = model.GroupWeeklyBriefStateError
+	if _, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); err != nil {
+		return err
 	}
-	throttle.WindowResetsAt = windowReset
-	updatedThrottle, errTh := g.briefWriter.PutGroupWeeklyBriefThrottle(ctx, throttle)
-	if errTh != nil {
-		slog.ErrorContext(ctx, "failed to update weekly-brief throttle counter",
-			"committee_uid", in.CommitteeUID, "error", errTh)
-		return nil, errTh
-	}
-
-	// 10. Persist brief.
-	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
-	if errPut != nil {
-		return nil, errPut
-	}
-
-	return &GroupWeeklyBriefGenerateOutput{
-		Brief:    persisted,
-		Throttle: updatedThrottle,
-	}, nil
+	return nil
 }
 
 // buildClaimsAndRefs turns the per-source slices into ClaimEvidence rows and a
