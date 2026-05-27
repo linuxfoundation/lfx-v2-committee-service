@@ -1392,8 +1392,9 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	dsl.Method("generate-weekly-brief", func() {
-		dsl.Description("Asynchronously generate (or regenerate) the working-group weekly brief for the current " +
-			"Sun→Sat window. Responds 202 with the brief in the \"generating\" state; the source gather + LLM call run " +
+		dsl.Description("Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat " +
+			"window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, " +
+			"not-yet-completed week). Responds 202 with the brief in the \"generating\" state; the source gather + LLM call run " +
 			"out-of-band via a durable consumer. Clients poll GET /current to observe the terminal \"generated\" or " +
 			"\"error\" state — a window with no activity or an AI failure finalizes the brief as \"error\" rather than a " +
 			"synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, " +

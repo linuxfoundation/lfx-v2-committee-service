@@ -120,7 +120,10 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := io.ReadAll(resp.Body)
+	// Bound the response body read (1 MiB) so a misbehaving upstream or proxy
+	// error page can't return an unbounded payload and exhaust memory.
+	const maxResponseBytes = 1 << 20
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: read response: %w", err)
 	}

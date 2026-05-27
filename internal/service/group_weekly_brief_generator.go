@@ -434,7 +434,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 	// prompt can treat it as untrusted DATA. Excerpts ARE persisted into
 	// SourceRef.Excerpt for the response but are not surfaced through claims.
 	for _, m := range meetings {
-		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: m.Summary}
+		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "meeting-" + m.UID,
@@ -443,7 +443,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		})
 	}
 	for _, ml := range mailing {
-		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID, Title: ml.Subject, Excerpt: ml.Excerpt}
+		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID, Title: ml.Subject, Excerpt: cleanSummary(ml.Excerpt)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "mailing-" + ml.ThreadID,
@@ -452,7 +452,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		})
 	}
 	for _, v := range votes {
-		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Subject, Excerpt: v.Outcome}
+		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Subject, Excerpt: cleanSummary(v.Outcome)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "vote-" + v.VoteID,
@@ -505,12 +505,19 @@ func claimLabel(kind, raw string) string {
 	if s == "" {
 		return kind
 	}
-	// Truncate to 80 runes without scanning the whole string or allocating a
-	// full []rune for the entire input — an attacker-controlled title/subject
-	// could be very large. Byte slicing alone could cut a multi-byte UTF-8
-	// sequence, so we find the cut on a rune boundary by ranging the string and
-	// stop as soon as we reach the limit.
-	const maxRunes = 80
+	// Truncate to 80 runes (rune-safe — byte slicing could cut a multi-byte
+	// UTF-8 sequence mid-character).
+	return kind + ": " + truncateRunes(s, 80)
+}
+
+// maxExcerptLen bounds persisted source excerpts to the API schema's excerpt
+// maxLength (5000) so upstream text can't exceed the documented contract.
+const maxExcerptLen = 5000
+
+// truncateRunes returns s limited to at most maxRunes runes, appending an
+// ellipsis when truncated. It ranges the string and stops at the limit, so it
+// neither scans the whole input nor allocates a full []rune for it.
+func truncateRunes(s string, maxRunes int) string {
 	n, cut := 0, len(s)
 	for i := range s {
 		if n == maxRunes {
@@ -520,9 +527,9 @@ func claimLabel(kind, raw string) string {
 		n++
 	}
 	if cut < len(s) {
-		s = s[:cut] + "…"
+		return s[:cut] + "…"
 	}
-	return kind + ": " + s
+	return s
 }
 
 // buildPromptDataBlock builds the boundary-fenced source data block that we
@@ -611,8 +618,9 @@ func cleanSummary(s string) string {
 	}
 	// Collapse newlines and carriage returns so the prompt is compact and no
 	// stray control characters leak into the prompt-data block; leave other
-	// whitespace alone.
-	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+	// whitespace alone. Bound the length to the API excerpt cap.
+	s = strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+	return truncateRunes(s, maxExcerptLen)
 }
 
 func memberNames(members []*model.CommitteeMember) []string {
