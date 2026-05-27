@@ -513,7 +513,7 @@ _(none)_
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
-> **State lifecycle.** `empty` is the initial placeholder: a brief record exists for the (committee, window) pair but no generation has produced content yet. `generating` is set while a generation run is in flight. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state for a generation run. Typical flow: `empty → generating → generated → (edited) → approved`, with `error` reachable from `generating`.
+> **State lifecycle.** A brief is created in `generating` when a generate is requested — the request is accepted (202) and the source gather + LLM run asynchronously. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state (no activity in the window, or an AI/generation failure). Typical flow: `generating → generated → (edited) → approved`, with `error` reachable from `generating`. (`empty` is a reserved enum value; the current generate flow does not create briefs in the `empty` state.)
 
 ### Tags
 
