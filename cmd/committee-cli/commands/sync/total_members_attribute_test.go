@@ -70,6 +70,9 @@ func (r *mockReader) ListApplications(_ context.Context, _ string) ([]*model.Com
 func (r *mockReader) GetSettings(_ context.Context, _ string) (*model.CommitteeSettings, uint64, error) {
 	return nil, 0, nil
 }
+func (r *mockReader) GetSettingsUIDByInviteUID(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
 
 // mockWriter implements service.CommitteeWriter, recording Update calls.
 type mockWriter struct {

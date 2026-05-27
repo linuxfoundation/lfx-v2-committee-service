@@ -9,7 +9,9 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +21,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,6 +34,7 @@ type messageHandlerOrchestrator struct {
 	committeeWriter             port.CommitteeWriter
 	committeePublisher          port.CommitteePublisher
 	emailSender                 port.EmailSender
+	inviteSender                port.InviteSender
 	userReader                  port.UserReader
 	lfxSelfServeBaseURL         string
 }
@@ -69,6 +74,13 @@ func WithCommitteeWriterOrchestratorForMessageHandler(writer CommitteeWriter) me
 func WithEmailSenderForMessageHandler(sender port.EmailSender) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.emailSender = sender
+	}
+}
+
+// WithInviteSenderForMessageHandler sets the invite sender for non-LFID users.
+func WithInviteSenderForMessageHandler(sender port.InviteSender) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.inviteSender = sender
 	}
 }
 
@@ -443,8 +455,10 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 
 const committeeNotificationTimeout = 5 * time.Second
 
-// HandleCommitteeMemberCreated handles committee_member.created events and sends
-// a notification email to the newly added member. Best-effort: send errors are logged, not returned.
+// HandleCommitteeMemberCreated handles committee_member.created events and notifies
+// the newly added member. Users with an LFID (Username present) receive a direct
+// notification email. Users without an LFID receive an invite via the invite service.
+// Best-effort: send errors are logged, not returned.
 func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -466,12 +480,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 
 	if member.Email == "" {
 		slog.WarnContext(ctx, "skipping member notification — no email address",
-			"committee_uid", member.CommitteeUID, "username", member.Username)
-		return nil, nil
-	}
-
-	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
 		return nil, nil
 	}
 
@@ -483,17 +492,62 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		recipientName = member.Email
 	}
 
-	roleDisplay := member.Role.Name
-	if roleDisplay == "" {
-		roleDisplay = "Member"
+	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, member.CommitteeUID)
+
+	if member.Username == "" {
+		// No LFID — route through the invite service so the user must create an
+		// account before gaining committee access.
+		result, inviteErr := m.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		if inviteErr != nil {
+			// Log error but continue; best-effort
+			slog.WarnContext(ctx, "invite failed, continuing without storing invite data",
+				"error", inviteErr, "committee_uid", member.CommitteeUID)
+			return nil, nil
+		}
+
+		// Store invite metadata on the member record if we got a result with an invite UID
+		if result.InviteUID != "" {
+			inv := &model.InviteInfo{
+				UID:   result.InviteUID,
+				Email: result.RecipientEmail,
+			}
+			if !result.ExpiresAt.IsZero() {
+				expiresAt := result.ExpiresAt
+				inv.ExpiresAt = &expiresAt
+			}
+			member.Invite = inv
+
+			// Get current member revision and update with invite data
+			revision, revErr := m.committeeReader.GetMemberRevision(ctx, member.UID)
+			if revErr != nil {
+				slog.WarnContext(ctx, "failed to get member revision for updating invite data",
+					"error", revErr, "committee_uid", member.CommitteeUID, "member_uid", member.UID)
+				return nil, nil
+			}
+
+			if _, updateErr := m.committeeWriter.UpdateMember(ctx, &member, revision); updateErr != nil {
+				slog.WarnContext(ctx, "failed to update member with invite data",
+					"error", updateErr, "committee_uid", member.CommitteeUID, "member_uid", member.UID)
+				return nil, nil
+			}
+
+			slog.DebugContext(ctx, "stored invite data on member",
+				"committee_uid", member.CommitteeUID, "member_uid", member.UID, "invite_uid", result.InviteUID)
+		}
+
+		return nil, nil
 	}
 
-	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, member.CommitteeUID)
+	// LFID present — send a direct notification email.
+	if m.emailSender == nil {
+		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+		return nil, nil
+	}
 
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
 		CommitteeName: member.CommitteeName,
-		Role:          roleDisplay,
+		Role:          "Member",
 		CommitteeURL:  committeeURL,
 		InviterName:   "A committee administrator",
 	})
@@ -521,9 +575,43 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 	return nil, nil
 }
 
-// HandleCommitteeSettingsUpdated handles committee_settings.updated events and sends
-// notification emails to Writers or Auditors newly added in the updated settings.
-// Best-effort: send errors are logged, not returned.
+// sendMemberInvite sends an invite request for a new committee member who does not
+// yet have an LFID. Returns the invite metadata from the invite service response so the
+// caller can persist it; errors are propagated to the caller to handle best-effort.
+func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
+	if m.inviteSender == nil {
+		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
+			"committee_uid", member.CommitteeUID)
+		return port.InviteResult{}, nil
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	result, err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
+		RecipientEmail: strings.TrimSpace(member.Email),
+		RecipientName:  recipientName,
+		InviterName:    "A committee administrator",
+		ResourceUID:    member.CommitteeUID,
+		ResourceName:   member.CommitteeName,
+		ResourceType:   "group",
+		Role:           "Member",
+		ReturnURL:      deepLinkURL,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "failed to send member invite request",
+			"error", err, "committee_uid", member.CommitteeUID)
+		return port.InviteResult{}, err
+	}
+
+	slog.DebugContext(ctx, "sent member invite request",
+		"committee_uid", member.CommitteeUID, "invite_uid", result.InviteUID)
+	return result, nil
+}
+
+// HandleCommitteeSettingsUpdated handles committee_settings.updated events and notifies
+// Writers or Auditors newly added in the updated settings. Users with an LFID (Username
+// present) receive a direct notification email. Users without an LFID receive an invite
+// via the invite service. Best-effort: send errors are logged, not returned.
 func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -543,34 +631,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		return nil, nil
 	}
 
-	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping settings notification")
-		return nil, nil
-	}
-
-	// Build a deduplicated list of (user, role) pairs. Writers take precedence
-	// if a user appears in both lists — they get a single email with the higher role.
-	type notification struct {
-		user model.CommitteeUser
-		role string
-	}
-	seen := make(map[string]bool)
-	var notifs []notification
-	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()) {
-		if !seen[u.Username] {
-			seen[u.Username] = true
-			notifs = append(notifs, notification{user: u, role: "Writer"})
-		}
-	}
-	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors()) {
-		if !seen[u.Username] {
-			seen[u.Username] = true
-			notifs = append(notifs, notification{user: u, role: "Auditor"})
-		}
-	}
-
-	if len(notifs) == 0 {
-		slog.DebugContext(ctx, "no new writers/auditors — skipping settings notification",
+	// Classify every user that appears in old or new settings into one of:
+	// added (newly appeared), updated (role-set changed), removed (fully gone).
+	changes := classifyCommitteeUsers(data.OldSettings, data.Settings)
+	if len(changes) == 0 {
+		slog.DebugContext(ctx, "no writer/auditor changes — skipping settings notification",
 			"committee_uid", data.CommitteeUID)
 		return nil, nil
 	}
@@ -584,9 +649,16 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
-	for _, n := range notifs {
+	// Track invite results to apply back to settings after all goroutines complete.
+	// Key: email (normalized), Value: InviteInfo
+	inviteResultsMutex := &sync.Mutex{}
+	inviteResults := make(map[string]*model.InviteInfo)
+
+	for _, c := range changes {
 		g.Go(func() error {
-			u, role := n.user, n.role
+			u, kind, oldRoles, newRoles := c.user, c.kind, c.oldRoles, c.newRoles
+
+			// For LFID users, look up their email if not already provided.
 			if u.Email == "" && m.userReader != nil && u.Username != "" {
 				lookupCtx, lookupCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, u.Username)
@@ -595,11 +667,20 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					u.Email = emails.PrimaryEmail
 				}
 			}
+
+			// Removed non-LF users get no notification.
+			if kind == roleChangeKindRemoved && u.Username == "" {
+				slog.DebugContext(gctx, "skipping removal notification — non-LF user",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+
 			if u.Email == "" {
 				slog.WarnContext(gctx, "skipping settings notification — user has no email address",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
+
 			recipientName := u.Name
 			if recipientName == "" {
 				recipientName = u.Username
@@ -608,16 +689,121 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				recipientName = u.Email
 			}
 
-			subject, html, text, renderErr := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
-				RecipientName: recipientName,
-				CommitteeName: data.CommitteeName,
-				Role:          role,
-				CommitteeURL:  committeeURL,
-				InviterName:   inviterName,
-			})
+			// Skip "added" notification if this user was previously an invited (email-only) entry in
+			// the old settings — they're being promoted from non-LFID to LFID via invite acceptance,
+			// not freshly added. They already received the invite email; a second email would be
+			// confusing and redundant.
+			if kind == roleChangeKindAdded && u.Email != "" && wasInvitedInOldSettings(u.Email, data.OldSettings) {
+				slog.DebugContext(gctx, "skipping notification — user promoted from invite to LFID",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+
+			if u.Username == "" {
+				// No LFID — added/updated paths go through the invite service; removed was handled above.
+				if m.inviteSender == nil {
+					slog.WarnContext(gctx, "invite sender not configured — skipping settings invite",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				// Skip re-invite when effective access is unchanged (e.g. gaining Auditor on top of Writer).
+				if kind == roleChangeKindUpdated && effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping non-LF invite — effective role unchanged",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				// Use the highest new role for the invite (Writer > Auditor for access level).
+				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
+				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				result, inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
+					RecipientEmail: strings.TrimSpace(u.Email),
+					RecipientName:  recipientName,
+					InviterName:    inviterName,
+					ResourceUID:    data.CommitteeUID,
+					ResourceName:   data.CommitteeName,
+					ResourceType:   "group",
+					Role:           inviteRole,
+					ReturnURL:      committeeURL,
+				})
+				inviteCancel()
+				if inviteErr != nil {
+					slog.WarnContext(gctx, "failed to send settings invite request",
+						"error", inviteErr, "committee_uid", data.CommitteeUID)
+					return nil
+				}
+
+				slog.DebugContext(gctx, "sent settings invite request",
+					"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+
+				// Track invite metadata if we got a result with an invite UID
+				if result.InviteUID != "" {
+					inviteInfo := &model.InviteInfo{
+						UID:   result.InviteUID,
+						Email: result.RecipientEmail,
+					}
+					if !result.ExpiresAt.IsZero() {
+						expiresAt := result.ExpiresAt
+						inviteInfo.ExpiresAt = &expiresAt
+					}
+					inviteResultsMutex.Lock()
+					inviteResults[strings.ToLower(strings.TrimSpace(u.Email))] = inviteInfo
+					inviteResultsMutex.Unlock()
+					slog.DebugContext(gctx, "tracked invite data for settings update",
+						"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+				}
+
+				return nil
+			}
+
+			// LFID present — send a direct notification email.
+			if m.emailSender == nil {
+				slog.WarnContext(gctx, "email sender not configured — skipping settings notification",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+
+			var emailSubject, emailHTML, emailText string
+			var renderErr error
+
+			switch kind {
+			case roleChangeKindAdded:
+				// Newly added — use the original "added you as a <role>" email.
+				// newRoles may contain multiple roles; display only the highest-privilege one.
+				roleDisplay := emailsvc.CommitteeRoleDisplayName(highestRole(newRoles))
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					Role:          roleDisplay,
+					CommitteeURL:  committeeURL,
+					InviterName:   inviterName,
+				})
+			case roleChangeKindUpdated:
+				// Skip email when effective display role is unchanged (e.g. Auditor gained on top of Writer).
+				if effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping role-updated email — effective role unchanged",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleUpdated(emailsvc.CommitteeRoleUpdatedData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					OldRoles:      oldRoles,
+					NewRoles:      newRoles,
+					CommitteeURL:  committeeURL,
+					InviterName:   inviterName,
+				})
+			case roleChangeKindRemoved:
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					OldRoles:      oldRoles,
+					InviterName:   inviterName,
+				})
+			}
+
 			if renderErr != nil {
 				slog.WarnContext(gctx, "failed to render settings notification email",
-					"error", renderErr, "committee_uid", data.CommitteeUID)
+					"error", renderErr, "committee_uid", data.CommitteeUID, "kind", kind)
 				return nil
 			}
 
@@ -625,39 +811,287 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			defer cancel()
 			if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
 				To:      u.Email,
-				Subject: subject,
-				HTML:    html,
-				Text:    text,
+				Subject: emailSubject,
+				HTML:    emailHTML,
+				Text:    emailText,
 			}); sendErr != nil {
 				slog.WarnContext(gctx, "failed to send settings notification email",
-					"error", sendErr, "committee_uid", data.CommitteeUID, "to", u.Email)
+					"error", sendErr, "committee_uid", data.CommitteeUID, "kind", kind)
 			} else {
 				slog.DebugContext(gctx, "sent settings notification email",
-					"committee_uid", data.CommitteeUID, "to", u.Email)
+					"committee_uid", data.CommitteeUID, "kind", kind)
 			}
 			return nil
 		})
 	}
 	_ = g.Wait()
 
+	// Apply invite data to settings if we have any results
+	if len(inviteResults) > 0 {
+		// Write back the updated settings using the service-level orchestrator.
+		// NATS event handlers have no inbound HTTP request and therefore no JWT in ctx.
+		// Inject a service-identity bearer so UpdateSettings' downstream calls (FGA, indexer)
+		// carry a recognized auth token. The auth middleware allow-lists this value for
+		// service-to-service paths in internal/middleware/auth.go.
+		if m.committeeWriterOrchestrator == nil {
+			slog.WarnContext(ctx, "committee writer orchestrator not available — cannot write back invite data",
+				"committee_uid", data.CommitteeUID)
+		} else {
+			writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+			// Retry up to 3 times on optimistic-lock conflicts. Invites have already been
+			// published (external side effect), so we must persist the invite metadata and
+			// write the secondary index or HandleInviteAccepted will silently drop the
+			// acceptance event. Re-read settings on each attempt to get the latest revision.
+			const maxWriteRetries = 3
+			writeSucceeded := false
+			for attempt := range maxWriteRetries {
+				freshSettings, freshRevision, readErr := m.committeeReader.GetSettings(ctx, data.CommitteeUID)
+				if readErr != nil {
+					slog.WarnContext(ctx, "failed to re-read settings for invite write-back",
+						"error", readErr, "committee_uid", data.CommitteeUID)
+					break
+				}
+				// Re-apply all invite results to the freshly-read settings.
+				for i := range freshSettings.Writers {
+					key := strings.ToLower(strings.TrimSpace(freshSettings.Writers[i].Email))
+					if inviteInfo, exists := inviteResults[key]; exists {
+						freshSettings.Writers[i].Invite = inviteInfo
+					}
+				}
+				for i := range freshSettings.Auditors {
+					key := strings.ToLower(strings.TrimSpace(freshSettings.Auditors[i].Email))
+					if inviteInfo, exists := inviteResults[key]; exists {
+						freshSettings.Auditors[i].Invite = inviteInfo
+					}
+				}
+				if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, freshSettings, freshRevision, false); writeErr != nil {
+					if attempt < maxWriteRetries-1 {
+						slog.DebugContext(ctx, "revision conflict writing invite data — retrying",
+							"attempt", attempt+1, "committee_uid", data.CommitteeUID)
+						continue
+					}
+					slog.WarnContext(ctx, "failed to update settings with invite data after retries",
+						"error", writeErr, "committee_uid", data.CommitteeUID)
+					break
+				}
+				writeSucceeded = true
+				break
+			}
+
+			if writeSucceeded {
+				slog.DebugContext(ctx, "updated settings with invite data",
+					"committee_uid", data.CommitteeUID)
+
+				// Write the secondary invite-UID → committee-UID index for each new invite so
+				// that HandleInviteAccepted can route acceptance events without scanning all settings.
+				for _, inviteInfo := range inviteResults {
+					if indexErr := m.committeeWriter.IndexSettingsInvite(ctx, inviteInfo.UID, data.CommitteeUID); indexErr != nil {
+						slog.WarnContext(ctx, "failed to write settings invite index",
+							"error", indexErr, "invite_uid", inviteInfo.UID, "committee_uid", data.CommitteeUID)
+					}
+				}
+			}
+		}
+	}
+
 	return nil, nil
 }
 
-// diffNewCommitteeUsers returns users in newList whose username is absent from oldList.
+// inviteAcceptedEvent is the payload published by the LFX self-serve web app on InviteAcceptedSubject.
+type inviteAcceptedEvent struct {
+	InviteUID string `json:"invite_uid"`
+	Username  string `json:"username"`
+}
+
+// HandleInviteAccepted processes an invite acceptance event from the LFX self-serve web app.
+// It locates the settings record that owns the invite, promotes the user from non-LFID
+// (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
+func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event inviteAcceptedEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal invite_accepted event", "error", err)
+		return nil, nil
+	}
+
+	if event.InviteUID == "" || event.Username == "" {
+		slog.WarnContext(ctx, "invite_accepted event missing invite_uid or username — discarding",
+			"invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
+		return nil, nil
+	}
+
+	// Look up the committee UID from the secondary index.
+	committeeUID, err := m.committeeReader.GetSettingsUIDByInviteUID(ctx, event.InviteUID)
+	if err != nil {
+		var notFound errors.NotFound
+		if stderrors.As(err, &notFound) {
+			// No mapping means this invite belongs to another service — silently ignore.
+			slog.DebugContext(ctx, "invite not tracked by this service — ignoring",
+				"invite_uid", event.InviteUID)
+			return nil, nil
+		}
+		slog.WarnContext(ctx, "KV error looking up invite mapping",
+			"error", err, "invite_uid", event.InviteUID)
+		return nil, nil
+	}
+
+	// Persist the updated settings.
+	if m.committeeWriterOrchestrator == nil {
+		slog.WarnContext(ctx, "committee writer orchestrator not available — cannot persist invite promotion",
+			"committee_uid", committeeUID)
+		return nil, nil
+	}
+
+	// NATS event handlers have no inbound HTTP request and therefore no JWT in ctx.
+	// Inject a service-identity bearer so UpdateSettings' downstream calls (FGA, indexer)
+	// carry a recognized auth token. The auth middleware allow-lists this value for
+	// service-to-service paths in internal/middleware/auth.go.
+	writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+	// Retry up to 3 times to handle optimistic-lock conflicts: another writer may have
+	// bumped the settings revision between our read and write. We re-read the full
+	// settings on each attempt so the promotion is applied to the latest revision.
+	const maxRetries = 3
+	var promoted bool
+	for attempt := range maxRetries {
+		settings, revision, settingsErr := m.committeeReader.GetSettings(ctx, committeeUID)
+		if settingsErr != nil {
+			slog.ErrorContext(ctx, "failed to get settings for invite acceptance",
+				"error", settingsErr, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+			return nil, nil
+		}
+
+		promoted = false
+		for i := range settings.Writers {
+			if settings.Writers[i].Invite != nil && settings.Writers[i].Invite.UID == event.InviteUID {
+				settings.Writers[i].Username = event.Username
+				settings.Writers[i].Invite = nil
+				promoted = true
+			}
+		}
+		for i := range settings.Auditors {
+			if settings.Auditors[i].Invite != nil && settings.Auditors[i].Invite.UID == event.InviteUID {
+				settings.Auditors[i].Username = event.Username
+				settings.Auditors[i].Invite = nil
+				promoted = true
+			}
+		}
+
+		if !promoted {
+			slog.WarnContext(ctx, "invite UID not found in writers or auditors — stale index, cleaning up",
+				"invite_uid", event.InviteUID, "committee_uid", committeeUID)
+			if delErr := m.committeeWriter.DeleteSettingsInviteIndex(ctx, event.InviteUID); delErr != nil {
+				slog.WarnContext(ctx, "failed to delete stale invite index",
+					"error", delErr, "invite_uid", event.InviteUID)
+			}
+			return nil, nil
+		}
+
+		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, settings, revision, false); writeErr != nil {
+			if attempt < maxRetries-1 {
+				slog.DebugContext(ctx, "revision conflict promoting invite — retrying",
+					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+				continue
+			}
+			slog.ErrorContext(ctx, "failed to update settings after invite acceptance",
+				"error", writeErr, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+			return nil, nil
+		}
+		break
+	}
+
+	// Remove the now-consumed index entry.
+	if delErr := m.committeeWriter.DeleteSettingsInviteIndex(ctx, event.InviteUID); delErr != nil {
+		slog.WarnContext(ctx, "failed to delete invite index after acceptance",
+			"error", delErr, "invite_uid", event.InviteUID)
+	}
+
+	slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
+		"committee_uid", committeeUID, "invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
+
+	return nil, nil
+}
+
+// mapRoleToInviteRole converts a committee settings role string to the invite
+// service's role vocabulary.
+//
+// Mapping:
+//   - Writer → Manage
+//   - Auditor → View
+//   - All other roles (unknown/future) → Manage (intentional: err on the side
+//     of access rather than silently blocking a legitimate user).
+func mapRoleToInviteRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "writer":
+		return string(inviteapi.InviteRoleManage)
+	case "auditor":
+		return string(inviteapi.InviteRoleView)
+	default:
+		// Unknown roles fall through to Manage. Log so any new role added later
+		// is immediately visible rather than silently inheriting elevated access.
+		slog.Warn("mapRoleToInviteRole: unrecognised role, defaulting to Manage", "role", role)
+		return string(inviteapi.InviteRoleManage)
+	}
+}
+
+// committeeUserKey returns a stable, normalized identity key for a CommitteeUser.
+// LFID users are keyed by Username; non-LFID users fall back to a normalized email.
+// Returns "" when both fields are empty (user cannot be identified).
+func committeeUserKey(u model.CommitteeUser) string {
+	if username := strings.TrimSpace(u.Username); username != "" {
+		return "username:" + strings.ToLower(username)
+	}
+	if email := strings.ToLower(strings.TrimSpace(u.Email)); email != "" {
+		return "email:" + email
+	}
+	return ""
+}
+
+// diffNewCommitteeUsers returns users in newList that were not in oldList.
+// LFID users are matched by Username; non-LFID users are matched by normalized Email.
 func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.CommitteeUser {
 	oldKeys := make(map[string]bool, len(oldList))
 	for _, u := range oldList {
-		if u.Username != "" {
-			oldKeys[u.Username] = true
+		if key := committeeUserKey(u); key != "" {
+			oldKeys[key] = true
 		}
 	}
 	var added []model.CommitteeUser
 	for _, u := range newList {
-		if !oldKeys[u.Username] {
-			added = append(added, u)
+		key := committeeUserKey(u)
+		if key == "" || oldKeys[key] {
+			continue
 		}
+		added = append(added, u)
 	}
 	return added
+}
+
+// wasInvitedInOldSettings returns true if the given email was already present in old settings
+// as an email-only (non-LFID, Username == "") entry — meaning the user was previously invited
+// and is now being promoted. Used to suppress duplicate notification emails on LFID promotion.
+func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
+	if old == nil {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	for _, u := range old.GetWriters() {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+			return true
+		}
+	}
+	for _, u := range old.GetAuditors() {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+			return true
+		}
+	}
+	return false
 }
 
 // buildCommitteeURL returns a deep link directly to the committee page.
@@ -683,4 +1117,239 @@ func (m *messageHandlerOrchestrator) resolveDisplayName(ctx context.Context, pri
 		}
 	}
 	return "A committee administrator"
+}
+
+// HandleCommitteeMemberDeleted sends a removal notification email when an LF committee
+// member is deleted. Non-LF members (Username == "") receive nothing. Best-effort: send
+// errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_member.deleted event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_member.deleted event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var member model.CommitteeMember
+	if err := json.Unmarshal(raw, &member); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMember from committee_member.deleted event", "error", err)
+		return nil, nil
+	}
+
+	if member.Username == "" {
+		slog.DebugContext(ctx, "skipping member-deleted notification — non-LF user",
+			"committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
+	if member.Email == "" {
+		slog.WarnContext(ctx, "skipping member-deleted notification — no email address",
+			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
+		return nil, nil
+	}
+
+	if m.emailSender == nil {
+		slog.WarnContext(ctx, "email sender not configured — skipping member-deleted notification")
+		return nil, nil
+	}
+
+	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
+	if recipientName == "" {
+		recipientName = member.Username
+	}
+	if recipientName == "" {
+		recipientName = member.Email
+	}
+
+	var oldRoleNames []string
+	if member.Role.Name != "" {
+		oldRoleNames = []string{member.Role.Name}
+	}
+	subject, html, text, renderErr := emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
+		RecipientName: recipientName,
+		CommitteeName: member.CommitteeName,
+		OldRoles:      oldRoleNames,
+		InviterName:   "A committee administrator",
+	})
+	if renderErr != nil {
+		slog.WarnContext(ctx, "failed to render member-deleted notification email",
+			"error", renderErr, "committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+		To:      member.Email,
+		Subject: subject,
+		HTML:    html,
+		Text:    text,
+	}); sendErr != nil {
+		slog.WarnContext(ctx, "failed to send member-deleted notification email",
+			"error", sendErr, "committee_uid", member.CommitteeUID)
+	} else {
+		slog.DebugContext(ctx, "sent member-deleted notification email",
+			"committee_uid", member.CommitteeUID)
+	}
+
+	return nil, nil
+}
+
+// roleChangeKind describes what changed for a user between old and new settings.
+type roleChangeKind string
+
+const (
+	roleChangeKindAdded   roleChangeKind = "added"
+	roleChangeKindUpdated roleChangeKind = "updated"
+	roleChangeKindRemoved roleChangeKind = "removed"
+)
+
+// committeeUserRoleChange describes a single user whose role-set changed.
+type committeeUserRoleChange struct {
+	user     model.CommitteeUser
+	kind     roleChangeKind
+	oldRoles []string // sorted; empty when kind == added
+	newRoles []string // sorted; empty when kind == removed
+}
+
+// classifyCommitteeUsers compares old and new settings and returns one entry per user
+// whose role-set changed. Role-sets are compared as sorted slices so the caller can
+// render current roles in alphabetical order.
+func classifyCommitteeUsers(old, new *model.CommitteeSettings) []committeeUserRoleChange {
+	buildRoleSet := func(s *model.CommitteeSettings) map[string]map[string]model.CommitteeUser {
+		out := make(map[string]map[string]model.CommitteeUser)
+		if s == nil {
+			return out
+		}
+		for _, u := range s.GetWriters() {
+			if key := committeeUserKey(u); key != "" {
+				if out[key] == nil {
+					out[key] = make(map[string]model.CommitteeUser)
+				}
+				out[key]["Writer"] = u
+			}
+		}
+		for _, u := range s.GetAuditors() {
+			if key := committeeUserKey(u); key != "" {
+				if out[key] == nil {
+					out[key] = make(map[string]model.CommitteeUser)
+				}
+				out[key]["Auditor"] = u
+			}
+		}
+		return out
+	}
+
+	oldSet := buildRoleSet(old)
+	newSet := buildRoleSet(new)
+
+	// Collect all user keys that appear in either old or new.
+	allKeys := make(map[string]bool)
+	for k := range oldSet {
+		allKeys[k] = true
+	}
+	for k := range newSet {
+		allKeys[k] = true
+	}
+
+	sortedKeys := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	var changes []committeeUserRoleChange
+	for _, key := range sortedKeys {
+		oldRoles := oldSet[key]
+		newRoleMap := newSet[key]
+
+		hadRoles := len(oldRoles) > 0
+		hasRoles := len(newRoleMap) > 0
+
+		newRoleSlice := sortedRoles(newRoleMap)
+
+		switch {
+		case !hadRoles && hasRoles:
+			u := anyUser(newRoleMap)
+			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindAdded, newRoles: newRoleSlice})
+		case hadRoles && !hasRoles:
+			oldRoleSlice := sortedRoles(oldRoles)
+			u := anyUser(oldRoles)
+			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindRemoved, oldRoles: oldRoleSlice})
+		case hadRoles && hasRoles:
+			oldRoleSlice := sortedRoles(oldRoles)
+			if !roleSlicesEqual(oldRoleSlice, newRoleSlice) {
+				u := anyUser(newRoleMap)
+				changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindUpdated, oldRoles: oldRoleSlice, newRoles: newRoleSlice})
+			}
+		}
+	}
+	return changes
+}
+
+// sortedRoles returns the role names from a map sorted alphabetically.
+func sortedRoles(m map[string]model.CommitteeUser) []string {
+	roles := make([]string, 0, len(m))
+	for r := range m {
+		roles = append(roles, r)
+	}
+	sort.Strings(roles)
+	return roles
+}
+
+// anyUser returns the CommitteeUser from the first entry of a role map.
+// Preference is given to the Writer entry so the caller gets the richer struct
+// when both Writer and Auditor are present.
+func anyUser(m map[string]model.CommitteeUser) model.CommitteeUser {
+	if u, ok := m["Writer"]; ok {
+		return u
+	}
+	for _, u := range m {
+		return u
+	}
+	return model.CommitteeUser{}
+}
+
+// roleSlicesEqual returns true when two sorted string slices are identical.
+func roleSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// effectiveRoleUnchanged returns true when the user-facing display roles derived from
+// oldRoles and newRoles are identical — for example, gaining Auditor while already holding
+// Writer produces no visible change (both collapse to ["Manage"]), so no email is needed.
+func effectiveRoleUnchanged(oldRoles, newRoles []string) bool {
+	oldDisplay := emailsvc.CommitteeRolesForDisplay(oldRoles)
+	newDisplay := emailsvc.CommitteeRolesForDisplay(newRoles)
+	sort.Strings(oldDisplay)
+	sort.Strings(newDisplay)
+	return roleSlicesEqual(oldDisplay, newDisplay)
+}
+
+// highestRole returns the single highest-privilege role from a slice.
+// "Writer" is considered higher than "Auditor" (maps to InviteRoleManage).
+// Returns the first element if no known role is found.
+func highestRole(roles []string) string {
+	for _, r := range roles {
+		if strings.EqualFold(r, "Writer") {
+			return r
+		}
+	}
+	if len(roles) > 0 {
+		return roles[0]
+	}
+	return ""
 }

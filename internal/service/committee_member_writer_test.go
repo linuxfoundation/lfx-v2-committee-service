@@ -72,6 +72,16 @@ func (w *TestMockCommitteeMemberWriter) UpdateSetting(ctx context.Context, setti
 	return mockWriter.UpdateSetting(ctx, settings, revision)
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.IndexSettingsInvite(ctx, inviteUID, committeeUID)
+}
+
+func (w *TestMockCommitteeMemberWriter) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.DeleteSettingsInviteIndex(ctx, inviteUID)
+}
+
 // Implement CommitteeMemberWriter interface
 func (w *TestMockCommitteeMemberWriter) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
 	if member == nil {
@@ -201,6 +211,27 @@ func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository
 	return orchestrator, mockRepo, memberWriter
 }
 
+// writerTestUserReader is a configurable UserReader mock for committee_member_writer tests.
+type writerTestUserReader struct {
+	subs map[string]string // email → sub
+	err  error             // returned by SubByEmail when non-nil
+}
+
+func (r *writerTestUserReader) SubByEmail(_ context.Context, email string) (string, error) {
+	if r.err != nil {
+		return "", r.err
+	}
+	return r.subs[email], nil
+}
+
+func (r *writerTestUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+
+func (r *writerTestUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, nil
+}
+
 // TestMockCommitteeReader is a minimal mock reader for testing
 type TestMockCommitteeReader struct {
 	memberRevisions map[string]uint64
@@ -235,6 +266,10 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 
 func (r *TestMockCommitteeReader) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
+	return "", errs.NewNotFound("not implemented for this test")
 }
 
 // Implement CommitteeInviteReader interface
@@ -833,6 +868,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 
 func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|newuser"}}
 
 	// Setup committee with settings
 	committee := &model.Committee{
@@ -853,7 +889,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
 			Email:        "old@example.com",
-			Username:     "olduser",
+			Username:     "auth0|olduser",
 			FirstName:    "Old",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
@@ -871,13 +907,13 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	memberWriter.members["member-123"] = existingMember
 	memberWriter.customRevisions["member-123"] = 1
 
-	// Create updated member with changes
+	// Create updated member with changes; caller supplies a plain LFID which must be overridden.
 	updatedMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
 			Email:        "new@example.com", // Email changed
-			Username:     "newuser",         // Username changed
+			Username:     "plain-lfid",      // caller-supplied; must be overridden by email lookup
 			FirstName:    "New",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
@@ -893,10 +929,10 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Verify the member was updated
+	// Verify the member was updated and the subject identifier was resolved from email.
 	assert.Equal(t, "member-123", result.UID)
 	assert.Equal(t, "new@example.com", result.Email)
-	assert.Equal(t, "newuser", result.Username)
+	assert.Equal(t, "auth0|newuser", result.Username)
 	assert.Equal(t, "New Org", result.Organization.Name)
 
 	// Verify timestamps were preserved/updated correctly
@@ -1112,4 +1148,107 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 	assert.Nil(t, result)
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.T) {
+	addCommittee := func(mockRepo *mock.MockRepository) {
+		mockRepo.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{UID: "c-1", Name: "C", Category: "TC"},
+			CommitteeSettings: &model.CommitteeSettings{
+				UID: "c-1", BusinessEmailRequired: false,
+			},
+		})
+	}
+
+	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, _ := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"alice@example.com": "auth0|alice"}}
+		addCommittee(mockRepo)
+
+		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "c-1",
+				Email:        "alice@example.com",
+				Username:     "plain-lfid",
+				FirstName:    "Alice",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "auth0|alice", result.Username)
+	})
+
+	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
+		orchestrator, mockRepo, _ := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
+		addCommittee(mockRepo)
+
+		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "c-1",
+				Email:        "alice@example.com",
+				Username:     "plain-lfid",
+				FirstName:    "Alice",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, false)
+
+		require.NoError(t, err)
+		assert.Empty(t, result.Username)
+	})
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.T) {
+	addCommitteeAndMember := func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
+		mockRepo.AddCommittee(&model.Committee{
+			CommitteeBase:     model.CommitteeBase{UID: "c-1", Name: "C", Category: "TC"},
+			CommitteeSettings: &model.CommitteeSettings{UID: "c-1"},
+		})
+		existing := &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "old@example.com",
+				Username: "auth0|old", FirstName: "Old",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+				CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
+			},
+		}
+		mockRepo.AddCommitteeMember("c-1", existing)
+		memberWriter.members["m-1"] = existing
+		memberWriter.customRevisions["m-1"] = 1
+	}
+
+	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|new"}}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "plain-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "auth0|new", result.Username)
+	})
+
+	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "plain-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Empty(t, result.Username)
+	})
 }
