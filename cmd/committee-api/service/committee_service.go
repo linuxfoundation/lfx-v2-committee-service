@@ -1394,6 +1394,12 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	if s.weeklyBriefGenerator == nil {
 		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
 	}
+	// The publisher is required: without it we can't enqueue the async fulfill
+	// step, which would leave the brief stuck in "generating". Fail fast before
+	// claiming rather than returning 202 for work nothing will pick up.
+	if s.publisher == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief publisher is not configured"))
+	}
 
 	// Use a single "now" for both the claim and the event so the async phase
 	// computes exactly the same window as the synchronous claim.
@@ -1412,18 +1418,16 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	// Publish the generate-requested event for the durable consumer to fulfill.
 	// If publishing fails the brief is left "generating" with nothing to advance
 	// it, so surface 503 and let the caller retry.
-	if s.publisher != nil {
-		event := service.GenerateWeeklyBriefRequestedEvent{
-			CommitteeUID:  p.UID,
-			CommitteeName: base.Name,
-			Force:         p.Force,
-			RequestedAt:   now,
-		}
-		if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
-			slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
-				"committee_uid", p.UID, "error", errPub)
-			return nil, wrapError(ctx, errors.NewServiceUnavailable("failed to enqueue weekly-brief generation", errPub))
-		}
+	event := service.GenerateWeeklyBriefRequestedEvent{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		Force:         p.Force,
+		RequestedAt:   now,
+	}
+	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
+		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
+			"committee_uid", p.UID, "error", errPub)
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("failed to enqueue weekly-brief generation", errPub))
 	}
 
 	res := &committeeservice.GroupWeeklyBriefGenerateResult{}
