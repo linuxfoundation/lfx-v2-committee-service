@@ -132,9 +132,18 @@ func (s *stubBriefWriter) PutGroupWeeklyBriefThrottle(_ context.Context, t *mode
 	return t, nil
 }
 
-type stubMeetingSource struct{ meetings []port.MeetingActivity }
+// stubMeetingSource records the window it is queried with so the eval can
+// assert the orchestrator passes the correctly computed Sun→Sat window to its
+// sources (not just that model.WeeklyWindow is correct in isolation). The
+// orchestrator computes one window and passes it to every source, so capturing
+// it on the meeting source is representative.
+type stubMeetingSource struct {
+	meetings         []port.MeetingActivity
+	gotStart, gotEnd time.Time
+}
 
-func (s stubMeetingSource) ListMeetingsForWindow(_ context.Context, _ string, _, _ time.Time) ([]port.MeetingActivity, error) {
+func (s *stubMeetingSource) ListMeetingsForWindow(_ context.Context, _ string, start, end time.Time) ([]port.MeetingActivity, error) {
+	s.gotStart, s.gotEnd = start, end
 	return s.meetings, nil
 }
 
@@ -240,19 +249,21 @@ func votesFromFixture(fx fixture) []port.VoteActivity {
 }
 
 // buildOrchestrator wires every port from the fixture and the given AI adapter,
-// then returns the orchestrator ready to run.
-func buildOrchestrator(fx fixture, adapter port.AIAdapter) (service.GroupWeeklyBriefGenerator, *stubBriefWriter) {
+// then returns the orchestrator, the brief writer, and the meeting source (which
+// records the window it is queried with).
+func buildOrchestrator(fx fixture, adapter port.AIAdapter) (service.GroupWeeklyBriefGenerator, *stubBriefWriter, *stubMeetingSource) {
 	bw := &stubBriefWriter{}
+	mtg := &stubMeetingSource{meetings: meetingsFromFixture(fx)}
 	g := service.NewGroupWeeklyBriefGeneratorOrchestrator(
 		service.WithGroupWeeklyBriefReaderForGenerator(stubBriefReader{w: bw}),
 		service.WithGroupWeeklyBriefWriter(bw),
-		service.WithMeetingSource(stubMeetingSource{meetings: meetingsFromFixture(fx)}),
+		service.WithMeetingSource(mtg),
 		service.WithCommitteeWeeklyMemberReader(stubMemberReader{activity: memberActivityFromFixture(fx)}),
 		service.WithMailingListSource(stubMailingListSource{items: mailingFromFixture(fx)}),
 		service.WithVoteSource(stubVoteSource{items: votesFromFixture(fx)}),
 		service.WithAIAdapter(adapter),
 	)
-	return g, bw
+	return g, bw, mtg
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,8 +291,9 @@ func assertCommonBriefShape(t *testing.T, fx fixture, brief *model.GroupWeeklyBr
 }
 
 // assertPromptInjectionContained is the fixture-specific assertion for the
-// prompt_injection.json case: the verbatim injection string and a paraphrase
-// of its intent must not appear in the brief text.
+// prompt_injection.json case: the two verbatim injection substrings from the
+// fixture must not appear in the brief text. (Verbatim-only — we don't attempt
+// fuzzy paraphrase detection here.)
 func assertPromptInjectionContained(t *testing.T, brief *model.GroupWeeklyBrief) {
 	t.Helper()
 	require.NotContains(t, brief.BriefText, "Ignore previous instructions",
@@ -328,7 +340,7 @@ func TestWeeklyBriefEvalFake(t *testing.T) {
 		tc := tc
 		t.Run(tc.fixtureName, func(t *testing.T) {
 			fx := loadFixture(t, tc.fixtureName)
-			g, bw := buildOrchestrator(fx, ai.NewFakeAdapter())
+			g, bw, mtg := buildOrchestrator(fx, ai.NewFakeAdapter())
 
 			in := service.GroupWeeklyBriefGenerateInput{
 				CommitteeUID:  fx.CommitteeUID,
@@ -342,6 +354,11 @@ func TestWeeklyBriefEvalFake(t *testing.T) {
 			_, err := g.Claim(context.Background(), in)
 			require.NoErrorf(t, err, "[%s] claim returned error", fx.Name)
 			require.NoErrorf(t, g.Fulfill(context.Background(), in), "[%s] fulfill returned error", fx.Name)
+
+			// The orchestrator must query sources with the correct Sun→Sat window.
+			wantStart, wantEnd := model.WeeklyWindow(fx.Now)
+			require.Truef(t, mtg.gotStart.Equal(wantStart), "[%s] source queried with wrong window_start: got %s want %s", fx.Name, mtg.gotStart, wantStart)
+			require.Truef(t, mtg.gotEnd.Equal(wantEnd), "[%s] source queried with wrong window_end: got %s want %s", fx.Name, mtg.gotEnd, wantEnd)
 
 			brief := bw.lastBrief
 			require.NotNilf(t, brief, "[%s] no brief was persisted", fx.Name)

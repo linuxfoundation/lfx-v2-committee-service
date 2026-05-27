@@ -65,7 +65,7 @@ func TestWeeklyBriefEvalLive(t *testing.T) {
 		tc := tc
 		t.Run(tc.fixtureName, func(t *testing.T) {
 			fx := loadFixture(t, tc.fixtureName)
-			g, bw := buildOrchestrator(fx, adapter)
+			g, bw, _ := buildOrchestrator(fx, adapter)
 
 			in := service.GroupWeeklyBriefGenerateInput{
 				CommitteeUID:  fx.CommitteeUID,
