@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -435,7 +434,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 	// prompt can treat it as untrusted DATA. Excerpts ARE persisted into
 	// SourceRef.Excerpt for the response but are not surfaced through claims.
 	for _, m := range meetings {
-		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: m.Summary}
+		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "meeting-" + m.UID,
@@ -444,7 +443,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		})
 	}
 	for _, ml := range mailing {
-		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID, Title: ml.Subject, Excerpt: ml.Excerpt}
+		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID, Title: ml.Subject, Excerpt: cleanSummary(ml.Excerpt)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "mailing-" + ml.ThreadID,
@@ -453,7 +452,7 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		})
 	}
 	for _, v := range votes {
-		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Subject, Excerpt: v.Outcome}
+		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Subject, Excerpt: cleanSummary(v.Outcome)}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "vote-" + v.VoteID,
@@ -506,13 +505,31 @@ func claimLabel(kind, raw string) string {
 	if s == "" {
 		return kind
 	}
-	// Truncate by RUNE, not byte — byte slicing can cut multi-byte UTF-8
-	// sequences mid-character and produce invalid text.
-	if utf8.RuneCountInString(s) > 80 {
-		runes := []rune(s)
-		s = string(runes[:80]) + "…"
+	// Truncate to 80 runes (rune-safe — byte slicing could cut a multi-byte
+	// UTF-8 sequence mid-character).
+	return kind + ": " + truncateRunes(s, 80)
+}
+
+// maxExcerptLen bounds persisted source excerpts to the API schema's excerpt
+// maxLength (5000) so upstream text can't exceed the documented contract.
+const maxExcerptLen = 5000
+
+// truncateRunes returns s limited to at most maxRunes runes, appending an
+// ellipsis when truncated. It ranges the string and stops at the limit, so it
+// neither scans the whole input nor allocates a full []rune for it.
+func truncateRunes(s string, maxRunes int) string {
+	n, cut := 0, len(s)
+	for i := range s {
+		if n == maxRunes {
+			cut = i
+			break
+		}
+		n++
 	}
-	return kind + ": " + s
+	if cut < len(s) {
+		return s[:cut] + "…"
+	}
+	return s
 }
 
 // buildPromptDataBlock builds the boundary-fenced source data block that we
@@ -601,8 +618,9 @@ func cleanSummary(s string) string {
 	}
 	// Collapse newlines and carriage returns so the prompt is compact and no
 	// stray control characters leak into the prompt-data block; leave other
-	// whitespace alone.
-	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+	// whitespace alone. Bound the length to the API excerpt cap.
+	s = strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+	return truncateRunes(s, maxExcerptLen)
 }
 
 func memberNames(members []*model.CommitteeMember) []string {
