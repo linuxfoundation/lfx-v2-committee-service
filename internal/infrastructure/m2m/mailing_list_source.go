@@ -16,8 +16,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 )
 
-// DefaultMailingListType is the query-service resource type the live mailing
-// list source queries when QUERY_MAILING_LIST_TYPE is unset.
+// DefaultMailingListType is the fixed query-service resource type the live
+// mailing-list source queries.
 const DefaultMailingListType = "v1_mailing_list_thread"
 
 // MailingListSourceConfig configures the live mailing-list source. All fields

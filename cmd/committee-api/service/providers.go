@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -493,15 +494,6 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 	return nil
 }
 
-// CommitteeAccessCheckerImpl returns the default in-process access checker.
-// Production deployments rely on Heimdall to enforce committee write access
-// at the edge, so the default impl is a no-op (allow). The function exists
-// so unit tests can substitute a denying stub.
-func CommitteeAccessCheckerImpl(ctx context.Context) port.CommitteeAccessChecker {
-	slog.InfoContext(ctx, "initializing Heimdall-edge committee access checker")
-	return auth.NewHeimdallEdgeAccessChecker()
-}
-
 // m2mHTTPClient builds the *http.Client used to call other LFX services on
 // behalf of THIS service identity (NOT the caller's bearer token). The
 // returned client transparently exchanges client_credentials for an OAuth2
@@ -550,7 +542,7 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 	cfg := clientcredentials.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		TokenURL:     issuer + "/oauth/token",
+		TokenURL:     strings.TrimRight(issuer, "/") + "/oauth/token",
 	}
 	if audience != "" {
 		cfg.EndpointParams = map[string][]string{"audience": {audience}}
@@ -565,16 +557,14 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 }
 
 // Live query-service sources share the same base URL and M2M HTTP client; the
-// resource type each source queries can be overridden per-source:
+// resource type each source queries is fixed (no per-source overrides):
 //
-//   - QUERY_SERVICE_URL         — base URL for all query-service calls.
-//     When empty, every source degrades to "no results".
-//   - QUERY_MAILING_LIST_TYPE   — resource type for the mailing-list source
-//     (defaults to "v1_mailing_list_thread").
-//   - QUERY_VOTE_TYPE           — resource type for the vote source
-//     (defaults to "v1_vote").
+//   - QUERY_SERVICE_URL — base URL for all query-service calls. When empty,
+//     every source degrades to "no results".
 //
-// The meeting source queries the fixed type "v1_past_meeting" — no override.
+// Each source queries a fixed query-service resource type: the meeting source
+// uses "v1_past_meeting", the mailing-list source m2m.DefaultMailingListType,
+// and the vote source m2m.DefaultVoteType.
 
 // MeetingSourceImpl builds the meeting source. When QUERY_SERVICE_URL is
 // unset the resulting source returns zero meetings (graceful degrade).
@@ -592,7 +582,7 @@ func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
 
 // MailingListSourceImpl builds the live mailing-list source. When
 // QUERY_SERVICE_URL is unset the source returns zero threads (graceful
-// degrade). QUERY_MAILING_LIST_TYPE overrides the queried resource type.
+// degrade). The resource type is fixed (m2m.DefaultMailingListType).
 func MailingListSourceImpl(ctx context.Context) port.MailingListSource {
 	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
@@ -601,14 +591,13 @@ func MailingListSourceImpl(ctx context.Context) port.MailingListSource {
 	client := m2mHTTPClient(ctx)
 	return m2m.NewMailingListSource(m2m.MailingListSourceConfig{
 		BaseURL: baseURL,
-		Type:    os.Getenv("QUERY_MAILING_LIST_TYPE"),
 		Timeout: 15 * time.Second,
 	}, client)
 }
 
 // VoteSourceImpl builds the live vote source. When QUERY_SERVICE_URL is unset
-// the source returns zero votes (graceful degrade). QUERY_VOTE_TYPE overrides
-// the queried resource type.
+// the source returns zero votes (graceful degrade). The resource type is fixed
+// (m2m.DefaultVoteType).
 func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
@@ -617,7 +606,6 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	client := m2mHTTPClient(ctx)
 	return m2m.NewVoteSource(m2m.VoteSourceConfig{
 		BaseURL: baseURL,
-		Type:    os.Getenv("QUERY_VOTE_TYPE"),
 		Timeout: 15 * time.Second,
 	}, client)
 }

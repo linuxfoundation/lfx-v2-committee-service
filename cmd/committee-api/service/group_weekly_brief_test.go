@@ -13,23 +13,9 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	internalsvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
-
-// denyAccessChecker is a CommitteeAccessChecker that always denies — used to
-// assert that the handler returns 403 when authz fails.
-type denyAccessChecker struct{}
-
-func (denyAccessChecker) CanWriteCommittee(_ context.Context, _ string) error {
-	return errors.NewForbidden("caller lacks writer access on committee")
-}
-
-// allowAccessChecker permits every request — used for non-authz test paths.
-type allowAccessChecker struct{}
-
-func (allowAccessChecker) CanWriteCommittee(_ context.Context, _ string) error { return nil }
 
 // stubGroupWeeklyBriefReader returns canned hits/misses.
 type stubGroupWeeklyBriefReader struct {
@@ -83,30 +69,17 @@ func (r *stubCommitteeReader) GetMemberRevision(_ context.Context, _ string) (ui
 // ensure the stub satisfies the interface at compile time
 var _ internalsvc.CommitteeReader = (*stubCommitteeReader)(nil)
 
-func newBriefSvc(reader internalsvc.GroupWeeklyBriefDataReader, access port.CommitteeAccessChecker, base *model.CommitteeBase) *committeeServicesrvc {
+func newBriefSvc(reader internalsvc.GroupWeeklyBriefDataReader, base *model.CommitteeBase) *committeeServicesrvc {
 	return &committeeServicesrvc{
 		committeeReaderOrchestrator: &stubCommitteeReader{base: base, rev: 1},
-		accessChecker:               access,
 		weeklyBriefReader:           reader,
 	}
-}
-
-func TestGetCurrentWeeklyBrief_Forbidden(t *testing.T) {
-	svc := newBriefSvc(&stubGroupWeeklyBriefReader{}, denyAccessChecker{}, &model.CommitteeBase{})
-
-	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
-	require.Error(t, err)
-	assert.Nil(t, res)
-
-	var fb *committeeservice.ForbiddenError
-	require.ErrorAs(t, err, &fb, "expected Forbidden error type")
-	assert.Contains(t, fb.Message, "writer access")
 }
 
 func TestGetCurrentWeeklyBrief_MissReturns200WithNullBrief(t *testing.T) {
 	// reader returns no brief and no throttle — handler must return a non-nil
 	// envelope with nil Brief and nil Throttle (BFF expects 200/null, NOT 404).
-	svc := newBriefSvc(&stubGroupWeeklyBriefReader{}, allowAccessChecker{}, &model.CommitteeBase{})
+	svc := newBriefSvc(&stubGroupWeeklyBriefReader{}, &model.CommitteeBase{})
 
 	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
 	require.NoError(t, err)
@@ -127,7 +100,7 @@ func TestGetCurrentWeeklyBrief_Hit(t *testing.T) {
 		BriefText:    "hello",
 	}
 	reader := &stubGroupWeeklyBriefReader{brief: brief}
-	svc := newBriefSvc(reader, allowAccessChecker{}, &model.CommitteeBase{})
+	svc := newBriefSvc(reader, &model.CommitteeBase{})
 
 	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
 	require.NoError(t, err)
@@ -141,7 +114,6 @@ func TestGetCurrentWeeklyBrief_Hit(t *testing.T) {
 func TestGetCurrentWeeklyBrief_CommitteeNotFound(t *testing.T) {
 	svc := &committeeServicesrvc{
 		committeeReaderOrchestrator: &stubCommitteeReader{err: errors.NewNotFound("committee not found")},
-		accessChecker:               allowAccessChecker{},
 		weeklyBriefReader:           &stubGroupWeeklyBriefReader{},
 	}
 

@@ -1371,7 +1371,7 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Result(GroupWeeklyBriefCurrentResult)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
-		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks viewer access on the committee")
 		dsl.Error("NotFound", NotFoundError, "Committee not found")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")

@@ -43,6 +43,42 @@ spec:
               value: {{ .Values.heimdall.jwksUrl }}
             - name: JWT_AUDIENCE
               value: {{ .Values.app.audience }}
+            {{- if .Values.weeklyBrief.aiSource }}
+            - name: AI_SOURCE
+              value: {{ .Values.weeklyBrief.aiSource | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.litellm.baseURL }}
+            - name: LITELLM_BASE_URL
+              value: {{ .Values.weeklyBrief.litellm.baseURL | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.litellm.apiKey }}
+            - name: LITELLM_API_KEY
+              value: {{ .Values.weeklyBrief.litellm.apiKey | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.litellm.model }}
+            - name: LITELLM_MODEL
+              value: {{ .Values.weeklyBrief.litellm.model | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.m2m.clientID }}
+            - name: M2M_AUTH_CLIENT_ID
+              value: {{ .Values.weeklyBrief.m2m.clientID | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.m2m.clientSecret }}
+            - name: M2M_AUTH_CLIENT_SECRET
+              value: {{ .Values.weeklyBrief.m2m.clientSecret | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.m2m.issuer }}
+            - name: M2M_AUTH_ISSUER
+              value: {{ .Values.weeklyBrief.m2m.issuer | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.m2m.audience }}
+            - name: M2M_AUTH_AUDIENCE
+              value: {{ .Values.weeklyBrief.m2m.audience | quote }}
+            {{- end }}
+            {{- if .Values.weeklyBrief.queryServiceURL }}
+            - name: QUERY_SERVICE_URL
+              value: {{ .Values.weeklyBrief.queryServiceURL | quote }}
+            {{- end }}
             {{- with .Values.app.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

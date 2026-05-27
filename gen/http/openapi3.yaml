@@ -955,39 +955,38 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Illo et quas nemo.
-                            description: jcp
+                            content_type: Quae velit voluptate.
+                            description: fi3
                             file:
-                                - 81
-                                - 117
-                                - 105
+                                - 85
+                                - 108
+                                - 108
+                                - 97
+                                - 109
                                 - 32
-                                - 117
                                 - 116
-                                - 32
-                                - 110
                                 - 111
-                                - 110
-                                - 32
-                                - 101
-                                - 120
-                                - 112
-                                - 101
-                                - 100
-                                - 105
                                 - 116
                                 - 97
+                                - 109
                                 - 32
                                 - 113
                                 - 117
                                 - 111
-                                - 100
                                 - 32
+                                - 99
+                                - 111
+                                - 110
+                                - 115
+                                - 101
                                 - 113
                                 - 117
-                                - 105
+                                - 97
+                                - 116
+                                - 117
+                                - 114
                                 - 46
-                            file_name: Mollitia sapiente qui velit aspernatur corrupti.
+                            file_name: Error pariatur debitis corrupti numquam consequatur.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1358,6 +1357,12 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkFolderWithReadonlyAttributes'
                                 example:
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by_username: alexlee
+                                      name: Meeting Notes
+                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by_username: alexlee
@@ -2418,9 +2423,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 0c75ec5e-0711-494b-a908-95b918c52cd5
+                    example: 1e02223c-8e0a-4fd5-8745-7823aa6bda52
                     format: uuid
-                  example: 32166fee-ed88-437d-a80a-5b828a7e415d
+                  example: e73a3a67-0909-4ac7-9e35-30cb3dd1110f
             responses:
                 "200":
                     description: OK response.
@@ -2450,15 +2455,6 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       url: https://confluence.example.com/architecture-decisions
                             example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by_username: alexlee
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_username: alexlee
@@ -2548,8 +2544,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: vxz
-                            folder_uid: ff7cc935-e169-436a-a7c3-fe2be325cceb
+                            description: vao
+                            folder_uid: 26ffc95d-19b3-4264-bd42-f535e0d919c7
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3574,7 +3570,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefCurrentResult'
                             example:
                                 brief:
-                                    brief_text: lvl
+                                    brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3582,11 +3578,15 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: lji
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: lji
+                                        - excerpt: 0jc
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3596,10 +3596,8 @@ paths:
                                     window_end: "2026-05-16T23:59:59Z"
                                     window_start: "2026-05-10T00:00:00Z"
                                 throttle:
-                                    count: 0
                                     generates_limit: 2
                                     generates_used: 0
-                                    last_attempt_at: "1976-05-27T12:27:23Z"
                                     regenerations_limit: 3
                                     regenerations_used: 0
                                     window_resets_at: "2026-05-24T00:00:00Z"
@@ -3612,7 +3610,7 @@ paths:
                             example:
                                 message: The request was invalid.
                 "403":
-                    description: 'Forbidden: Caller lacks writer access on the committee'
+                    description: 'Forbidden: Caller lacks viewer access on the committee'
                     content:
                         application/json:
                             schema:
@@ -3699,7 +3697,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefGenerateResult'
                             example:
                                 brief:
-                                    brief_text: lvl
+                                    brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3707,11 +3705,15 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: lji
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: lji
+                                        - excerpt: 0jc
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3721,10 +3723,8 @@ paths:
                                     window_end: "2026-05-16T23:59:59Z"
                                     window_start: "2026-05-10T00:00:00Z"
                                 throttle:
-                                    count: 0
                                     generates_limit: 2
                                     generates_used: 0
-                                    last_attempt_at: "1976-05-27T12:27:23Z"
                                     regenerations_limit: 3
                                     regenerations_used: 0
                                     window_resets_at: "2026-05-24T00:00:00Z"
@@ -5546,12 +5546,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: vvz
+                    example: jhc
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 19fa3a31-6c22-4c11-a340-9f76ab8576e6
+                    example: b6457775-471d-4a45-a650-8908718bbb34
                     format: uuid
                 name:
                     type: string
@@ -5564,8 +5564,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: 5ik
-                folder_uid: fd6be32b-e3bc-4e0a-b494-d40367fde0cb
+                description: d9n
+                folder_uid: cd5ee31f-d78e-4a0b-9041-ad6f02870f3a
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -6006,16 +6006,11 @@ components:
                     window_end: "2026-05-16T23:59:59Z"
                     window_start: "2026-05-10T00:00:00Z"
                 throttle:
-                    count: 0
                     generates_limit: 2
                     generates_used: 0
-                    last_attempt_at: "1999-09-17T09:27:53Z"
                     regenerations_limit: 3
                     regenerations_used: 0
                     window_resets_at: "2026-05-24T00:00:00Z"
-            required:
-                - brief
-                - throttle
         GroupWeeklyBriefEditedExistsError:
             type: object
             properties:
@@ -6077,10 +6072,8 @@ components:
                     window_end: "2026-05-16T23:59:59Z"
                     window_start: "2026-05-10T00:00:00Z"
                 throttle:
-                    count: 0
                     generates_limit: 2
                     generates_used: 0
-                    last_attempt_at: "1999-09-17T09:27:53Z"
                     regenerations_limit: 3
                     regenerations_used: 0
                     window_resets_at: "2026-05-24T00:00:00Z"
@@ -6110,7 +6103,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: lw3
+                    example: i8v
                     maxLength: 5000
                 id:
                     type: string
@@ -6126,19 +6119,13 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: u52
+                excerpt: ytw
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
         GroupWeeklyBriefThrottle:
             type: object
             properties:
-                count:
-                    type: integer
-                    description: 'Deprecated: total regeneration attempts; use regenerations_used'
-                    example: 0
-                    format: int64
-                    minimum: 0
                 generates_limit:
                     type: integer
                     description: Maximum fresh generations allowed in this window
@@ -6151,11 +6138,6 @@ components:
                     example: 0
                     format: int64
                     minimum: 0
-                last_attempt_at:
-                    type: string
-                    description: 'Deprecated: timestamp of last attempt'
-                    example: "2007-07-10T16:07:22Z"
-                    format: date-time
                 regenerations_limit:
                     type: integer
                     description: Maximum regenerations allowed in this window
@@ -6170,15 +6152,13 @@ components:
                     minimum: 0
                 window_resets_at:
                     type: string
-                    description: Timestamp when the window resets (next UTC Sunday 00:00:00)
+                    description: Timestamp when the window resets
                     example: "2026-05-24T00:00:00Z"
                     format: date-time
             description: Per-committee/per-week regeneration throttle counters.
             example:
-                count: 0
                 generates_limit: 2
                 generates_used: 0
-                last_attempt_at: "2013-06-01T15:54:25Z"
                 regenerations_limit: 3
                 regenerations_used: 0
                 window_resets_at: "2026-05-24T00:00:00Z"
@@ -6241,7 +6221,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: 1d6
+                    example: shn
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6317,7 +6297,7 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: f07
+                brief_text: 0k4
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -6594,52 +6574,28 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Veniam est fugit voluptatibus cumque praesentium dignissimos.
+                    example: Pariatur velit quos.
                 description:
                     type: string
                     description: Optional description
-                    example: qz0
+                    example: 7c8
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 86
-                        - 111
-                        - 108
-                        - 117
-                        - 112
+                        - 69
                         - 116
+                        - 32
                         - 97
-                        - 115
-                        - 32
-                        - 110
-                        - 105
-                        - 104
-                        - 105
-                        - 108
-                        - 32
-                        - 105
                         - 117
-                        - 114
-                        - 101
-                        - 32
-                        - 111
-                        - 100
-                        - 105
-                        - 111
-                        - 32
-                        - 109
-                        - 105
-                        - 110
-                        - 117
-                        - 115
+                        - 116
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Eum aut voluptates libero ut.
+                    example: Voluptatum vel qui eum quod.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -6651,14 +6607,21 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Repellendus ea doloremque.
-                description: 8v3
+                content_type: Veritatis deserunt.
+                description: fyf
                 file:
-                    - 79
-                    - 112
-                    - 116
-                    - 105
+                    - 68
                     - 111
+                    - 108
+                    - 111
+                    - 114
+                    - 101
+                    - 109
+                    - 32
+                    - 113
+                    - 117
+                    - 105
+                    - 97
                     - 32
                     - 100
                     - 117
@@ -6667,31 +6630,8 @@ components:
                     - 109
                     - 117
                     - 115
-                    - 32
-                    - 109
-                    - 105
-                    - 110
-                    - 117
-                    - 115
-                    - 32
-                    - 99
-                    - 117
-                    - 109
-                    - 32
-                    - 99
-                    - 111
-                    - 114
-                    - 114
-                    - 117
-                    - 112
-                    - 116
-                    - 105
-                    - 32
-                    - 101
-                    - 117
-                    - 109
                     - 46
-                file_name: Eligendi illum.
+                file_name: Qui et sint voluptates expedita quod dolor.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

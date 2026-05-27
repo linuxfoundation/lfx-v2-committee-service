@@ -103,16 +103,16 @@ func (b *GroupWeeklyBrief) Validate() error {
 	if !b.WindowEnd.After(b.WindowStart) {
 		return fmt.Errorf("window_end must be after window_start")
 	}
+	if b.RegenerationCount < 0 {
+		return fmt.Errorf("regeneration_count must be non-negative")
+	}
 	return b.State.Validate()
 }
 
 // GroupWeeklyBriefThrottle records per-committee/per-week throttle state.
-// Both GeneratesUsed and RegenerationsUsed are tracked separately so the
-// generate (fresh) and regenerate (force or follow-up) paths can have distinct
-// limits enforced against the same window key.
-//
-// Count and LastAttemptAt are Phase-1 legacy fields preserved on the JSON wire
-// so existing readers continue to function during the Phase 1 → Phase 2 cut-over.
+// GeneratesUsed and RegenerationsUsed are tracked separately so the generate
+// (fresh) and regenerate (force or follow-up) paths can have distinct limits
+// enforced against the same window key.
 type GroupWeeklyBriefThrottle struct {
 	CommitteeUID string    `json:"committee_uid"`
 	WindowStart  time.Time `json:"window_start"`
@@ -121,13 +121,8 @@ type GroupWeeklyBriefThrottle struct {
 	GeneratesUsed int `json:"generates_used"`
 	// RegenerationsUsed is the number of regenerations consumed in this window.
 	RegenerationsUsed int `json:"regenerations_used"`
-	// WindowResetsAt is the timestamp at which the window resets (next UTC Sunday 00:00:00).
+	// WindowResetsAt is the timestamp at which the window resets.
 	WindowResetsAt time.Time `json:"window_resets_at"`
-	// LastAttemptAt is the timestamp of the most recent attempt (advisory).
-	LastAttemptAt time.Time `json:"last_attempt_at,omitempty"`
-	// Count is the deprecated Phase 1 total (generates_used + regenerations_used).
-	// Kept for backward compatibility; new code should not rely on this field.
-	Count int `json:"count"`
 	// Revision is the NATS KV revision used for compare-and-swap updates.
 	// It is not persisted as JSON.
 	Revision uint64 `json:"-"`
@@ -158,34 +153,31 @@ func NextWindowReset(now time.Time) time.Time {
 	return today.AddDate(0, 0, daysToNextSun)
 }
 
-// WeeklyWindow returns the most recently completed UTC Sun 00:00:00 →
-// Sat 23:59:59.999999999 window (inclusive end, nanosecond precision) for the
-// given reference time. If now is a Sunday a new week has just started, so the
-// returned window is the prior Sun→Sat that just ended.
+// WeeklyWindow returns a UTC Sun 00:00:00 → Sat 23:59:59.999999999 window
+// (inclusive end, nanosecond precision) for the given reference time, anchored
+// on the most recent Saturday on or before today.
 //
-// Rule: find the last Saturday on/before today (if today is Sunday, the last
-// Saturday is yesterday); the window starts six days before that Saturday.
-// The end is computed as start + 7 days - 1ns, giving an inclusive Saturday
-// 23:59:59.999999999 so range filters work without an off-by-one at the
-// second-precision boundary.
+// For Sunday through Friday this is the previous, already-completed Sun→Sat
+// week. If today *is* Saturday, the anchor is today, so the returned window is
+// the current week — which is not yet complete: window_end is later today, in
+// the future relative to now. Callers that require a fully-completed window
+// must account for the Saturday case.
+//
+// Rule: find the last Saturday on/before today; the window starts six days
+// before that Saturday. The end is computed as start + 7 days - 1ns, giving an
+// inclusive Saturday 23:59:59.999999999 so range filters work without an
+// off-by-one at the second-precision boundary.
 func WeeklyWindow(now time.Time) (start, end time.Time) {
 	nUTC := now.UTC()
 	today := time.Date(nUTC.Year(), nUTC.Month(), nUTC.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Days back from today to the most recent Saturday.
-	// Mon→2, Tue→3, …, Sat→0, Sun→1.
+	// Days back from today to the most recent Saturday (Sat→0, Sun→1, …, Fri→6).
+	// time.Weekday is Sunday=0, Monday=1, …, Saturday=6.
 	wd := int(today.Weekday())
-	var daysToSat int
-	if wd == int(time.Saturday) {
-		daysToSat = 0
-	} else {
-		// time.Weekday: Sunday=0, Monday=1, …, Saturday=6.
-		// Distance back to Saturday is (wd + 1) mod 7.
-		daysToSat = (wd + 1) % 7
-	}
+	daysToSat := (wd - int(time.Saturday) + 7) % 7
 	sat := today.AddDate(0, 0, -daysToSat)
-	start = sat.AddDate(0, 0, -6)                                      // Sunday 00:00:00 UTC
-	end = start.AddDate(0, 0, 6).Add(24*time.Hour - 1*time.Nanosecond) // Saturday 23:59:59.999999999 UTC
+	start = sat.AddDate(0, 0, -6)                      // Sunday 00:00:00 UTC
+	end = start.AddDate(0, 0, 7).Add(-time.Nanosecond) // Saturday 23:59:59.999999999 UTC
 	return start, end
 }
 
