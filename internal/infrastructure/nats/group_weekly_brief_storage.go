@@ -84,6 +84,21 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 	if err := json.Unmarshal(briefEntry.Value(), brief); err != nil {
 		return nil, nil, errs.NewUnexpected("failed to unmarshal weekly brief", err)
 	}
+
+	// Defence in depth: confirm the index-resolved brief still belongs to the
+	// requested committee and window. If the UID index has drifted, treat it as
+	// a miss rather than leaking another committee's brief.
+	if brief.CommitteeUID != committeeUID ||
+		model.WindowDateKey(brief.WindowStart) != model.WindowDateKey(windowStart.WindowStart) {
+		slog.WarnContext(ctx, "weekly-brief index resolved to mismatched brief",
+			"committee_uid", committeeUID,
+			"index_key", indexKey,
+			"brief_uid", briefUID,
+			"brief_committee_uid", brief.CommitteeUID,
+			"brief_window_key", model.WindowDateKey(brief.WindowStart),
+		)
+		return nil, nil, nil
+	}
 	brief.Revision = briefEntry.Revision()
 
 	// Best-effort throttle lookup. Misses and errors don't fail the read —
