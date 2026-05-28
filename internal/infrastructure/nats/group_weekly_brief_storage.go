@@ -189,15 +189,21 @@ func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWee
 
 	// Refresh the secondary index. A previous brief may have lived under a
 	// different UID — Put overwrites unconditionally, which is what we want.
+	// If this fails after the brief was persisted, GET /current can't locate
+	// the brief (lookup goes through the index) and the async Fulfill phase
+	// would ACK without anyone being able to read the result — the brief
+	// would stay "generating" indefinitely. Surface a retryable error so the
+	// caller re-runs and the index Put is re-attempted; the brief Put is
+	// CAS-protected (Revision > 0 on retry) so the retry is safe.
 	indexKey := buildBriefIndexKey(brief.CommitteeUID, model.WindowDateKey(brief.WindowStart))
 	if _, errIdx := idxBucket.Put(ctx, indexKey, []byte(brief.UID)); errIdx != nil {
-		slog.WarnContext(ctx, "failed to update weekly-brief uid index",
+		slog.ErrorContext(ctx, "failed to update weekly-brief uid index; brief is persisted but unreachable via GET /current until index converges",
 			"committee_uid", brief.CommitteeUID,
 			"index_key", indexKey,
+			"brief_uid", brief.UID,
 			"error", errIdx,
 		)
-		// The brief is persisted; index drift is recoverable on next write.
-		return brief, nil
+		return nil, errs.NewServiceUnavailable("failed to update weekly-brief uid index", errIdx)
 	}
 	return brief, nil
 }

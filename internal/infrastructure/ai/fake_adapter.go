@@ -5,8 +5,9 @@
 // AI_SOURCE. The fake adapter is deterministic (same input -> same output,
 // no network, no credentials) and is selected by AI_SOURCE=fake — intended
 // for local dev, CI, and the prompt-eval harness. AI_SOURCE defaults to
-// "live" when unset, so dev environments must set AI_SOURCE=fake explicitly
-// to avoid accidental live network calls (see cmd/committee-api/service/providers.go).
+// "fake" when unset so a fresh install boots without LiteLLM credentials;
+// operators must explicitly set AI_SOURCE=live to enable the live adapter
+// (see cmd/committee-api/service/providers.go).
 package ai
 
 import (
