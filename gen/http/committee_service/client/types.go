@@ -295,6 +295,13 @@ type UploadCommitteeDocumentRequestBody struct {
 	File []byte `form:"file" json:"file" xml:"file"`
 }
 
+// GenerateWeeklyBriefRequestBody is the type of the "committee-service"
+// service "generate-weekly-brief" endpoint HTTP request body.
+type GenerateWeeklyBriefRequestBody struct {
+	// Force regeneration even if an edited brief exists
+	Force bool `form:"force" json:"force" xml:"force"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -3021,6 +3028,22 @@ func NewUploadCommitteeDocumentRequestBody(p *committeeservice.UploadCommitteeDo
 		FileName:    p.FileName,
 		ContentType: p.ContentType,
 		File:        p.File,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefRequestBody builds the HTTP request body from the
+// payload of the "generate-weekly-brief" endpoint of the "committee-service"
+// service.
+func NewGenerateWeeklyBriefRequestBody(p *committeeservice.GenerateWeeklyBriefPayload) *GenerateWeeklyBriefRequestBody {
+	body := &GenerateWeeklyBriefRequestBody{
+		Force: p.Force,
+	}
+	{
+		var zero bool
+		if body.Force == zero {
+			body.Force = false
+		}
 	}
 	return body
 }

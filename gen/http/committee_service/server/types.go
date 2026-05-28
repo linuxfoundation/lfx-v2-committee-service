@@ -295,6 +295,13 @@ type UploadCommitteeDocumentRequestBody struct {
 	File []byte `form:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
 }
 
+// GenerateWeeklyBriefRequestBody is the type of the "committee-service"
+// service "generate-weekly-brief" endpoint HTTP request body.
+type GenerateWeeklyBriefRequestBody struct {
+	// Force regeneration even if an edited brief exists
+	Force *bool `form:"force,omitempty" json:"force,omitempty" xml:"force,omitempty"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -6046,10 +6053,7 @@ func NewGetCurrentWeeklyBriefPayload(uid string, version *string, bearerToken *s
 
 // NewGenerateWeeklyBriefPayload builds a committee-service service
 // generate-weekly-brief endpoint payload.
-func NewGenerateWeeklyBriefPayload(body struct {
-	// Force regeneration even if an edited brief exists
-	Force *bool `form:"force" json:"force" xml:"force"`
-}, uid string, version *string, bearerToken *string) *committeeservice.GenerateWeeklyBriefPayload {
+func NewGenerateWeeklyBriefPayload(body *GenerateWeeklyBriefRequestBody, uid string, version *string, bearerToken *string) *committeeservice.GenerateWeeklyBriefPayload {
 	v := &committeeservice.GenerateWeeklyBriefPayload{}
 	if body.Force != nil {
 		v.Force = *body.Force

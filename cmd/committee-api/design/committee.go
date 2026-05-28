@@ -1430,9 +1430,11 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
-			dsl.Body(func() {
-				dsl.Attribute("force")
-			})
+			// Let Goa derive the request body from the unmapped attribute
+			// ("force"). An explicit inline dsl.Body here makes Goa encode the
+			// whole payload (`body := p`), leaking the bearer token/uid/version
+			// into the JSON body; the implicit form generates a dedicated
+			// {force} request-body type instead.
 			dsl.Response(dsl.StatusAccepted)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Forbidden", dsl.StatusForbidden)

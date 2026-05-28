@@ -5741,7 +5741,7 @@ func EncodeGenerateWeeklyBriefRequest(encoder func(*http.Request) goahttp.Encode
 			values.Add("v", *p.Version)
 		}
 		req.URL.RawQuery = values.Encode()
-		body := p
+		body := NewGenerateWeeklyBriefRequestBody(p)
 		if err := encoder(req).Encode(&body); err != nil {
 			return goahttp.ErrEncodingError("committee-service", "generate-weekly-brief", err)
 		}
