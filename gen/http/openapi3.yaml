@@ -3677,15 +3677,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            type: object
-                            properties:
-                                force:
-                                    type: boolean
-                                    description: Force regeneration even if an edited brief exists
-                                    default: false
-                                    example: false
-                            example:
-                                force: false
+                            $ref: '#/components/schemas/GenerateWeeklyBriefRequestBody'
                         example:
                             force: false
             responses:
@@ -5957,6 +5949,16 @@ components:
                 message: You do not have permission to perform this action.
             required:
                 - message
+        GenerateWeeklyBriefRequestBody:
+            type: object
+            properties:
+                force:
+                    type: boolean
+                    description: Force regeneration even if an edited brief exists
+                    default: false
+                    example: false
+            example:
+                force: false
         GroupWeeklyBriefCurrentResult:
             type: object
             properties:

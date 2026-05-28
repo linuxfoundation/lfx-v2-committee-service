@@ -340,21 +340,33 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 
 	memberCount := len(members.Joined) + len(members.Updated)
 
-	// No-source → terminal "error" state (nothing to ground the brief on). This
-	// is NOT retryable: the brief is finalized and the message is ACKed (nil
-	// return), since re-delivering the same empty window would just fail again.
+	// No-source handling. A genuinely empty window (every source returned zero
+	// rows with no error) is terminal: the brief is finalized as "no_sources"
+	// and the message is ACKed (nil return), since re-delivering the same empty
+	// window would just fail again. But if the window is empty ONLY because one
+	// or more external sources failed to fetch, that's a transient upstream
+	// outage — it must NOT masquerade as "no activity", so we retry instead.
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
 		if errMeetings != nil || errMailing != nil || errVotes != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity and one or more external sources errored",
+			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
 			)
-		} else {
-			slog.InfoContext(ctx, "weekly-brief fulfill: no activity found in window — finalizing brief as error",
-				"committee_uid", in.CommitteeUID)
+			// Surface the underlying source error so the consumer retries rather
+			// than finalizing a terminal brief over a transient outage.
+			retryErr := errMeetings
+			if retryErr == nil {
+				retryErr = errMailing
+			}
+			if retryErr == nil {
+				retryErr = errVotes
+			}
+			return retryErr
 		}
+		slog.InfoContext(ctx, "weekly-brief fulfill: no activity found in window — finalizing brief as error",
+			"committee_uid", in.CommitteeUID)
 		return g.finalizeError(ctx, brief, "no_sources")
 	}
 
@@ -403,7 +415,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.BriefText = aiOut.BriefText
 	brief.PromptVersion = PromptVersion
 	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, mailing, votes)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
 	if _, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); errPut != nil {
 		return errPut // infrastructure / CAS error → retry
@@ -518,34 +530,50 @@ func claimLabel(kind, raw string) string {
 // maxLength (5000) so upstream text can't exceed the documented contract.
 const maxExcerptLen = 5000
 
-// truncateRunes returns s limited to at most maxRunes runes, appending an
-// ellipsis when truncated. It ranges the string and stops at the limit, so it
-// neither scans the whole input nor allocates a full []rune for it.
+// truncateRunes returns s limited to at most maxRunes runes. The appended
+// ellipsis counts toward that budget, so a truncated result is maxRunes-1 runes
+// of content plus the ellipsis — never more than maxRunes runes total. It
+// ranges the string and stops at the limit, so it neither scans the whole input
+// nor allocates a full []rune for it. maxRunes <= 0 yields an empty string.
 func truncateRunes(s string, maxRunes int) string {
-	n, cut := 0, len(s)
+	if maxRunes <= 0 {
+		return ""
+	}
+	n, cut := 0, 0
 	for i := range s {
+		if n == maxRunes-1 {
+			cut = i // byte offset after the first maxRunes-1 runes
+		}
 		if n == maxRunes {
-			cut = i
-			break
+			// There is at least one rune beyond the budget, so truncate and
+			// reserve the final rune for the ellipsis.
+			return s[:cut] + "…"
 		}
 		n++
-	}
-	if cut < len(s) {
-		return s[:cut] + "…"
 	}
 	return s
 }
 
 // derivePrivateSourcePresent flags the brief as containing private source
-// material whenever members contributed (members are inherently private) or
-// any contributing meeting was marked private. Mailing lists and votes are
-// stubs for now — they cannot mark the flag.
-func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity) bool {
+// material whenever members contributed (members are inherently private) or any
+// contributing meeting, mailing-list thread, or vote was marked private. Every
+// source kind carries a Private flag, so all of them are inspected.
+func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) bool {
 	if memberCount > 0 {
 		return true
 	}
 	for _, m := range meetings {
 		if m.Private {
+			return true
+		}
+	}
+	for _, ml := range mailing {
+		if ml.Private {
+			return true
+		}
+	}
+	for _, v := range votes {
+		if v.Private {
 			return true
 		}
 	}

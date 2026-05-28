@@ -2449,17 +2449,11 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
-                - name: object
+                - name: Generate-Weekly-BriefRequestBody
                   in: body
                   required: true
                   schema:
-                    type: object
-                    properties:
-                        force:
-                            type: boolean
-                            description: Force regeneration even if an edited brief exists
-                            default: false
-                            example: false
+                    $ref: '#/definitions/CommitteeServiceGenerateWeeklyBriefRequestBody'
             responses:
                 "202":
                     description: Accepted response.
@@ -3833,6 +3827,17 @@ definitions:
             role: None
         required:
             - invitee_email
+    CommitteeServiceGenerateWeeklyBriefRequestBody:
+        title: CommitteeServiceGenerateWeeklyBriefRequestBody
+        type: object
+        properties:
+            force:
+                type: boolean
+                description: Force regeneration even if an edited brief exists
+                default: false
+                example: false
+        example:
+            force: false
     CommitteeServiceGetCommitteeBaseResponseBody:
         title: CommitteeServiceGetCommitteeBaseResponseBody
         $ref: '#/definitions/CommitteeBaseWithReadonlyAttributes'

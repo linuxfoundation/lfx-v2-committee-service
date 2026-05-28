@@ -4916,11 +4916,8 @@ func EncodeGenerateWeeklyBriefResponse(encoder func(context.Context, http.Respon
 func DecodeGenerateWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GenerateWeeklyBriefPayload, error) {
 	return func(r *http.Request) (*committeeservice.GenerateWeeklyBriefPayload, error) {
 		var (
-			body struct {
-				// Force regeneration even if an edited brief exists
-				Force *bool `form:"force" json:"force" xml:"force"`
-			}
-			err error
+			body GenerateWeeklyBriefRequestBody
+			err  error
 		)
 		err = decoder(r).Decode(&body)
 		if err != nil {
@@ -4959,7 +4956,7 @@ func DecodeGenerateWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*http.Requ
 		if err != nil {
 			return nil, err
 		}
-		payload := NewGenerateWeeklyBriefPayload(body, uid, version, bearerToken)
+		payload := NewGenerateWeeklyBriefPayload(&body, uid, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

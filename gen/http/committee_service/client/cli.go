@@ -2430,10 +2430,7 @@ func BuildGetCurrentWeeklyBriefPayload(committeeServiceGetCurrentWeeklyBriefUID 
 // generate-weekly-brief endpoint from CLI flags.
 func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody string, committeeServiceGenerateWeeklyBriefUID string, committeeServiceGenerateWeeklyBriefVersion string, committeeServiceGenerateWeeklyBriefBearerToken string) (*committeeservice.GenerateWeeklyBriefPayload, error) {
 	var err error
-	var body struct {
-		// Force regeneration even if an edited brief exists
-		Force bool `form:"force" json:"force" xml:"force"`
-	}
+	var body GenerateWeeklyBriefRequestBody
 	{
 		err = json.Unmarshal([]byte(committeeServiceGenerateWeeklyBriefBody), &body)
 		if err != nil {
