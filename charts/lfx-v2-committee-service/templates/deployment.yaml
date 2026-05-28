@@ -35,7 +35,14 @@ spec:
           env:
           {{- range $name, $config := .Values.app.environment }}
             - name: {{ $name }}
-              {{- if $config.value }}
+              {{- /*
+                  hasKey (not truthiness) so a deliberate `value: ""` renders as
+                  an explicit empty string rather than collapsing to a bare
+                  `- name: FOO`. Either form is accepted by Kubernetes (both
+                  result in FOO=""), but explicit is clearer in the rendered
+                  manifest and unambiguous to readers/linters.
+              */}}
+              {{- if hasKey $config "value" }}
               value: {{ $config.value | quote }}
               {{- else if $config.valueFrom }}
               valueFrom:

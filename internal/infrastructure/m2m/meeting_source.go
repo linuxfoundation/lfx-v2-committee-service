@@ -137,7 +137,11 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 		}
 		var start time.Time
 		if data.StartTime != "" {
-			if t, err := time.Parse(time.RFC3339, data.StartTime); err == nil {
+			// RFC3339Nano accepts both fractional and non-fractional input — the
+			// query-service window filters are sent as RFC3339Nano so responses
+			// can carry fractional seconds; plain RFC3339 would refuse those and
+			// silently leave StartTime zero, dropping useful ordering info.
+			if t, err := time.Parse(time.RFC3339Nano, data.StartTime); err == nil {
 				start = t
 			}
 		}
