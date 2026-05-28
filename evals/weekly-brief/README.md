@@ -60,10 +60,13 @@ go test -v ./evals/weekly-brief/...
 
 ## Run with a live LLM (manual, pre-release)
 
-The live test is built only under `-tags=live` and skips automatically if any
-of the LiteLLM environment variables are missing. The `-tags` flag is a build
-flag — it must appear **before** the package pattern, otherwise `go test`
-passes it to the test binary and fails with "flag provided but not defined".
+The live test is built only under `-tags=live`. Because passing the tag is an
+explicit opt-in, the `LITELLM_BASE_URL`, `LITELLM_API_KEY` and `LITELLM_MODEL`
+env vars are **required** — running with the tag but no credentials fails
+loudly rather than silently skipping (so a green run can't appear without
+anything actually executing). The `-tags` flag is a build flag — it must
+appear **before** the package pattern, otherwise `go test` passes it to the
+test binary and fails with "flag provided but not defined".
 
 ```sh
 LITELLM_BASE_URL=https://litellm.example.com \
