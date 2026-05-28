@@ -465,8 +465,10 @@ app:
     # INVITES_ENABLED gates outbound invite requests for non-LFID users.
     INVITES_ENABLED:
       value: "false"
-    # AI_SOURCE selects the AI adapter: "fake" (local dev/CI) or "live"
-    # (default when unset).
+    # AI_SOURCE selects the AI adapter: "fake" (default when unset; safe for
+    # local dev / CI / fresh installs without LiteLLM credentials) or "live"
+    # (requires LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL — startup
+    # fails fast if any are missing in "live" mode).
     AI_SOURCE:
       value: ""
     # LITELLM_BASE_URL — required when AI_SOURCE=live.

@@ -268,17 +268,18 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 
 // AIAdapterImpl initializes the AI adapter used for weekly-brief generation.
 // Selection is driven by AI_SOURCE:
-//   - "fake"            -> deterministic in-process adapter (local dev, CI, tests)
-//   - "live" (default)  -> LiteLLM HTTP adapter, configured via
+//   - "fake" (default)  -> deterministic in-process adapter (local dev, CI, tests)
+//   - "live"            -> LiteLLM HTTP adapter, configured via
 //     LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL
 //
-// When AI_SOURCE is unset, "live" is selected. If "live" is selected but the
-// required LiteLLM env vars are missing, we fail fast with a helpful message
-// rather than silently degrading.
+// When AI_SOURCE is unset, "fake" is selected so a fresh install boots
+// without LiteLLM credentials provisioned. Operators must explicitly set
+// AI_SOURCE=live to enable the live adapter; in that mode, missing required
+// LiteLLM env vars are a fail-fast at startup rather than a silent degrade.
 func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 	aiSource := os.Getenv("AI_SOURCE")
 	if aiSource == "" {
-		aiSource = "live"
+		aiSource = "fake"
 	}
 
 	switch aiSource {
