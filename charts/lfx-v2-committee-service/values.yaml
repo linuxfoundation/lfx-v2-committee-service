@@ -479,7 +479,7 @@ app:
       valueFrom:
         secretKeyRef:
           name: committee-secrets
-          key: litellm_api_key # gitleaks:allow — K8s Secret key name (the credential value lives in the Secret, not here)
+          key: litellm_api_key
     # LITELLM_MODEL — e.g. "anthropic/claude-sonnet-4".
     LITELLM_MODEL:
       value: ""
@@ -495,7 +495,7 @@ app:
       valueFrom:
         secretKeyRef:
           name: committee-secrets
-          key: m2m_private_key # gitleaks:allow — K8s Secret key name (the PEM lives in the Secret, not here)
+          key: m2m_private_key
     # M2M_AUTH_DOMAIN — Auth0 domain (e.g. "linuxfoundation-dev.auth0.com").
     # NOT a full URL — just the host. The SDK constructs the token endpoint.
     M2M_AUTH_DOMAIN:

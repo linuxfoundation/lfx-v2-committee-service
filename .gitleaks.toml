@@ -13,4 +13,12 @@ useDefault = true
         # Exclude test files as they often contain dummy/fake data
         '''.*_test\.go$''',
         '''(go.mod|go.sum)$'''
-    ] 
+    ]
+    # K8s Secret key NAMES used by `valueFrom.secretKeyRef.key` in chart
+    # values.yaml. They label which key in the Kubernetes Secret to read; the
+    # credential value itself lives in the Secret, not in the chart. The
+    # `key:` + snake_case-with-_key shape would otherwise trip the default
+    # `generic-api-key` rule across git history.
+    regexes = [
+        '''^(litellm_api_key|m2m_client_secret|m2m_private_key)$''',
+    ]
