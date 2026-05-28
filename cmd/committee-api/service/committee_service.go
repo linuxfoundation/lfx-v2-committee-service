@@ -1170,19 +1170,24 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	return nil
 }
 
-// enrichMember resolves the LFID (username) and profile metadata for a member when only their
-// email is known (Username is empty). All lookups are best-effort: failures log a warning and
-// leave the field unchanged so the caller's write is never blocked by an enrichment error.
+// enrichMember resolves the subject identifier (username) and profile metadata for a member from
+// their email address. When email is present the auth-service lookup always runs, overriding any
+// caller-supplied plain LFID so only subject identifiers are persisted.
+// All lookups are best-effort: failures log a warning and leave the field unchanged so the
+// caller's write is never blocked by an enrichment error.
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
-	if s.userReader == nil || strings.TrimSpace(member.Username) != "" {
+	if s.userReader == nil {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))
 	if email == "" {
 		return
 	}
+
+	// Clear any caller-supplied value so a failed lookup never leaves a plain LFID at rest.
+	member.Username = ""
 
 	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
 	// failing the request. Individual member writes (create/update/approve) should not be blocked
@@ -1295,13 +1300,15 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.GroupWeeklyBriefWithReadonlyAttributes {
 	uid := b.UID
 	committeeUID := b.CommitteeUID
-	windowStart := b.WindowStart.UTC().Format(time.RFC3339)
-	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339)
+	// RFC3339Nano so window_end exposes the model's inclusive nanosecond end
+	// (…23:59:59.999999999Z); plain RFC3339 would truncate it to seconds and
+	// misrepresent the documented window. window_start has no sub-second part,
+	// so Nano renders it without a fractional component.
+	windowStart := b.WindowStart.UTC().Format(time.RFC3339Nano)
+	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339Nano)
 	state := string(b.State)
 	regenCount := b.RegenerationCount
 	privPresent := b.PrivateSourcePresent
-	createdAt := b.CreatedAt.UTC().Format(time.RFC3339)
-	updatedAt := b.UpdatedAt.UTC().Format(time.RFC3339)
 
 	out := &committeeservice.GroupWeeklyBriefWithReadonlyAttributes{
 		UID:                  &uid,
@@ -1311,8 +1318,17 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		State:                &state,
 		RegenerationCount:    &regenCount,
 		PrivateSourcePresent: &privPresent,
-		CreatedAt:            &createdAt,
-		UpdatedAt:            &updatedAt,
+	}
+	// Only emit CreatedAt/UpdatedAt when set — Validate() doesn't require them,
+	// so formatting a zero time would surface "0001-01-01T00:00:00Z" in the
+	// response. Mirrors how LastAttemptAt is handled below.
+	if !b.CreatedAt.IsZero() {
+		v := b.CreatedAt.UTC().Format(time.RFC3339)
+		out.CreatedAt = &v
+	}
+	if !b.UpdatedAt.IsZero() {
+		v := b.UpdatedAt.UTC().Format(time.RFC3339)
+		out.UpdatedAt = &v
 	}
 	if b.BriefText != "" {
 		v := b.BriefText

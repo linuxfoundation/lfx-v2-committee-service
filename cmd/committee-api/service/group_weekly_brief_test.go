@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -17,14 +18,16 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-// stubGroupWeeklyBriefReader returns canned hits/misses.
+// stubGroupWeeklyBriefReader returns canned hits/misses (and an optional error
+// to exercise the infrastructure-failure path).
 type stubGroupWeeklyBriefReader struct {
 	brief    *model.GroupWeeklyBrief
 	throttle []byte
+	err      error
 }
 
 func (s *stubGroupWeeklyBriefReader) GetCurrent(_ context.Context, _ string, _ time.Time) (*model.GroupWeeklyBrief, []byte, error) {
-	return s.brief, s.throttle, nil
+	return s.brief, s.throttle, s.err
 }
 
 // stubCommitteeReader implements internalsvc.CommitteeReader for the GetBase
@@ -109,6 +112,97 @@ func TestGetCurrentWeeklyBrief_Hit(t *testing.T) {
 	assert.Equal(t, "b-1", *res.Brief.UID)
 	assert.Equal(t, "generated", *res.Brief.State)
 	assert.Equal(t, "hello", *res.Brief.BriefText)
+	// The window/committee fields the stub sets must round-trip into the response.
+	assert.Equal(t, "c-1", *res.Brief.CommitteeUID)
+	assert.Equal(t, start.UTC().Format(time.RFC3339Nano), *res.Brief.WindowStart)
+	assert.Equal(t, end.UTC().Format(time.RFC3339Nano), *res.Brief.WindowEnd)
+}
+
+func TestGetCurrentWeeklyBrief_HitWithThrottleAndSourceRefs(t *testing.T) {
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	brief := &model.GroupWeeklyBrief{
+		UID:          "b-1",
+		CommitteeUID: "c-1",
+		WindowStart:  start,
+		WindowEnd:    end,
+		State:        model.GroupWeeklyBriefStateGenerated,
+		BriefText:    "hello",
+		SourceRefs: []model.SourceRef{
+			{Kind: "meeting", ID: "m-1", Title: "Sync", Excerpt: "notes"},
+		},
+	}
+	throttleBytes, _ := json.Marshal(model.GroupWeeklyBriefThrottle{
+		CommitteeUID: "c-1", WindowStart: start, GeneratesUsed: 2, RegenerationsUsed: 1,
+	})
+	svc := newBriefSvc(&stubGroupWeeklyBriefReader{brief: brief, throttle: throttleBytes}, &model.CommitteeBase{})
+
+	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	require.NotNil(t, res.Brief)
+	// source_refs map through to the response.
+	require.Len(t, res.Brief.SourceRefs, 1)
+	assert.Equal(t, "meeting", *res.Brief.SourceRefs[0].Kind)
+	assert.Equal(t, "m-1", *res.Brief.SourceRefs[0].ID)
+	assert.Equal(t, "notes", *res.Brief.SourceRefs[0].Excerpt)
+	// throttle decodes and maps.
+	require.NotNil(t, res.Throttle)
+	assert.Equal(t, 2, *res.Throttle.GeneratesUsed)
+	assert.Equal(t, 1, *res.Throttle.RegenerationsUsed)
+}
+
+func TestGetCurrentWeeklyBrief_MalformedThrottleIgnored(t *testing.T) {
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	brief := &model.GroupWeeklyBrief{
+		UID: "b-1", CommitteeUID: "c-1", WindowStart: start, WindowEnd: end,
+		State: model.GroupWeeklyBriefStateGenerated,
+	}
+	// Malformed throttle bytes must not fail the read — the brief is still
+	// returned and the throttle is simply dropped.
+	svc := newBriefSvc(&stubGroupWeeklyBriefReader{brief: brief, throttle: []byte("{not-json")}, &model.CommitteeBase{})
+
+	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	require.NotNil(t, res.Brief)
+	assert.Nil(t, res.Throttle)
+}
+
+func TestGetCurrentWeeklyBrief_ReaderError(t *testing.T) {
+	// An infrastructure failure from the reader (e.g. NATS down) surfaces as 5xx.
+	svc := newBriefSvc(&stubGroupWeeklyBriefReader{err: errors.NewUnexpected("nats unavailable", nil)}, &model.CommitteeBase{})
+
+	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var ise *committeeservice.InternalServerError
+	require.ErrorAs(t, err, &ise)
+}
+
+func TestGetCurrentWeeklyBrief_GetBaseServiceUnavailable(t *testing.T) {
+	// A non-NotFound error from the committee existence check propagates.
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{err: errors.NewServiceUnavailable("nats unavailable")},
+		weeklyBriefReader:           &stubGroupWeeklyBriefReader{},
+	}
+	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
+func TestGetCurrentWeeklyBrief_ReaderNotConfigured(t *testing.T) {
+	// A nil reader is a misconfiguration → 503.
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{base: &model.CommitteeBase{}, rev: 1},
+		weeklyBriefReader:           nil,
+	}
+	res, err := svc.GetCurrentWeeklyBrief(context.Background(), &committeeservice.GetCurrentWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
 }
 
 func TestGetCurrentWeeklyBrief_CommitteeNotFound(t *testing.T) {

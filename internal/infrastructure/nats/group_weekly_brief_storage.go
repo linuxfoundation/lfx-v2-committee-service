@@ -20,8 +20,11 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// sanitizeKVKey returns key with every JetStream-KV-forbidden character replaced by '.'.
-// JetStream KV forbids '/', ':', ' ' — these would cause Get/Put to fail at runtime.
+// sanitizeKVKey replaces ':' and ' ' with '.'. JetStream KV keys may only
+// contain the characters in [-/_=.a-zA-Z0-9], so ':' and ' ' would cause
+// Get/Put to fail at runtime. '/' is actually permitted (and used by other
+// buckets, e.g. KVLookupPrefix), but it is flattened here too so brief index
+// keys stay single-token dot-delimited regardless of future UID shape changes.
 func sanitizeKVKey(key string) string {
 	r := strings.NewReplacer("/", ".", ":", ".", " ", ".")
 	return r.Replace(key)
@@ -85,7 +88,7 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 		return nil, nil, errs.NewUnexpected("failed to unmarshal weekly brief", err)
 	}
 
-	// Defence in depth: confirm the index-resolved brief still belongs to the
+	// Defense in depth: confirm the index-resolved brief still belongs to the
 	// requested committee and window. If the UID index has drifted, treat it as
 	// a miss rather than leaking another committee's brief.
 	if brief.CommitteeUID != committeeUID ||

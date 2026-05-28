@@ -458,6 +458,13 @@ app:
   # audience is the intended audience for the JWT token
   audience: lfx-v2-committee-service
 
+  # emailsEnabled gates outbound role-notification emails to LFID users via the email service.
+  # Disabled by default; set to true in environments where email sending should be active.
+  emailsEnabled: false
+  # invitesEnabled gates outbound invite requests for non-LFID users via the invite service.
+  # Disabled by default; set to true in environments where invite sending should be active.
+  invitesEnabled: false
+
   # extraEnv allows injecting additional environment variables into the container.
   # Supports both simple key-value pairs and Kubernetes field references.
   # These are rendered BEFORE OTEL variables, allowing use in OTEL configuration.

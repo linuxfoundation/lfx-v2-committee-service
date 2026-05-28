@@ -9,6 +9,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -591,19 +592,14 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 
 	// LFID present — send a direct notification email.
 	if m.emailSender == nil {
-		slog.WarnContext(ctx, "email sender not configured — skipping member notification")
+		slog.DebugContext(ctx, "email sender not configured — skipping member notification")
 		return nil, nil
-	}
-
-	roleDisplay := member.Role.Name
-	if roleDisplay == "" {
-		roleDisplay = "Member"
 	}
 
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
 		CommitteeName: member.CommitteeName,
-		Role:          roleDisplay,
+		Role:          "Member",
 		CommitteeURL:  committeeURL,
 		InviterName:   "A committee administrator",
 	})
@@ -636,7 +632,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 // caller can persist it; errors are propagated to the caller to handle best-effort.
 func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
 	if m.inviteSender == nil {
-		slog.WarnContext(ctx, "invite sender not configured — skipping member invite",
+		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
 		return port.InviteResult{}, nil
 	}
@@ -650,7 +646,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		ResourceUID:    member.CommitteeUID,
 		ResourceName:   member.CommitteeName,
 		ResourceType:   "group",
-		Role:           mapRoleToInviteRole(member.Role.Name),
+		Role:           "Member",
 		ReturnURL:      deepLinkURL,
 	})
 	if err != nil {
@@ -687,29 +683,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		return nil, nil
 	}
 
-	// Build a deduplicated list of (user, role) pairs. Writers take precedence
-	// if a user appears in both lists — they get a single notification with the higher role.
-	type notification struct {
-		user model.CommitteeUser
-		role string
-	}
-	seen := make(map[string]bool)
-	var notifs []notification
-	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetWriters(), data.Settings.GetWriters()) {
-		if key := committeeUserKey(u); !seen[key] {
-			seen[key] = true
-			notifs = append(notifs, notification{user: u, role: "Writer"})
-		}
-	}
-	for _, u := range diffNewCommitteeUsers(data.OldSettings.GetAuditors(), data.Settings.GetAuditors()) {
-		if key := committeeUserKey(u); !seen[key] {
-			seen[key] = true
-			notifs = append(notifs, notification{user: u, role: "Auditor"})
-		}
-	}
-
-	if len(notifs) == 0 {
-		slog.DebugContext(ctx, "no new writers/auditors — skipping settings notification",
+	// Classify every user that appears in old or new settings into one of:
+	// added (newly appeared), updated (role-set changed), removed (fully gone).
+	changes := classifyCommitteeUsers(data.OldSettings, data.Settings)
+	if len(changes) == 0 {
+		slog.DebugContext(ctx, "no writer/auditor changes — skipping settings notification",
 			"committee_uid", data.CommitteeUID)
 		return nil, nil
 	}
@@ -728,9 +706,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	inviteResultsMutex := &sync.Mutex{}
 	inviteResults := make(map[string]*model.InviteInfo)
 
-	for _, n := range notifs {
+	for _, c := range changes {
 		g.Go(func() error {
-			u, role := n.user, n.role
+			u, kind, oldRoles, newRoles := c.user, c.kind, c.oldRoles, c.newRoles
 
 			// For LFID users, look up their email if not already provided.
 			if u.Email == "" && m.userReader != nil && u.Username != "" {
@@ -741,6 +719,14 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					u.Email = emails.PrimaryEmail
 				}
 			}
+
+			// Removed non-LF users get no notification.
+			if kind == roleChangeKindRemoved && u.Username == "" {
+				slog.DebugContext(gctx, "skipping removal notification — non-LF user",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+
 			if u.Email == "" {
 				slog.WarnContext(gctx, "skipping settings notification — user has no email address",
 					"committee_uid", data.CommitteeUID)
@@ -755,24 +741,31 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				recipientName = u.Email
 			}
 
-			// Skip notification if this user was previously an invited (email-only) entry in the
-			// old settings — they're being promoted from non-LFID to LFID via invite acceptance,
+			// Skip "added" notification if this user was previously an invited (email-only) entry in
+			// the old settings — they're being promoted from non-LFID to LFID via invite acceptance,
 			// not freshly added. They already received the invite email; a second email would be
 			// confusing and redundant.
-			if u.Email != "" && wasInvitedInOldSettings(u.Email, data.OldSettings) {
+			if kind == roleChangeKindAdded && u.Email != "" && wasInvitedInOldSettings(u.Email, data.OldSettings) {
 				slog.DebugContext(gctx, "skipping notification — user promoted from invite to LFID",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
 
 			if u.Username == "" {
-				// No LFID — route through the invite service.
+				// No LFID — added/updated paths go through the invite service; removed was handled above.
 				if m.inviteSender == nil {
-					slog.WarnContext(gctx, "invite sender not configured — skipping settings invite",
+					slog.DebugContext(gctx, "invite sender not configured — skipping settings invite",
 						"committee_uid", data.CommitteeUID)
 					return nil
 				}
-				inviteRole := mapRoleToInviteRole(role)
+				// Skip re-invite when effective access is unchanged (e.g. gaining Auditor on top of Writer).
+				if kind == roleChangeKindUpdated && effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping non-LF invite — effective role unchanged",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				// Use the highest new role for the invite (Writer > Auditor for access level).
+				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
 				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				result, inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
 					RecipientEmail: strings.TrimSpace(u.Email),
@@ -816,21 +809,53 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 
 			// LFID present — send a direct notification email.
 			if m.emailSender == nil {
-				slog.WarnContext(gctx, "email sender not configured — skipping settings notification",
+				slog.DebugContext(gctx, "email sender not configured — skipping settings notification",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
 
-			subject, html, text, renderErr := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
-				RecipientName: recipientName,
-				CommitteeName: data.CommitteeName,
-				Role:          role,
-				CommitteeURL:  committeeURL,
-				InviterName:   inviterName,
-			})
+			var emailSubject, emailHTML, emailText string
+			var renderErr error
+
+			switch kind {
+			case roleChangeKindAdded:
+				// Newly added — use the original "added you as a <role>" email.
+				// newRoles may contain multiple roles; display only the highest-privilege one.
+				roleDisplay := emailsvc.CommitteeRoleDisplayName(highestRole(newRoles))
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					Role:          roleDisplay,
+					CommitteeURL:  committeeURL,
+					InviterName:   inviterName,
+				})
+			case roleChangeKindUpdated:
+				// Skip email when effective display role is unchanged (e.g. Auditor gained on top of Writer).
+				if effectiveRoleUnchanged(oldRoles, newRoles) {
+					slog.DebugContext(gctx, "skipping role-updated email — effective role unchanged",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleUpdated(emailsvc.CommitteeRoleUpdatedData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					OldRoles:      oldRoles,
+					NewRoles:      newRoles,
+					CommitteeURL:  committeeURL,
+					InviterName:   inviterName,
+				})
+			case roleChangeKindRemoved:
+				emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
+					RecipientName: recipientName,
+					CommitteeName: data.CommitteeName,
+					OldRoles:      oldRoles,
+					InviterName:   inviterName,
+				})
+			}
+
 			if renderErr != nil {
 				slog.WarnContext(gctx, "failed to render settings notification email",
-					"error", renderErr, "committee_uid", data.CommitteeUID)
+					"error", renderErr, "committee_uid", data.CommitteeUID, "kind", kind)
 				return nil
 			}
 
@@ -838,15 +863,15 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			defer cancel()
 			if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
 				To:      u.Email,
-				Subject: subject,
-				HTML:    html,
-				Text:    text,
+				Subject: emailSubject,
+				HTML:    emailHTML,
+				Text:    emailText,
 			}); sendErr != nil {
 				slog.WarnContext(gctx, "failed to send settings notification email",
-					"error", sendErr, "committee_uid", data.CommitteeUID, "to", u.Email)
+					"error", sendErr, "committee_uid", data.CommitteeUID, "kind", kind)
 			} else {
 				slog.DebugContext(gctx, "sent settings notification email",
-					"committee_uid", data.CommitteeUID, "to", u.Email)
+					"committee_uid", data.CommitteeUID, "kind", kind)
 			}
 			return nil
 		})
@@ -1103,12 +1128,18 @@ func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
 	}
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	for _, u := range old.GetWriters() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
 	for _, u := range old.GetAuditors() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" &&
+			u.Invite != nil &&
+			u.Invite.UID != "" &&
+			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
@@ -1138,4 +1169,239 @@ func (m *messageHandlerOrchestrator) resolveDisplayName(ctx context.Context, pri
 		}
 	}
 	return "A committee administrator"
+}
+
+// HandleCommitteeMemberDeleted sends a removal notification email when an LF committee
+// member is deleted. Non-LF members (Username == "") receive nothing. Best-effort: send
+// errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_member.deleted event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_member.deleted event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var member model.CommitteeMember
+	if err := json.Unmarshal(raw, &member); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMember from committee_member.deleted event", "error", err)
+		return nil, nil
+	}
+
+	if member.Username == "" {
+		slog.DebugContext(ctx, "skipping member-deleted notification — non-LF user",
+			"committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
+	if member.Email == "" {
+		slog.WarnContext(ctx, "skipping member-deleted notification — no email address",
+			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
+		return nil, nil
+	}
+
+	if m.emailSender == nil {
+		slog.DebugContext(ctx, "email sender not configured — skipping member-deleted notification")
+		return nil, nil
+	}
+
+	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
+	if recipientName == "" {
+		recipientName = member.Username
+	}
+	if recipientName == "" {
+		recipientName = member.Email
+	}
+
+	var oldRoleNames []string
+	if member.Role.Name != "" {
+		oldRoleNames = []string{member.Role.Name}
+	}
+	subject, html, text, renderErr := emailsvc.RenderCommitteeRoleRemoved(emailsvc.CommitteeRoleRemovedData{
+		RecipientName: recipientName,
+		CommitteeName: member.CommitteeName,
+		OldRoles:      oldRoleNames,
+		InviterName:   "A committee administrator",
+	})
+	if renderErr != nil {
+		slog.WarnContext(ctx, "failed to render member-deleted notification email",
+			"error", renderErr, "committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+		To:      member.Email,
+		Subject: subject,
+		HTML:    html,
+		Text:    text,
+	}); sendErr != nil {
+		slog.WarnContext(ctx, "failed to send member-deleted notification email",
+			"error", sendErr, "committee_uid", member.CommitteeUID)
+	} else {
+		slog.DebugContext(ctx, "sent member-deleted notification email",
+			"committee_uid", member.CommitteeUID)
+	}
+
+	return nil, nil
+}
+
+// roleChangeKind describes what changed for a user between old and new settings.
+type roleChangeKind string
+
+const (
+	roleChangeKindAdded   roleChangeKind = "added"
+	roleChangeKindUpdated roleChangeKind = "updated"
+	roleChangeKindRemoved roleChangeKind = "removed"
+)
+
+// committeeUserRoleChange describes a single user whose role-set changed.
+type committeeUserRoleChange struct {
+	user     model.CommitteeUser
+	kind     roleChangeKind
+	oldRoles []string // sorted; empty when kind == added
+	newRoles []string // sorted; empty when kind == removed
+}
+
+// classifyCommitteeUsers compares old and new settings and returns one entry per user
+// whose role-set changed. Role-sets are compared as sorted slices so the caller can
+// render current roles in alphabetical order.
+func classifyCommitteeUsers(old, new *model.CommitteeSettings) []committeeUserRoleChange {
+	buildRoleSet := func(s *model.CommitteeSettings) map[string]map[string]model.CommitteeUser {
+		out := make(map[string]map[string]model.CommitteeUser)
+		if s == nil {
+			return out
+		}
+		for _, u := range s.GetWriters() {
+			if key := committeeUserKey(u); key != "" {
+				if out[key] == nil {
+					out[key] = make(map[string]model.CommitteeUser)
+				}
+				out[key]["Writer"] = u
+			}
+		}
+		for _, u := range s.GetAuditors() {
+			if key := committeeUserKey(u); key != "" {
+				if out[key] == nil {
+					out[key] = make(map[string]model.CommitteeUser)
+				}
+				out[key]["Auditor"] = u
+			}
+		}
+		return out
+	}
+
+	oldSet := buildRoleSet(old)
+	newSet := buildRoleSet(new)
+
+	// Collect all user keys that appear in either old or new.
+	allKeys := make(map[string]bool)
+	for k := range oldSet {
+		allKeys[k] = true
+	}
+	for k := range newSet {
+		allKeys[k] = true
+	}
+
+	sortedKeys := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	var changes []committeeUserRoleChange
+	for _, key := range sortedKeys {
+		oldRoles := oldSet[key]
+		newRoleMap := newSet[key]
+
+		hadRoles := len(oldRoles) > 0
+		hasRoles := len(newRoleMap) > 0
+
+		newRoleSlice := sortedRoles(newRoleMap)
+
+		switch {
+		case !hadRoles && hasRoles:
+			u := anyUser(newRoleMap)
+			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindAdded, newRoles: newRoleSlice})
+		case hadRoles && !hasRoles:
+			oldRoleSlice := sortedRoles(oldRoles)
+			u := anyUser(oldRoles)
+			changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindRemoved, oldRoles: oldRoleSlice})
+		case hadRoles && hasRoles:
+			oldRoleSlice := sortedRoles(oldRoles)
+			if !roleSlicesEqual(oldRoleSlice, newRoleSlice) {
+				u := anyUser(newRoleMap)
+				changes = append(changes, committeeUserRoleChange{user: u, kind: roleChangeKindUpdated, oldRoles: oldRoleSlice, newRoles: newRoleSlice})
+			}
+		}
+	}
+	return changes
+}
+
+// sortedRoles returns the role names from a map sorted alphabetically.
+func sortedRoles(m map[string]model.CommitteeUser) []string {
+	roles := make([]string, 0, len(m))
+	for r := range m {
+		roles = append(roles, r)
+	}
+	sort.Strings(roles)
+	return roles
+}
+
+// anyUser returns the CommitteeUser from the first entry of a role map.
+// Preference is given to the Writer entry so the caller gets the richer struct
+// when both Writer and Auditor are present.
+func anyUser(m map[string]model.CommitteeUser) model.CommitteeUser {
+	if u, ok := m["Writer"]; ok {
+		return u
+	}
+	for _, u := range m {
+		return u
+	}
+	return model.CommitteeUser{}
+}
+
+// roleSlicesEqual returns true when two sorted string slices are identical.
+func roleSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// effectiveRoleUnchanged returns true when the user-facing display roles derived from
+// oldRoles and newRoles are identical — for example, gaining Auditor while already holding
+// Writer produces no visible change (both collapse to ["Manage"]), so no email is needed.
+func effectiveRoleUnchanged(oldRoles, newRoles []string) bool {
+	oldDisplay := emailsvc.CommitteeRolesForDisplay(oldRoles)
+	newDisplay := emailsvc.CommitteeRolesForDisplay(newRoles)
+	sort.Strings(oldDisplay)
+	sort.Strings(newDisplay)
+	return roleSlicesEqual(oldDisplay, newDisplay)
+}
+
+// highestRole returns the single highest-privilege role from a slice.
+// "Writer" is considered higher than "Auditor" (maps to InviteRoleManage).
+// Returns the first element if no known role is found.
+func highestRole(roles []string) string {
+	for _, r := range roles {
+		if strings.EqualFold(r, "Writer") {
+			return r
+		}
+	}
+	if len(roles) > 0 {
+		return roles[0]
+	}
+	return ""
 }
