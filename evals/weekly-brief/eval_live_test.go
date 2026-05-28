@@ -30,14 +30,25 @@ import (
 )
 
 // TestWeeklyBriefEvalLive runs the same fixtures as the fake-AI eval, but
-// against a live LiteLLM endpoint. It skips when any required env var is
-// missing so it remains safe to run locally without credentials.
+// against a live LiteLLM endpoint. Passing -tags=live is an explicit opt-in,
+// so missing required env vars are a hard failure rather than a silent skip —
+// otherwise the run would appear green without anything actually executing.
 func TestWeeklyBriefEvalLive(t *testing.T) {
 	baseURL := os.Getenv("LITELLM_BASE_URL")
 	apiKey := os.Getenv("LITELLM_API_KEY")
 	modelName := os.Getenv("LITELLM_MODEL")
-	if baseURL == "" || apiKey == "" || modelName == "" {
-		t.Skip("LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL must be set for the live eval; skipping")
+	var missing []string
+	if baseURL == "" {
+		missing = append(missing, "LITELLM_BASE_URL")
+	}
+	if apiKey == "" {
+		missing = append(missing, "LITELLM_API_KEY")
+	}
+	if modelName == "" {
+		missing = append(missing, "LITELLM_MODEL")
+	}
+	if len(missing) > 0 {
+		t.Fatalf("live eval requires %v to be set — these must be provided when running with -tags=live", missing)
 	}
 
 	adapter := ai.NewLiteLLMAdapter(ai.LiteLLMConfig{
