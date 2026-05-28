@@ -1297,8 +1297,12 @@ func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *com
 func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.GroupWeeklyBriefWithReadonlyAttributes {
 	uid := b.UID
 	committeeUID := b.CommitteeUID
-	windowStart := b.WindowStart.UTC().Format(time.RFC3339)
-	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339)
+	// RFC3339Nano so window_end exposes the model's inclusive nanosecond end
+	// (…23:59:59.999999999Z); plain RFC3339 would truncate it to seconds and
+	// misrepresent the documented window. window_start has no sub-second part,
+	// so Nano renders it without a fractional component.
+	windowStart := b.WindowStart.UTC().Format(time.RFC3339Nano)
+	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339Nano)
 	state := string(b.State)
 	regenCount := b.RegenerationCount
 	privPresent := b.PrivateSourcePresent

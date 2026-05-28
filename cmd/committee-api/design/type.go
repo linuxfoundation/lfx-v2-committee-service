@@ -1046,7 +1046,9 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 })
 
 // GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
-// returned alongside the brief. Phase 2 populates this; Phase 1 always returns null.
+// returned alongside the brief. It is nullable: Phase 1 returns it best-effort
+// when a throttle entry already exists in KV, and null otherwise; Phase 2 owns
+// writing and updating it.
 var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
 	dsl.Description("Per-window regeneration throttle counters.")
 	dsl.Attribute("count", dsl.Int, "Regeneration attempts in this window", func() {
