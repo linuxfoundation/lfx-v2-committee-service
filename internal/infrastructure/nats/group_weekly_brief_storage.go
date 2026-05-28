@@ -155,11 +155,11 @@ func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWee
 
 	briefBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefs]
 	if !ok {
-		return nil, errs.NewServiceUnavailable("group-weekly-briefs bucket not initialised")
+		return nil, errs.NewServiceUnavailable("group-weekly-briefs bucket not initialized")
 	}
 	idxBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefUIDIndex]
 	if !ok {
-		return nil, errs.NewServiceUnavailable("group-weekly-brief-uid-index bucket not initialised")
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-uid-index bucket not initialized")
 	}
 
 	payload, err := json.Marshal(brief)
@@ -207,7 +207,7 @@ func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWee
 func (s *storage) GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID string, windowStart time.Time) (*model.GroupWeeklyBriefThrottle, error) {
 	thBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefThrottle]
 	if !ok {
-		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialised")
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialized")
 	}
 	key := buildBriefIndexKey(committeeUID, model.WindowDateKey(windowStart))
 	entry, err := thBucket.Get(ctx, key)
@@ -241,7 +241,7 @@ func (s *storage) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mod
 	}
 	thBucket, ok := s.client.kvStore[constants.KVBucketNameGroupWeeklyBriefThrottle]
 	if !ok {
-		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialised")
+		return nil, errs.NewServiceUnavailable("group-weekly-brief-throttle bucket not initialized")
 	}
 
 	payload, err := json.Marshal(throttle)
