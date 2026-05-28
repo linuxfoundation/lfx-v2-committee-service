@@ -486,15 +486,19 @@ app:
     # M2M_AUTH_CLIENT_ID — required for the live query-service sources.
     M2M_AUTH_CLIENT_ID:
       value: ""
-    # M2M_AUTH_CLIENT_SECRET — sourced from a Kubernetes Secret. Operators
-    # must provision the secret (or override `name`/`key`).
-    M2M_AUTH_CLIENT_SECRET:
+    # M2M_AUTH_PRIVATE_KEY — RSA private key in PEM format used to sign the
+    # Auth0 client-assertion JWT (RS256). Sourced from a Kubernetes Secret;
+    # operators must provision the secret (or override `name`/`key`). Using a
+    # keypair instead of a shared client_secret keeps the credential out of
+    # the token endpoint payload entirely.
+    M2M_AUTH_PRIVATE_KEY:
       valueFrom:
         secretKeyRef:
           name: committee-secrets
-          key: m2m_client_secret
-    # M2M_AUTH_ISSUER — OAuth2 token endpoint base.
-    M2M_AUTH_ISSUER:
+          key: m2m_private_key
+    # M2M_AUTH_DOMAIN — Auth0 domain (e.g. "linuxfoundation-dev.auth0.com").
+    # NOT a full URL — just the host. The SDK constructs the token endpoint.
+    M2M_AUTH_DOMAIN:
       value: ""
     # M2M_AUTH_AUDIENCE — optional.
     M2M_AUTH_AUDIENCE:
