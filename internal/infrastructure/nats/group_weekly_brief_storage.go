@@ -83,7 +83,7 @@ func (s *storage) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID
 		return nil, nil, errs.NewUnexpected("failed to unmarshal weekly brief", err)
 	}
 
-	// Defence in depth: confirm the index-resolved brief still belongs to the
+	// Defense in depth: confirm the index-resolved brief still belongs to the
 	// requested committee and window. If the UID index has drifted, treat it as
 	// a miss rather than leaking another committee's brief.
 	if brief.CommitteeUID != committeeUID ||

@@ -1302,8 +1302,6 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	state := string(b.State)
 	regenCount := b.RegenerationCount
 	privPresent := b.PrivateSourcePresent
-	createdAt := b.CreatedAt.UTC().Format(time.RFC3339)
-	updatedAt := b.UpdatedAt.UTC().Format(time.RFC3339)
 
 	out := &committeeservice.GroupWeeklyBriefWithReadonlyAttributes{
 		UID:                  &uid,
@@ -1313,8 +1311,17 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		State:                &state,
 		RegenerationCount:    &regenCount,
 		PrivateSourcePresent: &privPresent,
-		CreatedAt:            &createdAt,
-		UpdatedAt:            &updatedAt,
+	}
+	// Only emit CreatedAt/UpdatedAt when set — Validate() doesn't require them,
+	// so formatting a zero time would surface "0001-01-01T00:00:00Z" in the
+	// response. Mirrors how LastAttemptAt is handled below.
+	if !b.CreatedAt.IsZero() {
+		v := b.CreatedAt.UTC().Format(time.RFC3339)
+		out.CreatedAt = &v
+	}
+	if !b.UpdatedAt.IsZero() {
+		v := b.UpdatedAt.UTC().Format(time.RFC3339)
+		out.UpdatedAt = &v
 	}
 	if b.BriefText != "" {
 		v := b.BriefText
