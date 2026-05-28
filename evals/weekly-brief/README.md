@@ -13,9 +13,10 @@ state. A separate live-LLM suite is documented below and is guarded by the
 
 Every fixture must produce a brief that satisfies the general shape:
 
-- `claim_ids` non-empty (asserted via `source_refs`, which carries the
-  per-claim refs in the persisted brief shape).
-- `source_refs` non-empty.
+- `source_refs` non-empty. These are the gathered evidence references
+  (meetings/mailing/votes/members) persisted on the brief. The AI adapter's
+  internal `claim_ids` are not persisted onto the brief, so `source_refs` is
+  what the suite asserts as the grounding signal at the orchestrator boundary.
 - `brief_text` non-empty.
 - `brief_text` MUST NOT contain the prompt-internal boundary markers
   `<<SOURCE:`, `:BEGIN>>`, or `:END>>` — those are wrapper sentinels for the
@@ -70,6 +71,19 @@ LITELLM_API_KEY=... \
 LITELLM_MODEL=anthropic/claude-sonnet-4 \
   go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 ```
+
+Or, with the `LITELLM_*` vars exported in your environment, via the Makefile
+target:
+
+```sh
+make eval-live
+```
+
+> **Release gating:** running this by hand is not a real gate. A CI job that
+> runs `make eval-live` (triggered on a release tag/branch or via
+> `workflow_dispatch`, with the `LITELLM_*` secrets provisioned) is a planned
+> follow-up. If the live eval becomes part of the release process it must also
+> be documented in the repo-root `README.md`.
 
 (`AI_SOURCE` is not used here. It selects the *deployed service's* AI adapter —
 `fake` for local/CI, `live` (LiteLLM) in production — via `AIAdapterImpl` in

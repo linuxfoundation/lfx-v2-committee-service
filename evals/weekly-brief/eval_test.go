@@ -280,11 +280,12 @@ func assertCommonBriefShape(t *testing.T, fx fixture, brief *model.GroupWeeklyBr
 	require.NotEmptyf(t, brief.BriefText, "[%s] brief_text must be non-empty", fx.Name)
 	require.NotEmptyf(t, brief.SourceRefs, "[%s] source_refs must be non-empty", fx.Name)
 
-	// claim_ids is internal to the WeeklyBrief AI output; we mirror it onto the
-	// brief's SourceRefs (which is the persisted shape). Asserting on
-	// SourceRefs above already covers "claim_ids non-empty" at the orchestrator
-	// boundary. We also assert below that the prompt-internal boundary markers
-	// never leak to the user-visible brief text.
+	// SourceRefs are the gathered evidence references (meetings/mailing/votes/
+	// members) that the orchestrator persists on the brief. The AI adapter's
+	// internal claim_ids are not persisted onto the brief, so SourceRefs is the
+	// grounding signal we assert on at the orchestrator boundary. We also assert
+	// below that the prompt-internal boundary markers never leak to the
+	// user-visible brief text.
 	require.NotContainsf(t, brief.BriefText, "<<SOURCE:", "[%s] boundary marker <<SOURCE: leaked to brief_text", fx.Name)
 	require.NotContainsf(t, brief.BriefText, ":BEGIN>>", "[%s] boundary marker :BEGIN>> leaked to brief_text", fx.Name)
 	require.NotContainsf(t, brief.BriefText, ":END>>", "[%s] boundary marker :END>> leaked to brief_text", fx.Name)
