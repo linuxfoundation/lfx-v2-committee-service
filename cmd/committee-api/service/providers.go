@@ -568,15 +568,16 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 	return httpClient
 }
 
-// Live query-service sources share the same base URL and M2M HTTP client; the
-// resource type each source queries is fixed (no per-source overrides):
+// Live query-service sources share the same base URL and M2M HTTP client.
 //
 //   - QUERY_SERVICE_URL — base URL for all query-service calls. When empty,
 //     every source degrades to "no results".
+//   - QUERY_MAILING_LIST_TYPE — overrides the resource type queried by the
+//     mailing-list source (defaults to m2m.DefaultMailingListType).
+//   - QUERY_VOTE_TYPE — overrides the resource type queried by the vote
+//     source (defaults to m2m.DefaultVoteType).
 //
-// Each source queries a fixed query-service resource type: the meeting source
-// uses "v1_past_meeting", the mailing-list source m2m.DefaultMailingListType,
-// and the vote source m2m.DefaultVoteType.
+// The meeting source's resource type is fixed to "v1_past_meeting".
 
 // MeetingSourceImpl builds the meeting source. When QUERY_SERVICE_URL is
 // unset the resulting source returns zero meetings (graceful degrade).
@@ -594,7 +595,8 @@ func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
 
 // MailingListSourceImpl builds the live mailing-list source. When
 // QUERY_SERVICE_URL is unset the source returns zero threads (graceful
-// degrade). The resource type is fixed (m2m.DefaultMailingListType).
+// degrade). The query-service resource type defaults to
+// m2m.DefaultMailingListType and can be overridden via QUERY_MAILING_LIST_TYPE.
 func MailingListSourceImpl(ctx context.Context) port.MailingListSource {
 	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
@@ -603,13 +605,15 @@ func MailingListSourceImpl(ctx context.Context) port.MailingListSource {
 	client := m2mHTTPClient(ctx)
 	return m2m.NewMailingListSource(m2m.MailingListSourceConfig{
 		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_MAILING_LIST_TYPE"), // empty → DefaultMailingListType inside NewMailingListSource
 		Timeout: 15 * time.Second,
 	}, client)
 }
 
 // VoteSourceImpl builds the live vote source. When QUERY_SERVICE_URL is unset
-// the source returns zero votes (graceful degrade). The resource type is fixed
-// (m2m.DefaultVoteType).
+// the source returns zero votes (graceful degrade). The query-service resource
+// type defaults to m2m.DefaultVoteType and can be overridden via
+// QUERY_VOTE_TYPE.
 func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
@@ -618,6 +622,7 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	client := m2mHTTPClient(ctx)
 	return m2m.NewVoteSource(m2m.VoteSourceConfig{
 		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_VOTE_TYPE"), // empty → DefaultVoteType inside NewVoteSource
 		Timeout: 15 * time.Second,
 	}, client)
 }

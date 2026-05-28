@@ -55,7 +55,13 @@ spec:
             - name: LITELLM_BASE_URL
               value: {{ .Values.weeklyBrief.litellm.baseURL | quote }}
             {{- end }}
-            {{- if .Values.weeklyBrief.litellm.apiKey }}
+            {{- if .Values.weeklyBrief.litellm.existingSecret.name }}
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.weeklyBrief.litellm.existingSecret.name | quote }}
+                  key: {{ .Values.weeklyBrief.litellm.existingSecret.apiKeyKey | default "api-key" | quote }}
+            {{- else if .Values.weeklyBrief.litellm.apiKey }}
             - name: LITELLM_API_KEY
               value: {{ .Values.weeklyBrief.litellm.apiKey | quote }}
             {{- end }}
@@ -67,7 +73,13 @@ spec:
             - name: M2M_AUTH_CLIENT_ID
               value: {{ .Values.weeklyBrief.m2m.clientID | quote }}
             {{- end }}
-            {{- if .Values.weeklyBrief.m2m.clientSecret }}
+            {{- if .Values.weeklyBrief.m2m.existingSecret.name }}
+            - name: M2M_AUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.weeklyBrief.m2m.existingSecret.name | quote }}
+                  key: {{ .Values.weeklyBrief.m2m.existingSecret.clientSecretKey | default "client-secret" | quote }}
+            {{- else if .Values.weeklyBrief.m2m.clientSecret }}
             - name: M2M_AUTH_CLIENT_SECRET
               value: {{ .Values.weeklyBrief.m2m.clientSecret | quote }}
             {{- end }}

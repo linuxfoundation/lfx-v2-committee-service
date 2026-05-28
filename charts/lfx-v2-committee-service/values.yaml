@@ -428,8 +428,16 @@ weeklyBrief:
   litellm:
     # LITELLM_BASE_URL
     baseURL: ""
-    # LITELLM_API_KEY — secret
+    # LITELLM_API_KEY — secret. Prefer existingSecret below in production so the
+    # value is never rendered into the manifest. The plain `apiKey:` is for
+    # local dev only.
     apiKey: ""
+    # existingSecret sources LITELLM_API_KEY from an existing Kubernetes Secret
+    # via secretKeyRef. When `name` is set, it takes precedence over `apiKey`
+    # above.
+    existingSecret:
+      name: ""
+      apiKeyKey: api-key
     # LITELLM_MODEL
     model: ""
   # m2m configures the service-identity OAuth2 client used for query-service
@@ -437,8 +445,16 @@ weeklyBrief:
   m2m:
     # M2M_AUTH_CLIENT_ID
     clientID: ""
-    # M2M_AUTH_CLIENT_SECRET — secret
+    # M2M_AUTH_CLIENT_SECRET — secret. Prefer existingSecret below in production
+    # so the value is never rendered into the manifest. The plain `clientSecret:`
+    # is for local dev only.
     clientSecret: ""
+    # existingSecret sources M2M_AUTH_CLIENT_SECRET from an existing Kubernetes
+    # Secret via secretKeyRef. When `name` is set, it takes precedence over
+    # `clientSecret` above.
+    existingSecret:
+      name: ""
+      clientSecretKey: client-secret
     # M2M_AUTH_ISSUER (token endpoint base)
     issuer: ""
     # M2M_AUTH_AUDIENCE (optional)

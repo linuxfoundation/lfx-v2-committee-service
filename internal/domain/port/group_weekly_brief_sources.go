@@ -50,7 +50,11 @@ type MailingListActivity struct {
 
 // MailingListSource returns mailing-list threads active in the window.
 //
-// MVP: stub returns empty until the upstream contract is defined.
+// A live M2M-backed implementation (m2m.MailingListSource) calls the
+// query-service for the configured resource type (overridable via
+// QUERY_MAILING_LIST_TYPE); mock implementations return canned data for
+// tests. When QUERY_SERVICE_URL is unset the live impl degrades to zero
+// threads.
 type MailingListSource interface {
 	ListMailingListActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]MailingListActivity, error)
 }
@@ -66,7 +70,10 @@ type VoteActivity struct {
 
 // VoteSource returns vote/poll activity in the window.
 //
-// MVP: stub returns empty until the upstream contract is defined.
+// A live M2M-backed implementation (m2m.VoteSource) calls the query-service
+// for the configured resource type (overridable via QUERY_VOTE_TYPE); mock
+// implementations return canned data for tests. When QUERY_SERVICE_URL is
+// unset the live impl degrades to zero votes.
 type VoteSource interface {
 	ListVoteActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]VoteActivity, error)
 }

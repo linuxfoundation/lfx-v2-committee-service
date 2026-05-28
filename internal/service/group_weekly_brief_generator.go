@@ -493,13 +493,17 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		}
 		summary := strings.Join(summaryParts, "; ")
 
-		refs = append(refs, model.SourceRef{Kind: "members", ID: "weekly-members", Title: "Member roster changes", Excerpt: summary})
+		// Cap the persisted excerpt the same way meetings/mailing/votes are
+		// capped (maxExcerptLen), so a week with very many member changes can't
+		// exceed the API schema's 5000-rune excerpt contract.
+		excerpt := cleanSummary(summary)
+		refs = append(refs, model.SourceRef{Kind: "members", ID: "weekly-members", Title: "Member roster changes", Excerpt: excerpt})
 		// Members source isn't untrusted (it's our own KV) so we DO surface a
 		// real summary on the claim — usernames + counts only, never free
 		// text the model could mistake for instructions.
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "members-week",
-			Summary: summary,
+			Summary: excerpt,
 			Sources: []port.SourceRef{{Type: "members", ID: "weekly-members"}},
 		})
 	}
