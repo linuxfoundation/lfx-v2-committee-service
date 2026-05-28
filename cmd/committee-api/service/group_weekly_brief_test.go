@@ -14,7 +14,9 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	internalsvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -216,4 +218,184 @@ func TestGetCurrentWeeklyBrief_CommitteeNotFound(t *testing.T) {
 	assert.Nil(t, res)
 	var nf *committeeservice.NotFoundError
 	require.ErrorAs(t, err, &nf)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  POST /committees/{uid}/weekly-briefs/generate
+// ─────────────────────────────────────────────────────────────────────────────
+
+// stubGroupWeeklyBriefGenerator records the Claim input and returns canned
+// output/err. Fulfill panics — the handler never calls it directly.
+type stubGroupWeeklyBriefGenerator struct {
+	out     *internalsvc.GroupWeeklyBriefGenerateOutput
+	err     error
+	gotIn   internalsvc.GroupWeeklyBriefGenerateInput
+	claimed bool
+}
+
+func (g *stubGroupWeeklyBriefGenerator) Claim(_ context.Context, in internalsvc.GroupWeeklyBriefGenerateInput) (*internalsvc.GroupWeeklyBriefGenerateOutput, error) {
+	g.claimed = true
+	g.gotIn = in
+	return g.out, g.err
+}
+
+func (g *stubGroupWeeklyBriefGenerator) Fulfill(_ context.Context, _ internalsvc.GroupWeeklyBriefGenerateInput) error {
+	panic("Fulfill is not called from the handler under test")
+}
+
+var _ internalsvc.GroupWeeklyBriefGenerator = (*stubGroupWeeklyBriefGenerator)(nil)
+
+// stubPublisher records the most recent Event call and returns a canned error.
+// Indexer/Access panic — the generate handler only calls Event.
+type stubPublisher struct {
+	eventErr     error
+	gotSubject   string
+	gotEvent     any
+	gotEventSync bool
+	called       bool
+}
+
+func (p *stubPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) error {
+	panic("Indexer is not called from the handler under test")
+}
+func (p *stubPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
+	panic("Access is not called from the handler under test")
+}
+func (p *stubPublisher) Event(_ context.Context, subject string, event any, sync bool) error {
+	p.called = true
+	p.gotSubject = subject
+	p.gotEvent = event
+	p.gotEventSync = sync
+	return p.eventErr
+}
+
+var _ port.CommitteePublisher = (*stubPublisher)(nil)
+
+func newGenerateSvc(base *model.CommitteeBase, gen internalsvc.GroupWeeklyBriefGenerator, pub port.CommitteePublisher) *committeeServicesrvc {
+	return &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{base: base, rev: 1},
+		weeklyBriefGenerator:        gen,
+		publisher:                   pub,
+	}
+}
+
+func TestGenerateWeeklyBrief_Success(t *testing.T) {
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	brief := &model.GroupWeeklyBrief{
+		UID: "b-1", CommitteeUID: "c-1", WindowStart: start, WindowEnd: end,
+		State: model.GroupWeeklyBriefStateGenerating,
+	}
+	gen := &stubGroupWeeklyBriefGenerator{out: &internalsvc.GroupWeeklyBriefGenerateOutput{Brief: brief}}
+	pub := &stubPublisher{}
+	base := &model.CommitteeBase{Name: "TAC", ProjectName: "Project X"}
+	svc := newGenerateSvc(base, gen, pub)
+
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1", Force: true})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Brief)
+	assert.Equal(t, "b-1", *res.Brief.UID)
+	assert.Equal(t, "generating", *res.Brief.State)
+
+	// Claim got CommitteeName + ProjectName from the base, plus Force.
+	require.True(t, gen.claimed, "expected Claim to be invoked")
+	assert.Equal(t, "c-1", gen.gotIn.CommitteeUID)
+	assert.Equal(t, "TAC", gen.gotIn.CommitteeName)
+	assert.Equal(t, "Project X", gen.gotIn.ProjectName)
+	assert.True(t, gen.gotIn.Force)
+
+	// Publisher got the generate-requested event with the same identity fields.
+	require.True(t, pub.called, "expected publisher.Event to be invoked")
+	assert.Equal(t, constants.GenerateWeeklyBriefRequestedSubject, pub.gotSubject)
+	assert.False(t, pub.gotEventSync, "generate-requested event must be enqueued async (sync=false)")
+	event, ok := pub.gotEvent.(internalsvc.GenerateWeeklyBriefRequestedEvent)
+	require.True(t, ok, "expected event to be GenerateWeeklyBriefRequestedEvent, got %T", pub.gotEvent)
+	assert.Equal(t, "c-1", event.CommitteeUID)
+	assert.Equal(t, "TAC", event.CommitteeName)
+	assert.Equal(t, "Project X", event.ProjectName)
+	assert.True(t, event.Force)
+	// Claim and event share the same "now" so the async phase resolves the same window.
+	assert.Equal(t, gen.gotIn.Now, event.RequestedAt)
+}
+
+func TestGenerateWeeklyBrief_CommitteeNotFound(t *testing.T) {
+	// stubCommitteeReader with base=nil → handler returns 404.
+	svc := newGenerateSvc(nil, &stubGroupWeeklyBriefGenerator{}, &stubPublisher{})
+
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "missing"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var nf *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nf)
+}
+
+func TestGenerateWeeklyBrief_GetBaseError(t *testing.T) {
+	// Non-NotFound error from the committee existence check propagates as 503.
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{err: errors.NewServiceUnavailable("nats unavailable")},
+		weeklyBriefGenerator:        &stubGroupWeeklyBriefGenerator{},
+		publisher:                   &stubPublisher{},
+	}
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
+func TestGenerateWeeklyBrief_GeneratorNotConfigured(t *testing.T) {
+	// A nil generator is a misconfiguration → 503.
+	svc := newGenerateSvc(&model.CommitteeBase{}, nil, &stubPublisher{})
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
+func TestGenerateWeeklyBrief_PublisherNotConfigured(t *testing.T) {
+	// A nil publisher would leave a claimed brief stuck "generating" — fail
+	// fast before claiming with 503.
+	svc := newGenerateSvc(&model.CommitteeBase{}, &stubGroupWeeklyBriefGenerator{}, nil)
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
+func TestGenerateWeeklyBrief_ClaimError(t *testing.T) {
+	// Claim errors propagate through wrapError; here a ServiceUnavailable from
+	// the generator surfaces as a 503 to the caller.
+	gen := &stubGroupWeeklyBriefGenerator{err: errors.NewServiceUnavailable("throttle bucket missing")}
+	pub := &stubPublisher{}
+	svc := newGenerateSvc(&model.CommitteeBase{Name: "TAC"}, gen, pub)
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+	// No event must be published when claim fails.
+	assert.False(t, pub.called, "publisher.Event must not be called when Claim fails")
+}
+
+func TestGenerateWeeklyBrief_PublishError(t *testing.T) {
+	// A publish failure leaves the brief "generating" with nothing to advance
+	// it → surface 503 so the caller retries.
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	brief := &model.GroupWeeklyBrief{
+		UID: "b-1", CommitteeUID: "c-1", WindowStart: start, WindowEnd: end,
+		State: model.GroupWeeklyBriefStateGenerating,
+	}
+	gen := &stubGroupWeeklyBriefGenerator{out: &internalsvc.GroupWeeklyBriefGenerateOutput{Brief: brief}}
+	pub := &stubPublisher{eventErr: errors.NewUnexpected("nats publish failed", nil)}
+	svc := newGenerateSvc(&model.CommitteeBase{Name: "TAC"}, gen, pub)
+
+	res, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
 }

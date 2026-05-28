@@ -414,77 +414,103 @@ authelia:
   # Note: Disabling Authelia should only be used for local development
   enabled: true
 
-# app is the configuration for the application
-# weeklyBrief configures the working-group weekly-brief generator. Each value
-# maps to a service env var; all default to empty and should be set per
-# environment. Empty values are omitted (the service falls back to its own
-# defaults). NOTE: litellm.apiKey and m2m.clientSecret are SECRETS — supply
-# them via a Secret/override mechanism, not by committing values here.
-weeklyBrief:
-  # aiSource selects the AI adapter (AI_SOURCE): "fake" (local dev/CI) or
-  # "live" (default when unset).
-  aiSource: ""
-  # litellm configures the live AI adapter (used when aiSource=live).
-  litellm:
-    # LITELLM_BASE_URL
-    baseURL: ""
-    # LITELLM_API_KEY — secret. Prefer existingSecret below in production so the
-    # value is never rendered into the manifest. The plain `apiKey:` is for
-    # local dev only.
-    apiKey: ""
-    # existingSecret sources LITELLM_API_KEY from an existing Kubernetes Secret
-    # via secretKeyRef. When `name` is set, it takes precedence over `apiKey`
-    # above.
-    existingSecret:
-      name: ""
-      apiKeyKey: api-key
-    # LITELLM_MODEL
-    model: ""
-  # m2m configures the service-identity OAuth2 client used for query-service
-  # calls. Required (except audience) when queryServiceURL is set.
-  m2m:
-    # M2M_AUTH_CLIENT_ID
-    clientID: ""
-    # M2M_AUTH_CLIENT_SECRET — secret. Prefer existingSecret below in production
-    # so the value is never rendered into the manifest. The plain `clientSecret:`
-    # is for local dev only.
-    clientSecret: ""
-    # existingSecret sources M2M_AUTH_CLIENT_SECRET from an existing Kubernetes
-    # Secret via secretKeyRef. When `name` is set, it takes precedence over
-    # `clientSecret` above.
-    existingSecret:
-      name: ""
-      clientSecretKey: client-secret
-    # M2M_AUTH_ISSUER (token endpoint base)
-    issuer: ""
-    # M2M_AUTH_AUDIENCE (optional)
-    audience: ""
-  # queryServiceURL (QUERY_SERVICE_URL) is the base URL for the meeting,
-  # mailing-list and vote sources. When empty, those sources return no results.
-  queryServiceURL: ""
-
+# app is the configuration for the application.
+#
+# Container env vars are defined as a single map under `app.environment`; each
+# entry is either `{ value: <string> }` or `{ valueFrom: <kube ref> }`. This
+# matches the org-wide chart pattern (see lfx-v2-meeting-service) and keeps
+# secrets out of plain values — credentials live in a Kubernetes Secret and are
+# pulled via `valueFrom.secretKeyRef`.
 app:
-  # logLevel is the log level (debug, info, warn, error)
-  logLevel: debug
-  # logAddSource is a boolean to determine if the log source should be added
-  logAddSource: true
   # use_oidc_contextualizer is a boolean to determine if the OIDC contextualizer should be used
   use_oidc_contextualizer: true
-  # jwt is the configuration for JWT authentication
-  # audience is the intended audience for the JWT token
+  # audience is the intended JWT audience. Also referenced by ruleset.yaml, so
+  # it lives at the top of `app:` and is mirrored into app.environment.JWT_AUDIENCE
+  # below. If you override one, override both.
   audience: lfx-v2-committee-service
-
-  # emailsEnabled gates outbound role-notification emails to LFID users via the email service.
-  # Disabled by default; set to true in environments where email sending should be active.
-  emailsEnabled: false
-  # invitesEnabled gates outbound invite requests for non-LFID users via the invite service.
-  # Disabled by default; set to true in environments where invite sending should be active.
-  invitesEnabled: false
 
   # extraEnv allows injecting additional environment variables into the container.
   # Supports both simple key-value pairs and Kubernetes field references.
   # These are rendered BEFORE OTEL variables, allowing use in OTEL configuration.
   extraEnv: []
+
+  # environment is the full set of container env vars. Each entry is either
+  #   FOO:
+  #     value: "..."
+  # or
+  #   FOO:
+  #     valueFrom:
+  #       secretKeyRef:
+  #         name: ...
+  #         key: ...
+  environment:
+    # NATS_URL — mirrors .Values.nats.url. Override both if you change one.
+    NATS_URL:
+      value: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+    # LOG_LEVEL — debug, info, warn, error
+    LOG_LEVEL:
+      value: debug
+    # LOG_ADD_SOURCE — include source file/line in log records
+    LOG_ADD_SOURCE:
+      value: "true"
+    # JWKS_URL — mirrors .Values.heimdall.jwksUrl. Override both if you change one.
+    JWKS_URL:
+      value: http://lfx-platform-heimdall.lfx.svc.cluster.local:4457/.well-known/jwks
+    # JWT_AUDIENCE — mirrors .Values.app.audience (used by ruleset.yaml).
+    JWT_AUDIENCE:
+      value: lfx-v2-committee-service
+    # EMAILS_ENABLED gates outbound role-notification emails to LFID users.
+    EMAILS_ENABLED:
+      value: "false"
+    # INVITES_ENABLED gates outbound invite requests for non-LFID users.
+    INVITES_ENABLED:
+      value: "false"
+    # AI_SOURCE selects the AI adapter: "fake" (local dev/CI) or "live"
+    # (default when unset).
+    AI_SOURCE:
+      value: ""
+    # LITELLM_BASE_URL — required when AI_SOURCE=live.
+    LITELLM_BASE_URL:
+      value: ""
+    # LITELLM_API_KEY — sourced from a Kubernetes Secret. Operators must
+    # provision the secret (or override `name`/`key`) before installing the
+    # chart in environments that use the live adapter.
+    LITELLM_API_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: committee-secrets
+          key: litellm_api_key
+    # LITELLM_MODEL — e.g. "anthropic/claude-sonnet-4".
+    LITELLM_MODEL:
+      value: ""
+    # M2M_AUTH_CLIENT_ID — required for the live query-service sources.
+    M2M_AUTH_CLIENT_ID:
+      value: ""
+    # M2M_AUTH_CLIENT_SECRET — sourced from a Kubernetes Secret. Operators
+    # must provision the secret (or override `name`/`key`).
+    M2M_AUTH_CLIENT_SECRET:
+      valueFrom:
+        secretKeyRef:
+          name: committee-secrets
+          key: m2m_client_secret
+    # M2M_AUTH_ISSUER — OAuth2 token endpoint base.
+    M2M_AUTH_ISSUER:
+      value: ""
+    # M2M_AUTH_AUDIENCE — optional.
+    M2M_AUTH_AUDIENCE:
+      value: ""
+    # QUERY_SERVICE_URL — base URL for meeting / mailing-list / vote sources.
+    # When empty, those sources return no results.
+    QUERY_SERVICE_URL:
+      value: ""
+    # QUERY_MAILING_LIST_TYPE — overrides the query-service resource type the
+    # mailing-list source queries (defaults to m2m.DefaultMailingListType).
+    QUERY_MAILING_LIST_TYPE:
+      value: ""
+    # QUERY_VOTE_TYPE — overrides the query-service resource type the vote
+    # source queries (defaults to m2m.DefaultVoteType).
+    QUERY_VOTE_TYPE:
+      value: ""
 
   # otel is the configuration for OpenTelemetry tracing
   otel:
