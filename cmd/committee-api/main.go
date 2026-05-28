@@ -136,6 +136,23 @@ func main() {
 	weeklyBriefReaderUseCase := usecaseSvc.NewGroupWeeklyBriefReaderOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReader(weeklyBriefReader),
 	)
+	aiAdapter := service.AIAdapterImpl(ctx)
+	weeklyBriefWriter := service.GroupWeeklyBriefWriterImpl(ctx)
+	meetingSource := service.MeetingSourceImpl(ctx)
+	mailingListSource := service.MailingListSourceImpl(ctx)
+	voteSource := service.VoteSourceImpl(ctx)
+	weeklyMemberReader := service.CommitteeWeeklyMemberReaderImpl(ctx)
+
+	weeklyBriefGeneratorUseCase := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(weeklyBriefReader),
+		usecaseSvc.WithGroupWeeklyBriefWriter(weeklyBriefWriter),
+		usecaseSvc.WithMeetingSource(meetingSource),
+		usecaseSvc.WithMailingListSource(mailingListSource),
+		usecaseSvc.WithVoteSource(voteSource),
+		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
+		usecaseSvc.WithAIAdapter(aiAdapter),
+	)
+
 	committeeServiceSvc := service.NewCommitteeService(
 		writeCommitteeUseCase,
 		readCommitteeUseCase,
@@ -148,6 +165,7 @@ func main() {
 		docReaderUseCase,
 		docWriterUseCase,
 		weeklyBriefReaderUseCase,
+		weeklyBriefGeneratorUseCase,
 	)
 
 	// Wrap the services in endpoints that can be invoked from other services

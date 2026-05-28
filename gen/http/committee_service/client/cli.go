@@ -1808,7 +1808,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vxz\",\n      \"folder_uid\": \"ff7cc935-e169-436a-a7c3-fe2be325cceb\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2161,7 +2161,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Illo et quas nemo.\",\n      \"description\": \"jcp\",\n      \"file\": \"UXVpIHV0IG5vbiBleHBlZGl0YSBxdW9kIHF1aS4=\",\n      \"file_name\": \"Mollitia sapiente qui velit aspernatur corrupti.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
@@ -2419,6 +2419,59 @@ func BuildGetCurrentWeeklyBriefPayload(committeeServiceGetCurrentWeeklyBriefUID 
 		}
 	}
 	v := &committeeservice.GetCurrentWeeklyBriefPayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildGenerateWeeklyBriefPayload builds the payload for the committee-service
+// generate-weekly-brief endpoint from CLI flags.
+func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody string, committeeServiceGenerateWeeklyBriefUID string, committeeServiceGenerateWeeklyBriefVersion string, committeeServiceGenerateWeeklyBriefBearerToken string) (*committeeservice.GenerateWeeklyBriefPayload, error) {
+	var err error
+	var body GenerateWeeklyBriefRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceGenerateWeeklyBriefBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"force\": false\n   }'")
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceGenerateWeeklyBriefUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceGenerateWeeklyBriefVersion != "" {
+			version = &committeeServiceGenerateWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGenerateWeeklyBriefBearerToken != "" {
+			bearerToken = &committeeServiceGenerateWeeklyBriefBearerToken
+		}
+	}
+	v := &committeeservice.GenerateWeeklyBriefPayload{
+		Force: body.Force,
+	}
+	{
+		var zero bool
+		if v.Force == zero {
+			v.Force = false
+		}
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken

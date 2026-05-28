@@ -42,6 +42,7 @@ type committeeServicesrvc struct {
 	docReader                   service.CommitteeDocumentDataReader
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
+	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1235,6 +1236,7 @@ func NewCommitteeService(
 	docReader service.CommitteeDocumentDataReader,
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
+	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -1248,6 +1250,7 @@ func NewCommitteeService(
 		docReader:                   docReader,
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
+		weeklyBriefGenerator:        weeklyBriefGenerator,
 	}
 }
 
@@ -1360,15 +1363,99 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 }
 
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
-// response type.
+// response type: the split counters (generates / regenerations) with their
+// limits, plus the window reset timestamp.
 func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
-	count := t.Count
-	out := &committeeservice.GroupWeeklyBriefThrottle{Count: &count}
-	if !t.LastAttemptAt.IsZero() {
-		v := t.LastAttemptAt.UTC().Format(time.RFC3339)
-		out.LastAttemptAt = &v
+	gUsed := t.GeneratesUsed
+	gLimit := model.GroupWeeklyBriefGenerateLimit
+	rUsed := t.RegenerationsUsed
+	rLimit := model.GroupWeeklyBriefRegenerationLimit
+	out := &committeeservice.GroupWeeklyBriefThrottle{
+		GeneratesUsed:      &gUsed,
+		GeneratesLimit:     &gLimit,
+		RegenerationsUsed:  &rUsed,
+		RegenerationsLimit: &rLimit,
+	}
+	if !t.WindowResetsAt.IsZero() {
+		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
+		out.WindowResetsAt = &v
 	}
 	return out
+}
+
+// GenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/generate
+// handler. It runs the synchronous claim phase (edited-guard, throttle limits,
+// persist the brief in the "generating" state) and publishes a generate-requested
+// event; the durable consumer then runs the source gather + LLM + finalize
+// asynchronously. The endpoint responds 202 with the brief in "generating" — the
+// client polls GET /current to observe the terminal "generated"/"error" state.
+func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *committeeservice.GenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefGenerateResult, error) {
+	slog.DebugContext(ctx, "committeeService.generate-weekly-brief",
+		"committee_uid", p.UID,
+		"force", p.Force,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists so a typo'd UID returns 404, not 429.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+	// The publisher is required: without it we can't enqueue the async fulfill
+	// step, which would leave the brief stuck in "generating". Fail fast before
+	// claiming rather than returning 202 for work nothing will pick up.
+	if s.publisher == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief publisher is not configured"))
+	}
+
+	// Use a single "now" for both the claim and the event so the async phase
+	// computes exactly the same window as the synchronous claim.
+	now := time.Now().UTC()
+
+	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		Now:           now,
+	})
+	if errClaim != nil {
+		return nil, wrapError(ctx, errClaim)
+	}
+
+	// Publish the generate-requested event for the durable consumer to fulfill.
+	// If publishing fails the brief is left "generating" with nothing to advance
+	// it, so surface 503 and let the caller retry.
+	event := service.GenerateWeeklyBriefRequestedEvent{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		RequestedAt:   now,
+	}
+	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
+		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
+			"committee_uid", p.UID, "error", errPub)
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("failed to enqueue weekly-brief generation", errPub))
+	}
+
+	res := &committeeservice.GroupWeeklyBriefGenerateResult{}
+	if out.Brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(out.Brief)
+	}
+	if out.Throttle != nil {
+		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
+	}
+	return res, nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

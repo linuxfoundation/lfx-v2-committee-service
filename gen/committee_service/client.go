@@ -53,11 +53,12 @@ type Client struct {
 	DownloadCommitteeDocumentEndpoint goa.Endpoint
 	DeleteCommitteeDocumentEndpoint   goa.Endpoint
 	GetCurrentWeeklyBriefEndpoint     goa.Endpoint
+	GenerateWeeklyBriefEndpoint       goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -95,6 +96,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		DownloadCommitteeDocumentEndpoint: downloadCommitteeDocument,
 		DeleteCommitteeDocumentEndpoint:   deleteCommitteeDocument,
 		GetCurrentWeeklyBriefEndpoint:     getCurrentWeeklyBrief,
+		GenerateWeeklyBriefEndpoint:       generateWeeklyBrief,
 	}
 }
 
@@ -681,4 +683,24 @@ func (c *Client) GetCurrentWeeklyBrief(ctx context.Context, p *GetCurrentWeeklyB
 		return
 	}
 	return ires.(*GroupWeeklyBriefCurrentResult), nil
+}
+
+// GenerateWeeklyBrief calls the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+// GenerateWeeklyBrief may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): Caller lacks writer access on the committee
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "EditedBriefExists" (type *GroupWeeklyBriefEditedExistsError): An edited brief exists and force is not set
+//   - "ThrottleExceeded" (type *GroupWeeklyBriefThrottleExceededError): Per-committee/per-week generation or regeneration limit exhausted
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GenerateWeeklyBrief(ctx context.Context, p *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error) {
+	var ires any
+	ires, err = c.GenerateWeeklyBriefEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GroupWeeklyBriefGenerateResult), nil
 }

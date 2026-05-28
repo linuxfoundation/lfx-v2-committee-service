@@ -109,15 +109,48 @@ func (b *GroupWeeklyBrief) Validate() error {
 	return b.State.Validate()
 }
 
-// GroupWeeklyBriefThrottle records per-window regeneration throttling state.
+// GroupWeeklyBriefThrottle records per-committee/per-week throttle state.
+// GeneratesUsed and RegenerationsUsed are tracked separately so the generate
+// (fresh) and regenerate (force or follow-up) paths can have distinct limits
+// enforced against the same window key.
 type GroupWeeklyBriefThrottle struct {
 	CommitteeUID string    `json:"committee_uid"`
 	WindowStart  time.Time `json:"window_start"`
 	WindowEnd    time.Time `json:"window_end"`
-	// Count is the number of regeneration attempts in this window.
-	Count int `json:"count"`
-	// LastAttemptAt is the timestamp of the most recent attempt.
-	LastAttemptAt time.Time `json:"last_attempt_at,omitempty"`
+	// GeneratesUsed is the number of fresh generations consumed in this window.
+	GeneratesUsed int `json:"generates_used"`
+	// RegenerationsUsed is the number of regenerations consumed in this window.
+	RegenerationsUsed int `json:"regenerations_used"`
+	// WindowResetsAt is the timestamp at which the window resets.
+	WindowResetsAt time.Time `json:"window_resets_at"`
+	// Revision is the NATS KV revision used for compare-and-swap updates.
+	// It is not persisted as JSON.
+	Revision uint64 `json:"-"`
+}
+
+// Limits enforced per (committee, week):
+//   - GenerateLimit:    fresh generations allowed before 429.
+//   - RegenerationLimit: regenerations allowed before 429.
+//
+// Per-committee/per-week (NOT per-user) so two writers cannot bypass the cap
+// by alternating calls.
+const (
+	GroupWeeklyBriefGenerateLimit     = 2
+	GroupWeeklyBriefRegenerationLimit = 3
+)
+
+// NextWindowReset returns the next UTC Sunday 00:00:00 relative to now. This is
+// the "throttle window resets at" timestamp surfaced in 429 responses.
+func NextWindowReset(now time.Time) time.Time {
+	nUTC := now.UTC()
+	today := time.Date(nUTC.Year(), nUTC.Month(), nUTC.Day(), 0, 0, 0, 0, time.UTC)
+	// Days forward to the next Sunday. If today is Sunday, jump 7 days.
+	wd := int(today.Weekday()) // Sunday=0..Saturday=6
+	daysToNextSun := (7 - wd) % 7
+	if daysToNextSun == 0 {
+		daysToNextSun = 7
+	}
+	return today.AddDate(0, 0, daysToNextSun)
 }
 
 // WeeklyWindow returns a UTC Sun 00:00:00 → Sat 23:59:59.999999999 window
