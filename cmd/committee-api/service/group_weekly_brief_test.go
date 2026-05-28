@@ -114,8 +114,8 @@ func TestGetCurrentWeeklyBrief_Hit(t *testing.T) {
 	assert.Equal(t, "hello", *res.Brief.BriefText)
 	// The window/committee fields the stub sets must round-trip into the response.
 	assert.Equal(t, "c-1", *res.Brief.CommitteeUID)
-	assert.Equal(t, start.UTC().Format(time.RFC3339), *res.Brief.WindowStart)
-	assert.Equal(t, end.UTC().Format(time.RFC3339), *res.Brief.WindowEnd)
+	assert.Equal(t, start.UTC().Format(time.RFC3339Nano), *res.Brief.WindowStart)
+	assert.Equal(t, end.UTC().Format(time.RFC3339Nano), *res.Brief.WindowEnd)
 }
 
 func TestGetCurrentWeeklyBrief_HitWithThrottleAndSourceRefs(t *testing.T) {

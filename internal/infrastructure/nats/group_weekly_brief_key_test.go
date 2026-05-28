@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSanitizeKVKey verifies that sanitizeKVKey replaces every character JetStream
-// KV forbids ('/', ':', ' ') while preserving the characters real UIDs are made of
-// (alphanumerics, '-', '.').
+// TestSanitizeKVKey verifies that sanitizeKVKey flattens '/', ':', and ' ' (':'
+// and ' ' are forbidden by JetStream KV; '/' is permitted but flattened too so
+// index keys stay single-token) while preserving the characters real UIDs are
+// made of (alphanumerics, '-', '.').
 func TestSanitizeKVKey(t *testing.T) {
 	cases := []struct {
 		name string
