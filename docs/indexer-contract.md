@@ -15,6 +15,7 @@ This document is the authoritative reference for all data the committee service 
 - [Committee Application](#committee-application)
 - [Committee Link](#committee-link)
 - [Committee Link Folder](#committee-link-folder)
+- [Committee Document](#committee-document)
 
 ---
 
@@ -55,6 +56,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `parent_uid` | string (optional) | UID of the parent committee (if nested) |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
+| `has_mailing_list` | bool | Whether a related mailing list exists |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -224,7 +226,72 @@ _(none)_
 | `fulltext` | `first_name`, `last_name`, `email`, `organization.name` |
 | `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
 | `sort_name` | `first_name` |
-| `public` | inherits from parent committee |
+| `public` | _(omitted; viewer access check required)_ |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Committee Document
+
+**Object type:** `committee_document`
+
+**NATS subject:** `lfx.index.committee_document`
+
+**Source struct:** `internal/domain/model/committee_document.go` — `CommitteeDocument`
+
+**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Document unique identifier |
+| `committee_uid` | string | UID of the owning committee |
+| `folder_uid` | string (optional) | UID of the folder this document belongs to |
+| `name` | string | Display name for the document |
+| `description` | string (optional) | Document description |
+| `file_name` | string | Original uploaded file name |
+| `file_size` | int | File size in bytes |
+| `content_type` | string | Uploaded MIME type |
+| `uploaded_by_username` | string (optional) | Username of the uploader |
+| `created_at` | timestamp | Creation time (RFC3339) |
+| `updated_at` | timestamp | Last update time (RFC3339) |
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `{uid}` | `d0c1b2a3-...` | Direct lookup by UID |
+| `committee_document_uid:{uid}` | `committee_document_uid:d0c1b2a3-...` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-...` | Find documents belonging to a committee |
+| `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find documents within a folder |
+| `content_type:{value}` | `content_type:application/pdf` | Find documents by content type |
+| `uploaded_by:{value}` | `uploaded_by:auth0|abc` | Find documents by uploader |
+
+> Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty.
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `viewer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `name`, `description`, `file_name` |
+| `name_and_aliases` | `name` |
+| `sort_name` | `name` |
+| `public` | _(omitted; viewer access check required)_ |
 
 ### Parent References
 
@@ -242,7 +309,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
 
-**Indexed on:** create, update, delete of a committee invite.
+**Indexed on:** create and status updates of a committee invite (reinstate, revoke, accept, decline).
 
 ### Data Schema
 
@@ -301,7 +368,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create, update, delete of a committee application.
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject).
 
 ### Data Schema
 
@@ -361,7 +428,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
-**Indexed on:** create, update, delete of a committee link.
+**Indexed on:** create and delete of a committee link. There is no link update endpoint today.
 
 ### Data Schema
 
@@ -373,8 +440,7 @@ _(none)_
 | `name` | string | Link display name |
 | `url` | string | Link URL |
 | `description` | string (optional) | Link description |
-| `created_by_uid` | string (optional) | UID of the user who created the link |
-| `created_by_name` | string (optional) | Name of the user who created the link |
+| `created_by_username` | string (optional) | Username of the user who created the link |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -405,7 +471,7 @@ _(none)_
 | `fulltext` | `name`, `description`, `url` |
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
-| `public` | inherits from parent committee |
+| `public` | _(omitted; viewer access check required)_ |
 
 ### Parent References
 
@@ -424,7 +490,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 
-**Indexed on:** create, update, delete of a committee link folder.
+**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today.
 
 ### Data Schema
 
@@ -433,8 +499,7 @@ _(none)_
 | `uid` | string | Folder unique identifier |
 | `committee_uid` | string | UID of the owning committee |
 | `name` | string | Folder name |
-| `created_by_uid` | string (optional) | UID of the user who created the folder |
-| `created_by_name` | string (optional) | Name of the user who created the folder |
+| `created_by_username` | string (optional) | Username of the user who created the folder |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -462,7 +527,7 @@ _(none)_
 | `fulltext` | `name` |
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
-| `public` | inherits from parent committee |
+| `public` | _(omitted; viewer access check required)_ |
 
 ### Parent References
 
