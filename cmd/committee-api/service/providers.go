@@ -397,7 +397,13 @@ func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReader
 }
 
 // EmailSenderImpl initializes the email sender for notification emails.
+// Returns nil (disabling all outbound emails) when EMAILS_ENABLED is not "true".
 func EmailSenderImpl(ctx context.Context) port.EmailSender {
+	if os.Getenv("EMAILS_ENABLED") != "true" {
+		slog.InfoContext(ctx, "outbound emails disabled — set EMAILS_ENABLED=true to enable")
+		return nil
+	}
+
 	messagingSource := os.Getenv("MESSAGING_SOURCE")
 	if messagingSource == "" {
 		messagingSource = "nats"
@@ -420,7 +426,13 @@ func EmailSenderImpl(ctx context.Context) port.EmailSender {
 }
 
 // InviteSenderImpl initializes the invite sender for non-LFID users.
+// Returns nil (disabling all outbound invites) when INVITES_ENABLED is not "true".
 func InviteSenderImpl(ctx context.Context) port.InviteSender {
+	if os.Getenv("INVITES_ENABLED") != "true" {
+		slog.InfoContext(ctx, "outbound invites disabled — set INVITES_ENABLED=true to enable")
+		return nil
+	}
+
 	messagingSource := os.Getenv("MESSAGING_SOURCE")
 	if messagingSource == "" {
 		messagingSource = "nats"
@@ -781,6 +793,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
 		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
+		constants.CommitteeMemberDeletedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
 		inviteapi.InviteAcceptedSubject:              messageHandlerService.HandleMessage,
 	}

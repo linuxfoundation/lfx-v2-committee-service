@@ -172,6 +172,8 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		timeout: config.Timeout,
 	}
 
+	// Core buckets are required for the service to function — failing to
+	// initialize any of them is fatal.
 	for _, bucketName := range []string{
 		constants.KVBucketNameCommittees,
 		constants.KVBucketNameCommitteeSettings,
@@ -181,9 +183,6 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 		constants.KVBucketNameCommitteeLinks,
 		constants.KVBucketNameCommitteeFolders,
 		constants.KVBucketNameCommitteeDocuments,
-		constants.KVBucketNameGroupWeeklyBriefs,
-		constants.KVBucketNameGroupWeeklyBriefUIDIndex,
-		constants.KVBucketNameGroupWeeklyBriefThrottle,
 	} {
 		if err := client.KeyValueStore(ctx, bucketName); err != nil {
 			slog.ErrorContext(ctx, "failed to initialize NATS key-value store",
@@ -191,6 +190,27 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 				"bucket", bucketName,
 			)
 			return nil, errors.NewServiceUnavailable("failed to initialize NATS key-value store", err)
+		}
+		slog.InfoContext(ctx, "NATS key-value store initialized",
+			"bucket", bucketName,
+		)
+	}
+
+	// Weekly-brief buckets are initialized best-effort. If they aren't yet
+	// provisioned (e.g. a rolling deploy where the chart hasn't created them, or
+	// a local NATS without them) the service still starts; only the weekly-brief
+	// endpoints return ServiceUnavailable until the buckets exist.
+	for _, bucketName := range []string{
+		constants.KVBucketNameGroupWeeklyBriefs,
+		constants.KVBucketNameGroupWeeklyBriefUIDIndex,
+		constants.KVBucketNameGroupWeeklyBriefThrottle,
+	} {
+		if err := client.KeyValueStore(ctx, bucketName); err != nil {
+			slog.WarnContext(ctx, "weekly-brief KV bucket not initialized; weekly-brief endpoints will be unavailable until it is provisioned",
+				"error", err,
+				"bucket", bucketName,
+			)
+			continue
 		}
 		slog.InfoContext(ctx, "NATS key-value store initialized",
 			"bucket", bucketName,

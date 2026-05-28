@@ -15,6 +15,7 @@ This document is the authoritative reference for all data the committee service 
 - [Committee Application](#committee-application)
 - [Committee Link](#committee-link)
 - [Committee Link Folder](#committee-link-folder)
+- [Group Weekly Brief](#group-weekly-brief)
 
 ---
 
@@ -473,6 +474,73 @@ _(none)_
 | `name_and_aliases` | `name` |
 | `sort_name` | `name` |
 | `public` | inherits from parent committee |
+
+### Parent References
+
+| Ref | Condition |
+|---|---|
+| `committee:{committee_uid}` | Always set |
+
+---
+
+## Group Weekly Brief
+
+**Object type:** `group_weekly_brief`
+
+**NATS subject:** `lfx.index.group_weekly_brief`
+
+**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief` _(introduced in the entity-read-path PR; this contract entry lands first)_
+
+**Indexed on:** create, update, delete of a group weekly brief draft.
+
+> Published briefs will be a future separate entity; this entry covers the draft only.
+
+### Data Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `uid` | string | Brief unique identifier |
+| `committee_uid` | string | UID of the committee this brief belongs to |
+| `window_start` | timestamp | Start of the brief's reporting window (RFC3339) |
+| `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
+| `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
+| `brief_text` | string | Generated brief body; included in the indexed data payload |
+| `source_refs` | []object | References to the source artifacts the brief was generated from. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty |
+| `prompt_version` | string | Version identifier of the prompt used to generate the brief |
+| `model` | string | Identifier of the model used to generate the brief |
+| `regeneration_count` | int | Number of times the brief has been regenerated |
+| `private_source_present` | bool | Whether any source artifact used was private |
+| `created_at` | timestamp | Creation time (RFC3339) |
+| `updated_at` | timestamp | Last update time (RFC3339) |
+
+> **State lifecycle.** A brief is created in `generating` when a generate is requested — the request is accepted (202) and the source gather + LLM run asynchronously. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state (no activity in the window, or an AI/generation failure). Typical flow: `generating → generated → (edited) → approved`, with `error` reachable from `generating`. (`empty` is a reserved enum value; the current generate flow does not create briefs in the `empty` state.)
+
+### Tags
+
+| Tag Format | Example | Purpose |
+|---|---|---|
+| `{uid}` | `c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Direct lookup by UID |
+| `group_weekly_brief_uid:{uid}` | `group_weekly_brief_uid:c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Namespaced lookup by UID |
+| `committee_uid:{value}` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find weekly briefs for a committee |
+| `state:{value}` | `state:generated` | Find briefs by state |
+
+### Access Control (IndexingConfig)
+
+| Field | Value |
+|---|---|
+| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_relation` | `viewer` |
+| `history_check_object` | `committee:{committee_uid}` |
+| `history_check_relation` | `auditor` |
+
+### Search Behavior
+
+| Field | Value |
+|---|---|
+| `fulltext` | `brief_text` |
+| `name_and_aliases` | _(none)_ |
+| `sort_name` | _(none)_ |
+| `public` | `false` (always — intentional; even for public committees, brief drafts are never indexed as public) |
 
 ### Parent References
 

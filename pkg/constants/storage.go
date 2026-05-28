@@ -83,7 +83,8 @@ const (
 	KVBucketNameGroupWeeklyBriefUIDIndex = "group-weekly-brief-uid-index"
 
 	// KVBucketNameGroupWeeklyBriefThrottle is the KV bucket holding per-window
-	// regeneration throttle counts. Phase 1 creates the bucket but does not
-	// read or write it; Phase 2 owns the throttle logic.
+	// regeneration throttle counts. Phase 1 creates the bucket and reads it
+	// best-effort (returning the throttle alongside the brief when an entry
+	// exists) but never writes it; Phase 2 owns the throttle write/update logic.
 	KVBucketNameGroupWeeklyBriefThrottle = "group-weekly-brief-throttle"
 )
