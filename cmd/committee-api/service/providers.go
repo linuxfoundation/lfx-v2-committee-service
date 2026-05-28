@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,7 +24,10 @@ import (
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
-	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/auth0/go-auth0/authentication"
+	"github.com/auth0/go-auth0/authentication/oauth"
+	"golang.org/x/oauth2"
 )
 
 var (
@@ -506,15 +508,50 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 	return nil
 }
 
+// tokenExpiryLeeway shrinks the refresh window so we never present a token
+// that's about to expire in flight. Matches the meeting-service ITX proxy.
+const tokenExpiryLeeway = 60 * time.Second
+
+// auth0TokenSource implements oauth2.TokenSource backed by an Auth0 SDK
+// authentication client configured with a private-key JWT client assertion.
+// Wrap with oauth2.ReuseTokenSource to get caching + automatic refresh.
+type auth0TokenSource struct {
+	ctx        context.Context
+	authConfig *authentication.Authentication
+	audience   string
+}
+
+// Token issues a client-credentials request, signing the assertion JWT with
+// the configured RSA private key.
+func (a *auth0TokenSource) Token() (*oauth2.Token, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	tokenSet, err := a.authConfig.OAuth.LoginWithClientCredentials(ctx,
+		oauth.LoginWithClientCredentialsRequest{Audience: a.audience},
+		oauth.IDTokenValidationOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain M2M token from Auth0: %w", err)
+	}
+	return &oauth2.Token{
+		AccessToken: tokenSet.AccessToken,
+		TokenType:   tokenSet.TokenType,
+		Expiry:      time.Now().Add(time.Duration(tokenSet.ExpiresIn)*time.Second - tokenExpiryLeeway),
+	}, nil
+}
+
 // m2mHTTPClient builds the *http.Client used to call other LFX services on
 // behalf of THIS service identity (NOT the caller's bearer token). The
-// returned client transparently exchanges client_credentials for an OAuth2
-// access token and refreshes it as needed.
+// returned client transparently issues an Auth0 OAuth2 client-credentials
+// request, signing the assertion JWT with the configured RSA private key
+// (RS256), and refreshes the access token as needed.
 //
 // Env vars for live mode (required when QUERY_SERVICE_URL is set, except where noted):
 //   - M2M_AUTH_CLIENT_ID       (required)
-//   - M2M_AUTH_CLIENT_SECRET   (required)
-//   - M2M_AUTH_ISSUER          (required; token endpoint base, e.g. https://auth.example.org)
+//   - M2M_AUTH_PRIVATE_KEY     (required; RSA private key in PEM format)
+//   - M2M_AUTH_DOMAIN          (required; Auth0 domain, e.g. "linuxfoundation-dev.auth0.com")
 //   - M2M_AUTH_AUDIENCE        (optional)
 //
 // Behaviour:
@@ -526,44 +563,51 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 //     fail-fast at startup to prevent silent identity-less upstream calls.
 func m2mHTTPClient(ctx context.Context) *http.Client {
 	clientID := os.Getenv("M2M_AUTH_CLIENT_ID")
-	clientSecret := os.Getenv("M2M_AUTH_CLIENT_SECRET")
-	issuer := os.Getenv("M2M_AUTH_ISSUER")
+	privateKey := os.Getenv("M2M_AUTH_PRIVATE_KEY")
+	domain := os.Getenv("M2M_AUTH_DOMAIN")
 	audience := os.Getenv("M2M_AUTH_AUDIENCE")
 
 	queryURL := os.Getenv("QUERY_SERVICE_URL")
-	if clientID == "" || clientSecret == "" || issuer == "" {
+	if clientID == "" || privateKey == "" || domain == "" {
 		if queryURL != "" {
 			// QUERY_SERVICE_URL is set but M2M is incomplete — refuse to issue
-			// unauthenticated upstream calls (the reviewer flagged this as a
-			// silent fail-open that violated the documented M2M requirement).
+			// unauthenticated upstream calls. (Don't log the private key.)
 			log.Fatalf(
 				"QUERY_SERVICE_URL is set but M2M credentials are missing — refusing to issue unauthenticated upstream calls. "+
-					"Set M2M_AUTH_CLIENT_ID, M2M_AUTH_CLIENT_SECRET, M2M_AUTH_ISSUER (and optionally M2M_AUTH_AUDIENCE), or unset QUERY_SERVICE_URL. "+
-					"Got client_id_set=%t, client_secret_set=%t, issuer_set=%t",
-				clientID != "", clientSecret != "", issuer != "",
+					"Set M2M_AUTH_CLIENT_ID, M2M_AUTH_PRIVATE_KEY (RSA PEM), M2M_AUTH_DOMAIN (and optionally M2M_AUTH_AUDIENCE), or unset QUERY_SERVICE_URL. "+
+					"Got client_id_set=%t, private_key_set=%t, domain_set=%t",
+				clientID != "", privateKey != "", domain != "",
 			)
 		}
 		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; M2M HTTP client unused (returning unauthenticated client for uniform wiring)",
 			"client_id_set", clientID != "",
-			"client_secret_set", clientSecret != "",
-			"issuer_set", issuer != "",
+			"private_key_set", privateKey != "",
+			"domain_set", domain != "",
 		)
 		return &http.Client{Timeout: 15 * time.Second}
 	}
 
-	cfg := clientcredentials.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		TokenURL:     strings.TrimRight(issuer, "/") + "/oauth/token",
+	authConfig, err := authentication.New(ctx,
+		domain,
+		authentication.WithClientID(clientID),
+		authentication.WithClientAssertion(privateKey, "RS256"),
+	)
+	if err != nil {
+		// PrivateKey must be a valid RSA PEM; surface a clear message rather
+		// than letting later token requests fail opaquely.
+		log.Fatalf("failed to initialize Auth0 M2M client (ensure M2M_AUTH_PRIVATE_KEY contains a valid RSA private key in PEM format): %v", err)
 	}
-	if audience != "" {
-		cfg.EndpointParams = map[string][]string{"audience": {audience}}
-	}
-	slog.InfoContext(ctx, "initializing M2M client_credentials HTTP client",
-		"token_url", cfg.TokenURL,
+	tokenSource := oauth2.ReuseTokenSource(nil, &auth0TokenSource{
+		ctx:        ctx,
+		authConfig: authConfig,
+		audience:   audience,
+	})
+
+	slog.InfoContext(ctx, "initialized M2M HTTP client with Auth0 private-key JWT assertion",
+		"domain", domain,
 		"audience_set", audience != "",
 	)
-	httpClient := cfg.Client(ctx)
+	httpClient := oauth2.NewClient(ctx, tokenSource)
 	httpClient.Timeout = 15 * time.Second
 	return httpClient
 }
