@@ -1352,6 +1352,100 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// ─── Working-Group Weekly Brief endpoints ───
+
+	dsl.Method("get-current-weekly-brief", func() {
+		dsl.Description("Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. " +
+			"For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. " +
+			"Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefCurrentResult)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks viewer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/weekly-briefs/current")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("generate-weekly-brief", func() {
+		dsl.Description("Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat " +
+			"window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, " +
+			"not-yet-completed week). Responds 202 with the brief in the \"generating\" state; the source gather + LLM call run " +
+			"out-of-band via a durable consumer. Clients poll GET /current to observe the terminal \"generated\" or " +
+			"\"error\" state — a window with no activity or an AI failure finalizes the brief as \"error\" rather than a " +
+			"synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, " +
+			"enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the " +
+			"throttle is exhausted.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("force", dsl.Boolean, "Force regeneration even if an edited brief exists", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefGenerateResult)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("EditedBriefExists", GroupWeeklyBriefEditedExistsError, "An edited brief exists and force is not set")
+		dsl.Error("ThrottleExceeded", GroupWeeklyBriefThrottleExceededError, "Per-committee/per-week generation or regeneration limit exhausted")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/generate")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			// Let Goa derive the request body from the unmapped attribute
+			// ("force"). An explicit inline dsl.Body here makes Goa encode the
+			// whole payload (`body := p`), leaking the bearer token/uid/version
+			// into the JSON body; the implicit form generates a dedicated
+			// {force} request-body type instead.
+			dsl.Response(dsl.StatusAccepted)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("EditedBriefExists", dsl.StatusConflict)
+			dsl.Response("ThrottleExceeded", dsl.StatusTooManyRequests)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
 	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
 		dsl.Meta("swagger:generate", "false")

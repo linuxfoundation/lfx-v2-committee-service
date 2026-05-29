@@ -37,6 +37,7 @@ type messageHandlerOrchestrator struct {
 	inviteSender                port.InviteSender
 	userReader                  port.UserReader
 	lfxSelfServeBaseURL         string
+	weeklyBriefGenerator        GroupWeeklyBriefGenerator
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -96,6 +97,57 @@ func WithUserReaderForMessageHandler(reader port.UserReader) messageHandlerOrche
 	return func(m *messageHandlerOrchestrator) {
 		m.userReader = reader
 	}
+}
+
+// WithGroupWeeklyBriefGeneratorForMessageHandler sets the generator used to
+// fulfill async weekly-brief generation requests.
+func WithGroupWeeklyBriefGeneratorForMessageHandler(generator GroupWeeklyBriefGenerator) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.weeklyBriefGenerator = generator
+	}
+}
+
+// HandleGenerateWeeklyBriefRequested reacts to generate-requested stream events.
+// It decodes the request and runs the async Fulfill phase (source gather → LLM →
+// finalize). The caller (infrastructure layer) owns ACK/NAK: a nil return ACKs,
+// a non-nil return NAKs for retry with backoff.
+func (m *messageHandlerOrchestrator) HandleGenerateWeeklyBriefRequested(ctx context.Context, msg port.StreamMessenger) error {
+	if m.weeklyBriefGenerator == nil {
+		return errors.NewValidation("weekly brief generator is required for handling generate-requested events")
+	}
+
+	subject := msg.Subject()
+	if subject != constants.GenerateWeeklyBriefRequestedSubject {
+		slog.DebugContext(ctx, "stream message subject not relevant for weekly-brief generate — skipping",
+			"subject", subject,
+		)
+		return nil
+	}
+
+	var event GenerateWeeklyBriefRequestedEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		// Undecodable payload — discarding (ACK) rather than retrying forever.
+		slog.ErrorContext(ctx, "failed to unmarshal GenerateWeeklyBriefRequestedEvent — discarding", "error", err)
+		return nil
+	}
+	if event.CommitteeUID == "" {
+		slog.WarnContext(ctx, "generate-requested event missing committee_uid — discarding")
+		return nil
+	}
+
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+	slog.DebugContext(ctx, "fulfilling weekly-brief generation",
+		"committee_uid", event.CommitteeUID,
+		"force", event.Force,
+	)
+
+	return m.weeklyBriefGenerator.Fulfill(ctx, GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  event.CommitteeUID,
+		CommitteeName: event.CommitteeName,
+		ProjectName:   event.ProjectName,
+		Force:         event.Force,
+		Now:           event.RequestedAt,
+	})
 }
 
 // HandleCommitteeGetAttribute handles the retrieval of a specific attribute from the committee
