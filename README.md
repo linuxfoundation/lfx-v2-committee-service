@@ -97,13 +97,24 @@ which invokes the reusable
 as a `needs:` dependency of the `publish` job. A failing eval aborts the
 release.
 
-The eval requires three repository secrets (Settings → Secrets and variables → Actions):
+Configuration in CI is **not via GitHub repository secrets**:
 
-- `LITELLM_BASE_URL`
-- `LITELLM_API_KEY`
-- `LITELLM_MODEL`
+- `LITELLM_BASE_URL` and `LITELLM_MODEL` are pinned in the workflow's
+  `env:` block. To change the endpoint or model, edit
+  [`.github/workflows/weekly-brief-eval-live.yml`](.github/workflows/weekly-brief-eval-live.yml)
+  and merge the change — defaults are
+  `https://litellm.dev.v2.cluster.linuxfound.info` and `claude-sonnet-4-6`.
+- `LITELLM_API_KEY` is fetched from **AWS Secrets Manager** at
+  `/cloudops/managed-secrets/litellm/lfx-one-cicd`, via the OIDC role
+  `arn:aws:iam::450177423209:role/lfx-v2-github-actions`. To rotate the
+  key, update the AWS Secrets Manager entry — no workflow change required.
 
-Missing secrets fail the workflow loudly rather than silently skipping
+`ko-build-tag.yaml` grants the calling `eval-live` job
+`permissions: id-token: write` so the called workflow's OIDC token
+exchange with AWS can succeed; a reusable workflow cannot elevate
+permissions beyond what its caller grants.
+
+Missing credentials fail the workflow loudly rather than silently skipping
 (the live test calls `t.Fatalf` under `-tags=live`). To validate against a
 specific endpoint before cutting a release, run the workflow on demand via
 **Actions → Weekly-Brief Live Eval → Run workflow**.
