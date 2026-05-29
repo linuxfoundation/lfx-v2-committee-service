@@ -65,4 +65,26 @@ const (
 
 	// ConsumerNameTotalMembersSync is the durable JetStream consumer for keeping total_members accurate.
 	ConsumerNameTotalMembersSync = "committee-service-total-members"
+
+	// StreamNameWeeklyBriefEvents is the JetStream stream that captures weekly-brief
+	// generation events (the durable async generate workflow).
+	StreamNameWeeklyBriefEvents = "weekly-brief-events"
+
+	// ConsumerNameWeeklyBriefGenerate is the durable JetStream consumer that runs
+	// the async weekly-brief generation (source gather → LLM → finalize).
+	ConsumerNameWeeklyBriefGenerate = "committee-service-weekly-brief-generate"
+
+	// KVBucketNameGroupWeeklyBriefs is the KV bucket for working-group weekly briefs.
+	// Key: brief UID; Value: full brief JSON.
+	KVBucketNameGroupWeeklyBriefs = "group-weekly-briefs"
+
+	// KVBucketNameGroupWeeklyBriefUIDIndex is the KV bucket mapping
+	// {committee_uid}.{window_yyyymmdd} → brief UID.
+	KVBucketNameGroupWeeklyBriefUIDIndex = "group-weekly-brief-uid-index"
+
+	// KVBucketNameGroupWeeklyBriefThrottle is the KV bucket holding per-window
+	// regeneration throttle counts. Phase 1 creates the bucket and reads it
+	// best-effort (returning the throttle alongside the brief when an entry
+	// exists) but never writes it; Phase 2 owns the throttle write/update logic.
+	KVBucketNameGroupWeeklyBriefThrottle = "group-weekly-brief-throttle"
 )

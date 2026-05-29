@@ -23,6 +23,11 @@ func wrapError(ctx context.Context, err error) error {
 			return &committeeservice.NotFoundError{
 				Message: e.Error(),
 			}
+		case errors.EditedBriefExists:
+			return &committeeservice.GroupWeeklyBriefEditedExistsError{
+				Code:     "edited_brief_exists",
+				Revision: e.Revision,
+			}
 		case errors.Conflict:
 			return &committeeservice.ConflictError{
 				Message: e.Error(),
@@ -30,6 +35,15 @@ func wrapError(ctx context.Context, err error) error {
 		case errors.Forbidden:
 			return &committeeservice.ForbiddenError{
 				Message: e.Error(),
+			}
+		case errors.TooManyRequests:
+			return &committeeservice.GroupWeeklyBriefThrottleExceededError{
+				Code:               "throttle_exceeded",
+				GeneratesUsed:      e.GeneratesUsed,
+				GeneratesLimit:     e.GeneratesLimit,
+				RegenerationsUsed:  e.RegenerationsUsed,
+				RegenerationsLimit: e.RegenerationsLimit,
+				WindowResetsAt:     e.WindowResetsAt,
 			}
 		case errors.ServiceUnavailable:
 			return &committeeservice.ServiceUnavailableError{

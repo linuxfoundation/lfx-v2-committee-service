@@ -112,6 +112,11 @@ test: ## Run tests
 	@echo "Running tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 
+.PHONY: eval-live
+eval-live: ## Run the live-LLM weekly-brief eval suite (requires LITELLM_* env vars)
+	@echo "Running live-LLM weekly-brief eval suite..."
+	go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
+
 .PHONY: build
 build: ## Build the application for local OS
 	@echo "Building application for local development..."
