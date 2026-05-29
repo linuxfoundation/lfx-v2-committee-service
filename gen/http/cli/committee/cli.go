@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief)",
 	}
 }
 
@@ -269,6 +269,17 @@ func ParseEndpoint(
 		committeeServiceDeleteCommitteeDocumentBearerTokenFlag = committeeServiceDeleteCommitteeDocumentFlags.String("bearer-token", "", "")
 		committeeServiceDeleteCommitteeDocumentIfMatchFlag     = committeeServiceDeleteCommitteeDocumentFlags.String("if-match", "REQUIRED", "")
 		committeeServiceDeleteCommitteeDocumentXSyncFlag       = committeeServiceDeleteCommitteeDocumentFlags.String("x-sync", "", "")
+
+		committeeServiceGetCurrentWeeklyBriefFlags           = flag.NewFlagSet("get-current-weekly-brief", flag.ExitOnError)
+		committeeServiceGetCurrentWeeklyBriefUIDFlag         = committeeServiceGetCurrentWeeklyBriefFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGetCurrentWeeklyBriefVersionFlag     = committeeServiceGetCurrentWeeklyBriefFlags.String("version", "", "")
+		committeeServiceGetCurrentWeeklyBriefBearerTokenFlag = committeeServiceGetCurrentWeeklyBriefFlags.String("bearer-token", "", "")
+
+		committeeServiceGenerateWeeklyBriefFlags           = flag.NewFlagSet("generate-weekly-brief", flag.ExitOnError)
+		committeeServiceGenerateWeeklyBriefBodyFlag        = committeeServiceGenerateWeeklyBriefFlags.String("body", "REQUIRED", "")
+		committeeServiceGenerateWeeklyBriefUIDFlag         = committeeServiceGenerateWeeklyBriefFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceGenerateWeeklyBriefVersionFlag     = committeeServiceGenerateWeeklyBriefFlags.String("version", "", "")
+		committeeServiceGenerateWeeklyBriefBearerTokenFlag = committeeServiceGenerateWeeklyBriefFlags.String("bearer-token", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -306,6 +317,8 @@ func ParseEndpoint(
 	committeeServiceGetCommitteeDocumentFlags.Usage = committeeServiceGetCommitteeDocumentUsage
 	committeeServiceDownloadCommitteeDocumentFlags.Usage = committeeServiceDownloadCommitteeDocumentUsage
 	committeeServiceDeleteCommitteeDocumentFlags.Usage = committeeServiceDeleteCommitteeDocumentUsage
+	committeeServiceGetCurrentWeeklyBriefFlags.Usage = committeeServiceGetCurrentWeeklyBriefUsage
+	committeeServiceGenerateWeeklyBriefFlags.Usage = committeeServiceGenerateWeeklyBriefUsage
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return nil, nil, err
@@ -446,6 +459,12 @@ func ParseEndpoint(
 			case "delete-committee-document":
 				epf = committeeServiceDeleteCommitteeDocumentFlags
 
+			case "get-current-weekly-brief":
+				epf = committeeServiceGetCurrentWeeklyBriefFlags
+
+			case "generate-weekly-brief":
+				epf = committeeServiceGenerateWeeklyBriefFlags
+
 			}
 
 		}
@@ -574,6 +593,12 @@ func ParseEndpoint(
 			case "delete-committee-document":
 				endpoint = c.DeleteCommitteeDocument()
 				data, err = committeeservicec.BuildDeleteCommitteeDocumentPayload(*committeeServiceDeleteCommitteeDocumentUIDFlag, *committeeServiceDeleteCommitteeDocumentDocumentUIDFlag, *committeeServiceDeleteCommitteeDocumentVersionFlag, *committeeServiceDeleteCommitteeDocumentBearerTokenFlag, *committeeServiceDeleteCommitteeDocumentIfMatchFlag, *committeeServiceDeleteCommitteeDocumentXSyncFlag)
+			case "get-current-weekly-brief":
+				endpoint = c.GetCurrentWeeklyBrief()
+				data, err = committeeservicec.BuildGetCurrentWeeklyBriefPayload(*committeeServiceGetCurrentWeeklyBriefUIDFlag, *committeeServiceGetCurrentWeeklyBriefVersionFlag, *committeeServiceGetCurrentWeeklyBriefBearerTokenFlag)
+			case "generate-weekly-brief":
+				endpoint = c.GenerateWeeklyBrief()
+				data, err = committeeservicec.BuildGenerateWeeklyBriefPayload(*committeeServiceGenerateWeeklyBriefBodyFlag, *committeeServiceGenerateWeeklyBriefUIDFlag, *committeeServiceGenerateWeeklyBriefVersionFlag, *committeeServiceGenerateWeeklyBriefBearerTokenFlag)
 			}
 		}
 	}
@@ -625,6 +650,8 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
 	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
+	fmt.Fprintln(os.Stderr, `    get-current-weekly-brief: Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
+	fmt.Fprintln(os.Stderr, `    generate-weekly-brief: Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1236,7 +1263,7 @@ func committeeServiceListCommitteeLinksUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66fe5-ce63-4a68-b5ce-d0ffcfb3f430\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66f6c-bfc9-45d7-a3f1-05be0d9693cb\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateCommitteeLinkUsage() {
@@ -1262,7 +1289,7 @@ func committeeServiceCreateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"i04\",\n      \"folder_uid\": \"27355660-a042-4a5b-b89e-2c8d204a1e52\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeLinkUsage() {
@@ -1416,7 +1443,7 @@ func committeeServiceUploadCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Ea qui.\",\n      \"description\": \"svx\",\n      \"file\": \"RXJyb3IgcGFyaWF0dXIgZGViaXRpcyBjb3JydXB0aSBudW1xdWFtIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Ullam et voluptatibus sit.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeDocumentUsage() {
@@ -1493,4 +1520,50 @@ func committeeServiceDeleteCommitteeDocumentUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-document --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+}
+
+func committeeServiceGetCurrentWeeklyBriefUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-current-weekly-brief", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-current-weekly-brief --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceGenerateWeeklyBriefUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service generate-weekly-brief", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service generate-weekly-brief --body '{\n      \"force\": false\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }

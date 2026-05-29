@@ -53,6 +53,8 @@ type Endpoints struct {
 	GetCommitteeDocument      goa.Endpoint
 	DownloadCommitteeDocument goa.Endpoint
 	DeleteCommitteeDocument   goa.Endpoint
+	GetCurrentWeeklyBrief     goa.Endpoint
+	GenerateWeeklyBrief       goa.Endpoint
 }
 
 // DownloadCommitteeDocumentResponseData holds both the result and the HTTP
@@ -103,6 +105,8 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCommitteeDocument:      NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DownloadCommitteeDocument: NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
+		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
+		GenerateWeeklyBrief:       NewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -144,6 +148,8 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCommitteeDocument = m(e.GetCommitteeDocument)
 	e.DownloadCommitteeDocument = m(e.DownloadCommitteeDocument)
 	e.DeleteCommitteeDocument = m(e.DeleteCommitteeDocument)
+	e.GetCurrentWeeklyBrief = m(e.GetCurrentWeeklyBrief)
+	e.GenerateWeeklyBrief = m(e.GenerateWeeklyBrief)
 }
 
 // NewCreateCommitteeEndpoint returns an endpoint function that calls the
@@ -922,5 +928,51 @@ func NewDeleteCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFun
 			return nil, err
 		}
 		return nil, s.DeleteCommitteeDocument(ctx, p)
+	}
+}
+
+// NewGetCurrentWeeklyBriefEndpoint returns an endpoint function that calls the
+// method "get-current-weekly-brief" of service "committee-service".
+func NewGetCurrentWeeklyBriefEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetCurrentWeeklyBriefPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetCurrentWeeklyBrief(ctx, p)
+	}
+}
+
+// NewGenerateWeeklyBriefEndpoint returns an endpoint function that calls the
+// method "generate-weekly-brief" of service "committee-service".
+func NewGenerateWeeklyBriefEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GenerateWeeklyBriefPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GenerateWeeklyBrief(ctx, p)
 	}
 }
