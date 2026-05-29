@@ -234,8 +234,9 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
 		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc))
-		_, _ = h.HandleCommitteeDocumentCreated(context.Background(), msg)
-
+		resp, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Nil(t, resp)
 		require.NotEmpty(t, sender.calls)
 		assert.Contains(t, sender.calls[0].Subject, "TSC Committee")
 		assert.Contains(t, sender.calls[0].HTML, "Q1 Report")
