@@ -127,6 +127,32 @@ func (c *NATSClient) StartCommitteeMemberConsumer(
 	return consumeCtx.Stop, nil
 }
 
+// StartWeeklyBriefGenerateConsumer binds the durable consumer for the
+// weekly-brief generate workflow and starts delivering generate-requested
+// events to handler. It returns a stop function the caller must invoke on
+// shutdown. The LLM call can take a while, so AckWait is generous; MaxDeliver
+// bounds retries before the message is dropped.
+func (c *NATSClient) StartWeeklyBriefGenerateConsumer(
+	ctx context.Context,
+	handler func(ctx context.Context, msg port.StreamMessenger) error,
+) (func(), error) {
+	cfg := jetstream.ConsumerConfig{
+		Name:           constants.ConsumerNameWeeklyBriefGenerate,
+		Durable:        constants.ConsumerNameWeeklyBriefGenerate,
+		FilterSubjects: []string{constants.GenerateWeeklyBriefRequestedSubject},
+		AckPolicy:      jetstream.AckExplicitPolicy,
+		MaxDeliver:     3,
+		AckWait:        5 * time.Minute,
+	}
+
+	consumeCtx, err := c.ConsumeWithJetStream(ctx, constants.StreamNameWeeklyBriefEvents, cfg, handler)
+	if err != nil {
+		return nil, err
+	}
+
+	return consumeCtx.Stop, nil
+}
+
 // nakDelay returns an exponential backoff duration with full jitter based on the message
 // delivery attempt count. Full jitter (random in [0, cap]) prevents correlated retries
 // across concurrent service replicas.

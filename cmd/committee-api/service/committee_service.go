@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
@@ -40,6 +41,8 @@ type committeeServicesrvc struct {
 	linkWriter                  service.CommitteeLinkDataWriter
 	docReader                   service.CommitteeDocumentDataReader
 	docWriter                   service.CommitteeDocumentDataWriter
+	weeklyBriefReader           service.GroupWeeklyBriefDataReader
+	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1221,7 +1224,20 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
+func NewCommitteeService(
+	createCommitteeUseCase service.CommitteeWriter,
+	readCommitteeUseCase service.CommitteeReader,
+	authService port.Authenticator,
+	storage port.CommitteeReaderWriter,
+	publisher port.CommitteePublisher,
+	userReader port.UserReader,
+	linkReader service.CommitteeLinkDataReader,
+	linkWriter service.CommitteeLinkDataWriter,
+	docReader service.CommitteeDocumentDataReader,
+	docWriter service.CommitteeDocumentDataWriter,
+	weeklyBriefReader service.GroupWeeklyBriefDataReader,
+	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
@@ -1233,7 +1249,213 @@ func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCom
 		linkWriter:                  linkWriter,
 		docReader:                   docReader,
 		docWriter:                   docWriter,
+		weeklyBriefReader:           weeklyBriefReader,
+		weeklyBriefGenerator:        weeklyBriefGenerator,
 	}
+}
+
+// GetCurrentWeeklyBrief returns the working-group weekly brief for the UTC
+// Sun→Sat window selected by model.WeeklyWindow (on a Saturday this is the
+// current, not-yet-completed week), plus optional throttle counters.
+// On a miss, both fields are nil and the HTTP status is 200 (per BFF contract).
+func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *committeeservice.GetCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefCurrentResult, error) {
+	slog.DebugContext(ctx, "committeeService.get-current-weekly-brief",
+		"committee_uid", p.UID,
+	)
+
+	// Authorization (committee viewer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists so a typo'd UID returns 404, not 200/null.
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if s.weeklyBriefReader == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief reader is not configured"))
+	}
+
+	brief, throttleBytes, err := s.weeklyBriefReader.GetCurrent(ctx, p.UID, time.Now().UTC())
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	res := &committeeservice.GroupWeeklyBriefCurrentResult{}
+	if brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(brief)
+	}
+	if brief != nil && len(throttleBytes) > 0 {
+		throttle := &model.GroupWeeklyBriefThrottle{}
+		if err := json.Unmarshal(throttleBytes, throttle); err == nil {
+			res.Throttle = domainGroupWeeklyBriefThrottleToGoa(throttle)
+		} else {
+			slog.WarnContext(ctx, "failed to unmarshal weekly-brief throttle entry", "error", err)
+		}
+	}
+	return res, nil
+}
+
+// domainGroupWeeklyBriefToGoa converts a domain GroupWeeklyBrief to its Goa
+// response type.
+func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.GroupWeeklyBriefWithReadonlyAttributes {
+	uid := b.UID
+	committeeUID := b.CommitteeUID
+	// RFC3339Nano so window_end exposes the model's inclusive nanosecond end
+	// (…23:59:59.999999999Z); plain RFC3339 would truncate it to seconds and
+	// misrepresent the documented window. window_start has no sub-second part,
+	// so Nano renders it without a fractional component.
+	windowStart := b.WindowStart.UTC().Format(time.RFC3339Nano)
+	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339Nano)
+	state := string(b.State)
+	regenCount := b.RegenerationCount
+	privPresent := b.PrivateSourcePresent
+
+	out := &committeeservice.GroupWeeklyBriefWithReadonlyAttributes{
+		UID:                  &uid,
+		CommitteeUID:         &committeeUID,
+		WindowStart:          &windowStart,
+		WindowEnd:            &windowEnd,
+		State:                &state,
+		RegenerationCount:    &regenCount,
+		PrivateSourcePresent: &privPresent,
+	}
+	// Only emit CreatedAt/UpdatedAt when set — Validate() doesn't require them,
+	// so formatting a zero time would surface "0001-01-01T00:00:00Z" in the
+	// response. Mirrors how LastAttemptAt is handled below.
+	if !b.CreatedAt.IsZero() {
+		v := b.CreatedAt.UTC().Format(time.RFC3339)
+		out.CreatedAt = &v
+	}
+	if !b.UpdatedAt.IsZero() {
+		v := b.UpdatedAt.UTC().Format(time.RFC3339)
+		out.UpdatedAt = &v
+	}
+	if b.BriefText != "" {
+		v := b.BriefText
+		out.BriefText = &v
+	}
+	if b.PromptVersion != "" {
+		v := b.PromptVersion
+		out.PromptVersion = &v
+	}
+	if b.Model != "" {
+		v := b.Model
+		out.Model = &v
+	}
+	for _, sr := range b.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		out.SourceRefs = append(out.SourceRefs, ref)
+	}
+	return out
+}
+
+// domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
+// response type: the split counters (generates / regenerations) with their
+// limits, plus the window reset timestamp.
+func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
+	gUsed := t.GeneratesUsed
+	gLimit := model.GroupWeeklyBriefGenerateLimit
+	rUsed := t.RegenerationsUsed
+	rLimit := model.GroupWeeklyBriefRegenerationLimit
+	out := &committeeservice.GroupWeeklyBriefThrottle{
+		GeneratesUsed:      &gUsed,
+		GeneratesLimit:     &gLimit,
+		RegenerationsUsed:  &rUsed,
+		RegenerationsLimit: &rLimit,
+	}
+	if !t.WindowResetsAt.IsZero() {
+		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
+		out.WindowResetsAt = &v
+	}
+	return out
+}
+
+// GenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/generate
+// handler. It runs the synchronous claim phase (edited-guard, throttle limits,
+// persist the brief in the "generating" state) and publishes a generate-requested
+// event; the durable consumer then runs the source gather + LLM + finalize
+// asynchronously. The endpoint responds 202 with the brief in "generating" — the
+// client polls GET /current to observe the terminal "generated"/"error" state.
+func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *committeeservice.GenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefGenerateResult, error) {
+	slog.DebugContext(ctx, "committeeService.generate-weekly-brief",
+		"committee_uid", p.UID,
+		"force", p.Force,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists so a typo'd UID returns 404, not 429.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+	// The publisher is required: without it we can't enqueue the async fulfill
+	// step, which would leave the brief stuck in "generating". Fail fast before
+	// claiming rather than returning 202 for work nothing will pick up.
+	if s.publisher == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief publisher is not configured"))
+	}
+
+	// Use a single "now" for both the claim and the event so the async phase
+	// computes exactly the same window as the synchronous claim.
+	now := time.Now().UTC()
+
+	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		Now:           now,
+	})
+	if errClaim != nil {
+		return nil, wrapError(ctx, errClaim)
+	}
+
+	// Publish the generate-requested event for the durable consumer to fulfill.
+	// If publishing fails the brief is left "generating" with nothing to advance
+	// it, so surface 503 and let the caller retry.
+	event := service.GenerateWeeklyBriefRequestedEvent{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		RequestedAt:   now,
+	}
+	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
+		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
+			"committee_uid", p.UID, "error", errPub)
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("failed to enqueue weekly-brief generation", errPub))
+	}
+
+	res := &committeeservice.GroupWeeklyBriefGenerateResult{}
+	if out.Brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(out.Brief)
+	}
+	if out.Throttle != nil {
+		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
+	}
+	return res, nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.
