@@ -1,0 +1,249 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"strings"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	emailsvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service/email"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	"golang.org/x/sync/errgroup"
+)
+
+// committeeContentItem is a unified representation of a file document or link for notification purposes.
+type committeeContentItem struct {
+	committeeUID      string
+	itemType          string // "document" or "link"
+	itemName          string
+	itemURL           string // non-empty for links
+	itemDescription   string
+	createdByUsername string // LFID of the uploader/creator
+}
+
+// HandleCommitteeDocumentCreated handles committee_document.created events and notifies all
+// LFID members, writers, and auditors of the committee. Best-effort: errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeDocumentCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_document.created event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_document.created event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var doc model.CommitteeDocument
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeDocument from event data", "error", err)
+		return nil, nil
+	}
+
+	item := committeeContentItem{
+		committeeUID:      doc.CommitteeUID,
+		itemType:          "document",
+		itemName:          doc.Name,
+		itemDescription:   doc.Description,
+		createdByUsername: doc.UploadedByUsername,
+	}
+
+	m.handleContentCreated(ctx, item)
+	return nil, nil
+}
+
+// HandleCommitteeLinkCreated handles committee_link.created events and notifies all
+// LFID members, writers, and auditors of the committee. Best-effort: errors are logged, not returned.
+func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event model.CommitteeEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "failed to unmarshal committee_link.created event", "error", err)
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(event.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "committee_link.created event has unexpected data shape", "error", err)
+		return nil, nil
+	}
+
+	var link model.CommitteeLink
+	if err := json.Unmarshal(raw, &link); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeLink from event data", "error", err)
+		return nil, nil
+	}
+
+	item := committeeContentItem{
+		committeeUID:      link.CommitteeUID,
+		itemType:          "link",
+		itemName:          link.Name,
+		itemURL:           link.URL,
+		itemDescription:   link.Description,
+		createdByUsername: link.CreatedByUsername,
+	}
+
+	m.handleContentCreated(ctx, item)
+	return nil, nil
+}
+
+// handleContentCreated fans out notification emails to all LFID members, writers, and auditors
+// of the committee. Best-effort: individual send failures are logged but never abort the batch.
+func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, item committeeContentItem) {
+	if m.committeeReader == nil || m.emailSender == nil {
+		slog.DebugContext(ctx, "committee reader or email sender not configured — skipping content notification",
+			"committee_uid", item.committeeUID)
+		return
+	}
+
+	committee, _, err := m.committeeReader.GetBase(ctx, item.committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to load committee for content notification",
+			"error", err, "committee_uid", item.committeeUID)
+		return
+	}
+
+	recipients := m.collectCommitteeRecipients(ctx, item.committeeUID)
+	if len(recipients) == 0 {
+		slog.DebugContext(ctx, "no LFID recipients for content notification", "committee_uid", item.committeeUID)
+		return
+	}
+
+	uploaderName := m.resolveDisplayNameWithTimeout(ctx, item.createdByUsername)
+	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, item.committeeUID)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(5)
+
+	for _, r := range recipients {
+		recipient := r
+		g.Go(func() error {
+			email := recipient.email
+			if email == "" && m.userReader != nil && recipient.username != "" {
+				lookupCtx, cancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, recipient.username)
+				cancel()
+				if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
+					email = emails.PrimaryEmail
+				}
+			}
+			if email == "" {
+				slog.WarnContext(gctx, "skipping content notification — user has no email address",
+					"committee_uid", item.committeeUID,
+					"username", redaction.Redact(recipient.username))
+				return nil
+			}
+
+			recipientName := recipient.name
+			if recipientName == "" {
+				recipientName = recipient.username
+			}
+			if recipientName == "" {
+				recipientName = email
+			}
+
+			emailSubject, emailHTML, emailText, renderErr := emailsvc.RenderCommitteeDocumentNotification(
+				emailsvc.CommitteeDocumentNotificationData{
+					RecipientName:   recipientName,
+					CommitteeName:   committee.Name,
+					CommitteeURL:    committeeURL,
+					UploaderName:    uploaderName,
+					ItemType:        item.itemType,
+					ItemName:        item.itemName,
+					ItemURL:         item.itemURL,
+					ItemDescription: item.itemDescription,
+				},
+			)
+			if renderErr != nil {
+				slog.WarnContext(gctx, "failed to render content notification email",
+					"error", renderErr, "committee_uid", item.committeeUID)
+				return nil
+			}
+
+			sendCtx, cancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+			defer cancel()
+			if sendErr := m.emailSender.SendEmail(sendCtx, emailapi.SendEmailRequest{
+				To:      email,
+				Subject: emailSubject,
+				HTML:    emailHTML,
+				Text:    emailText,
+			}); sendErr != nil {
+				slog.WarnContext(gctx, "failed to send content notification email",
+					"error", sendErr, "committee_uid", item.committeeUID)
+			} else {
+				slog.DebugContext(gctx, "sent content notification email",
+					"committee_uid", item.committeeUID, "item_type", item.itemType)
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+}
+
+// notificationRecipient is a minimal recipient record used for fan-out.
+type notificationRecipient struct {
+	username string
+	email    string
+	name     string
+}
+
+// collectCommitteeRecipients returns a deduplicated list of LFID recipients (members + writers + auditors).
+// Users without an LFID (Username == "") are excluded — they cannot receive direct emails at this phase.
+func (m *messageHandlerOrchestrator) collectCommitteeRecipients(ctx context.Context, committeeUID string) []notificationRecipient {
+	seen := make(map[string]struct{})
+	var recipients []notificationRecipient
+
+	add := func(username, email, name string) {
+		if username == "" {
+			return
+		}
+		if _, ok := seen[username]; ok {
+			return
+		}
+		seen[username] = struct{}{}
+		recipients = append(recipients, notificationRecipient{
+			username: username,
+			email:    email,
+			name:     name,
+		})
+	}
+
+	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to list members for content notification",
+			"error", err, "committee_uid", committeeUID)
+	} else {
+		for _, m := range members {
+			add(m.Username, m.Email, strings.TrimSpace(m.FirstName+" "+m.LastName))
+		}
+	}
+
+	settings, _, err := m.committeeReader.GetSettings(ctx, committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to load settings for content notification",
+			"error", err, "committee_uid", committeeUID)
+	} else {
+		for _, u := range settings.GetWriters() {
+			add(u.Username, u.Email, u.Name)
+		}
+		for _, u := range settings.GetAuditors() {
+			add(u.Username, u.Email, u.Name)
+		}
+	}
+
+	return recipients
+}
+
+// resolveDisplayNameWithTimeout wraps resolveDisplayName with a bounded context.
+func (m *messageHandlerOrchestrator) resolveDisplayNameWithTimeout(ctx context.Context, principal string) string {
+	lookupCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	return m.resolveDisplayName(lookupCtx, principal)
+}
