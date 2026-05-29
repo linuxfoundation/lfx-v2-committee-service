@@ -107,6 +107,69 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 	return result, nil
 }
 
+// UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
+func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	if err != nil {
+		return nil, err
+	}
+
+	var response UserMetadataNATSResponse
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		return nil, errors.NewUnexpected("failed to parse user_metadata response", err)
+	}
+
+	if !response.Success || response.Data == nil {
+		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
+	}
+
+	d := response.Data
+	result := &model.UserMetadata{}
+	if d.Picture != nil {
+		result.Picture = *d.Picture
+	}
+	if d.Zoneinfo != nil {
+		result.Zoneinfo = *d.Zoneinfo
+	}
+	if d.Name != nil {
+		result.Name = *d.Name
+	}
+	if d.GivenName != nil {
+		result.GivenName = *d.GivenName
+	}
+	if d.FamilyName != nil {
+		result.FamilyName = *d.FamilyName
+	}
+	if d.JobTitle != nil {
+		result.JobTitle = *d.JobTitle
+	}
+	if d.Organization != nil {
+		result.Organization = *d.Organization
+	}
+	if d.Country != nil {
+		result.Country = *d.Country
+	}
+	if d.StateProvince != nil {
+		result.StateProvince = *d.StateProvince
+	}
+	if d.City != nil {
+		result.City = *d.City
+	}
+	if d.Address != nil {
+		result.Address = *d.Address
+	}
+	if d.PostalCode != nil {
+		result.PostalCode = *d.PostalCode
+	}
+	if d.PhoneNumber != nil {
+		result.PhoneNumber = *d.PhoneNumber
+	}
+	if d.TShirtSize != nil {
+		result.TShirtSize = *d.TShirtSize
+	}
+	return result, nil
+}
+
 // NewMessageRequest creates a new NATS-backed ProjectReader for retrieving project attributes.
 func NewMessageRequest(client *NATSClient) port.ProjectReader {
 	return &messageRequest{

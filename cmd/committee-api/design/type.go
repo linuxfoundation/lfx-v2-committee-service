@@ -309,6 +309,21 @@ func TotalVotingReposAttribute() {
 	})
 }
 
+// CommitteeUserInviteType holds pending invite metadata for a non-LFID user.
+var CommitteeUserInviteType = dsl.Type("committee-user-invite", func() {
+	dsl.Description("Pending invite metadata for a user who has not yet created an LFID account.")
+	dsl.Attribute("uid", dsl.String, "Invite UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+	})
+	dsl.Attribute("email", dsl.String, "Email address the invite was sent to", func() {
+		dsl.Example("alice.johnson@example.com")
+	})
+	dsl.Attribute("expires_at", dsl.String, "Invite expiry timestamp (RFC 3339)", func() {
+		dsl.Example("2026-06-01T00:00:00Z")
+		dsl.Format(dsl.FormatDateTime)
+	})
+})
+
 // CommitteeUserType is the DSL type for a user object in writers/auditors lists.
 var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
@@ -324,6 +339,7 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
 		dsl.Example("alicejohnson789")
 	})
+	dsl.Attribute("invite", CommitteeUserInviteType, "Pending invite info, present when the user has no LFID")
 })
 
 // WritersAttribute is the DSL attribute for committee writers.
@@ -593,7 +609,6 @@ func RoleNameAttribute() {
 	dsl.Attribute("name", dsl.String, "Committee role name", func() {
 		dsl.Enum(
 			"Chair",
-			"Counsel",
 			"Developer Seat",
 			"TAC/TOC Representative",
 			"Director",
@@ -965,6 +980,171 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
+})
+
+// ─── Working-Group Weekly Brief Types ───
+
+// GroupWeeklyBriefSourceRef is a reference to one source document considered
+// by the weekly-brief generator.
+var GroupWeeklyBriefSourceRef = dsl.Type("group-weekly-brief-source-ref", func() {
+	dsl.Description("Reference to a source document considered by the weekly-brief generator.")
+	dsl.Attribute("kind", dsl.String, "Source category (meeting, mailing-list, doc, …)", func() {
+		dsl.Example("meeting")
+	})
+	dsl.Attribute("id", dsl.String, "Source-system identifier (URL or UID)", func() {
+		dsl.Example("https://meet.example.org/abc123")
+	})
+	dsl.Attribute("title", dsl.String, "Short human label for the source", func() {
+		dsl.Example("2026-05-12 weekly sync")
+	})
+	dsl.Attribute("excerpt", dsl.String, "Excerpt consumed by the generator", func() {
+		dsl.MaxLength(5000)
+	})
+})
+
+// GroupWeeklyBriefWithReadonlyAttributes is the Goa type for a weekly brief.
+var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-readonly-attributes", func() {
+	dsl.Description("A working-group weekly brief for a single committee and Sun→Sat window.")
+	dsl.Attribute("uid", dsl.String, "Brief UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID this brief belongs to", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("window_start", dsl.String, "UTC Sunday 00:00:00 marking the start of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-10T00:00:00Z")
+	})
+	dsl.Attribute("window_end", dsl.String, "Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond precision)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-16T23:59:59.999999999Z")
+	})
+	dsl.Attribute("state", dsl.String, "Lifecycle state", func() {
+		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
+		dsl.Example("generated")
+	})
+	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
+		dsl.MaxLength(20000)
+	})
+	dsl.Attribute("source_refs", dsl.ArrayOf(GroupWeeklyBriefSourceRef), "Sources considered by the generator")
+	dsl.Attribute("prompt_version", dsl.String, "Prompt version used by the generator", func() {
+		dsl.Example("v1")
+	})
+	dsl.Attribute("model", dsl.String, "AI model used by the generator", func() {
+		dsl.Example("fake")
+	})
+	dsl.Attribute("regeneration_count", dsl.Int, "Number of regenerations triggered in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("private_source_present", dsl.Boolean, "Whether any non-public source was used", func() {
+		dsl.Example(false)
+	})
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
+// returned alongside the brief: generates_used / regenerations_used with their
+// limits, plus window_resets_at.
+var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
+	dsl.Description("Per-committee/per-week regeneration throttle counters.")
+	dsl.Attribute("generates_used", dsl.Int, "Number of fresh generations used in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("generates_limit", dsl.Int, "Maximum fresh generations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Number of regenerations used in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Maximum regenerations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+})
+
+// GroupWeeklyBriefCurrentResult is the envelope returned by
+// GET /committees/{uid}/weekly-briefs/current. brief and throttle are both
+// nullable; on a miss BOTH are null and the HTTP status is 200 (NOT 404).
+//
+// The attributes are intentionally NOT Required: marking them Required forces
+// the generated client validation to reject a valid `{"brief":null,"throttle":null}`
+// miss response (MissingFieldError). Instead, an explicit json struct tag
+// without `omitempty` (via Meta) keeps the keys present and serializes a nil
+// pointer as `null`, matching the documented BFF contract without breaking
+// client decoding.
+var GroupWeeklyBriefCurrentResult = dsl.Type("group-weekly-brief-current-result", func() {
+	dsl.Description("Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window", func() {
+		dsl.Meta("struct:tag:json", "brief")
+	})
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null", func() {
+		dsl.Meta("struct:tag:json", "throttle")
+	})
+})
+
+// GroupWeeklyBriefGenerateResult is the envelope returned by
+// POST /committees/{uid}/weekly-briefs/generate.
+var GroupWeeklyBriefGenerateResult = dsl.Type("group-weekly-brief-generate-result", func() {
+	dsl.Description("Envelope returned by POST /committees/{uid}/weekly-briefs/generate. Both brief and throttle are populated on success.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The newly generated (or regenerated) brief")
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Updated throttle counters for the current window")
+})
+
+// GroupWeeklyBriefThrottleExceededError is the 429 body. It carries the throttle
+// counters so the BFF can render a precise "try again at" hint without a second
+// round-trip.
+var GroupWeeklyBriefThrottleExceededError = dsl.Type("group-weekly-brief-throttle-exceeded-error", func() {
+	dsl.Description("Returned when the per-committee/per-week generation or regeneration limit is exhausted.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("throttle_exceeded")
+		dsl.Example("throttle_exceeded")
+	})
+	dsl.Attribute("generates_used", dsl.Int, "Fresh generations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("generates_limit", dsl.Int, "Fresh-generation limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Regenerations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Regeneration limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets (next UTC Sunday 00:00:00)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+	dsl.Required("code", "generates_used", "generates_limit", "regenerations_used", "regenerations_limit", "window_resets_at")
+})
+
+// GroupWeeklyBriefEditedExistsError is the 409 body returned when a brief in
+// the "edited" state already exists for this window and the caller did not
+// pass force=true.
+var GroupWeeklyBriefEditedExistsError = dsl.Type("group-weekly-brief-edited-exists-error", func() {
+	dsl.Description("Returned when an edited brief already exists for this window and force was not set.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("edited_brief_exists")
+		dsl.Example("edited_brief_exists")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Current revision of the edited brief", func() {
+		dsl.Example(uint64(7))
+	})
+	dsl.Required("code", "revision")
 })
 
 // ─── Committee Document Types ───

@@ -7,12 +7,36 @@ import (
 	"time"
 )
 
+// InviteInfo holds pending invite metadata for a user without an LFID.
+type InviteInfo struct {
+	UID       string     `json:"uid"`
+	Email     string     `json:"email"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
 // CommitteeUser represents a user stored in the writers or auditors lists.
 type CommitteeUser struct {
-	Avatar   string `json:"avatar,omitempty"`
-	Email    string `json:"email,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Username string `json:"username,omitempty"`
+	Avatar   string      `json:"avatar,omitempty"`
+	Email    string      `json:"email,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Username string      `json:"username,omitempty"`
+	Invite   *InviteInfo `json:"invite,omitempty"`
+}
+
+// GetWriters returns the Writers slice, returning nil when the receiver is nil.
+func (s *CommitteeSettings) GetWriters() []CommitteeUser {
+	if s == nil {
+		return nil
+	}
+	return s.Writers
+}
+
+// GetAuditors returns the Auditors slice, returning nil when the receiver is nil.
+func (s *CommitteeSettings) GetAuditors() []CommitteeUser {
+	if s == nil {
+		return nil
+	}
+	return s.Auditors
 }
 
 // CommitteeSettings represents sensitive committee settings

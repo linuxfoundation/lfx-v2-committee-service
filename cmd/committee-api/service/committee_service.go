@@ -5,12 +5,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +24,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+	"golang.org/x/sync/errgroup"
 
 	"goa.design/goa/v3/security"
 )
@@ -38,6 +41,8 @@ type committeeServicesrvc struct {
 	linkWriter                  service.CommitteeLinkDataWriter
 	docReader                   service.CommitteeDocumentDataReader
 	docWriter                   service.CommitteeDocumentDataWriter
+	weeklyBriefReader           service.GroupWeeklyBriefDataReader
+	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -66,6 +71,16 @@ func (s *committeeServicesrvc) CreateCommittee(ctx context.Context, p *committee
 		"name", p.Name,
 		"x_sync", p.XSync,
 	)
+
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// After enrichment, every entry must have at least an email or a resolved username.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
 
 	// Convert payload to DTO
 	request := s.convertPayloadToDomain(p)
@@ -212,13 +227,24 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Validate that every writer/auditor entry has a username
-	if err := validateSettingsUsers(p.Writers, p.Auditors); err != nil {
+	// Enrich writer/auditor usernames from the auth service; caller-supplied LFIDs are untrusted.
+	if err := s.enrichAllRoleFields(ctx, p.Writers, p.Auditors); err != nil {
 		return nil, wrapError(ctx, err)
 	}
 
-	// Convert payload to domain model
-	settings := s.convertPayloadToUpdateSettings(p)
+	// After enrichment, every entry must have at least an email or a resolved username.
+	if err := validateIdentityFields(p.Writers, p.Auditors); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
+	if errGet != nil {
+		return nil, wrapError(ctx, errGet)
+	}
+
+	// Convert payload to domain model, seeding each user from the existing record.
+	settings := s.convertPayloadToUpdateSettings(p, existingSettings)
 
 	// Execute use case
 	updatedSettings, err := s.committeeWriterOrchestrator.UpdateSettings(ctx, settings, parsedRevision, p.XSync)
@@ -243,6 +269,9 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, request)
 
 	// Execute use case
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
@@ -307,6 +336,9 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// If no username was supplied, resolve it from email and enrich profile fields.
+	s.enrichMember(ctx, committeeMember)
 
 	// Execute use case
 	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
@@ -710,6 +742,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		},
 	}
 
+	// Resolve username and profile fields from the applicant's email.
+	s.enrichMember(ctx, member)
+
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
@@ -872,22 +907,6 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
 // their principal (from context) to the auth-service via NATS.
-// validateSettingsUsers returns a validation error if any entry in writers or
-// auditors is missing a username, since username is required for access control.
-func validateSettingsUsers(writers, auditors []*committeeservice.CommitteeUser) error {
-	for i, u := range writers {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("writers[%d]: username is required", i))
-		}
-	}
-	for i, u := range auditors {
-		if u == nil || u.Username == nil || *u.Username == "" {
-			return errors.NewValidation(fmt.Sprintf("auditors[%d]: username is required", i))
-		}
-	}
-	return nil
-}
-
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1012,8 +1031,213 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 	}
 }
 
+// validateIdentityFields returns a validation error if any writer or auditor entry has
+// neither a username nor an email address, since such entries cannot be resolved or stored.
+// Email-only entries are allowed — enrichAllRoleFields may fill in the username if the email
+// resolves, but an entry is still valid even when the email is unresolvable (Username stays "").
+// Username-only entries (no email) are allowed — the caller-supplied LFID is persisted as-is.
+func validateIdentityFields(writers, auditors []*committeeservice.CommitteeUser) error {
+	check := func(role string, users []*committeeservice.CommitteeUser) error {
+		for i, u := range users {
+			if u == nil {
+				continue
+			}
+			hasUsername := u.Username != nil && strings.TrimSpace(*u.Username) != ""
+			hasEmail := u.Email != nil && strings.TrimSpace(*u.Email) != ""
+			if !hasUsername && !hasEmail {
+				return errors.NewValidation(fmt.Sprintf("%s[%d]: username or email is required", role, i))
+			}
+		}
+		return nil
+	}
+	if err := check("writers", writers); err != nil {
+		return err
+	}
+	return check("auditors", auditors)
+}
+
+// enrichAllRoleFields overwrites the Username, Name, and Avatar fields on every CommitteeUser
+// across all supplied slices with authoritative values from the auth service.
+// Each unique email is looked up exactly once; at most 8 lookups run concurrently.
+// Misses (unknown email or lookup not found) clear Username to "" so no stale LFID is persisted.
+// Entries with only a caller-supplied Username and no Email are left untouched —
+// they pass through and are persisted as-is.
+// Username transport errors fail the request so incorrect LFIDs are never silently kept.
+// Metadata (name/avatar) errors only log a warning; display fields do not block the write.
+func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices ...[]*committeeservice.CommitteeUser) error {
+	if s.userReader == nil {
+		return errors.NewServiceUnavailable("user reader is not configured")
+	}
+
+	byEmail := make(map[string][]*committeeservice.CommitteeUser)
+
+	for _, slice := range slices {
+		for _, u := range slice {
+			if u == nil {
+				continue
+			}
+			normEmail := ""
+			if u.Email != nil {
+				normEmail = strings.ToLower(strings.TrimSpace(*u.Email))
+			}
+			if normEmail == "" {
+				continue
+			}
+			byEmail[normEmail] = append(byEmail[normEmail], u)
+		}
+	}
+
+	if len(byEmail) == 0 {
+		return nil
+	}
+
+	// enrichResult holds the resolved identity and profile for one email address.
+	type enrichResult struct {
+		sub      string
+		metadata *model.UserMetadata
+	}
+
+	results := make(map[string]enrichResult, len(byEmail))
+	var mu sync.Mutex
+	const maxConcurrent = 8
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrent)
+
+	for email := range byEmail {
+		g.Go(func() error {
+			sub, err := s.userReader.SubByEmail(gCtx, email)
+			if err != nil {
+				var notFound errors.NotFound
+				if stderrors.As(err, &notFound) {
+					mu.Lock()
+					results[email] = enrichResult{}
+					mu.Unlock()
+					return nil
+				}
+				return err
+			}
+			if sub == "" {
+				// Empty sub with no error is treated as not found — no valid LFID to persist.
+				mu.Lock()
+				results[email] = enrichResult{}
+				mu.Unlock()
+				return nil
+			}
+
+			// Sub resolved — now fetch authoritative profile data.
+			// Metadata failures are non-fatal: display fields must not block the write.
+			var meta *model.UserMetadata
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			if metaErr != nil {
+				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
+					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
+			} else {
+				meta = m
+			}
+
+			mu.Lock()
+			results[email] = enrichResult{sub: sub, metadata: meta}
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return errors.NewUnexpected("enriching committee user role fields failed", err)
+	}
+
+	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
+	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
+	// not currently model; they are fetched now so the domain struct is complete for future callers.
+	for email, users := range byEmail {
+		r := results[email]
+		for _, u := range users {
+			sub := r.sub
+			u.Username = &sub
+			if r.metadata != nil {
+				if r.metadata.Name != "" {
+					name := r.metadata.Name
+					u.Name = &name
+				}
+				if r.metadata.Picture != "" {
+					picture := r.metadata.Picture
+					u.Avatar = &picture
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// enrichMember resolves the subject identifier (username) and profile metadata for a member from
+// their email address. When email is present the auth-service lookup always runs, overriding any
+// caller-supplied plain LFID so only subject identifiers are persisted.
+// All lookups are best-effort: failures log a warning and leave the field unchanged so the
+// caller's write is never blocked by an enrichment error.
+// FirstName and LastName are only overwritten when the auth service returns a non-empty value
+// and the caller did not supply them, so caller-provided display names are preserved.
+func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
+	if s.userReader == nil {
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(member.Email))
+	if email == "" {
+		return
+	}
+
+	// Clear any caller-supplied value so a failed lookup never leaves a plain LFID at rest.
+	member.Username = ""
+
+	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
+	// failing the request. Individual member writes (create/update/approve) should not be blocked
+	// by a transient auth-service outage — the member is stored without an enriched LFID.
+	sub, err := s.userReader.SubByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed; member will be stored without LFID",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return
+	}
+	if sub == "" {
+		return
+	}
+	member.Username = sub
+
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	if metaErr != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
+			"sub", redaction.Redact(sub), "error", metaErr)
+		return
+	}
+	if meta == nil {
+		return
+	}
+	if member.FirstName == "" && meta.GivenName != "" {
+		member.FirstName = meta.GivenName
+	}
+	if member.LastName == "" && meta.FamilyName != "" {
+		member.LastName = meta.FamilyName
+	}
+}
+
 // NewCommitteeService returns the committee-service service implementation with dependencies.
-func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCommitteeUseCase service.CommitteeReader, authService port.Authenticator, storage port.CommitteeReaderWriter, publisher port.CommitteePublisher, userReader port.UserReader, linkReader service.CommitteeLinkDataReader, linkWriter service.CommitteeLinkDataWriter, docReader service.CommitteeDocumentDataReader, docWriter service.CommitteeDocumentDataWriter) committeeservice.Service {
+func NewCommitteeService(
+	createCommitteeUseCase service.CommitteeWriter,
+	readCommitteeUseCase service.CommitteeReader,
+	authService port.Authenticator,
+	storage port.CommitteeReaderWriter,
+	publisher port.CommitteePublisher,
+	userReader port.UserReader,
+	linkReader service.CommitteeLinkDataReader,
+	linkWriter service.CommitteeLinkDataWriter,
+	docReader service.CommitteeDocumentDataReader,
+	docWriter service.CommitteeDocumentDataWriter,
+	weeklyBriefReader service.GroupWeeklyBriefDataReader,
+	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
 		committeeReaderOrchestrator: readCommitteeUseCase,
@@ -1025,7 +1249,213 @@ func NewCommitteeService(createCommitteeUseCase service.CommitteeWriter, readCom
 		linkWriter:                  linkWriter,
 		docReader:                   docReader,
 		docWriter:                   docWriter,
+		weeklyBriefReader:           weeklyBriefReader,
+		weeklyBriefGenerator:        weeklyBriefGenerator,
 	}
+}
+
+// GetCurrentWeeklyBrief returns the working-group weekly brief for the UTC
+// Sun→Sat window selected by model.WeeklyWindow (on a Saturday this is the
+// current, not-yet-completed week), plus optional throttle counters.
+// On a miss, both fields are nil and the HTTP status is 200 (per BFF contract).
+func (s *committeeServicesrvc) GetCurrentWeeklyBrief(ctx context.Context, p *committeeservice.GetCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefCurrentResult, error) {
+	slog.DebugContext(ctx, "committeeService.get-current-weekly-brief",
+		"committee_uid", p.UID,
+	)
+
+	// Authorization (committee viewer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists so a typo'd UID returns 404, not 200/null.
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if s.weeklyBriefReader == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief reader is not configured"))
+	}
+
+	brief, throttleBytes, err := s.weeklyBriefReader.GetCurrent(ctx, p.UID, time.Now().UTC())
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	res := &committeeservice.GroupWeeklyBriefCurrentResult{}
+	if brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(brief)
+	}
+	if brief != nil && len(throttleBytes) > 0 {
+		throttle := &model.GroupWeeklyBriefThrottle{}
+		if err := json.Unmarshal(throttleBytes, throttle); err == nil {
+			res.Throttle = domainGroupWeeklyBriefThrottleToGoa(throttle)
+		} else {
+			slog.WarnContext(ctx, "failed to unmarshal weekly-brief throttle entry", "error", err)
+		}
+	}
+	return res, nil
+}
+
+// domainGroupWeeklyBriefToGoa converts a domain GroupWeeklyBrief to its Goa
+// response type.
+func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.GroupWeeklyBriefWithReadonlyAttributes {
+	uid := b.UID
+	committeeUID := b.CommitteeUID
+	// RFC3339Nano so window_end exposes the model's inclusive nanosecond end
+	// (…23:59:59.999999999Z); plain RFC3339 would truncate it to seconds and
+	// misrepresent the documented window. window_start has no sub-second part,
+	// so Nano renders it without a fractional component.
+	windowStart := b.WindowStart.UTC().Format(time.RFC3339Nano)
+	windowEnd := b.WindowEnd.UTC().Format(time.RFC3339Nano)
+	state := string(b.State)
+	regenCount := b.RegenerationCount
+	privPresent := b.PrivateSourcePresent
+
+	out := &committeeservice.GroupWeeklyBriefWithReadonlyAttributes{
+		UID:                  &uid,
+		CommitteeUID:         &committeeUID,
+		WindowStart:          &windowStart,
+		WindowEnd:            &windowEnd,
+		State:                &state,
+		RegenerationCount:    &regenCount,
+		PrivateSourcePresent: &privPresent,
+	}
+	// Only emit CreatedAt/UpdatedAt when set — Validate() doesn't require them,
+	// so formatting a zero time would surface "0001-01-01T00:00:00Z" in the
+	// response. Mirrors how LastAttemptAt is handled below.
+	if !b.CreatedAt.IsZero() {
+		v := b.CreatedAt.UTC().Format(time.RFC3339)
+		out.CreatedAt = &v
+	}
+	if !b.UpdatedAt.IsZero() {
+		v := b.UpdatedAt.UTC().Format(time.RFC3339)
+		out.UpdatedAt = &v
+	}
+	if b.BriefText != "" {
+		v := b.BriefText
+		out.BriefText = &v
+	}
+	if b.PromptVersion != "" {
+		v := b.PromptVersion
+		out.PromptVersion = &v
+	}
+	if b.Model != "" {
+		v := b.Model
+		out.Model = &v
+	}
+	for _, sr := range b.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		out.SourceRefs = append(out.SourceRefs, ref)
+	}
+	return out
+}
+
+// domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
+// response type: the split counters (generates / regenerations) with their
+// limits, plus the window reset timestamp.
+func domainGroupWeeklyBriefThrottleToGoa(t *model.GroupWeeklyBriefThrottle) *committeeservice.GroupWeeklyBriefThrottle {
+	gUsed := t.GeneratesUsed
+	gLimit := model.GroupWeeklyBriefGenerateLimit
+	rUsed := t.RegenerationsUsed
+	rLimit := model.GroupWeeklyBriefRegenerationLimit
+	out := &committeeservice.GroupWeeklyBriefThrottle{
+		GeneratesUsed:      &gUsed,
+		GeneratesLimit:     &gLimit,
+		RegenerationsUsed:  &rUsed,
+		RegenerationsLimit: &rLimit,
+	}
+	if !t.WindowResetsAt.IsZero() {
+		v := t.WindowResetsAt.UTC().Format(time.RFC3339)
+		out.WindowResetsAt = &v
+	}
+	return out
+}
+
+// GenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/generate
+// handler. It runs the synchronous claim phase (edited-guard, throttle limits,
+// persist the brief in the "generating" state) and publishes a generate-requested
+// event; the durable consumer then runs the source gather + LLM + finalize
+// asynchronously. The endpoint responds 202 with the brief in "generating" — the
+// client polls GET /current to observe the terminal "generated"/"error" state.
+func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *committeeservice.GenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefGenerateResult, error) {
+	slog.DebugContext(ctx, "committeeService.generate-weekly-brief",
+		"committee_uid", p.UID,
+		"force", p.Force,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists so a typo'd UID returns 404, not 429.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+	// The publisher is required: without it we can't enqueue the async fulfill
+	// step, which would leave the brief stuck in "generating". Fail fast before
+	// claiming rather than returning 202 for work nothing will pick up.
+	if s.publisher == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief publisher is not configured"))
+	}
+
+	// Use a single "now" for both the claim and the event so the async phase
+	// computes exactly the same window as the synchronous claim.
+	now := time.Now().UTC()
+
+	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		Now:           now,
+	})
+	if errClaim != nil {
+		return nil, wrapError(ctx, errClaim)
+	}
+
+	// Publish the generate-requested event for the durable consumer to fulfill.
+	// If publishing fails the brief is left "generating" with nothing to advance
+	// it, so surface 503 and let the caller retry.
+	event := service.GenerateWeeklyBriefRequestedEvent{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectName:   base.ProjectName,
+		Force:         p.Force,
+		RequestedAt:   now,
+	}
+	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
+		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
+			"committee_uid", p.UID, "error", errPub)
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("failed to enqueue weekly-brief generation", errPub))
+	}
+
+	res := &committeeservice.GroupWeeklyBriefGenerateResult{}
+	if out.Brief != nil {
+		res.Brief = domainGroupWeeklyBriefToGoa(out.Brief)
+	}
+	if out.Throttle != nil {
+		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
+	}
+	return res, nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

@@ -38,7 +38,6 @@ func TestRoleNameValidation_AllRoles(t *testing.T) {
 
 	validRoles := []string{
 		"Chair",
-		"Counsel",
 		"Developer Seat",
 		"TAC/TOC Representative",
 		"Director",

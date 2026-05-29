@@ -295,6 +295,13 @@ type UploadCommitteeDocumentRequestBody struct {
 	File []byte `form:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
 }
 
+// GenerateWeeklyBriefRequestBody is the type of the "committee-service"
+// service "generate-weekly-brief" endpoint HTTP request body.
+type GenerateWeeklyBriefRequestBody struct {
+	// Force regeneration even if an edited brief exists
+	Force *bool `form:"force,omitempty" json:"force,omitempty" xml:"force,omitempty"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -946,6 +953,24 @@ type UploadCommitteeDocumentResponseBody struct {
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
 // service "get-committee-document" endpoint HTTP response body.
 type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesResponseBody
+
+// GetCurrentWeeklyBriefResponseBody is the type of the "committee-service"
+// service "get-current-weekly-brief" endpoint HTTP response body.
+type GetCurrentWeeklyBriefResponseBody struct {
+	// The weekly brief, or null if none exists for the current window
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `json:"brief"`
+	// Throttle counters for the current window, or null
+	Throttle *GroupWeeklyBriefThrottleResponseBody `json:"throttle"`
+}
+
+// GenerateWeeklyBriefResponseBody is the type of the "committee-service"
+// service "generate-weekly-brief" endpoint HTTP response body.
+type GenerateWeeklyBriefResponseBody struct {
+	// The newly generated (or regenerated) brief
+	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
+	// Updated throttle counters for the current window
+	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+}
 
 // CreateCommitteeBadRequestResponseBody is the type of the "committee-service"
 // service "create-committee" endpoint HTTP response body for the "BadRequest"
@@ -2093,6 +2118,114 @@ type DeleteCommitteeDocumentServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// GetCurrentWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "BadRequest" error.
+type GetCurrentWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCurrentWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "Forbidden" error.
+type GetCurrentWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCurrentWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "InternalServerError" error.
+type GetCurrentWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCurrentWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "NotFound" error.
+type GetCurrentWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetCurrentWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-current-weekly-brief" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type GetCurrentWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GenerateWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "BadRequest" error.
+type GenerateWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GenerateWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "Forbidden" error.
+type GenerateWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GenerateWeeklyBriefEditedBriefExistsResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "EditedBriefExists" error.
+type GenerateWeeklyBriefEditedBriefExistsResponseBody struct {
+	// Stable machine code
+	Code string `form:"code" json:"code" xml:"code"`
+	// Current revision of the edited brief
+	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
+}
+
+// GenerateWeeklyBriefThrottleExceededResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "ThrottleExceeded" error.
+type GenerateWeeklyBriefThrottleExceededResponseBody struct {
+	// Stable machine code
+	Code string `form:"code" json:"code" xml:"code"`
+	// Fresh generations consumed in this window
+	GeneratesUsed int `form:"generates_used" json:"generates_used" xml:"generates_used"`
+	// Fresh-generation limit per window
+	GeneratesLimit int `form:"generates_limit" json:"generates_limit" xml:"generates_limit"`
+	// Regenerations consumed in this window
+	RegenerationsUsed int `form:"regenerations_used" json:"regenerations_used" xml:"regenerations_used"`
+	// Regeneration limit per window
+	RegenerationsLimit int `form:"regenerations_limit" json:"regenerations_limit" xml:"regenerations_limit"`
+	// Timestamp when the window resets (next UTC Sunday 00:00:00)
+	WindowResetsAt string `form:"window_resets_at" json:"window_resets_at" xml:"window_resets_at"`
+}
+
+// GenerateWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "InternalServerError" error.
+type GenerateWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GenerateWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "NotFound" error.
+type GenerateWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GenerateWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "generate-weekly-brief" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type GenerateWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // CommitteeUserResponseBody is used to define fields on response body types.
 type CommitteeUserResponseBody struct {
 	// URL to the user's avatar image
@@ -2103,6 +2236,19 @@ type CommitteeUserResponseBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Pending invite info, present when the user has no LFID
+	Invite *CommitteeUserInviteResponseBody `form:"invite,omitempty" json:"invite,omitempty" xml:"invite,omitempty"`
+}
+
+// CommitteeUserInviteResponseBody is used to define fields on response body
+// types.
+type CommitteeUserInviteResponseBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Email address the invite was sent to
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Invite expiry timestamp (RFC 3339)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 }
 
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
@@ -2351,6 +2497,66 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// GroupWeeklyBriefWithReadonlyAttributesResponseBody is used to define fields
+// on response body types.
+type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
+	// Brief UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID this brief belongs to
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string `form:"window_start,omitempty" json:"window_start,omitempty" xml:"window_start,omitempty"`
+	// Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond
+	// precision)
+	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
+	// Lifecycle state
+	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Brief body markdown text
+	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRefResponseBody `form:"source_refs,omitempty" json:"source_refs,omitempty" xml:"source_refs,omitempty"`
+	// Prompt version used by the generator
+	PromptVersion *string `form:"prompt_version,omitempty" json:"prompt_version,omitempty" xml:"prompt_version,omitempty"`
+	// AI model used by the generator
+	Model *string `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
+	// Number of regenerations triggered in this window
+	RegenerationCount *int `form:"regeneration_count,omitempty" json:"regeneration_count,omitempty" xml:"regeneration_count,omitempty"`
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool `form:"private_source_present,omitempty" json:"private_source_present,omitempty" xml:"private_source_present,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// GroupWeeklyBriefSourceRefResponseBody is used to define fields on response
+// body types.
+type GroupWeeklyBriefSourceRefResponseBody struct {
+	// Source category (meeting, mailing-list, doc, …)
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	// Source-system identifier (URL or UID)
+	ID *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	// Short human label for the source
+	Title *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	// Excerpt consumed by the generator
+	Excerpt *string `form:"excerpt,omitempty" json:"excerpt,omitempty" xml:"excerpt,omitempty"`
+}
+
+// GroupWeeklyBriefThrottleResponseBody is used to define fields on response
+// body types.
+type GroupWeeklyBriefThrottleResponseBody struct {
+	// Number of fresh generations used in this window
+	GeneratesUsed *int `form:"generates_used,omitempty" json:"generates_used,omitempty" xml:"generates_used,omitempty"`
+	// Maximum fresh generations allowed in this window
+	GeneratesLimit *int `form:"generates_limit,omitempty" json:"generates_limit,omitempty" xml:"generates_limit,omitempty"`
+	// Number of regenerations used in this window
+	RegenerationsUsed *int `form:"regenerations_used,omitempty" json:"regenerations_used,omitempty" xml:"regenerations_used,omitempty"`
+	// Maximum regenerations allowed in this window
+	RegenerationsLimit *int `form:"regenerations_limit,omitempty" json:"regenerations_limit,omitempty" xml:"regenerations_limit,omitempty"`
+	// Timestamp when the window resets
+	WindowResetsAt *string `form:"window_resets_at,omitempty" json:"window_resets_at,omitempty" xml:"window_resets_at,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image
@@ -2361,6 +2567,19 @@ type CommitteeUserRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Pending invite info, present when the user has no LFID
+	Invite *CommitteeUserInviteRequestBody `form:"invite,omitempty" json:"invite,omitempty" xml:"invite,omitempty"`
+}
+
+// CommitteeUserInviteRequestBody is used to define fields on request body
+// types.
+type CommitteeUserInviteRequestBody struct {
+	// Invite UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Email address the invite was sent to
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Invite expiry timestamp (RFC 3339)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 }
 
 // NewCreateCommitteeResponseBody builds the HTTP response body from the result
@@ -3508,6 +3727,34 @@ func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocum
 		UploadedByUsername: res.CommitteeDocument.UploadedByUsername,
 		CreatedAt:          res.CommitteeDocument.CreatedAt,
 		UpdatedAt:          res.CommitteeDocument.UpdatedAt,
+	}
+	return body
+}
+
+// NewGetCurrentWeeklyBriefResponseBody builds the HTTP response body from the
+// result of the "get-current-weekly-brief" endpoint of the "committee-service"
+// service.
+func NewGetCurrentWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefCurrentResult) *GetCurrentWeeklyBriefResponseBody {
+	body := &GetCurrentWeeklyBriefResponseBody{}
+	if res.Brief != nil {
+		body.Brief = marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyBriefWithReadonlyAttributesResponseBody(res.Brief)
+	}
+	if res.Throttle != nil {
+		body.Throttle = marshalCommitteeserviceGroupWeeklyBriefThrottleToGroupWeeklyBriefThrottleResponseBody(res.Throttle)
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefResponseBody builds the HTTP response body from the
+// result of the "generate-weekly-brief" endpoint of the "committee-service"
+// service.
+func NewGenerateWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefGenerateResult) *GenerateWeeklyBriefResponseBody {
+	body := &GenerateWeeklyBriefResponseBody{}
+	if res.Brief != nil {
+		body.Brief = marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyBriefWithReadonlyAttributesResponseBody(res.Brief)
+	}
+	if res.Throttle != nil {
+		body.Throttle = marshalCommitteeserviceGroupWeeklyBriefThrottleToGroupWeeklyBriefThrottleResponseBody(res.Throttle)
 	}
 	return body
 }
@@ -4933,6 +5180,132 @@ func NewDeleteCommitteeDocumentServiceUnavailableResponseBody(res *committeeserv
 	return body
 }
 
+// NewGetCurrentWeeklyBriefBadRequestResponseBody builds the HTTP response body
+// from the result of the "get-current-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGetCurrentWeeklyBriefBadRequestResponseBody(res *committeeservice.BadRequestError) *GetCurrentWeeklyBriefBadRequestResponseBody {
+	body := &GetCurrentWeeklyBriefBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCurrentWeeklyBriefForbiddenResponseBody builds the HTTP response body
+// from the result of the "get-current-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGetCurrentWeeklyBriefForbiddenResponseBody(res *committeeservice.ForbiddenError) *GetCurrentWeeklyBriefForbiddenResponseBody {
+	body := &GetCurrentWeeklyBriefForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCurrentWeeklyBriefInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "get-current-weekly-brief" endpoint of
+// the "committee-service" service.
+func NewGetCurrentWeeklyBriefInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetCurrentWeeklyBriefInternalServerErrorResponseBody {
+	body := &GetCurrentWeeklyBriefInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCurrentWeeklyBriefNotFoundResponseBody builds the HTTP response body
+// from the result of the "get-current-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGetCurrentWeeklyBriefNotFoundResponseBody(res *committeeservice.NotFoundError) *GetCurrentWeeklyBriefNotFoundResponseBody {
+	body := &GetCurrentWeeklyBriefNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetCurrentWeeklyBriefServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "get-current-weekly-brief" endpoint of
+// the "committee-service" service.
+func NewGetCurrentWeeklyBriefServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetCurrentWeeklyBriefServiceUnavailableResponseBody {
+	body := &GetCurrentWeeklyBriefServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefBadRequestResponseBody builds the HTTP response body
+// from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefBadRequestResponseBody(res *committeeservice.BadRequestError) *GenerateWeeklyBriefBadRequestResponseBody {
+	body := &GenerateWeeklyBriefBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefForbiddenResponseBody builds the HTTP response body
+// from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefForbiddenResponseBody(res *committeeservice.ForbiddenError) *GenerateWeeklyBriefForbiddenResponseBody {
+	body := &GenerateWeeklyBriefForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefEditedBriefExistsResponseBody builds the HTTP response
+// body from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefEditedBriefExistsResponseBody(res *committeeservice.GroupWeeklyBriefEditedExistsError) *GenerateWeeklyBriefEditedBriefExistsResponseBody {
+	body := &GenerateWeeklyBriefEditedBriefExistsResponseBody{
+		Code:     res.Code,
+		Revision: res.Revision,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefThrottleExceededResponseBody builds the HTTP response
+// body from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefThrottleExceededResponseBody(res *committeeservice.GroupWeeklyBriefThrottleExceededError) *GenerateWeeklyBriefThrottleExceededResponseBody {
+	body := &GenerateWeeklyBriefThrottleExceededResponseBody{
+		Code:               res.Code,
+		GeneratesUsed:      res.GeneratesUsed,
+		GeneratesLimit:     res.GeneratesLimit,
+		RegenerationsUsed:  res.RegenerationsUsed,
+		RegenerationsLimit: res.RegenerationsLimit,
+		WindowResetsAt:     res.WindowResetsAt,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GenerateWeeklyBriefInternalServerErrorResponseBody {
+	body := &GenerateWeeklyBriefInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefNotFoundResponseBody builds the HTTP response body
+// from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefNotFoundResponseBody(res *committeeservice.NotFoundError) *GenerateWeeklyBriefNotFoundResponseBody {
+	body := &GenerateWeeklyBriefNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGenerateWeeklyBriefServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewGenerateWeeklyBriefServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GenerateWeeklyBriefServiceUnavailableResponseBody {
+	body := &GenerateWeeklyBriefServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewCreateCommitteePayload builds a committee-service service
 // create-committee endpoint payload.
 func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteePayload {
@@ -5667,6 +6040,34 @@ func NewDeleteCommitteeDocumentPayload(uid string, documentUID string, version *
 	return v
 }
 
+// NewGetCurrentWeeklyBriefPayload builds a committee-service service
+// get-current-weekly-brief endpoint payload.
+func NewGetCurrentWeeklyBriefPayload(uid string, version *string, bearerToken *string) *committeeservice.GetCurrentWeeklyBriefPayload {
+	v := &committeeservice.GetCurrentWeeklyBriefPayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewGenerateWeeklyBriefPayload builds a committee-service service
+// generate-weekly-brief endpoint payload.
+func NewGenerateWeeklyBriefPayload(body *GenerateWeeklyBriefRequestBody, uid string, version *string, bearerToken *string) *committeeservice.GenerateWeeklyBriefPayload {
+	v := &committeeservice.GenerateWeeklyBriefPayload{}
+	if body.Force != nil {
+		v.Force = *body.Force
+	}
+	if body.Force == nil {
+		v.Force = false
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
 // ValidateCreateCommitteeRequestBody runs the validations defined on
 // Create-CommitteeRequestBody
 func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err error) {
@@ -5730,6 +6131,20 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	return
@@ -5809,6 +6224,20 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -5849,8 +6278,8 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 	}
 	if body.Role != nil {
 		if body.Role.Name != nil {
-			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Counsel" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
 			}
 		}
 		if body.Role.StartDate != nil {
@@ -5933,8 +6362,8 @@ func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequest
 	}
 	if body.Role != nil {
 		if body.Role.Name != nil {
-			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Counsel" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Counsel", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
 			}
 		}
 		if body.Role.StartDate != nil {
@@ -6096,6 +6525,26 @@ func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentReq
 	}
 	if body.FolderUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidateCommitteeUserRequestBody runs the validations defined on
+// committee-userRequestBody
+func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
+	if body.Invite != nil {
+		if err2 := ValidateCommitteeUserInviteRequestBody(body.Invite); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateCommitteeUserInviteRequestBody runs the validations defined on
+// committee-user-inviteRequestBody
+func ValidateCommitteeUserInviteRequestBody(body *CommitteeUserInviteRequestBody) (err error) {
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
 	}
 	return
 }

@@ -31,9 +31,35 @@ type CommitteeMailingListHandler interface {
 	HandleCommitteeMailingListChanged(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
+// CommitteeNotificationHandler handles events that trigger notification emails to committee members.
+type CommitteeNotificationHandler interface {
+	// HandleCommitteeMemberCreated sends a notification email when a member is added to a committee.
+	HandleCommitteeMemberCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeMemberDeleted sends a removal notification email when an LF committee
+	// member is deleted. Non-LF members receive no notification.
+	HandleCommitteeMemberDeleted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeSettingsUpdated sends notification emails when Writers/Auditors are added,
+	// have their role-set changed, or are fully removed from the committee.
+	HandleCommitteeSettingsUpdated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleInviteAccepted processes an invite acceptance event from the invite service.
+	// It locates the settings record that owns the invite, promotes the user from non-LFID
+	// (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
+	HandleInviteAccepted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+}
+
+// WeeklyBriefGenerateHandler handles the durable async weekly-brief generation
+// workflow, reacting to generate-requested stream events.
+type WeeklyBriefGenerateHandler interface {
+	// HandleGenerateWeeklyBriefRequested runs the async Fulfill phase (source
+	// gather → LLM → finalize) for a claimed weekly brief.
+	HandleGenerateWeeklyBriefRequested(ctx context.Context, msg StreamMessenger) error
+}
+
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.
 type MessageHandler interface {
 	CommitteeAttributeHandler
 	CommitteeMemberHandler
 	CommitteeMailingListHandler
+	CommitteeNotificationHandler
+	WeeklyBriefGenerateHandler
 }

@@ -2,15 +2,16 @@
 # SPDX-License-Identifier: MIT
 
 APP_NAME := lfx-v2-committee-service
+BINARY_NAME := committee-api
 VERSION := $(shell git describe --tags --always)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Docker
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
-DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
+DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-api
 DOCKER_CLI_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)/committee-cli
-DOCKER_TAG := $(VERSION)
+DOCKER_TAG ?= $(VERSION)
 
 # Helm variables
 HELM_CHART_PATH=./charts/lfx-v2-committee-service
@@ -111,17 +112,22 @@ test: ## Run tests
 	@echo "Running tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 
+.PHONY: eval-live
+eval-live: ## Run the live-LLM weekly-brief eval suite (requires LITELLM_* env vars)
+	@echo "Running live-LLM weekly-brief eval suite..."
+	go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
+
 .PHONY: build
 build: ## Build the application for local OS
 	@echo "Building application for local development..."
 	go build \
 		-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.gitCommit=$(GIT_COMMIT)" \
-		-o bin/$(APP_NAME) ./cmd/committee-api
+		-o bin/$(BINARY_NAME) ./cmd/committee-api
 
 .PHONY: run
 run: build ## Run the application for local development
 	@echo "Running application for local development..."
-	./bin/$(APP_NAME)
+	./bin/$(BINARY_NAME)
 
 .PHONY: build-cli
 build-cli: ## Build the committee-cli binary for local OS
@@ -147,7 +153,7 @@ docker-build-cli: ## Build CLI Docker image using Dockerfile.cli
 docker-run: ## Run Docker container locally
 	@echo "Running Docker container..."
 	docker run \
-		--name $(APP_NAME) \
+		--name $(BINARY_NAME) \
 		-p 8080:8080 \
 		-e NATS_URL=nats://lfx-platform-nats.lfx.svc.cluster.local:4222 \
 		$(DOCKER_IMAGE):$(DOCKER_TAG)

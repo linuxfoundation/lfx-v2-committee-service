@@ -158,6 +158,14 @@ type Client struct {
 	// delete-committee-document endpoint.
 	DeleteCommitteeDocumentDoer goahttp.Doer
 
+	// GetCurrentWeeklyBrief Doer is the HTTP client used to make requests to the
+	// get-current-weekly-brief endpoint.
+	GetCurrentWeeklyBriefDoer goahttp.Doer
+
+	// GenerateWeeklyBrief Doer is the HTTP client used to make requests to the
+	// generate-weekly-brief endpoint.
+	GenerateWeeklyBriefDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -219,6 +227,8 @@ func NewClient(
 		GetCommitteeDocumentDoer:      doer,
 		DownloadCommitteeDocumentDoer: doer,
 		DeleteCommitteeDocumentDoer:   doer,
+		GetCurrentWeeklyBriefDoer:     doer,
+		GenerateWeeklyBriefDoer:       doer,
 		RestoreResponseBody:           restoreBody,
 		scheme:                        scheme,
 		host:                          host,
@@ -1057,6 +1067,54 @@ func (c *Client) DeleteCommitteeDocument() goa.Endpoint {
 		resp, err := c.DeleteCommitteeDocumentDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "delete-committee-document", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetCurrentWeeklyBrief returns an endpoint that makes HTTP requests to the
+// committee-service service get-current-weekly-brief server.
+func (c *Client) GetCurrentWeeklyBrief() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetCurrentWeeklyBriefRequest(c.encoder)
+		decodeResponse = DecodeGetCurrentWeeklyBriefResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetCurrentWeeklyBriefRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetCurrentWeeklyBriefDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-current-weekly-brief", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GenerateWeeklyBrief returns an endpoint that makes HTTP requests to the
+// committee-service service generate-weekly-brief server.
+func (c *Client) GenerateWeeklyBrief() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGenerateWeeklyBriefRequest(c.encoder)
+		decodeResponse = DecodeGenerateWeeklyBriefResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGenerateWeeklyBriefRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GenerateWeeklyBriefDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "generate-weekly-brief", err)
 		}
 		return decodeResponse(resp)
 	}

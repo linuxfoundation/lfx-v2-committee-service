@@ -11,6 +11,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // MessageHandlerService handles NATS messages using the service layer
@@ -30,6 +31,10 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeListMembersSubject:        mhs.handleCommitteeListMembers,
 		constants.MailingListCommitteeChangedSubject: mhs.handleMailingListChanged,
 		constants.CommitteeUpdatedSubject:            mhs.handleCommitteeUpdated,
+		constants.CommitteeMemberCreatedSubject:      mhs.handleCommitteeMemberCreated,
+		constants.CommitteeMemberDeletedSubject:      mhs.handleCommitteeMemberDeleted,
+		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
+		inviteapi.InviteAcceptedSubject:              mhs.handleInviteAccepted,
 	}
 
 	handler, ok := handlers[subject]
@@ -77,6 +82,22 @@ func (mhs *MessageHandlerService) handleMailingListChanged(ctx context.Context, 
 
 func (mhs *MessageHandlerService) handleCommitteeUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeUpdated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeMemberCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeMemberCreated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeMemberDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeMemberDeleted(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeSettingsUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeSettingsUpdated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleInviteAccepted(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
