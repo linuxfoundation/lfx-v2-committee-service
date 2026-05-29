@@ -6,14 +6,14 @@ This document describes how committee membership is acquired, including the full
 
 ## Overview
 
-Committees support four membership modes, configured via the `join_mode` setting in committee settings:
+Committees support four membership modes, configured via the `join_mode` field on the committee (stored on `CommitteeBase`):
 
 | `join_mode` | How members join |
 |-------------|-----------------|
 | `closed` | Admin creates members directly via `POST /committees/{uid}/members` |
 | `invite` | Admin creates an invite; invitee accepts it |
 | `application` | User submits an application; reviewer approves it |
-| `open` | User self-joins via `POST /committees/{uid}/members/join` |
+| `open` | User self-joins via `POST /committees/{uid}/join` |
 
 Only one mode is active at a time. Endpoints that don't match the active `join_mode` return `403 Forbidden`.
 
@@ -51,7 +51,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 | `GET` | `/committees/{uid}/invites/{invite_uid}` | Admin | Retrieve an invite |
 | `POST` | `/committees/{uid}/invites/{invite_uid}/accept` | Invitee | Accept a pending or declined invite |
 | `POST` | `/committees/{uid}/invites/{invite_uid}/decline` | Invitee | Decline a pending invite |
-| `POST` | `/committees/{uid}/invites/{invite_uid}/revoke` | Admin | Revoke a pending or declined invite |
+| `DELETE` | `/committees/{uid}/invites/{invite_uid}` | Admin | Revoke a pending or declined invite |
 
 ### Rules
 
@@ -73,7 +73,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - Allowed from: `pending` only.
 - A declined invite can later be accepted or revoked.
 
-**Revoking an invite** (`POST .../revoke`):
+**Revoking an invite** (`DELETE /committees/{uid}/invites/{invite_uid}`):
 - Admin action.
 - Allowed from: `pending`, `declined`.
 - Blocked from: `accepted` (member already exists), `revoked` (already revoked).
@@ -127,7 +127,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 When `join_mode: open`, any authenticated user can join without an invite or approval.
 
 **How it works:**
-- User calls `POST /committees/{uid}/members/join`.
+- User calls `POST /committees/{uid}/join`.
 - A committee member is created immediately with `status: Active`.
 
 ---

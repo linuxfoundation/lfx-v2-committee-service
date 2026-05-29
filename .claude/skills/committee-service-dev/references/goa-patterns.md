@@ -11,8 +11,9 @@ Repo-local Goa design layout for this service: where files live, the base / sett
 - Follows this repo's base/settings split: `CommitteeBase` and
   `CommitteeSettings` with separate `*-with-readonly-attributes` response types.
 - Endpoint families are committee base/settings, committee members,
-  invite/application flows, self-join/leave, committee links, link folders, and
-  committee documents.
+  invite/application flows, self-join/leave, committee links, link folders,
+  committee documents, and working-group weekly briefs
+  (`GET .../weekly-briefs/current`, `POST .../weekly-briefs/generate`).
 - Links, link folders, and documents currently support create/get/list/delete
   shapes as applicable; there are no update endpoints for those resources
   today.

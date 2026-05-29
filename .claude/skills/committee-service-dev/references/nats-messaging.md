@@ -24,12 +24,20 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 
 ```go
 "lfx.mailing-list-api.committee_mailing_list.changed" // handled by internal/service/message_handler.go (updates has_mailing_list + re-index)
+"lfx.invite.accepted"                                 // published by self-serve when an LFID settings-invite is accepted; handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteAcceptedSubject)
 ```
 
 ### Self-consumed event subjects
 
+These are published by this service and also subscribed by this service (queue
+`lfx.committee-api.queue`, registered in `cmd/committee-api/service/providers.go`).
+
 ```go
 "lfx.committee-api.committee.updated"             // emitted after committee base updates; consumed to re-sync denormalized member fields
+"lfx.committee-api.committee_settings.updated"    // emitted after settings updates; consumed to drive the LFID settings-invite flow
+"lfx.committee-api.committee_member.created"       // also self-consumed (re-index / role-notification paths)
+"lfx.committee-api.committee_member.deleted"       // also self-consumed
+"lfx.committee-api.weekly_brief.generate_requested" // consumed by the durable weekly-brief generate consumer (NOT via the queue subscription)
 ```
 
 ### Outbound request/reply subjects (owned by peer services)
@@ -39,15 +47,19 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 "lfx.projects-api.get_slug"                       // project slug lookup
 "lfx.auth-service.email_to_sub"                   // invite/member email -> Auth0 sub lookup
 "lfx.auth-service.user_emails.read"               // principal -> primary/alternate email lookup for self-service flows
+"lfx.auth-service.user_metadata.read"             // principal -> profile metadata lookup
+"lfx.invite-service.send_invite"                  // LFID settings-invite (Writers/Auditors) send (see docs/invite-application-flows.md)
 ```
 
 ### Outbound notification subjects
 
 ```go
 "lfx.committee-api.committee.updated"             // committee changed (before/after)
+"lfx.committee-api.committee_settings.updated"    // committee settings changed (before/after)
 "lfx.committee-api.committee_member.created"
 "lfx.committee-api.committee_member.updated"
 "lfx.committee-api.committee_member.deleted"
+"lfx.committee-api.weekly_brief.generate_requested" // emitted by POST /committees/{uid}/weekly-briefs/generate after the brief is claimed
 ```
 
 ### Indexer subjects (see `docs/indexer-contract.md`)
@@ -72,7 +84,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 "lfx.fga-sync.member_remove"
 ```
 
-### KV buckets (one per indexed sub-resource)
+### KV buckets
 
 - `committees`: committee base
 - `committee-settings`: settings (gated by `auditor`)
@@ -82,6 +94,9 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 - `committee-links`: committee links
 - `committee-folders`: link folder grouping
 - `committee-documents-metadata`: committee document metadata (constant `KVBucketNameCommitteeDocuments`; matches the helm chart's `committee_documents_metadata_kv_bucket`)
+- `group-weekly-briefs`: working-group weekly brief drafts (key: brief UID; value: full brief JSON)
+- `group-weekly-brief-uid-index`: maps `{committee_uid}.{window_yyyymmdd}` → brief UID
+- `group-weekly-brief-throttle`: per-window regeneration throttle counts
 
 All initialized in `internal/infrastructure/nats/client.go`. The base/settings
 split and per-sub-resource bucketing follow the native service pattern.
@@ -95,7 +110,14 @@ split and per-sub-resource bucketing follow the native service pattern.
 
 - `committee-member-events` (constant `StreamNameCommitteeMemberEvents`):
   durable stream that captures `lfx.committee-api.committee_member.*`. Consumed
-  by the `committee-service-total-members` durable consumer, which filters to
-  created and deleted member events to keep `total_members` accurate. See
-  `charts/lfx-v2-committee-service/templates/nats-streams.yaml` and
-  `charts/lfx-v2-committee-service/values.yaml` for chart wiring.
+  by the `committee-service-total-members` durable consumer
+  (`ConsumerNameTotalMembersSync`), which filters to created and deleted member
+  events to keep `total_members` accurate.
+- `weekly-brief-events` (constant `StreamNameWeeklyBriefEvents`): durable stream
+  that captures `lfx.committee-api.weekly_brief.*`. Consumed by the
+  `committee-service-weekly-brief-generate` durable consumer
+  (`ConsumerNameWeeklyBriefGenerate`), which runs the async brief generation
+  (source gather → LLM → finalize) after a generate is requested.
+
+See `charts/lfx-v2-committee-service/templates/nats-streams.yaml` and
+`charts/lfx-v2-committee-service/values.yaml` for chart wiring.

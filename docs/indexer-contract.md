@@ -330,7 +330,7 @@ _(none)_
 | `committee_uid` | string | UID of the committee this invite belongs to |
 | `invitee_email` | string | Email address of the invitee |
 | `role` | string | Role the invitee is being invited to |
-| `status` | string | Invite status (e.g., `Pending`, `Accepted`, `Declined`) |
+| `status` | string | Invite status (e.g., `pending`, `accepted`, `declined`, `revoked`) |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
 ### Tags
@@ -341,7 +341,7 @@ _(none)_
 | `committee_invite_uid:{uid}` | `committee_invite_uid:c53dc2b0-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find invites for a committee |
 | `invitee_email:{value}` | `invitee_email:user@example.com` | Find invites by invitee email |
-| `status:{value}` | `status:Pending` | Find invites by status |
+| `status:{value}` | `status:pending` | Find invites by status |
 
 > Tags for `invitee_email` and `status` are only emitted when the value is non-empty.
 
@@ -389,7 +389,7 @@ _(none)_
 | `committee_uid` | string | UID of the committee this application belongs to |
 | `applicant_email` | string | Email address of the applicant |
 | `message` | string | Application message from the applicant |
-| `status` | string | Application status (e.g., `Pending`, `Approved`, `Rejected`) |
+| `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
@@ -401,7 +401,7 @@ _(none)_
 | `committee_application_uid:{uid}` | `committee_application_uid:a1b2c3d4-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find applications for a committee |
 | `applicant_email:{value}` | `applicant_email:user@example.com` | Find applications by applicant email |
-| `status:{value}` | `status:Pending` | Find applications by status |
+| `status:{value}` | `status:pending` | Find applications by status |
 
 > Tags for `applicant_email` and `status` are only emitted when the value is non-empty.
 
@@ -550,13 +550,23 @@ _(none)_
 
 ## Group Weekly Brief
 
+> **Status: planned, not yet emitted.** As of today the service does **not**
+> publish any `group_weekly_brief` indexer message. The `GroupWeeklyBrief`
+> entity is persisted in NATS KV (`group-weekly-briefs`) and served directly via
+> `GET /committees/{uid}/weekly-briefs/current`; there is no
+> `IndexGroupWeeklyBrief` subject constant in `pkg/constants/subjects.go` and no
+> publish path in `internal/service/`. This section is the authoritative
+> contract for the indexer emission that will be added in a later phase. The
+> data schema below mirrors the current `GroupWeeklyBrief` struct so the
+> emission, when wired, matches it.
+
 **Object type:** `group_weekly_brief`
 
-**NATS subject:** `lfx.index.group_weekly_brief`
+**NATS subject (planned):** `lfx.index.group_weekly_brief`
 
-**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief` _(introduced in the entity-read-path PR; this contract entry lands first)_
+**Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
 
-**Indexed on:** create, update, delete of a group weekly brief draft.
+**Will be indexed on:** create, update, delete of a group weekly brief draft.
 
 > Published briefs will be a future separate entity; this entry covers the draft only.
 

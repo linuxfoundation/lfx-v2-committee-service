@@ -30,7 +30,7 @@ checked BEFORE the status is set to `accepted`/`approved` and persisted.
 
 ## `invite-application-flows/join-mode-gate` — Critical
 
-**Pattern:** a self-service action (submit application, join) is allowed when `settings.JoinMode` is empty
+**Pattern:** a self-service action (submit application, join) is allowed when `base.JoinMode` is empty
 (`""`) because the check is `JoinMode != "closed"` rather than the positive `JoinMode == "application"` /
 `== "open"`. Existing committees with an unset `join_mode` then effectively accept applications/joins they
 should not. Endpoints that don't match the active `join_mode` must return `403 Forbidden`.

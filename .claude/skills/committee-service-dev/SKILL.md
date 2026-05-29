@@ -140,7 +140,9 @@ introduce a parallel sentinel-error family.
   KV bucket.
 - Use queue groups for shared subscriptions. This service uses
   `lfx.committee-api.queue` for request/reply and fire-and-forget event
-  handlers, and a durable JetStream consumer for total-member recounts.
+  handlers, plus durable JetStream consumers: one for total-member recounts
+  (`committee-member-events` stream) and one for async weekly-brief generation
+  (`weekly-brief-events` stream).
 - Never write directly to another service's KV bucket. Cross-service writes go
   through that service's NATS RPC or its message contracts.
 - Drain the NATS connection through the existing graceful-shutdown path in
