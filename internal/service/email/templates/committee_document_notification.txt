@@ -9,7 +9,7 @@ Name: {{.DocumentName}}
 {{end}}{{if and (eq .DocumentType "link") .URL}}URL: {{.URL}}
 {{end}}{{if .FolderName}}Folder: {{.FolderName}}
 {{end}}
-You can view the committee and its documents here:
+You can view the committee and its content here:
 {{.CommitteeURL}}
 
 ---
