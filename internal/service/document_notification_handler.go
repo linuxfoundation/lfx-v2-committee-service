@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -83,11 +84,20 @@ func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Cont
 		return nil, nil
 	}
 
+	// Only include the URL in the email if it uses a safe http(s) scheme.
+	safeURL := ""
+	if isSafeURL(link.URL) {
+		safeURL = link.URL
+	} else if link.URL != "" {
+		slog.WarnContext(ctx, "omitting unsafe link URL from notification email",
+			"committee_uid", link.CommitteeUID, "link_uid", link.UID)
+	}
+
 	item := committeeContentItem{
 		committeeUID:      link.CommitteeUID,
 		documentType:      "link",
 		documentName:      link.Name,
-		url:               link.URL,
+		url:               safeURL,
 		folderName:        m.resolveFolderName(ctx, link.CommitteeUID, link.FolderUID),
 		createdByUsername: link.CreatedByUsername,
 	}
@@ -118,7 +128,12 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 		return
 	}
 
-	uploaderName := m.resolveDisplayNameWithTimeout(ctx, item.createdByUsername)
+	// Only resolve the uploader display name when a principal is present; otherwise
+	// leave it empty so the template renders the generic "A new X was added" message.
+	var uploaderName string
+	if item.createdByUsername != "" {
+		uploaderName = m.resolveDisplayNameWithTimeout(ctx, item.createdByUsername)
+	}
 	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, item.committeeUID)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -199,18 +214,27 @@ type notificationRecipient struct {
 
 // collectCommitteeRecipients returns a deduplicated list of LFID recipients (members + writers + auditors).
 // Users without an LFID (Username == "") are excluded — they cannot receive direct emails at this phase.
+// When the same LFID appears in multiple role lists, later records can enrich a missing email or name
+// from earlier ones rather than being silently dropped.
 func (m *messageHandlerOrchestrator) collectCommitteeRecipients(ctx context.Context, committeeUID string) []notificationRecipient {
-	seen := make(map[string]struct{})
+	seen := make(map[string]int) // username → index in recipients slice
 	var recipients []notificationRecipient
 
 	add := func(username, email, name string) {
 		if username == "" {
 			return
 		}
-		if _, ok := seen[username]; ok {
+		if idx, ok := seen[username]; ok {
+			// Enrich existing entry with richer data from later sources.
+			if recipients[idx].email == "" && email != "" {
+				recipients[idx].email = email
+			}
+			if recipients[idx].name == "" && name != "" {
+				recipients[idx].name = name
+			}
 			return
 		}
-		seen[username] = struct{}{}
+		seen[username] = len(recipients)
 		recipients = append(recipients, notificationRecipient{
 			username: username,
 			email:    email,
@@ -223,8 +247,8 @@ func (m *messageHandlerOrchestrator) collectCommitteeRecipients(ctx context.Cont
 		slog.WarnContext(ctx, "failed to list members for content notification",
 			"error", err, "committee_uid", committeeUID)
 	} else {
-		for _, m := range members {
-			add(m.Username, m.Email, strings.TrimSpace(m.FirstName+" "+m.LastName))
+		for _, member := range members {
+			add(member.Username, member.Email, strings.TrimSpace(member.FirstName+" "+member.LastName))
 		}
 	}
 
@@ -266,4 +290,15 @@ func (m *messageHandlerOrchestrator) resolveFolderName(ctx context.Context, comm
 		return ""
 	}
 	return folder.Name
+}
+
+// isSafeURL reports whether rawURL uses an http or https scheme.
+// Used to prevent unsafe URL schemes (e.g. javascript:) from appearing as clickable links in emails.
+func isSafeURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	return scheme == "http" || scheme == "https"
 }

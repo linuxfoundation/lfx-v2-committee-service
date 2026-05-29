@@ -13,5 +13,5 @@ You can view the committee and its documents here:
 {{.CommitteeURL}}
 
 ---
-You are receiving this email because you are a member of a committee on LFX Self-Serve.
+You are receiving this email because you are a member, writer, or auditor of a committee on LFX Self-Serve.
 © The Linux Foundation
