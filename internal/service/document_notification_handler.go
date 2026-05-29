@@ -54,6 +54,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeDocumentCreated(ctx context.
 		documentType:      "file",
 		documentName:      doc.Name,
 		fileName:          doc.FileName,
+		folderName:        m.resolveFolderName(ctx, doc.CommitteeUID, doc.FolderUID),
 		createdByUsername: doc.UploadedByUsername,
 	}
 
@@ -87,6 +88,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Cont
 		documentType:      "link",
 		documentName:      link.Name,
 		url:               link.URL,
+		folderName:        m.resolveFolderName(ctx, link.CommitteeUID, link.FolderUID),
 		createdByUsername: link.CreatedByUsername,
 	}
 
@@ -247,4 +249,21 @@ func (m *messageHandlerOrchestrator) resolveDisplayNameWithTimeout(ctx context.C
 	lookupCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
 	return m.resolveDisplayName(lookupCtx, principal)
+}
+
+// resolveFolderName looks up the display name of a link folder by UID.
+// Returns an empty string if the UID is nil/empty, no link reader is configured, or the lookup fails.
+func (m *messageHandlerOrchestrator) resolveFolderName(ctx context.Context, committeeUID string, folderUID *string) string {
+	if folderUID == nil || *folderUID == "" || m.linkReader == nil {
+		return ""
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
+	folder, _, err := m.linkReader.GetLinkFolder(lookupCtx, committeeUID, *folderUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to resolve folder name for content notification",
+			"error", err, "committee_uid", committeeUID, "folder_uid", *folderUID)
+		return ""
+	}
+	return folder.Name
 }
