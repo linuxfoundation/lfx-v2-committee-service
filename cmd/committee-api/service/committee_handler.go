@@ -35,6 +35,8 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeMemberDeletedSubject:      mhs.handleCommitteeMemberDeleted,
 		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
 		inviteapi.InviteAcceptedSubject:              mhs.handleInviteAccepted,
+		constants.CommitteeDocumentCreatedSubject:    mhs.handleCommitteeDocumentCreated,
+		constants.CommitteeLinkCreatedSubject:        mhs.handleCommitteeLinkCreated,
 	}
 
 	handler, ok := handlers[subject]
@@ -98,6 +100,14 @@ func (mhs *MessageHandlerService) handleCommitteeSettingsUpdated(ctx context.Con
 
 func (mhs *MessageHandlerService) handleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleInviteAccepted(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeDocumentCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeDocumentCreated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeLinkCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeLinkCreated(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
