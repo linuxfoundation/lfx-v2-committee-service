@@ -50,6 +50,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeDocumentCreated(ctx context.
 		return nil, nil
 	}
 
+	if doc.CommitteeUID == "" {
+		slog.WarnContext(ctx, "committee_document.created event missing committee_uid — discarding")
+		return nil, nil
+	}
+
 	item := committeeContentItem{
 		committeeUID:      doc.CommitteeUID,
 		documentType:      "file",
@@ -81,6 +86,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Cont
 	var link model.CommitteeLink
 	if err := json.Unmarshal(raw, &link); err != nil {
 		slog.WarnContext(ctx, "cannot decode CommitteeLink from event data", "error", err)
+		return nil, nil
+	}
+
+	if link.CommitteeUID == "" {
+		slog.WarnContext(ctx, "committee_link.created event missing committee_uid — discarding")
 		return nil, nil
 	}
 
