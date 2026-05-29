@@ -18,17 +18,16 @@ name: "Weekly-Brief Live Eval"
 # Tracked: LFXV2-2019
 "on":
   workflow_call:
-    secrets:
-      LITELLM_BASE_URL:
-        required: true
-      LITELLM_API_KEY:
-        required: true
-      LITELLM_MODEL:
-        required: true
   workflow_dispatch:
 
 permissions:
   contents: read
+  # Required for aws-actions/configure-aws-credentials OIDC token exchange.
+  id-token: write
+
+env:
+  LITELLM_BASE_URL: litellm.dev.v2.cluster.linuxfound.info
+  LITELLM_MODEL: claude-sonnet-4-6
 
 jobs:
   eval-live:
@@ -48,14 +47,27 @@ jobs:
       - name: Download Dependencies
         run: make deps
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          audience: sts.amazonaws.com
+          role-to-assume: arn:aws:iam::450177423209:role/github-actions-deploy
+          aws-region: us-west-2
+
+      # This is used to fetch build time secrets from AWS Secrets Manager
+      - name: Read secrets from AWS Secrets Manager into environment variables
+        uses: aws-actions/aws-secretsmanager-get-secrets@3a411b6ec5cace3d626412dd917e7bfeac242cfa # v3.0.0
+        with:
+          secret-ids: |
+            LITELLM_API_KEY, /cloudops/managed-secrets/litellm/lfx-one-cicd
+
       - name: Run live-LLM eval suite
-        # Secrets must be provisioned at the repo level
-        # (Settings -> Secrets and variables -> Actions). Missing values
-        # are a hard failure — the live test calls t.Fatalf rather than
-        # silently skipping under -tags=live, so a green run can't appear
-        # without anything actually executing.
-        env:
-          LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
-          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
-          LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
+        # LITELLM_BASE_URL / LITELLM_MODEL are inherited from the
+        # workflow-level env: block. LITELLM_API_KEY is exported into
+        # $GITHUB_ENV by the preceding aws-secretsmanager-get-secrets
+        # step (sourced from /cloudops/managed-secrets/litellm/lfx-one-cicd
+        # in AWS Secrets Manager). Missing values are a hard failure —
+        # the live test calls t.Fatalf rather than silently skipping
+        # under -tags=live, so a green run can't appear without anything
+        # actually executing.
         run: make eval-live
