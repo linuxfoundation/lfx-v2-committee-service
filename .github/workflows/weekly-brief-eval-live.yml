@@ -3,16 +3,29 @@
 ---
 name: "Weekly-Brief Live Eval"
 
-# Manual pre-release gate for the working-group weekly-brief generator.
+# Release gate for the working-group weekly-brief generator.
 # Runs the live-tagged eval suite against the configured LiteLLM endpoint.
-# Triggered on demand from the Actions tab, or automatically on release
-# tags. CI must remain hermetic, so this workflow never runs on pull
-# requests or on pushes to main.
+#
+# Invoked by:
+#   - .github/workflows/ko-build-tag.yaml as a `needs:` job on every
+#     push.tags: v*, before the publish / release-helm-chart jobs run.
+#     A failing eval blocks image / Helm chart / SBOM / cosign publication.
+#   - workflow_dispatch — ad-hoc pre-release validation from the Actions tab.
+#
+# CI must remain hermetic, so this workflow never runs on pull requests
+# or on pushes to main.
+#
+# Tracked: LFXV2-2019
 "on":
+  workflow_call:
+    secrets:
+      LITELLM_BASE_URL:
+        required: true
+      LITELLM_API_KEY:
+        required: true
+      LITELLM_MODEL:
+        required: true
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
@@ -24,6 +37,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Setup go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0

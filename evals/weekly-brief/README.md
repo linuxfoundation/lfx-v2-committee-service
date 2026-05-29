@@ -82,11 +82,15 @@ target:
 make eval-live
 ```
 
-> **Release gating:** running this by hand is not a real gate. A CI job that
-> runs `make eval-live` (triggered on a release tag/branch or via
-> `workflow_dispatch`, with the `LITELLM_*` secrets provisioned) is a planned
-> follow-up. If the live eval becomes part of the release process it must also
-> be documented in the repo-root `README.md`.
+> **Release gating:** `make eval-live` is wired as a real release gate via
+> [`.github/workflows/weekly-brief-eval-live.yml`](../../.github/workflows/weekly-brief-eval-live.yml).
+> On every `v*` tag push, `ko-build-tag.yaml` invokes that workflow as a
+> `needs:` blocker before any of the publish / Helm chart / SBOM / cosign
+> jobs run, so a failing live eval halts the release. The same workflow is
+> also dispatchable manually from the Actions tab for pre-release validation.
+> Requires the `LITELLM_BASE_URL`, `LITELLM_API_KEY`, and `LITELLM_MODEL`
+> repo secrets to be provisioned. See the repo-root `README.md` for the
+> operator-facing summary.
 
 (`AI_SOURCE` is not used here. It selects the *deployed service's* AI adapter —
 `fake` for local/CI, `live` (LiteLLM) in production — via `AIAdapterImpl` in
