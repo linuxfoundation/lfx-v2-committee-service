@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="LFX Self-Serve committee document notification">
     <meta name="keywords" content="LFX, committee, document, notification">
-    <title>New document added to {{.CommitteeName}}</title>
+    <title>New {{if eq .DocumentType "link"}}link{{else}}document{{end}} added to {{.CommitteeName}}</title>
     <style>
         body { margin: 0; padding: 0; background-color: #ffffff; font-family: Inter, Arial, sans-serif; color: #111827; }
         .wrapper { max-width: 600px; margin: 0 auto; padding: 32px 40px; }
@@ -49,7 +49,7 @@
     {{if and (eq .DocumentType "link") .URL}}<p class="detail-item"><span class="detail-label">URL:</span> <a href="{{.URL}}" class="detail-link">{{.URL}}</a></p>{{end}}
     {{if .FolderName}}<p class="detail-item"><span class="detail-label">Folder:</span> {{.FolderName}}</p>{{end}}
 
-    <p class="details-footer">You can view the committee and its documents by visiting the link below.</p>
+    <p class="details-footer">You can view the committee and its content by visiting the link below.</p>
 
     <!-- djlint:off H021 --><a href="{{.CommitteeURL}}" class="btn" style="color:#ffffff!important;">View Committee</a><!-- djlint:on H021 -->
     <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.CommitteeURL}}">{{.CommitteeURL}}</a></p>
