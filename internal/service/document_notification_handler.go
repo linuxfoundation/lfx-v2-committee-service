@@ -20,10 +20,11 @@ import (
 // committeeContentItem is a unified representation of a file document or link for notification purposes.
 type committeeContentItem struct {
 	committeeUID      string
-	itemType          string // "document" or "link"
-	itemName          string
-	itemURL           string // non-empty for links
-	itemDescription   string
+	documentType      string // "file" or "link"
+	documentName      string // user-given display name
+	fileName          string // actual file name, set for documentType "file"
+	url               string // set for documentType "link"
+	folderName        string // optional folder context
 	createdByUsername string // LFID of the uploader/creator
 }
 
@@ -50,9 +51,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeDocumentCreated(ctx context.
 
 	item := committeeContentItem{
 		committeeUID:      doc.CommitteeUID,
-		itemType:          "document",
-		itemName:          doc.Name,
-		itemDescription:   doc.Description,
+		documentType:      "file",
+		documentName:      doc.Name,
+		fileName:          doc.FileName,
 		createdByUsername: doc.UploadedByUsername,
 	}
 
@@ -83,10 +84,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Cont
 
 	item := committeeContentItem{
 		committeeUID:      link.CommitteeUID,
-		itemType:          "link",
-		itemName:          link.Name,
-		itemURL:           link.URL,
-		itemDescription:   link.Description,
+		documentType:      "link",
+		documentName:      link.Name,
+		url:               link.URL,
 		createdByUsername: link.CreatedByUsername,
 	}
 
@@ -151,14 +151,15 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 
 			emailSubject, emailHTML, emailText, renderErr := emailsvc.RenderCommitteeDocumentNotification(
 				emailsvc.CommitteeDocumentNotificationData{
-					RecipientName:   recipientName,
-					CommitteeName:   committee.Name,
-					CommitteeURL:    committeeURL,
-					UploaderName:    uploaderName,
-					ItemType:        item.itemType,
-					ItemName:        item.itemName,
-					ItemURL:         item.itemURL,
-					ItemDescription: item.itemDescription,
+					RecipientName: recipientName,
+					CommitteeName: committee.Name,
+					CommitteeURL:  committeeURL,
+					UploaderName:  uploaderName,
+					DocumentType:  item.documentType,
+					DocumentName:  item.documentName,
+					FileName:      item.fileName,
+					URL:           item.url,
+					FolderName:    item.folderName,
 				},
 			)
 			if renderErr != nil {
@@ -179,7 +180,7 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 					"error", sendErr, "committee_uid", item.committeeUID)
 			} else {
 				slog.DebugContext(gctx, "sent content notification email",
-					"committee_uid", item.committeeUID, "item_type", item.itemType)
+					"committee_uid", item.committeeUID, "document_type", item.documentType)
 			}
 			return nil
 		})

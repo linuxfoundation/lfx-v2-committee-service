@@ -25,23 +25,31 @@ var (
 )
 
 // CommitteeDocumentNotificationData holds the template variables for a document/link upload notification email.
-// A single template handles both cases: ItemType is "document" for file uploads and "link" for URL additions;
-// ItemURL is non-empty only for links.
+// A single template handles both cases: DocumentType is "file" for file uploads and "link" for URL additions.
 type CommitteeDocumentNotificationData struct {
-	RecipientName   string
-	CommitteeName   string
-	CommitteeURL    string
-	UploaderName    string
-	ItemType        string // "document" or "link"
-	ItemName        string
-	ItemURL         string // non-empty for links, empty for file documents
-	ItemDescription string
+	RecipientName string
+	CommitteeName string
+	CommitteeURL  string
+	UploaderName  string
+	DocumentType  string // "file" | "link"
+	DocumentName  string // user-given display name
+	FileName      string // actual file name, set for DocumentType "file"
+	URL           string // set for DocumentType "link"
+	FolderName    string // optional — set when the item lives inside a folder
 }
 
 // RenderCommitteeDocumentNotification renders the subject, HTML body, and plain-text body for an
 // email notifying committee members/writers/auditors that a new document or link was added.
 func RenderCommitteeDocumentNotification(data CommitteeDocumentNotificationData) (subject, html, text string, err error) {
-	subject = sanitizeHeader(data.UploaderName) + " added a " + sanitizeHeader(data.ItemType) + " to " + sanitizeHeader(data.CommitteeName)
+	docType := "document"
+	if data.DocumentType == "link" {
+		docType = "link"
+	}
+	if data.UploaderName != "" {
+		subject = sanitizeHeader(data.UploaderName) + " added a " + docType + " to " + sanitizeHeader(data.CommitteeName)
+	} else {
+		subject = "A new " + docType + " was added to " + sanitizeHeader(data.CommitteeName)
+	}
 
 	var htmlBuf bytes.Buffer
 	if err = committeeDocumentNotificationHTMLTemplate.Execute(&htmlBuf, data); err != nil {
