@@ -51,7 +51,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           audience: sts.amazonaws.com
-          role-to-assume: arn:aws:iam::450177423209:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::450177423209:role/lfx-v2-github-actions
           aws-region: us-west-2
 
       # This is used to fetch build time secrets from AWS Secrets Manager
