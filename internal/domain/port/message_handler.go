@@ -47,10 +47,19 @@ type CommitteeNotificationHandler interface {
 	HandleInviteAccepted(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
+// WeeklyBriefGenerateHandler handles the durable async weekly-brief generation
+// workflow, reacting to generate-requested stream events.
+type WeeklyBriefGenerateHandler interface {
+	// HandleGenerateWeeklyBriefRequested runs the async Fulfill phase (source
+	// gather → LLM → finalize) for a claimed weekly brief.
+	HandleGenerateWeeklyBriefRequested(ctx context.Context, msg StreamMessenger) error
+}
+
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.
 type MessageHandler interface {
 	CommitteeAttributeHandler
 	CommitteeMemberHandler
 	CommitteeMailingListHandler
 	CommitteeNotificationHandler
+	WeeklyBriefGenerateHandler
 }
