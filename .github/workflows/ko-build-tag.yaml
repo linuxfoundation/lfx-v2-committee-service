@@ -23,10 +23,6 @@ jobs:
     # narrower than `secrets: inherit`. LFXV2-2019.
     name: Weekly-Brief Live Eval (release gate)
     uses: ./.github/workflows/weekly-brief-eval-live.yml
-    secrets:
-      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
-      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
-      LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
 
   publish:
     needs: eval-live
