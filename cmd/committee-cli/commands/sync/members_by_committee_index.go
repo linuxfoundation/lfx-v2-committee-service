@@ -45,6 +45,13 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 
 	rc.DryRun = *dryRun
 
+	if rc.CommitteeReader == nil {
+		return fmt.Errorf("CommitteeReader is not wired in RunContext")
+	}
+	if rc.CommitteeMemberWriter == nil {
+		return fmt.Errorf("CommitteeMemberWriter is not wired in RunContext")
+	}
+
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	// Read all members via the full-scan path so we do not depend on an

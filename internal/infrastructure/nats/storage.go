@@ -325,6 +325,10 @@ func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.Commi
 // "lookup/committee-members-by-committee/<committeeUID>.*" so only members of the target
 // committee are fetched, rather than scanning the entire bucket.
 func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+	if committeeUID == "" {
+		return nil, errs.NewValidation("committee UID cannot be empty")
+	}
+
 	slog.DebugContext(ctx, "listing committee members from NATS storage", "committee_uid", committeeUID)
 
 	filter := fmt.Sprintf(constants.KVLookupMembersByCommitteeFilter, committeeUID)
@@ -526,7 +530,7 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 // into the committee-members bucket. This enables ListMembers to use a server-side
 // filtered scan instead of a full bucket scan.
 // Returns the written key (for rollback tracking) and nil on success.
-// ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
+// jetstream.ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
 func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {

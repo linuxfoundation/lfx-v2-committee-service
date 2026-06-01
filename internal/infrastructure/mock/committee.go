@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -722,7 +723,7 @@ func (w *MockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
 	)
-	key := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", member.CommitteeUID, member.UID)
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	return key, nil
 }
 
