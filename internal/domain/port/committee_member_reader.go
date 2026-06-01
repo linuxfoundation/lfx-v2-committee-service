@@ -15,8 +15,8 @@ type CommitteeMemberReader interface {
 	GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error)
 	// GetMemberRevision retrieves the revision number for a committee member
 	GetMemberRevision(ctx context.Context, uid string) (uint64, error)
-	// ListMembers retrieves all members for a given committee UID using the secondary index.
-	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
+	// ListMembersByCommittee retrieves all members for a given committee UID using the secondary index.
+	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 	// ListAllMembers retrieves every member across all committees via a full bucket scan.
 	// This is intended only for backfill/repair operations that must read all members
 	// independently of the secondary index.

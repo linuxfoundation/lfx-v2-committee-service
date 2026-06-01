@@ -271,7 +271,7 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 	return 0, errs.NewNotFound("member not found")
 }
 
-func (r *TestMockCommitteeReader) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+func (r *TestMockCommitteeReader) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
 }
 
