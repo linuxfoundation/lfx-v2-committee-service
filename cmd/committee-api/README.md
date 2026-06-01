@@ -35,7 +35,7 @@ This service contains the following API endpoints:
   - `GET /{invite_uid}`: retrieve an invite
   - `POST /{invite_uid}/accept`: accept a pending or declined invite
   - `POST /{invite_uid}/decline`: decline a pending invite
-  - `POST /{invite_uid}/revoke`: revoke a pending or declined invite
+  - `DELETE /{invite_uid}`: revoke a pending or declined invite
 
 - `/committees/{uid}/applications`
   - `POST`: submit an application, or reinstate a rejected application
