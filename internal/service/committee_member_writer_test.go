@@ -15,6 +15,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -144,7 +145,7 @@ func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member
 }
 
 func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context, member *model.CommitteeMember) (string, error) {
-	key := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", member.CommitteeUID, member.UID)
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	w.indexedKeys = append(w.indexedKeys, key)
 	return key, nil
 }
