@@ -62,7 +62,7 @@ NATS_URL=nats://localhost:4222 \
 
 #### `sync members-by-committee-index`
 
-Backfills the committee→member secondary index (`lookup/committee-members-by-committee/<committeeUID>.<memberUID>`) for members that existed before the index was introduced. The new `ListMembers` implementation reads exclusively from this index, so this command must be run against each environment before deploying the updated service.
+Backfills the committee→member secondary index (`lookup/committee-members-by-committee/<committeeUID>.<memberUID>`) for members that existed before the index was introduced. The new `ListMembersByCommittee` implementation reads exclusively from this index, so this command must be run against each environment before deploying the updated service.
 
 **Subcommand flags**
 
