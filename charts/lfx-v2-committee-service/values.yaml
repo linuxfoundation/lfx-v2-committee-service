@@ -64,6 +64,11 @@ service:
   # port is the service port
   port: 8080
 
+serviceAccount:
+  create: false
+  name: ""
+  automountServiceAccountToken: false
+
 # nats is the configuration for the NATS server
 nats:
   # url is the URL of the NATS server
