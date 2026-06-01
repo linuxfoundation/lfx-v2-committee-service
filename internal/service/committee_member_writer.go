@@ -36,9 +36,19 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 	)
 
 	for _, key := range keys {
-		// Member keys should use member-specific methods
 		rev, errGet := uc.committeeReader.GetMemberRevision(ctx, key)
 		if errGet != nil {
+			var notFoundErr errs.NotFound
+			if errors.As(errGet, &notFoundErr) {
+				// Key already absent — nothing to delete. This is expected for
+				// the committee→member index on members created before the backfill
+				// was run, and for any key that was never written (e.g. failed partial write).
+				slog.DebugContext(ctx, "member key already absent during cleanup",
+					"key", key,
+					"is_rollback", isRollback,
+				)
+				continue
+			}
 			slog.ErrorContext(ctx, "failed to get revision for member key deletion",
 				"error", errGet,
 				"key", key,
@@ -232,6 +242,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	// Step 8b: Write the committee→member secondary index so ListMembers can use a
 	// targeted prefix scan rather than a full bucket scan.
 	indexKey, errIndex := uc.committeeWriter.IndexMemberByCommittee(ctx, member)
+	// Append before checking the error: if the write partially succeeded and
+	// returned an error, rollback must still be able to clean up the written key.
+	if indexKey != "" {
+		keys = append(keys, indexKey)
+	}
 	if errIndex != nil {
 		slog.ErrorContext(ctx, "failed to write committee member index",
 			"error", errIndex,
@@ -241,7 +256,6 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		rollbackRequired = true
 		return nil, errIndex
 	}
-	keys = append(keys, indexKey)
 
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,

@@ -24,6 +24,7 @@ type TestMockCommitteeMemberWriter struct {
 	members         map[string]*model.CommitteeMember
 	keys            map[string]string // uniqueness keys
 	customRevisions map[string]uint64 // for testing revision conflicts
+	indexedKeys     []string          // keys written by IndexMemberByCommittee
 }
 
 func NewTestMockCommitteeMemberWriter(mockRepo *mock.MockRepository) *TestMockCommitteeMemberWriter {
@@ -144,6 +145,7 @@ func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member
 
 func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context, member *model.CommitteeMember) (string, error) {
 	key := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", member.CommitteeUID, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
 	return key, nil
 }
 
@@ -627,11 +629,10 @@ func TestCommitteeWriterOrchestrator_deleteMemberKeys_EmptyKeys(t *testing.T) {
 	// No assertion needed, just ensure it doesn't panic
 }
 
-// TestCreateMember_IndexKeyTracked verifies that CreateMember appends the
-// committee→member index key to the rollback key set (meaning IndexMemberByCommittee
-// was called and its result was retained for potential rollback).
+// TestCreateMember_IndexKeyTracked verifies that CreateMember calls
+// IndexMemberByCommittee and records the returned key for rollback.
 func TestCreateMember_IndexKeyTracked(t *testing.T) {
-	orchestrator, mockRepo, _ := setupMemberWriterTest()
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 
 	committee := &model.Committee{
 		CommitteeBase: model.CommitteeBase{
@@ -659,16 +660,21 @@ func TestCreateMember_IndexKeyTracked(t *testing.T) {
 	result, err := orchestrator.CreateMember(ctx, member, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.NotEmpty(t, result.UID, "created member must have a UID")
+	assert.NotEmpty(t, result.UID)
 	assert.Equal(t, "committee-index-test", result.CommitteeUID)
+
+	// IndexMemberByCommittee must have been called exactly once, and the recorded
+	// key must match the expected committee→member index key format.
+	require.Len(t, memberWriter.indexedKeys, 1)
+	expectedKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", result.CommitteeUID, result.UID)
+	assert.Equal(t, expectedKey, memberWriter.indexedKeys[0])
 }
 
-// TestDeleteMember_IndexKeyIncluded verifies that DeleteMember includes the
-// committee→member secondary index key in the set of keys purged on deletion.
+// TestDeleteMember_IndexKeyIncluded verifies that DeleteMember enqueues the
+// committee→member secondary index key for cleanup alongside the primary record.
 func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 
-	// Pre-populate the shared mock repo so that GetMember (via MockCommitteeReader) succeeds.
 	existingMember := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-del-idx",
@@ -679,17 +685,32 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 			UpdatedAt:    time.Now(),
 		},
 	}
+	// Populate the shared mock repo so GetMember succeeds.
 	mockRepo.AddCommitteeMember(existingMember.CommitteeUID, existingMember)
-	// Also add to the local writer map so DeleteMember can find and remove it.
+	// Add primary record to writer so DeleteMember can find and remove it.
 	memberWriter.members["member-del-idx"] = existingMember
+
+	// Pre-register the by-committee index key in the writer's members map so
+	// deleteMemberKeys can resolve a revision for it and attempt deletion.
+	// We also point the orchestrator's reader at memberWriter: its GetMemberRevision
+	// override checks the local members map first, so it finds the synthetic index
+	// key entry without needing it to exist as a real member in the shared mock repo.
+	indexKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s",
+		existingMember.CommitteeUID, existingMember.UID)
+	memberWriter.members[indexKey] = existingMember
+	orchestrator.committeeReader = memberWriter
 
 	ctx := context.Background()
 	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false)
 	require.NoError(t, err)
 
-	// The member record itself must be gone.
-	_, stillExists := memberWriter.members["member-del-idx"]
-	assert.False(t, stillExists, "main member record should be deleted")
+	// Primary record must be gone.
+	_, primaryStillExists := memberWriter.members["member-del-idx"]
+	assert.False(t, primaryStillExists, "main member record should be deleted")
+
+	// Index key must also have been removed by the cleanup pass.
+	_, indexStillExists := memberWriter.members[indexKey]
+	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {
