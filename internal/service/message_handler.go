@@ -236,7 +236,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	}
 
 	// Get all members for the committee
-	members, err := m.committeeReader.ListMembers(ctx, uid)
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, uid)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list committee members",
 			"error", err,
@@ -366,7 +366,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 	slog.InfoContext(ctx, "denormalized fields changed — syncing members",
 		"committee_uid", data.CommitteeUID)
 
-	members, err := m.committeeReader.ListMembers(ctx, data.CommitteeUID)
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, data.CommitteeUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list members for sync",
 			"committee_uid", data.CommitteeUID, "error", err)
@@ -464,7 +464,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 		"subject", subject,
 	)
 
-	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list members for total_members sync",
 			"committee_uid", committeeUID, "error", err)

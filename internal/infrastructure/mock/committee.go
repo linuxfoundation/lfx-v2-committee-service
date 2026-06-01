@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -366,8 +367,8 @@ func (m *MockRepository) GetMemberRevision(ctx context.Context, memberUID string
 	return 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 }
 
-// ListMembers retrieves all members for a committee
-func (m *MockRepository) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a committee
+func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "mock repository: listing committee members", "committee_uid", committeeUID)
 
 	m.mu.RLock()
@@ -385,6 +386,24 @@ func (m *MockRepository) ListMembers(ctx context.Context, committeeUID string) (
 		members = append(members, &memberCopy)
 	}
 
+	return members, nil
+}
+
+// ListAllMembers retrieves all members across all committees (full scan).
+// Used for backfill/repair operations that need to read all members regardless of the index.
+func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing all committee members")
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
 	return members, nil
 }
 
@@ -693,6 +712,19 @@ func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.Co
 	}
 
 	return "", nil
+}
+
+// IndexMemberByCommittee records the secondary index entry for the given member.
+// In the mock this is a no-op (the mock keyed map already indexes by committee);
+// it returns the key string that the real storage would write, so callers can
+// track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by committee",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+	)
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	return key, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================

@@ -254,7 +254,7 @@ func (m *messageHandlerOrchestrator) collectCommitteeRecipients(ctx context.Cont
 		})
 	}
 
-	members, err := m.committeeReader.ListMembers(ctx, committeeUID)
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to list members for content notification",
 			"error", err, "committee_uid", committeeUID)
