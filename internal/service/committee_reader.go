@@ -38,8 +38,8 @@ type CommitteeMemberDataReader interface {
 	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
 	// GetMemberRevision retrieves the current KV revision for a committee member by UID
 	GetMemberRevision(ctx context.Context, memberUID string) (uint64, error)
-	// ListMembers retrieves all members for a given committee UID
-	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
+	// ListMembersByCommittee retrieves all members for a given committee UID
+	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -176,15 +176,15 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 	return committeeMember, revision, nil
 }
 
-// ListMembers retrieves all members for a given committee UID
-func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a given committee UID
+func (rc *committeeReaderOrchestrator) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 
 	slog.DebugContext(ctx, "executing list committee members use case",
 		"committee_uid", committeeUID,
 	)
 
 	// Get all committee members from storage
-	members, err := rc.committeeReader.ListMembers(ctx, committeeUID)
+	members, err := rc.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list committee members",
 			"error", err,

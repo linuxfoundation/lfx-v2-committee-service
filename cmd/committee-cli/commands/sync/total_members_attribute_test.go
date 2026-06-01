@@ -40,7 +40,7 @@ func (r *mockReader) GetRevision(_ context.Context, uid string) (uint64, error) 
 	return r.revision[uid], nil
 }
 
-func (r *mockReader) ListMembers(_ context.Context, uid string) ([]*model.CommitteeMember, error) {
+func (r *mockReader) ListMembersByCommittee(_ context.Context, uid string) ([]*model.CommitteeMember, error) {
 	if err, ok := r.membersErr[uid]; ok {
 		return nil, err
 	}

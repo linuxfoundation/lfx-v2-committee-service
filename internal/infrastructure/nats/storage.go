@@ -320,11 +320,11 @@ func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.Commi
 	return member, rev, nil
 }
 
-// ListMembers retrieves all members for a given committee UID using the secondary index.
+// ListMembersByCommittee retrieves all members for a given committee UID using the secondary index.
 // It performs a server-side filtered scan of keys matching
 // "lookup/committee-members-by-committee/<committeeUID>.*" so only members of the target
 // committee are fetched, rather than scanning the entire bucket.
-func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+func (s *storage) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	if committeeUID == "" {
 		return nil, errs.NewValidation("committee UID cannot be empty")
 	}
@@ -527,7 +527,7 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 
 // IndexMemberByCommittee writes the secondary index entry
 // "lookup/committee-members-by-committee/<committee_uid>.<member_uid>" → <member_uid>
-// into the committee-members bucket. This enables ListMembers to use a server-side
+// into the committee-members bucket. This enables ListMembersByCommittee to use a server-side
 // filtered scan instead of a full bucket scan.
 // Returns the written key (for rollback tracking) and nil on success.
 // jetstream.ErrKeyExists is treated as idempotent — the entry already exists, which is fine.

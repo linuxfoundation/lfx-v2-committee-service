@@ -753,7 +753,7 @@ func TestHandleCommitteeUpdated(t *testing.T) {
 			name:            "list members fails — propagates error",
 			messageData:     buildCommitteeUpdatedMsg("unknown-committee", oldBase, newBase),
 			setupMock:       func(_ *mock.MockRepository) {},
-			wantErr:         false, // ListMembers returns empty slice for unknown committee, not error
+			wantErr:         false, // ListMembersByCommittee returns empty slice for unknown committee, not error
 			wantUpdateCalls: 0,
 		},
 		{

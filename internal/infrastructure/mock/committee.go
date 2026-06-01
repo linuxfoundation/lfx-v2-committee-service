@@ -367,8 +367,8 @@ func (m *MockRepository) GetMemberRevision(ctx context.Context, memberUID string
 	return 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 }
 
-// ListMembers retrieves all members for a committee
-func (m *MockRepository) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a committee
+func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "mock repository: listing committee members", "committee_uid", committeeUID)
 
 	m.mu.RLock()

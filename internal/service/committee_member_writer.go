@@ -239,7 +239,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 	keys = append(keys, member.UID)
 
-	// Step 8b: Write the committee→member secondary index so ListMembers can use a
+	// Step 8b: Write the committee→member secondary index so ListMembersByCommittee can use a
 	// targeted prefix scan rather than a full bucket scan.
 	indexKey, errIndex := uc.committeeWriter.IndexMemberByCommittee(ctx, member)
 	// Append before checking the error: if the write partially succeeded and

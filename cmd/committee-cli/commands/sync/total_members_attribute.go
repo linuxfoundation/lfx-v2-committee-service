@@ -107,7 +107,7 @@ func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc comman
 		return nil
 	}
 
-	members, err := rc.CommitteeReader.ListMembers(ctx, uid)
+	members, err := rc.CommitteeReader.ListMembersByCommittee(ctx, uid)
 	if err != nil {
 		stats.Failed++
 		slog.WarnContext(ctx, "failed to list members", "committee_uid", uid, "error", err)
