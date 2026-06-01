@@ -98,6 +98,13 @@ const (
 	// The payload is a CommitteeEvent wrapping CommitteeSettingsUpdateEventData (old + new image).
 	CommitteeSettingsUpdatedSubject = "lfx.committee-api.committee_settings.updated"
 
+	// CommitteeDocumentCreatedSubject is emitted after a file document is successfully uploaded to a committee.
+	// The payload is a CommitteeEvent wrapping *model.CommitteeDocument.
+	CommitteeDocumentCreatedSubject = "lfx.committee-api.committee_document.created"
+
+	// CommitteeLinkCreatedSubject is emitted after a link is successfully added to a committee.
+	// The payload is a CommitteeEvent wrapping *model.CommitteeLink.
+	CommitteeLinkCreatedSubject = "lfx.committee-api.committee_link.created"
 	// GenerateWeeklyBriefRequestedSubject is emitted by POST /weekly-briefs/generate
 	// after the brief is claimed (persisted in the "generating" state). The
 	// weekly-brief-events stream captures it and the durable generate consumer runs

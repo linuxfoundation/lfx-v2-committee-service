@@ -131,6 +131,8 @@ const (
 	ResourceCommitteeMember   ResourceType = "committee_member"
 	ResourceCommittee         ResourceType = "committee"
 	ResourceCommitteeSettings ResourceType = "committee_settings"
+	ResourceCommitteeDocument ResourceType = "committee_document"
+	ResourceCommitteeLink     ResourceType = "committee_link"
 )
 
 // CommitteeSettingsUpdateEventData carries the before and after images of a committee settings update.
@@ -177,6 +179,10 @@ func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, actio
 		return e.buildCommittee(ctx, resource, action, input)
 	case ResourceCommitteeSettings:
 		return e.buildCommitteeSettings(ctx, resource, action, input)
+	case ResourceCommitteeDocument:
+		return e.buildCommitteeDocument(ctx, resource, action, input)
+	case ResourceCommitteeLink:
+		return e.buildCommitteeLink(ctx, resource, action, input)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -287,6 +293,56 @@ func (e *CommitteeEvent) buildCommitteeSettings(ctx context.Context, resource Re
 		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
 	}
 	e.Data = updateData
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeDocument(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeDocumentCreatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_document resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	doc, ok := input.(*CommitteeDocument)
+	if !ok || doc == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeDocument",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = doc
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeLink(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeLinkCreatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_link resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	link, ok := input.(*CommitteeLink)
+	if !ok || link == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeLink",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = link
 
 	return e, nil
 }
