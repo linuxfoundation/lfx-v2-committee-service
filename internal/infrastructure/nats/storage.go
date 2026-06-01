@@ -350,6 +350,8 @@ func (s *storage) ListMembersByCommittee(ctx context.Context, committeeUID strin
 			)
 			continue
 		}
+		// UIDs are UUIDs (RFC 4122 hex + hyphens only) and never contain dots,
+		// so LastIndex is safe as the committee/member separator.
 		memberUID := key[dotIdx+1:]
 
 		member := &model.CommitteeMember{}
