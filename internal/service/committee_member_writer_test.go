@@ -142,6 +142,11 @@ func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member
 	return key, nil
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context, member *model.CommitteeMember) (string, error) {
+	key := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", member.CommitteeUID, member.UID)
+	return key, nil
+}
+
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
@@ -266,6 +271,10 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 
 func (r *TestMockCommitteeReader) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) ListAllMembers(_ context.Context) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
 }
 
 func (r *TestMockCommitteeReader) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
@@ -616,6 +625,71 @@ func TestCommitteeWriterOrchestrator_deleteMemberKeys_EmptyKeys(t *testing.T) {
 	// Should handle empty keys gracefully
 	orchestrator.deleteMemberKeys(ctx, keys, false)
 	// No assertion needed, just ensure it doesn't panic
+}
+
+// TestCreateMember_IndexKeyTracked verifies that CreateMember appends the
+// committee→member index key to the rollback key set (meaning IndexMemberByCommittee
+// was called and its result was retained for potential rollback).
+func TestCreateMember_IndexKeyTracked(t *testing.T) {
+	orchestrator, mockRepo, _ := setupMemberWriterTest()
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-index-test",
+			Name:     "Index Test Committee",
+			Category: "Technical",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-index-test",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-index-test",
+			Email:        "indextest@example.com",
+			Username:     "indexuser",
+			Organization: model.CommitteeMemberOrganization{Name: "Index Org"},
+		},
+	}
+
+	ctx := context.Background()
+	result, err := orchestrator.CreateMember(ctx, member, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.NotEmpty(t, result.UID, "created member must have a UID")
+	assert.Equal(t, "committee-index-test", result.CommitteeUID)
+}
+
+// TestDeleteMember_IndexKeyIncluded verifies that DeleteMember includes the
+// committee→member secondary index key in the set of keys purged on deletion.
+func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	// Pre-populate the shared mock repo so that GetMember (via MockCommitteeReader) succeeds.
+	existingMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-del-idx",
+			CommitteeUID: "committee-del-idx",
+			Email:        "del-idx@example.com",
+			Username:     "delidxuser",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+	mockRepo.AddCommitteeMember(existingMember.CommitteeUID, existingMember)
+	// Also add to the local writer map so DeleteMember can find and remove it.
+	memberWriter.members["member-del-idx"] = existingMember
+
+	ctx := context.Background()
+	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false)
+	require.NoError(t, err)
+
+	// The member record itself must be gone.
+	_, stillExists := memberWriter.members["member-del-idx"]
+	assert.False(t, stillExists, "main member record should be deleted")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {

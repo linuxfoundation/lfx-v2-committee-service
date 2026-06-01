@@ -229,6 +229,20 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 	keys = append(keys, member.UID)
 
+	// Step 8b: Write the committee→member secondary index so ListMembers can use a
+	// targeted prefix scan rather than a full bucket scan.
+	indexKey, errIndex := uc.committeeWriter.IndexMemberByCommittee(ctx, member)
+	if errIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member index",
+			"error", errIndex,
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errIndex
+	}
+	keys = append(keys, indexKey)
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -600,9 +614,13 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	// Step 2: Build list of secondary indices to delete
 	var indicesToDelete []string
 
-	// Build member lookup index key (committee_uid + email hash)
+	// Build member lookup index key (committee_uid + email hash) for uniqueness guard.
 	memberIndexKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
 	indicesToDelete = append(indicesToDelete, memberIndexKey)
+
+	// Build committee→member secondary index key so it is cleaned up on delete.
+	membersByCommitteeKey := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, existing.CommitteeUID, existing.UID)
+	indicesToDelete = append(indicesToDelete, membersByCommitteeKey)
 
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
 		"member_uid", uid,

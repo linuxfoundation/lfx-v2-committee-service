@@ -153,6 +153,11 @@ func (w *TestMockCommitteeWriter) UniqueMember(ctx context.Context, member *mode
 	return mockWriter.UniqueMember(ctx, member)
 }
 
+func (w *TestMockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.IndexMemberByCommittee(ctx, member)
+}
+
 func (w *TestMockCommitteeWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.IndexSettingsInvite(ctx, inviteUID, committeeUID)
