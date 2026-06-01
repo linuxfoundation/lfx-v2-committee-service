@@ -36,6 +36,7 @@ type messageHandlerOrchestrator struct {
 	emailSender                 port.EmailSender
 	inviteSender                port.InviteSender
 	userReader                  port.UserReader
+	linkReader                  port.CommitteeLinkReader
 	lfxSelfServeBaseURL         string
 	weeklyBriefGenerator        GroupWeeklyBriefGenerator
 }
@@ -96,6 +97,13 @@ func WithLFXSelfServeBaseURLForMessageHandler(baseURL string) messageHandlerOrch
 func WithUserReaderForMessageHandler(reader port.UserReader) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.userReader = reader
+	}
+}
+
+// WithLinkReaderForMessageHandler sets the link reader used to resolve folder names in document/link notifications.
+func WithLinkReaderForMessageHandler(reader port.CommitteeLinkReader) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.linkReader = reader
 	}
 }
 
