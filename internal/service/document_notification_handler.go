@@ -167,6 +167,11 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 					"username", redaction.Redact(recipient.username))
 				return nil
 			}
+			if !m.isRecipientDomainAllowed(email) {
+				slog.DebugContext(gctx, "skipping content notification — recipient domain not in EMAIL_ALLOWED_DOMAINS",
+					"committee_uid", item.committeeUID)
+				return nil
+			}
 
 			recipientName := recipient.name
 			if recipientName == "" {

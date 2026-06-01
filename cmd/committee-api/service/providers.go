@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -473,6 +474,24 @@ func lfxSelfServeBaseURL() string {
 	}
 }
 
+// emailAllowedDomains parses the EMAIL_ALLOWED_DOMAINS environment variable into a slice
+// of lowercase domain strings. Returns nil (permit all) when the variable is unset or empty.
+func emailAllowedDomains() []string {
+	raw := os.Getenv("EMAIL_ALLOWED_DOMAINS")
+	if raw == "" {
+		return nil
+	}
+	var domains []string
+	for _, part := range strings.Split(raw, ",") {
+		d := strings.ToLower(strings.TrimSpace(part))
+		d = strings.TrimPrefix(d, "@")
+		if d != "" {
+			domains = append(domains, d)
+		}
+	}
+	return domains
+}
+
 // GroupWeeklyBriefReaderImpl initializes the working-group weekly brief reader.
 // Phase 1 only supports the NATS-backed implementation; the storage struct
 // already satisfies port.GroupWeeklyBriefReader.
@@ -825,6 +844,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
 			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
+			usecaseSvc.WithEmailAllowedDomainsForMessageHandler(emailAllowedDomains()),
 			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),

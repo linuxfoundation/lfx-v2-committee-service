@@ -1297,6 +1297,109 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("emailAllowedDomains set — LFID member with disallowed domain skipped", func(t *testing.T) {
+		// alice@example.com is not in the linuxfoundation.org allowlist.
+		emailSender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+			emailSender:         emailSender,
+			inviteSender:        &mockInviteSender{},
+			emailAllowedDomains: []string{"linuxfoundation.org"},
+		}
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, lfidMember))
+		resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Nil(t, resp)
+		assert.Len(t, emailSender.calls, 0, "email must be suppressed for disallowed domain")
+	})
+
+	t.Run("emailAllowedDomains set — non-LFID member with disallowed domain invite skipped", func(t *testing.T) {
+		// bob@example.com is not in the linuxfoundation.org allowlist.
+		inviteSender := &mockInviteSender{}
+		h := &messageHandlerOrchestrator{
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+			emailSender:         &mockEmailSender{},
+			inviteSender:        inviteSender,
+			emailAllowedDomains: []string{"linuxfoundation.org"},
+		}
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, nonLFIDMember))
+		resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Nil(t, resp)
+		assert.Len(t, inviteSender.calls, 0, "invite must be suppressed for disallowed domain")
+	})
+}
+
+func TestMessageHandlerOrchestrator_isRecipientDomainAllowed(t *testing.T) {
+	tests := []struct {
+		name    string
+		domains []string
+		addr    string
+		want    bool
+	}{
+		{
+			name:    "empty allowlist — all addresses allowed",
+			domains: nil,
+			addr:    "user@example.com",
+			want:    true,
+		},
+		{
+			name:    "matching domain — allowed",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "user@linuxfoundation.org",
+			want:    true,
+		},
+		{
+			name:    "non-matching domain — blocked",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "user@gmail.com",
+			want:    false,
+		},
+		{
+			name:    "case-insensitive domain comparison — allowed",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "user@LINUXFOUNDATION.ORG",
+			want:    true,
+		},
+		{
+			name:    "multiple allowed domains — matches second entry",
+			domains: []string{"linuxfoundation.org", "example.org"},
+			addr:    "user@example.org",
+			want:    true,
+		},
+		{
+			name:    "multiple allowed domains — no match",
+			domains: []string{"linuxfoundation.org", "example.org"},
+			addr:    "user@gmail.com",
+			want:    false,
+		},
+		{
+			name:    "malformed address with no @ — blocked",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "notanemail",
+			want:    false,
+		},
+		{
+			name:    "empty address — blocked",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "",
+			want:    false,
+		},
+		{
+			name:    "subdomain not in allowlist — blocked (exact match only)",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "user@sub.linuxfoundation.org",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &messageHandlerOrchestrator{emailAllowedDomains: tt.domains}
+			assert.Equal(t, tt.want, h.isRecipientDomainAllowed(tt.addr))
+		})
+	}
 }
 
 func TestHandleCommitteeSettingsUpdated(t *testing.T) {

@@ -39,6 +39,11 @@ type messageHandlerOrchestrator struct {
 	linkReader                  port.CommitteeLinkReader
 	lfxSelfServeBaseURL         string
 	weeklyBriefGenerator        GroupWeeklyBriefGenerator
+	// emailAllowedDomains is an allowlist of recipient email domains for outbound emails and invites.
+	// When empty (the default) all domains are permitted. When set, only recipients whose email
+	// domain (case-insensitive, exact match) appears in the list will receive messages.
+	// Set via EMAIL_ALLOWED_DOMAINS (comma-separated, e.g. "linuxfoundation.org").
+	emailAllowedDomains []string
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -113,6 +118,35 @@ func WithGroupWeeklyBriefGeneratorForMessageHandler(generator GroupWeeklyBriefGe
 	return func(m *messageHandlerOrchestrator) {
 		m.weeklyBriefGenerator = generator
 	}
+}
+
+// WithEmailAllowedDomainsForMessageHandler sets the allowlist of recipient email domains
+// for outbound emails and invites. When empty (the default) all domains are permitted.
+func WithEmailAllowedDomainsForMessageHandler(domains []string) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.emailAllowedDomains = domains
+	}
+}
+
+// isRecipientDomainAllowed reports whether an outbound email or invite may be sent to addr.
+// When no allowlist is configured (emailAllowedDomains is empty) all addresses are permitted.
+// Otherwise the domain portion of addr (the part after the last "@") must match one of the
+// allowed domains (case-insensitive, exact match). Addresses without an "@" are not allowed.
+func (m *messageHandlerOrchestrator) isRecipientDomainAllowed(addr string) bool {
+	if len(m.emailAllowedDomains) == 0 {
+		return true
+	}
+	at := strings.LastIndex(addr, "@")
+	if at < 0 {
+		return false
+	}
+	domain := strings.ToLower(addr[at+1:])
+	for _, allowed := range m.emailAllowedDomains {
+		if domain == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // HandleGenerateWeeklyBriefRequested reacts to generate-requested stream events.
@@ -603,6 +637,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		slog.DebugContext(ctx, "email sender not configured — skipping member notification")
 		return nil, nil
 	}
+	if !m.isRecipientDomainAllowed(member.Email) {
+		slog.DebugContext(ctx, "skipping member notification email — recipient domain not in EMAIL_ALLOWED_DOMAINS",
+			"committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
 
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
@@ -641,6 +680,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) (port.InviteResult, error) {
 	if m.inviteSender == nil {
 		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
+			"committee_uid", member.CommitteeUID)
+		return port.InviteResult{}, nil
+	}
+	if !m.isRecipientDomainAllowed(member.Email) {
+		slog.DebugContext(ctx, "skipping member invite — recipient domain not in EMAIL_ALLOWED_DOMAINS",
 			"committee_uid", member.CommitteeUID)
 		return port.InviteResult{}, nil
 	}
@@ -766,6 +810,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 						"committee_uid", data.CommitteeUID)
 					return nil
 				}
+				if !m.isRecipientDomainAllowed(u.Email) {
+					slog.DebugContext(gctx, "skipping settings invite — recipient domain not in EMAIL_ALLOWED_DOMAINS",
+						"committee_uid", data.CommitteeUID)
+					return nil
+				}
 				// Skip re-invite when effective access is unchanged (e.g. gaining Auditor on top of Writer).
 				if kind == roleChangeKindUpdated && effectiveRoleUnchanged(oldRoles, newRoles) {
 					slog.DebugContext(gctx, "skipping non-LF invite — effective role unchanged",
@@ -818,6 +867,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			// LFID present — send a direct notification email.
 			if m.emailSender == nil {
 				slog.DebugContext(gctx, "email sender not configured — skipping settings notification",
+					"committee_uid", data.CommitteeUID)
+				return nil
+			}
+			if !m.isRecipientDomainAllowed(u.Email) {
+				slog.DebugContext(gctx, "skipping settings notification email — recipient domain not in EMAIL_ALLOWED_DOMAINS",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
@@ -1215,6 +1269,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 
 	if m.emailSender == nil {
 		slog.DebugContext(ctx, "email sender not configured — skipping member-deleted notification")
+		return nil, nil
+	}
+	if !m.isRecipientDomainAllowed(member.Email) {
+		slog.DebugContext(ctx, "skipping member-deleted notification — recipient domain not in EMAIL_ALLOWED_DOMAINS",
+			"committee_uid", member.CommitteeUID)
 		return nil, nil
 	}
 

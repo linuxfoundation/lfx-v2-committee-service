@@ -470,6 +470,11 @@ app:
     # INVITES_ENABLED gates outbound invite requests for non-LFID users.
     INVITES_ENABLED:
       value: "false"
+    # EMAIL_ALLOWED_DOMAINS restricts outbound emails and invites to the listed recipient
+    # domains (comma-separated, e.g. "linuxfoundation.org"). When empty (the default) all
+    # domains are permitted. Set in non-prod environments to prevent accidental email to real users.
+    EMAIL_ALLOWED_DOMAINS:
+      value: ""
     # AI_SOURCE selects the AI adapter: "fake" (default when unset; safe for
     # local dev / CI / fresh installs without LiteLLM credentials) or "live"
     # (requires LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL — startup
