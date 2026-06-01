@@ -65,7 +65,7 @@ This service contains the following API endpoints:
   - `POST`: join an open committee as the authenticated user
 
 - `/committees/{uid}/leave`
-  - `POST`: leave a committee as the authenticated user
+  - `DELETE`: leave a committee as the authenticated user
 
 ## NATS Messaging Interface
 

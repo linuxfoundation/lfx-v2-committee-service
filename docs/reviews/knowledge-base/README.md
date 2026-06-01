@@ -2,7 +2,7 @@
 
 Empirical review-pattern knowledge base for `lfx-v2-committee-service`. Each pattern entry was extracted
 from a real review comment on a **merged** PR in this repo (CodeRabbit, Copilot, or a human maintainer) and
-cleared the promotion gate in the [service-KB research playbook](../../../../lfx-architecture-scratch/2026-05-DevX-Time-to-Merge/service-kb-research-playbook.md).
+cleared the promotion gate in the service-KB research playbook (maintained outside this repo).
 
 The KB is the *empirical* surface — patterns the bots and reviewers have actually flagged on this repo. It
 does **not** duplicate `lfx-skills:lfx-general-code-reviewer` (generic correctness/security) or
