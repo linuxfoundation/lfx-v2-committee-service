@@ -135,6 +135,7 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 	)
 
 	o.publishDocumentIndexerMessage(ctx, model.ActionCreated, doc, sync)
+	o.publishDocumentCreatedEvent(ctx, doc)
 
 	return doc, nil
 }
@@ -203,6 +204,32 @@ func (o *documentWriterOrchestrator) publishDocumentIndexerMessage(ctx context.C
 		slog.WarnContext(ctx, "failed to publish document indexer message",
 			"error", err,
 			"action", action,
+			"document_uid", doc.UID,
+		)
+	}
+}
+
+// publishDocumentCreatedEvent publishes a domain event for a newly uploaded document so that
+// downstream subscribers (e.g. the notification handler) can react to it.
+// Errors are logged and do not fail the upload operation.
+func (o *documentWriterOrchestrator) publishDocumentCreatedEvent(ctx context.Context, doc *model.CommitteeDocument) {
+	if o.committeePublisher == nil {
+		return
+	}
+
+	event := model.CommitteeEvent{}
+	built, err := event.Build(ctx, model.ResourceCommitteeDocument, model.ActionCreated, doc)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build document created event",
+			"error", err,
+			"document_uid", doc.UID,
+		)
+		return
+	}
+
+	if err := o.committeePublisher.Event(ctx, constants.CommitteeDocumentCreatedSubject, built, false); err != nil {
+		slog.WarnContext(ctx, "failed to publish document created event",
+			"error", err,
 			"document_uid", doc.UID,
 		)
 	}

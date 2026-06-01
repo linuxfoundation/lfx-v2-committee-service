@@ -99,6 +99,7 @@ func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.Com
 	)
 
 	o.publishLinkIndexerMessage(ctx, model.ActionCreated, link, sync)
+	o.publishLinkCreatedEvent(ctx, link)
 
 	return link, nil
 }
@@ -287,6 +288,32 @@ func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Con
 			"error", err,
 			"action", action,
 			"folder_uid", folder.UID,
+		)
+	}
+}
+
+// publishLinkCreatedEvent publishes a domain event for a newly added link so that
+// downstream subscribers (e.g. the notification handler) can react to it.
+// Errors are logged and do not fail the create operation.
+func (o *linkWriterOrchestrator) publishLinkCreatedEvent(ctx context.Context, link *model.CommitteeLink) {
+	if o.committeePublisher == nil {
+		return
+	}
+
+	event := model.CommitteeEvent{}
+	built, err := event.Build(ctx, model.ResourceCommitteeLink, model.ActionCreated, link)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build link created event",
+			"error", err,
+			"link_uid", link.UID,
+		)
+		return
+	}
+
+	if err := o.committeePublisher.Event(ctx, constants.CommitteeLinkCreatedSubject, built, false); err != nil {
+		slog.WarnContext(ctx, "failed to publish link created event",
+			"error", err,
+			"link_uid", link.UID,
 		)
 	}
 }

@@ -5,9 +5,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="LFX Self-Serve committee role update notification">
-    <meta name="keywords" content="LFX, committee, role, notification">
-    <title>Your role on {{.CommitteeName}} has been updated</title>
+    <meta name="description" content="LFX Self-Serve committee document notification">
+    <meta name="keywords" content="LFX, committee, document, notification">
+    <title>New {{if eq .DocumentType "link"}}link{{else}}document{{end}} added to {{.CommitteeName}}</title>
     <style>
         body { margin: 0; padding: 0; background-color: #ffffff; font-family: Inter, Arial, sans-serif; color: #111827; }
         .wrapper { max-width: 600px; margin: 0 auto; padding: 32px 40px; }
@@ -16,9 +16,10 @@
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 0 0 32px 0; }
         p { font-size: 16px; color: #374151; line-height: 1.6; margin: 0 0 16px 0; }
         .greeting { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
-        .role-table { width: 100%; border-collapse: collapse; margin: 0 0 20px 0; }
-        .role-table td { font-size: 15px; color: #374151; padding: 6px 0; }
-        .role-label { color: #6b7280; width: 140px; }
+        .detail-label { font-weight: 600; color: #111827; }
+        .detail-link { color: #009AFF; text-decoration: none; word-break: break-all; }
+        .detail-item { margin: 0 0 4px 0; font-size: 15px; color: #374151; }
+        .details-footer { margin-top: 24px; }
         .btn { display: inline-block; background-color: #009AFF; color: #ffffff !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 24px; border-radius: 8px; margin-bottom: 12px; }
         .btn-note { font-size: 13px; color: #6b7280; margin: 0 0 28px 0; }
         .btn-note a { color: #009AFF; text-decoration: none; }
@@ -41,18 +42,14 @@
 
     <p class="greeting">Hi {{.RecipientName}},</p>
 
-    <p>{{.InviterName}} has updated your role on the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
+    {{if .UploaderName}}<p>{{.UploaderName}} has added a new {{if eq .DocumentType "link"}}link{{else}}document{{end}} to the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>{{else}}<p>A new {{if eq .DocumentType "link"}}link{{else}}document{{end}} has been added to the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>{{end}}
 
-    <table class="role-table">
-        <tr><td class="role-label">Previous role:</td><td>{{.OldJoinedRoles}}</td></tr>
-        <tr><td class="role-label">New role:</td><td><strong>{{.NewJoinedRoles}}</strong></td></tr>
-    </table>
+    <p class="detail-item"><span class="detail-label">Name:</span> {{.DocumentName}}</p>
+    {{if eq .DocumentType "file"}}<p class="detail-item"><span class="detail-label">File:</span> {{.FileName}}</p>{{end}}
+    {{if and (eq .DocumentType "link") .URL}}<p class="detail-item"><span class="detail-label">URL:</span> <a href="{{.URL}}" class="detail-link">{{.URL}}</a></p>{{end}}
+    {{if .FolderName}}<p class="detail-item"><span class="detail-label">Folder:</span> {{.FolderName}}</p>{{end}}
 
-    {{range .NewCapabilityGroups}}<p>With the <strong>{{.Role}}</strong> role, you can:</p>
-    <!-- djlint:off H021 --><ul style="margin: 0 0 16px 0; padding-left: 24px; color: #374151; font-size: 15px; line-height: 1.8;"><!-- djlint:on H021 -->
-      {{range .Items}}<li>{{.}}</li>
-      {{end}}</ul>
-    {{end}}
+    <p class="details-footer">You can view the committee and its content by visiting the link below.</p>
 
     <!-- djlint:off H021 --><a href="{{.CommitteeURL}}" class="btn" style="color:#ffffff!important;">View Committee</a><!-- djlint:on H021 -->
     <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.CommitteeURL}}">{{.CommitteeURL}}</a></p>
