@@ -415,7 +415,14 @@ func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember,
 
 // GetMemberRevision retrieves the revision number for a committee member
 func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
-	return s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
+	rev, err := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
+		}
+		return 0, errs.NewUnexpected("failed to get committee member revision", err)
+	}
+	return rev, nil
 }
 
 // ================== CommitteeMemberWriter implementation ==================
