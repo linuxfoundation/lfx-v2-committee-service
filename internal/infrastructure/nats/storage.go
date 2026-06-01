@@ -320,11 +320,62 @@ func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.Commi
 	return member, rev, nil
 }
 
-// ListMembers retrieves all members for a given committee UID
+// ListMembers retrieves all members for a given committee UID using the secondary index.
+// It performs a server-side filtered scan of keys matching
+// "lookup/committee-members-by-committee/<committeeUID>.*" so only members of the target
+// committee are fetched, rather than scanning the entire bucket.
 func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "listing committee members from NATS storage", "committee_uid", committeeUID)
 
-	// Get all keys from the committee members bucket
+	filter := fmt.Sprintf(constants.KVLookupMembersByCommitteeFilter, committeeUID)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for committee", errKeys)
+	}
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-committee/<committeeUID>.<memberUID>".
+	// Extract the member UID from the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed member index key",
+				"key", key,
+				"committee_uid", committeeUID,
+			)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing by committee",
+				"member_uid", memberUID,
+				"error", errGet,
+				"committee_uid", committeeUID,
+			)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members from NATS storage",
+		"committee_uid", committeeUID,
+		"member_count", len(members),
+	)
+
+	return members, nil
+}
+
+// ListAllMembers retrieves every member across all committees via a full bucket scan.
+// It is intended only for backfill/repair operations (e.g. the members-by-committee-index
+// CLI subcommand) that need to read all members without relying on the secondary index.
+func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "listing all committee members from NATS storage")
+
 	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
 	if errKeys != nil {
 		return nil, errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
@@ -332,32 +383,26 @@ func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*mode
 
 	var members []*model.CommitteeMember
 
-	// Iterate through all keys and filter by committee UID
 	for key := range keys.Keys() {
-		// Skip lookup keys (they start with "lookup/")
+		// Skip all secondary-index keys.
 		if strings.HasPrefix(key, "lookup/") {
 			continue
 		}
 
-		// Get the member
 		member := &model.CommitteeMember{}
 		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
 		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get member while listing",
+			slog.WarnContext(ctx, "failed to get member while listing all",
 				"key", key,
 				"error", errGet,
-				"committee_uid", committeeUID)
+			)
 			continue
 		}
 
-		// Filter by committee UID
-		if member.CommitteeUID == committeeUID {
-			members = append(members, member)
-		}
+		members = append(members, member)
 	}
 
-	slog.DebugContext(ctx, "retrieved committee members from NATS storage",
-		"committee_uid", committeeUID,
+	slog.DebugContext(ctx, "retrieved all committee members from NATS storage",
 		"member_count", len(members),
 	)
 
@@ -474,6 +519,24 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 		return uniqueKey, errs.NewUnexpected("failed to create unique key for member", errUnique)
 	}
 	return uniqueKey, nil
+}
+
+// IndexMemberByCommittee writes the secondary index entry
+// "lookup/committee-members-by-committee/<committee_uid>.<member_uid>" → <member_uid>
+// into the committee-members bucket. This enables ListMembers to use a server-side
+// filtered scan instead of a full bucket scan.
+// Returns the written key (for rollback tracking) and nil on success.
+// ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
+func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			// Already present — idempotent; treat as success.
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by committee", err)
+	}
+	return key, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================
