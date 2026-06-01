@@ -72,7 +72,7 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 		}
 
 		if rc.DryRun {
-			slog.InfoContext(ctx, "dry-run: would write member index",
+			slog.DebugContext(ctx, "dry-run: would write member index",
 				"committee_uid", member.CommitteeUID,
 				"member_uid", member.UID,
 			)
