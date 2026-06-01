@@ -60,6 +60,44 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync total-members-attribute --committee-uid=abc-123
 ```
 
+#### `sync members-by-committee-index`
+
+Backfills the committee→member secondary index (`lookup/committee-members-by-committee/<committeeUID>.<memberUID>`) for members that existed before the index was introduced. The new `ListMembers` implementation reads exclusively from this index, so this command must be run against each environment before deploying the updated service.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit backfill to members of a single committee |
+| `--sleep` | `0` | Wait between each write to reduce pressure (e.g. `200ms`, `1s`) |
+| `--dry-run` | `false` | Log what would be written without writing |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+The command is idempotent — index entries are written with write-if-absent semantics and `ErrKeyExists` is treated as success, so re-running is safe.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync members-by-committee-index --dry-run
+```
+
+Full backfill with a 100ms pause between writes:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-committee-index --sleep=100ms
+```
+
+Backfill a single committee:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-committee-index --committee-uid=abc-123
+```
+
 ## Building
 
 ### Local binary
