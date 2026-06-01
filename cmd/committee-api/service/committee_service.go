@@ -854,7 +854,7 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 	}
 
 	// Find the member by listing all members and matching email
-	members, err := s.storage.ListMembers(ctx, p.UID)
+	members, err := s.storage.ListMembersByCommittee(ctx, p.UID)
 	if err != nil {
 		return wrapError(ctx, err)
 	}

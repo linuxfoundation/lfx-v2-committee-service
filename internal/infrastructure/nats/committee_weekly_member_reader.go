@@ -37,7 +37,7 @@ func NewCommitteeWeeklyMemberReader(r port.CommitteeMemberReader) *CommitteeWeek
 //   - "Updated" = updated_at within window AND created_at outside window
 //     (avoids double-counting joins)
 func (r *CommitteeWeeklyMemberReader) ListMemberActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) (port.WeeklyMemberActivity, error) {
-	members, err := r.memberReader.ListMembers(ctx, committeeUID)
+	members, err := r.memberReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		return port.WeeklyMemberActivity{}, err
 	}
