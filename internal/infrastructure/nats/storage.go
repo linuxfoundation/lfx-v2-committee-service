@@ -422,6 +422,12 @@ func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
 		}
+		// Return validation errors (e.g. empty UID) and other typed errors as-is
+		// so callers receive the correct error kind instead of an unexpected wrapper.
+		var valErr errs.Validation
+		if errors.As(err, &valErr) {
+			return 0, err
+		}
 		return 0, errs.NewUnexpected("failed to get committee member revision", err)
 	}
 	return rev, nil
@@ -541,6 +547,12 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 // Returns the written key (for rollback tracking) and nil on success.
 // jetstream.ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
 func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.CommitteeUID == "" || member.UID == "" {
+		return "", errs.NewValidation("committee member CommitteeUID and UID must be non-empty")
+	}
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
 		if errors.Is(err, jetstream.ErrKeyExists) {
