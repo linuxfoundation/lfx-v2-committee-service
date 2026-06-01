@@ -226,6 +226,8 @@ type notificationRecipient struct {
 // Users without an LFID (Username == "") are excluded — they cannot receive direct emails at this phase.
 // When the same LFID appears in multiple role lists, later records can enrich a missing email or name
 // from earlier ones rather than being silently dropped.
+// Note: the uploader/creator is intentionally included — the notification is sent uniformly to all
+// roles regardless of who uploaded the item, so the document appears in everyone's inbox consistently.
 func (m *messageHandlerOrchestrator) collectCommitteeRecipients(ctx context.Context, committeeUID string) []notificationRecipient {
 	seen := make(map[string]int) // username → index in recipients slice
 	var recipients []notificationRecipient
