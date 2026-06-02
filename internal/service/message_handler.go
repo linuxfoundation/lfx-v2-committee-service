@@ -9,6 +9,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -122,9 +123,17 @@ func WithGroupWeeklyBriefGeneratorForMessageHandler(generator GroupWeeklyBriefGe
 
 // WithEmailAllowedDomainsForMessageHandler sets the allowlist of recipient email domains
 // for outbound emails and invites. When empty (the default) all domains are permitted.
+// Entries are normalized to lowercase and trimmed so callers need not pre-normalize them.
 func WithEmailAllowedDomainsForMessageHandler(domains []string) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
-		m.emailAllowedDomains = domains
+		normalized := make([]string, 0, len(domains))
+		for _, d := range domains {
+			d = strings.ToLower(strings.TrimSpace(d))
+			if d != "" {
+				normalized = append(normalized, d)
+			}
+		}
+		m.emailAllowedDomains = normalized
 	}
 }
 
@@ -141,12 +150,7 @@ func (m *messageHandlerOrchestrator) isRecipientDomainAllowed(addr string) bool 
 		return false
 	}
 	domain := strings.ToLower(addr[at+1:])
-	for _, allowed := range m.emailAllowedDomains {
-		if domain == allowed {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.emailAllowedDomains, domain)
 }
 
 // HandleGenerateWeeklyBriefRequested reacts to generate-requested stream events.

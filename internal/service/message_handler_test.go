@@ -1392,11 +1392,25 @@ func TestMessageHandlerOrchestrator_isRecipientDomainAllowed(t *testing.T) {
 			addr:    "user@sub.linuxfoundation.org",
 			want:    false,
 		},
+		{
+			name:    "mixed-case allowlist entry normalized via option — allowed",
+			domains: []string{"LinuxFoundation.Org"},
+			addr:    "user@linuxfoundation.org",
+			want:    true,
+		},
+		{
+			name:    "allowlist entry with leading/trailing whitespace normalized — allowed",
+			domains: []string{"  linuxfoundation.org  "},
+			addr:    "user@linuxfoundation.org",
+			want:    true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &messageHandlerOrchestrator{emailAllowedDomains: tt.domains}
+			// Use the option function so normalization is applied, matching real usage.
+			h := &messageHandlerOrchestrator{}
+			WithEmailAllowedDomainsForMessageHandler(tt.domains)(h)
 			assert.Equal(t, tt.want, h.isRecipientDomainAllowed(tt.addr))
 		})
 	}
