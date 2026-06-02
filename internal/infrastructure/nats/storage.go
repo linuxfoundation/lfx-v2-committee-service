@@ -376,31 +376,38 @@ func (s *storage) ListMembersByCommittee(ctx context.Context, committeeUID strin
 	return members, nil
 }
 
-// ListAllMembers retrieves every member across all committees via a full bucket scan.
-// It is intended only for backfill/repair operations (e.g. the members-by-committee-index
-// CLI subcommand) that need to read all members without relying on the secondary index.
+// ListAllMembers retrieves every member across all committees using a single
+// WatchAll stream. This is significantly faster than ListKeys + N individual
+// GETs because NATS delivers all entries (with their values) in one streaming
+// response instead of one round trip per member.
+// It is intended only for backfill/repair operations that need to read all
+// members without relying on the secondary index.
 func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
-	slog.DebugContext(ctx, "listing all committee members from NATS storage")
+	slog.DebugContext(ctx, "listing all committee members from NATS storage via WatchAll")
 
-	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
-	if errKeys != nil {
-		return nil, errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+	watcher, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].WatchAll(ctx, jetstream.IgnoreDeletes())
+	if err != nil {
+		return nil, errs.NewUnexpected("failed to watch committee members bucket", err)
 	}
+	defer func() { _ = watcher.Stop() }()
 
 	var members []*model.CommitteeMember
 
-	for key := range keys.Keys() {
-		// Skip all secondary-index keys.
-		if strings.HasPrefix(key, "lookup/") {
+	for entry := range watcher.Updates() {
+		// nil signals that all current entries have been delivered.
+		if entry == nil {
+			break
+		}
+		// Skip secondary-index keys — they live in the same bucket.
+		if strings.HasPrefix(entry.Key(), "lookup/") {
 			continue
 		}
 
 		member := &model.CommitteeMember{}
-		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
-		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get member while listing all",
-				"key", key,
-				"error", errGet,
+		if errUnmarshal := json.Unmarshal(entry.Value(), member); errUnmarshal != nil {
+			slog.WarnContext(ctx, "failed to unmarshal member while listing all",
+				"key", entry.Key(),
+				"error", errUnmarshal,
 			)
 			continue
 		}

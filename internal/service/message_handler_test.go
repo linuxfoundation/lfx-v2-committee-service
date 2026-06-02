@@ -1404,6 +1404,18 @@ func TestMessageHandlerOrchestrator_isRecipientDomainAllowed(t *testing.T) {
 			addr:    "user@linuxfoundation.org",
 			want:    true,
 		},
+		{
+			name:    "allowlist entry with leading @ stripped — allowed",
+			domains: []string{"@linuxfoundation.org"},
+			addr:    "user@linuxfoundation.org",
+			want:    true,
+		},
+		{
+			name:    "recipient address with trailing whitespace trimmed — allowed",
+			domains: []string{"linuxfoundation.org"},
+			addr:    "user@linuxfoundation.org ",
+			want:    true,
+		},
 	}
 
 	for _, tt := range tests {

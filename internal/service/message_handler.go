@@ -123,12 +123,14 @@ func WithGroupWeeklyBriefGeneratorForMessageHandler(generator GroupWeeklyBriefGe
 
 // WithEmailAllowedDomainsForMessageHandler sets the allowlist of recipient email domains
 // for outbound emails and invites. When empty (the default) all domains are permitted.
-// Entries are normalized to lowercase and trimmed so callers need not pre-normalize them.
+// Entries are normalized (lowercase, trimmed, leading "@" stripped) so callers need not
+// pre-normalize them — consistent with the emailAllowedDomains() env-var provider.
 func WithEmailAllowedDomainsForMessageHandler(domains []string) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		normalized := make([]string, 0, len(domains))
 		for _, d := range domains {
 			d = strings.ToLower(strings.TrimSpace(d))
+			d = strings.TrimPrefix(d, "@")
 			if d != "" {
 				normalized = append(normalized, d)
 			}
@@ -145,6 +147,7 @@ func (m *messageHandlerOrchestrator) isRecipientDomainAllowed(addr string) bool 
 	if len(m.emailAllowedDomains) == 0 {
 		return true
 	}
+	addr = strings.TrimSpace(addr)
 	at := strings.LastIndex(addr, "@")
 	if at < 0 {
 		return false
