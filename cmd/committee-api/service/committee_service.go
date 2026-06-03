@@ -481,6 +481,11 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
+// inviteDispatchTimeout bounds the best-effort send-invite request to the
+// invite service. Matches the timeout used by the message-handler invite path
+// (see internal/service/message_handler.go committeeNotificationTimeout).
+const inviteDispatchTimeout = 5 * time.Second
+
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
 // invitee receives an email. Best-effort: failures are logged and do not fail the
 // caller, since the invite record has already been persisted.
@@ -491,20 +496,20 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		return
 	}
 
-	role := invite.Role
-	if role == "" {
-		role = "Member"
-	}
-
-	sendCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	sendCtx, cancel := context.WithTimeout(ctx, inviteDispatchTimeout)
 	defer cancel()
+	// Role on the invite record is the committee role applied after acceptance.
+	// The Role field on SendInviteRequest is the invite-service permission grant
+	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
+	// Match the parallel "add committee member" path in message_handler.go
+	// sendMemberInvite and pass "Member".
 	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		RecipientEmail: strings.TrimSpace(invite.InviteeEmail),
 		InviterName:    "A committee administrator",
 		ResourceUID:    committee.UID,
 		ResourceName:   committee.Name,
 		ResourceType:   "group",
-		Role:           role,
+		Role:           "Member",
 		ReturnURL:      strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
 	})
 	if err != nil {

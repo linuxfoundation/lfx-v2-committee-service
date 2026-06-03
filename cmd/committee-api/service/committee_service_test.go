@@ -771,12 +771,16 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	sender := svc.inviteSender.(*mockInviteSender)
 	require.Len(t, sender.calls, 1)
 	assert.Equal(t, "reinvite@example.com", sender.calls[0].RecipientEmail)
-	assert.Equal(t, "chair", sender.calls[0].Role)
+	// SendInviteRequest.Role uses the invite-service permission vocabulary
+	// ("Member"), not the committee role ("chair") which lives on the persisted
+	// invite record and is applied on acceptance.
+	assert.Equal(t, "Member", sender.calls[0].Role)
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
 	svc, _, _ := setupServiceTestWithRepo()
-	svc.inviteSender = &mockInviteSender{retErr: assert.AnError}
+	sender := &mockInviteSender{retErr: assert.AnError}
+	svc.inviteSender = sender
 
 	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 		UID:          "committee-1",
@@ -786,6 +790,10 @@ func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "pending", result.Status)
+	// Sender must actually be invoked — otherwise this test would still pass
+	// if dispatch were accidentally removed or short-circuited.
+	require.Len(t, sender.calls, 1)
+	assert.Equal(t, "besteffort@example.com", sender.calls[0].RecipientEmail)
 }
 
 func TestCreateInvite_NilInviteSenderSkipsDispatch(t *testing.T) {
