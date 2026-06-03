@@ -24,6 +24,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
 
 	"goa.design/goa/v3/security"
@@ -36,6 +37,8 @@ type committeeServicesrvc struct {
 	auth                        port.Authenticator
 	storage                     port.CommitteeReaderWriter
 	publisher                   port.CommitteePublisher
+	inviteSender                port.InviteSender
+	lfxSelfServeBaseURL         string
 	userReader                  port.UserReader
 	linkReader                  service.CommitteeLinkDataReader
 	linkWriter                  service.CommitteeLinkDataWriter
@@ -409,7 +412,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	)
 
 	// Verify committee exists
-	_, _, err := s.storage.GetBase(ctx, p.UID)
+	committee, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -463,6 +466,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		}
 
 		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
+		s.dispatchInviteEmail(ctx, committee, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
 	}
@@ -472,8 +476,44 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
+	s.dispatchInviteEmail(ctx, committee, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// dispatchInviteEmail publishes a send-invite request to the invite service so the
+// invitee receives an email. Best-effort: failures are logged and do not fail the
+// caller, since the invite record has already been persisted.
+func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committee *model.CommitteeBase, invite *model.CommitteeInvite) {
+	if s.inviteSender == nil {
+		slog.DebugContext(ctx, "invite sender not configured — skipping invite dispatch",
+			"committee_uid", committee.UID, "invite_uid", invite.UID)
+		return
+	}
+
+	role := invite.Role
+	if role == "" {
+		role = "Member"
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
+		RecipientEmail: strings.TrimSpace(invite.InviteeEmail),
+		InviterName:    "A committee administrator",
+		ResourceUID:    committee.UID,
+		ResourceName:   committee.Name,
+		ResourceType:   "group",
+		Role:           role,
+		ReturnURL:      strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "failed to dispatch committee invite email",
+			"error", err, "committee_uid", committee.UID, "invite_uid", invite.UID)
+		return
+	}
+	slog.DebugContext(ctx, "dispatched committee invite email",
+		"committee_uid", committee.UID, "invite_uid", invite.UID)
 }
 
 // RevokeInvite revokes a pending or declined invite
@@ -1230,6 +1270,8 @@ func NewCommitteeService(
 	authService port.Authenticator,
 	storage port.CommitteeReaderWriter,
 	publisher port.CommitteePublisher,
+	inviteSender port.InviteSender,
+	lfxSelfServeBaseURL string,
 	userReader port.UserReader,
 	linkReader service.CommitteeLinkDataReader,
 	linkWriter service.CommitteeLinkDataWriter,
@@ -1244,6 +1286,8 @@ func NewCommitteeService(
 		auth:                        authService,
 		storage:                     storage,
 		publisher:                   publisher,
+		inviteSender:                inviteSender,
+		lfxSelfServeBaseURL:         lfxSelfServeBaseURL,
 		userReader:                  userReader,
 		linkReader:                  linkReader,
 		linkWriter:                  linkWriter,
