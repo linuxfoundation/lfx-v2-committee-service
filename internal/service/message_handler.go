@@ -879,9 +879,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 }
 
 // HandleInviteAccepted processes an invite acceptance event published by the invite service.
-// It locates the committee settings that own the invite via the resource UID in the enriched
-// payload, promotes the user from non-LFID (email-only) to LFID (username set, invite cleared),
-// and fires FGA + indexer messages via UpdateSettings.
+// It scans all committee settings for email-only user entries matching the recipient email and
+// promotes them to full LFID users (username set, invite cleared). This reconciles every
+// committee the accepted user was invited to, regardless of which resource triggered the event.
+//
+// TODO: replace the full-scan with an email → [committee_uid] index lookup so we avoid reading
+// every committee's settings on each acceptance event.
 func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event inviteapi.InviteServiceAcceptedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -889,25 +892,15 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		return nil, nil
 	}
 
-	if event.UID == "" || event.AcceptedBy == "" {
-		slog.WarnContext(ctx, "invite_accepted event missing uid or accepted_by — discarding",
-			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy))
+	if event.UID == "" || event.AcceptedBy == "" || event.Recipient.Email == "" {
+		slog.WarnContext(ctx, "invite_accepted event missing required fields — discarding",
+			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy), "recipient_email", event.Recipient.Email)
 		return nil, nil
 	}
 
-	// The invite service publishes this event for all resource types; only process group invites.
-	if event.Resource.Type != "group" {
-		slog.DebugContext(ctx, "invite not for a group resource — ignoring",
-			"resource_type", event.Resource.Type, "invite_uid", event.UID)
-		return nil, nil
-	}
-
-	committeeUID := event.Resource.UID
-
-	// Persist the updated settings.
 	if m.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee writer orchestrator not available — cannot persist invite promotion",
-			"committee_uid", committeeUID)
+			"invite_uid", event.UID)
 		return nil, nil
 	}
 
@@ -917,59 +910,70 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	// service-to-service paths in internal/middleware/auth.go.
 	writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	// Retry up to 3 times to handle optimistic-lock conflicts: another writer may have
-	// bumped the settings revision between our read and write. We re-read the full
-	// settings on each attempt so the promotion is applied to the latest revision.
+	normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
+
+	// Scan all committee UIDs for settings that contain the recipient email.
+	allUIDs, listErr := m.committeeReader.ListAllUIDs(ctx)
+	if listErr != nil {
+		slog.WarnContext(ctx, "failed to list committee UIDs for invite reconciliation",
+			"error", listErr, "invite_uid", event.UID)
+		return nil, nil
+	}
+
+	for _, committeeUID := range allUIDs {
+		m.promoteInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID)
+	}
+
+	return nil, nil
+}
+
+// promoteInvitedUserInCommitteeSettings promotes all email-only entries matching normalizedEmail
+// in the given committee's settings to full LFID users. It retries on revision conflicts.
+func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
 	const maxRetries = 3
-	var promoted bool
 	for attempt := range maxRetries {
-		settings, revision, settingsErr := m.committeeReader.GetSettings(ctx, committeeUID)
-		if settingsErr != nil {
-			slog.ErrorContext(ctx, "failed to get settings for invite acceptance",
-				"error", settingsErr, "committee_uid", committeeUID, "invite_uid", event.UID)
-			return nil, nil
+		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to get settings for invite promotion",
+				"error", err, "committee_uid", committeeUID, "invite_uid", inviteUID)
+			return
 		}
 
-		promoted = false
-		normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
+		promoted := false
 		for i := range settings.Writers {
 			if settings.Writers[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Writers[i].Email)) == normalizedEmail {
-				settings.Writers[i].Username = event.AcceptedBy
-				settings.Writers[i].Invite = nil // clear any residual invite metadata
+				settings.Writers[i].Username = username
+				settings.Writers[i].Invite = nil
 				promoted = true
 			}
 		}
 		for i := range settings.Auditors {
 			if settings.Auditors[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Auditors[i].Email)) == normalizedEmail {
-				settings.Auditors[i].Username = event.AcceptedBy
-				settings.Auditors[i].Invite = nil // clear any residual invite metadata
+				settings.Auditors[i].Username = username
+				settings.Auditors[i].Invite = nil
 				promoted = true
 			}
 		}
 
 		if !promoted {
-			slog.WarnContext(ctx, "no email-only entry found for recipient — may have already been promoted",
-				"committee_uid", committeeUID, "invite_uid", event.UID)
-			return nil, nil
+			return
 		}
 
 		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, settings, revision, false); writeErr != nil {
 			if attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict promoting invite — retrying",
-					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", event.UID)
+					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", inviteUID)
 				continue
 			}
 			slog.ErrorContext(ctx, "failed to update settings after invite acceptance",
-				"error", writeErr, "committee_uid", committeeUID, "invite_uid", event.UID)
-			return nil, nil
+				"error", writeErr, "committee_uid", committeeUID, "invite_uid", inviteUID)
+			return
 		}
-		break
+
+		slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
+			"committee_uid", committeeUID, "invite_uid", inviteUID, "username", redaction.Redact(username))
+		return
 	}
-
-	slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
-		"committee_uid", committeeUID, "invite_uid", event.UID, "username", redaction.Redact(event.AcceptedBy))
-
-	return nil, nil
 }
 
 // mapRoleToInviteRole converts a committee settings role string to the invite
