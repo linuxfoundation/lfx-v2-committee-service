@@ -88,17 +88,19 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	// during routing (inside ServeHTTP), not before.
 	mux.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-			rctx := chi.RouteContext(r.Context())
-			if rctx != nil {
-				routePattern := rctx.RoutePattern()
-				if routePattern != "" {
-					if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
-						labeler.Add(semconv.HTTPRoute(routePattern))
+			defer func() {
+				rctx := chi.RouteContext(r.Context())
+				if rctx != nil {
+					routePattern := rctx.RoutePattern()
+					if routePattern != "" {
+						if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
+							labeler.Add(semconv.HTTPRoute(routePattern))
+						}
+						trace.SpanFromContext(r.Context()).SetName(r.Method + " " + routePattern)
 					}
-					trace.SpanFromContext(r.Context()).SetName(r.Method + " " + routePattern)
 				}
-			}
+			}()
+			next.ServeHTTP(w, r)
 		})
 	})
 
