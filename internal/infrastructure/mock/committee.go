@@ -302,8 +302,10 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 	}
 
 	if settings == nil {
-		// Committee exists but has no settings (e.g. created without CommitteeSettings).
-		return nil, 1, nil
+		// Committee exists but was stored without a CommitteeSettings pointer.
+		// Treat this identically to "not found" so callers cannot distinguish a nil
+		// value from a missing key — consistent with real NATS storage behavior.
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
 	// Return a deep copy so caller mutations (e.g. in-place field promotion) do not bleed

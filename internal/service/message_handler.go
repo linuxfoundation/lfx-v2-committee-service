@@ -955,6 +955,8 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 		case string(inviteapi.InviteRoleView):
 			promoteAuditors = true
 		default:
+			slog.WarnContext(ctx, "unrecognized invite role — promoting both Writers and Auditors as a safe fallback",
+				"role", role, "invite_uid", inviteUID, "committee_uid", committeeUID)
 			promoteWriters = true
 			promoteAuditors = true
 		}
