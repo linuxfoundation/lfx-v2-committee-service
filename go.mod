@@ -8,6 +8,7 @@ go 1.25.0
 require (
 	github.com/auth0/go-auth0 v1.38.0
 	github.com/auth0/go-jwt-middleware/v2 v2.3.0
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
@@ -31,6 +32,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/sdk/log v0.19.0
 	go.opentelemetry.io/otel/sdk/metric v1.43.0
+	go.opentelemetry.io/otel/trace v1.43.0
 	goa.design/clue v1.2.3
 	goa.design/goa/v3 v3.22.6
 	golang.org/x/oauth2 v0.36.0
@@ -46,7 +48,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-chi/chi/v5 v5.2.3 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
@@ -71,7 +72,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.43.0 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/mod v0.33.0 // indirect
