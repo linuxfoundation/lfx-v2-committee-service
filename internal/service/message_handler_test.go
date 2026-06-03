@@ -658,7 +658,10 @@ type spyCommitteeWriterOrchestrator struct {
 
 	updateSettingsCalls int
 	updateSettingsErr   error
-	capturedSettings    []*model.CommitteeSettings
+	// updateSettingsErrs is an optional per-call error queue. If non-empty, each call to
+	// UpdateSettings drains one entry from the front; once exhausted, updateSettingsErr is used.
+	updateSettingsErrs []error
+	capturedSettings   []*model.CommitteeSettings
 }
 
 func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Committee, _ bool) (*model.Committee, error) {
@@ -671,8 +674,17 @@ func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Comm
 }
 func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
 	s.updateSettingsCalls++
-	copy := *settings
-	s.capturedSettings = append(s.capturedSettings, &copy)
+	// Deep-copy the snapshot so later in-place mutations by the handler don't overwrite it.
+	snap := *settings
+	snap.Writers = append([]model.CommitteeUser(nil), settings.Writers...)
+	snap.Auditors = append([]model.CommitteeUser(nil), settings.Auditors...)
+	s.capturedSettings = append(s.capturedSettings, &snap)
+	// Drain per-call error queue; fall back to the fixed error when exhausted.
+	if len(s.updateSettingsErrs) > 0 {
+		err := s.updateSettingsErrs[0]
+		s.updateSettingsErrs = s.updateSettingsErrs[1:]
+		return settings, err
+	}
 	return settings, s.updateSettingsErr
 }
 func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ uint64, _ bool) error {
@@ -1913,6 +1925,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 		name             string
 		setupRepo        func(*mock.MockRepository)
 		spyErr           error
+		spyErrs          []error // per-call error queue; takes precedence over spyErr when non-nil
 		msgData          []byte
 		wantUpdateCalls  int
 		validateSettings func(*testing.T, []*model.CommitteeSettings)
@@ -2029,16 +2042,17 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 1,
 		},
 		{
-			name: "conflict on write — retries once then finds entry already promoted on re-read",
+			name: "conflict on write — retries and succeeds on second attempt",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
 					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
 			},
-			spyErr:  errs.NewConflict("revision mismatch"),
-			msgData: makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
-			// The mock returns the same pointer, so our in-memory promotion is visible on
-			// re-read; the retry finds no email-only entry and exits cleanly after 1 attempt.
-			wantUpdateCalls: 1,
+			// First UpdateSettings call returns a conflict; second succeeds.
+			// GetSettings returns a deep copy each time, so the in-memory promotion
+			// from attempt 1 is not visible on re-read — a genuine second write happens.
+			spyErrs:         []error{errs.NewConflict("revision mismatch"), nil},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 2,
 		},
 	}
 
@@ -2048,7 +2062,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 			mockRepo.ClearAll()
 			tt.setupRepo(mockRepo)
 
-			spy := &spyCommitteeWriterOrchestrator{updateSettingsErr: tt.spyErr}
+			spy := &spyCommitteeWriterOrchestrator{updateSettingsErr: tt.spyErr, updateSettingsErrs: tt.spyErrs}
 			handler := makeHandler(mockRepo, spy)
 
 			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
