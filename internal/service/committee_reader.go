@@ -28,6 +28,8 @@ type CommitteeDataReader interface {
 	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
 	// GetBaseAttributeValue retrieves an attribute value by UID and returns the revision
 	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
+	// ListAllUIDs returns all active committee UIDs
+	ListAllUIDs(ctx context.Context) ([]string, error)
 }
 
 // CommitteeMemberDataReader defines the interface for committee member read operations
@@ -103,6 +105,11 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 	)
 
 	return committeeSettings, revision, nil
+}
+
+// ListAllUIDs returns all active committee UIDs
+func (rc *committeeReaderOrchestrator) ListAllUIDs(ctx context.Context) ([]string, error) {
+	return rc.committeeReader.ListAllUIDs(ctx)
 }
 
 // GetAttributeValue retrieves an attribute value by UID and returns the revision
