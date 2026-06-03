@@ -63,10 +63,6 @@ func (r *stubCommitteeReader) GetBaseAttributeValue(_ context.Context, _, _ stri
 	panic("not used")
 }
 
-func (r *stubCommitteeReader) GetSettingsUIDByInviteUID(_ context.Context, _ string) (string, error) {
-	panic("not used")
-}
-
 func (r *stubCommitteeReader) GetMemberRevision(_ context.Context, _ string) (uint64, error) {
 	panic("not used")
 }
