@@ -16,6 +16,10 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
+// votingStatusNone is the legacy sentinel value a member may have when a
+// non-voting committee was converted to voting without migrating member statuses.
+const votingStatusNone = "None"
+
 // CommitteeMember represents the complete committee member business entity
 type CommitteeMember struct {
 	CommitteeMemberBase
@@ -177,8 +181,35 @@ func (cm *CommitteeMember) NeedsSyncWith(committee *CommitteeBase) bool {
 		cm.ProjectSlug != committee.ProjectSlug
 }
 
-// Validate validates the committee member against the committee's requirements
+// isNoneVotingStatus reports whether s represents the "None" voting status,
+// using a case-insensitive comparison to guard against legacy data casing variations.
+func isNoneVotingStatus(s string) bool {
+	return strings.EqualFold(s, votingStatusNone)
+}
+
+// Validate validates the committee member against the committee's requirements.
+// It covers all standard cases including the restriction that voting-enabled
+// committees may not have members with voting_status "None".
 func (cm *CommitteeMember) Validate(committee *Committee) error {
+	return cm.validate(committee, "")
+}
+
+// ValidateUpdate runs all of the same checks as Validate and additionally
+// applies the legacy-None exemption: if the existing member already carries
+// voting_status "None" (a v1 migration artifact), the incoming update may keep
+// or correct it without being rejected.
+func (cm *CommitteeMember) ValidateUpdate(committee *Committee, existing *CommitteeMember) error {
+	existingStatus := ""
+	if existing != nil {
+		existingStatus = existing.Voting.Status
+	}
+	return cm.validate(committee, existingStatus)
+}
+
+// validate is the shared implementation for Validate and ValidateUpdate.
+// existingStatus is the current voting status of the member being updated
+// (empty string for creates).
+func (cm *CommitteeMember) validate(committee *Committee, existingStatus string) error {
 	if cm == nil {
 		return errs.NewValidation("committee member cannot be nil")
 	}
@@ -187,13 +218,15 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 		return errs.NewValidation("committee cannot be nil")
 	}
 
-	// Validate basic required fields
 	if err := cm.validateRequiredFields(); err != nil {
 		return err
 	}
 
-	// Validate organization fields based on committee settings
 	if err := cm.validateOrganizationFields(committee); err != nil {
+		return err
+	}
+
+	if err := cm.validateVotingStatus(committee, existingStatus); err != nil {
 		return err
 	}
 
@@ -206,6 +239,16 @@ func (cm *CommitteeMember) validateRequiredFields() error {
 		return errs.NewValidation("email is required")
 	}
 
+	return nil
+}
+
+// validateVotingStatus rejects "None" as an incoming voting status on voting-enabled committees,
+// unless the existing member already carries "None" (the legacy corrective path).
+// Pass an empty string for existingStatus on creates.
+func (cm *CommitteeMember) validateVotingStatus(committee *Committee, existingStatus string) error {
+	if committee.EnableVoting && isNoneVotingStatus(cm.Voting.Status) && !isNoneVotingStatus(existingStatus) {
+		return errs.NewValidation(`voting_status "None" is not allowed on voting-enabled committees`)
+	}
 	return nil
 }
 
