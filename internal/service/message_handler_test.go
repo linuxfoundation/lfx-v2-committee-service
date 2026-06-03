@@ -646,7 +646,7 @@ type mockStreamMessenger struct {
 func (m *mockStreamMessenger) Subject() string { return m.subject }
 func (m *mockStreamMessenger) Data() []byte    { return m.data }
 
-// spyCommitteeWriterOrchestrator records Update and UpdateMember calls and can be configured to fail.
+// spyCommitteeWriterOrchestrator records Update, UpdateMember, and UpdateSettings calls and can be configured to fail.
 type spyCommitteeWriterOrchestrator struct {
 	updateCalls      int
 	updateErr        error
@@ -655,6 +655,10 @@ type spyCommitteeWriterOrchestrator struct {
 	updateMemberCalls int
 	updateMemberErr   error
 	updatedMembers    []*model.CommitteeMember
+
+	updateSettingsCalls int
+	updateSettingsErr   error
+	capturedSettings    []*model.CommitteeSettings
 }
 
 func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Committee, _ bool) (*model.Committee, error) {
@@ -665,8 +669,11 @@ func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Comm
 	s.updatedCommittee = c
 	return c, s.updateErr
 }
-func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, _ *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
-	return nil, nil
+func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
+	s.updateSettingsCalls++
+	copy := *settings
+	s.capturedSettings = append(s.capturedSettings, &copy)
+	return settings, s.updateSettingsErr
 }
 func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ uint64, _ bool) error {
 	return nil
@@ -1859,6 +1866,181 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 			assert.Equal(t, tt.wantInviteCount, inviteCount, "invite call count")
 			if tt.wantInviteRole != "" {
 				assert.Equal(t, tt.wantInviteRole, inviteRole, "invite role")
+			}
+		})
+	}
+}
+
+func TestHandleInviteAccepted(t *testing.T) {
+	ctx := context.Background()
+
+	const inviteUID = "inv-abc"
+	const username = "newuser"
+	const committee1UID = "committee-1"
+	const committee2UID = "committee-2"
+	const writerEmail = "writer@example.com"
+	const auditorEmail = "auditor@example.com"
+
+	makeEvent := func(invUID, acceptedBy, recipientEmail, role string) []byte {
+		event := inviteapi.InviteServiceAcceptedEvent{Invite: inviteapi.Invite{
+			UID:        invUID,
+			AcceptedBy: acceptedBy,
+			Role:       role,
+			Recipient:  inviteapi.Recipient{Email: recipientEmail},
+		}}
+		b, _ := json.Marshal(event)
+		return b
+	}
+
+	makeCommitteeWithSettings := func(uid string, settings *model.CommitteeSettings) *model.Committee {
+		return &model.Committee{
+			CommitteeBase:     model.CommitteeBase{UID: uid, ProjectUID: "proj-1", Name: "Test Committee"},
+			CommitteeSettings: settings,
+		}
+	}
+
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
+		h := NewMessageHandlerOrchestrator(
+			WithCommitteeReaderForMessageHandler(
+				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
+			),
+			WithCommitteeWriterOrchestratorForMessageHandler(spy),
+		)
+		return h.(*messageHandlerOrchestrator)
+	}
+
+	tests := []struct {
+		name             string
+		setupRepo        func(*mock.MockRepository)
+		spyErr           error
+		msgData          []byte
+		wantUpdateCalls  int
+		validateSettings func(*testing.T, []*model.CommitteeSettings)
+	}{
+		{
+			name: "malformed payload — no update called",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			msgData:         []byte("not json"),
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "missing uid — discarded",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			msgData:         makeEvent("", username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "missing accepted_by — discarded",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			msgData:         makeEvent(inviteUID, "", writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "happy path — Manage role promotes Writer entries across matching committees",
+			setupRepo: func(r *mock.MockRepository) {
+				// Two committees both have an email-only Writer entry.
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+				r.AddCommittee(makeCommitteeWithSettings(committee2UID,
+					&model.CommitteeSettings{UID: committee2UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 2,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				for _, s := range captured {
+					require.Len(t, s.Writers, 1)
+					assert.Equal(t, username, s.Writers[0].Username, "writer should be promoted")
+					assert.Nil(t, s.Writers[0].Invite, "invite should be cleared")
+				}
+			},
+		},
+		{
+			name: "View role — only Auditors promoted, Writers untouched",
+			setupRepo: func(r *mock.MockRepository) {
+				// Committee has both a pending Writer and pending Auditor entry with the same email.
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:      committee1UID,
+					Writers:  []model.CommitteeUser{{Email: auditorEmail}},
+					Auditors: []model.CommitteeUser{{Email: auditorEmail}},
+				}))
+			},
+			msgData:         makeEvent(inviteUID, username, auditorEmail, string(inviteapi.InviteRoleView)),
+			wantUpdateCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				s := captured[0]
+				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be promoted")
+				assert.Equal(t, "", s.Writers[0].Username, "writer should remain email-only")
+			},
+		},
+		{
+			name: "no matching email in any committee — no update called",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: "other@example.com"}}}))
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "already-promoted entry (has Username) — not double-promoted",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail, Username: "already-set"}}}))
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "conflict on write — non-conflict error surfaces immediately, no retry",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			spyErr:          fmt.Errorf("NATS unavailable"),
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 1,
+		},
+		{
+			name: "conflict on write — retries once then finds entry already promoted on re-read",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+			},
+			spyErr:  errs.NewConflict("revision mismatch"),
+			msgData: makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			// The mock returns the same pointer, so our in-memory promotion is visible on
+			// re-read; the retry finds no email-only entry and exits cleanly after 1 attempt.
+			wantUpdateCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			tt.setupRepo(mockRepo)
+
+			spy := &spyCommitteeWriterOrchestrator{updateSettingsErr: tt.spyErr}
+			handler := makeHandler(mockRepo, spy)
+
+			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
+			_, err := handler.HandleInviteAccepted(ctx, msg)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantUpdateCalls, spy.updateSettingsCalls, "UpdateSettings call count")
+
+			if tt.validateSettings != nil && len(spy.capturedSettings) > 0 {
+				tt.validateSettings(t, spy.capturedSettings)
 			}
 		})
 	}
