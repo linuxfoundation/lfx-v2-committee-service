@@ -301,8 +301,17 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
-	// Return version 1 for mock (in real implementation this would be the actual version)
-	return settings, 1, nil
+	if settings == nil {
+		// Committee exists but has no settings (e.g. created without CommitteeSettings).
+		return nil, 1, nil
+	}
+
+	// Return a deep copy so caller mutations (e.g. in-place field promotion) do not bleed
+	// back into the stored pointer and corrupt subsequent reads in the same test.
+	settingsCopy := *settings
+	settingsCopy.Writers = append([]model.CommitteeUser(nil), settings.Writers...)
+	settingsCopy.Auditors = append([]model.CommitteeUser(nil), settings.Auditors...)
+	return &settingsCopy, 1, nil
 }
 
 // ================== CommitteeMemberReader implementation ==================

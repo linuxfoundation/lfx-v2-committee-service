@@ -907,8 +907,9 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	// NATS event handlers have no inbound HTTP request and therefore no JWT in ctx.
 	// Inject a service-identity bearer so UpdateSettings' downstream calls (FGA, indexer)
-	// carry a recognized auth token. The auth middleware allow-lists this value for
-	// service-to-service paths in internal/middleware/auth.go.
+	// carry a recognized auth token. The header is propagated into context by
+	// internal/middleware/authorization.go (no allow-listing — it copies whatever header
+	// is present; trust is enforced by the downstream FGA/indexer services).
 	writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
@@ -943,6 +944,10 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 		promoted := false
 		// Only promote the slices that correspond to the accepted invite role.
 		// "Manage" → Writers; "View" → Auditors; anything else (empty or unknown) → both.
+		// NOTE: the default branch intentionally promotes both slices. If the invite service
+		// introduces a new role before this switch is updated, the user gets promoted to both
+		// Writers and Auditors — an over-grant. This is acceptable given the tight internal
+		// coupling, but warrants updating this switch when new roles are added.
 		var promoteWriters, promoteAuditors bool
 		switch role {
 		case string(inviteapi.InviteRoleManage):
