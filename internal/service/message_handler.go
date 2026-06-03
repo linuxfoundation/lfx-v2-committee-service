@@ -892,9 +892,10 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		return nil, nil
 	}
 
-	if event.UID == "" || event.AcceptedBy == "" || event.Recipient.Email == "" {
+	if event.UID == "" || event.AcceptedBy == "" || strings.TrimSpace(event.Recipient.Email) == "" {
 		slog.WarnContext(ctx, "invite_accepted event missing required fields — discarding",
-			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy), "recipient_email", event.Recipient.Email)
+			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy),
+			"recipient_email", redaction.RedactEmail(event.Recipient.Email))
 		return nil, nil
 	}
 
@@ -921,7 +922,7 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	}
 
 	for _, committeeUID := range allUIDs {
-		m.promoteInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID)
+		m.promoteInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID, event.Role)
 	}
 
 	return nil, nil
@@ -929,7 +930,7 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 // promoteInvitedUserInCommitteeSettings promotes all email-only entries matching normalizedEmail
 // in the given committee's settings to full LFID users. It retries on revision conflicts.
-func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
+func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, role string) {
 	const maxRetries = 3
 	for attempt := range maxRetries {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
@@ -940,18 +941,27 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 		}
 
 		promoted := false
-		for i := range settings.Writers {
-			if settings.Writers[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Writers[i].Email)) == normalizedEmail {
-				settings.Writers[i].Username = username
-				settings.Writers[i].Invite = nil
-				promoted = true
+		// Only promote the slices that correspond to the accepted invite role.
+		// "Manage" → Writers; "View" → Auditors; unknown → both (backward-compatible).
+		promoteWriters := role == string(inviteapi.InviteRoleManage) || role == ""
+		promoteAuditors := role == string(inviteapi.InviteRoleView) || role == ""
+
+		if promoteWriters {
+			for i := range settings.Writers {
+				if settings.Writers[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Writers[i].Email)) == normalizedEmail {
+					settings.Writers[i].Username = username
+					settings.Writers[i].Invite = nil
+					promoted = true
+				}
 			}
 		}
-		for i := range settings.Auditors {
-			if settings.Auditors[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Auditors[i].Email)) == normalizedEmail {
-				settings.Auditors[i].Username = username
-				settings.Auditors[i].Invite = nil
-				promoted = true
+		if promoteAuditors {
+			for i := range settings.Auditors {
+				if settings.Auditors[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Auditors[i].Email)) == normalizedEmail {
+					settings.Auditors[i].Username = username
+					settings.Auditors[i].Invite = nil
+					promoted = true
+				}
 			}
 		}
 
@@ -960,7 +970,8 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 		}
 
 		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, settings, revision, false); writeErr != nil {
-			if attempt < maxRetries-1 {
+			var conflictErr errors.Conflict
+			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict promoting invite — retrying",
 					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", inviteUID)
 				continue
