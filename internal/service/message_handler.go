@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -715,11 +714,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
-	// Track invite results to apply back to settings after all goroutines complete.
-	// Key: email (normalized), Value: InviteInfo
-	inviteResultsMutex := &sync.Mutex{}
-	inviteResults := make(map[string]*model.InviteInfo)
-
 	for _, c := range changes {
 		g.Go(func() error {
 			u, kind, oldRoles, newRoles := c.user, c.kind, c.oldRoles, c.newRoles
@@ -807,23 +801,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				slog.DebugContext(gctx, "sent settings invite request",
 					"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
 
-				// Track invite metadata if we got a result with an invite UID
-				if result.InviteUID != "" {
-					inviteInfo := &model.InviteInfo{
-						UID:   result.InviteUID,
-						Email: result.RecipientEmail,
-					}
-					if !result.ExpiresAt.IsZero() {
-						expiresAt := result.ExpiresAt
-						inviteInfo.ExpiresAt = &expiresAt
-					}
-					inviteResultsMutex.Lock()
-					inviteResults[strings.ToLower(strings.TrimSpace(u.Email))] = inviteInfo
-					inviteResultsMutex.Unlock()
-					slog.DebugContext(gctx, "tracked invite data for settings update",
-						"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
-				}
-
 				return nil
 			}
 
@@ -898,66 +875,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	}
 	_ = g.Wait()
 
-	// Apply invite data to settings if we have any results
-	if len(inviteResults) > 0 {
-		// Write back the updated settings using the service-level orchestrator.
-		// NATS event handlers have no inbound HTTP request and therefore no JWT in ctx.
-		// Inject a service-identity bearer so UpdateSettings' downstream calls (FGA, indexer)
-		// carry a recognized auth token. The auth middleware allow-lists this value for
-		// service-to-service paths in internal/middleware/auth.go.
-		if m.committeeWriterOrchestrator == nil {
-			slog.WarnContext(ctx, "committee writer orchestrator not available — cannot write back invite data",
-				"committee_uid", data.CommitteeUID)
-		} else {
-			writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
-
-			// Retry up to 3 times on optimistic-lock conflicts. Invites have already been
-			// published (external side effect), so we must persist the invite metadata and
-			// write the secondary index or HandleInviteAccepted will silently drop the
-			// acceptance event. Re-read settings on each attempt to get the latest revision.
-			const maxWriteRetries = 3
-			writeSucceeded := false
-			for attempt := range maxWriteRetries {
-				freshSettings, freshRevision, readErr := m.committeeReader.GetSettings(ctx, data.CommitteeUID)
-				if readErr != nil {
-					slog.WarnContext(ctx, "failed to re-read settings for invite write-back",
-						"error", readErr, "committee_uid", data.CommitteeUID)
-					break
-				}
-				// Re-apply all invite results to the freshly-read settings.
-				for i := range freshSettings.Writers {
-					key := strings.ToLower(strings.TrimSpace(freshSettings.Writers[i].Email))
-					if inviteInfo, exists := inviteResults[key]; exists {
-						freshSettings.Writers[i].Invite = inviteInfo
-					}
-				}
-				for i := range freshSettings.Auditors {
-					key := strings.ToLower(strings.TrimSpace(freshSettings.Auditors[i].Email))
-					if inviteInfo, exists := inviteResults[key]; exists {
-						freshSettings.Auditors[i].Invite = inviteInfo
-					}
-				}
-				if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, freshSettings, freshRevision, false); writeErr != nil {
-					if attempt < maxWriteRetries-1 {
-						slog.DebugContext(ctx, "revision conflict writing invite data — retrying",
-							"attempt", attempt+1, "committee_uid", data.CommitteeUID)
-						continue
-					}
-					slog.WarnContext(ctx, "failed to update settings with invite data after retries",
-						"error", writeErr, "committee_uid", data.CommitteeUID)
-					break
-				}
-				writeSucceeded = true
-				break
-			}
-
-			if writeSucceeded {
-				slog.DebugContext(ctx, "updated settings with invite data",
-					"committee_uid", data.CommitteeUID)
-			}
-		}
-	}
-
 	return nil, nil
 }
 
@@ -1014,24 +931,25 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		}
 
 		promoted = false
+		normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
 		for i := range settings.Writers {
-			if settings.Writers[i].Invite != nil && settings.Writers[i].Invite.UID == event.UID {
+			if settings.Writers[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Writers[i].Email)) == normalizedEmail {
 				settings.Writers[i].Username = event.AcceptedBy
-				settings.Writers[i].Invite = nil
+				settings.Writers[i].Invite = nil // clear any residual invite metadata
 				promoted = true
 			}
 		}
 		for i := range settings.Auditors {
-			if settings.Auditors[i].Invite != nil && settings.Auditors[i].Invite.UID == event.UID {
+			if settings.Auditors[i].Username == "" && strings.ToLower(strings.TrimSpace(settings.Auditors[i].Email)) == normalizedEmail {
 				settings.Auditors[i].Username = event.AcceptedBy
-				settings.Auditors[i].Invite = nil
+				settings.Auditors[i].Invite = nil // clear any residual invite metadata
 				promoted = true
 			}
 		}
 
 		if !promoted {
-			slog.WarnContext(ctx, "invite UID not found in writers or auditors — may have already been promoted",
-				"invite_uid", event.UID, "committee_uid", committeeUID)
+			slog.WarnContext(ctx, "no email-only entry found for recipient — may have already been promoted",
+				"committee_uid", committeeUID, "invite_uid", event.UID)
 			return nil, nil
 		}
 
@@ -1118,18 +1036,12 @@ func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
 	}
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	for _, u := range old.GetWriters() {
-		if u.Username == "" &&
-			u.Invite != nil &&
-			u.Invite.UID != "" &&
-			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
 	for _, u := range old.GetAuditors() {
-		if u.Username == "" &&
-			u.Invite != nil &&
-			u.Invite.UID != "" &&
-			strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
