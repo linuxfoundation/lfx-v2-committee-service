@@ -411,7 +411,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
-	if errValidation := member.Validate(fullCommittee); errValidation != nil {
+	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
 			"member_uid", member.UID,
