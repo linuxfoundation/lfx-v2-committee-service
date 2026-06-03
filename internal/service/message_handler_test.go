@@ -1983,6 +1983,24 @@ func TestHandleInviteAccepted(t *testing.T) {
 			},
 		},
 		{
+			name: "unknown role (e.g. 'Member') — both Writers and Auditors promoted",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:      committee1UID,
+					Writers:  []model.CommitteeUser{{Email: writerEmail}},
+					Auditors: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, "Member"),
+			wantUpdateCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				s := captured[0]
+				assert.Equal(t, username, s.Writers[0].Username, "writer should be promoted for unknown role")
+				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be promoted for unknown role")
+			},
+		},
+		{
 			name: "no matching email in any committee — no update called",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID,

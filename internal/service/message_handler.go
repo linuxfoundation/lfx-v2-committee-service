@@ -942,9 +942,17 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 
 		promoted := false
 		// Only promote the slices that correspond to the accepted invite role.
-		// "Manage" → Writers; "View" → Auditors; unknown → both (backward-compatible).
-		promoteWriters := role == string(inviteapi.InviteRoleManage) || role == ""
-		promoteAuditors := role == string(inviteapi.InviteRoleView) || role == ""
+		// "Manage" → Writers; "View" → Auditors; anything else (empty or unknown) → both.
+		var promoteWriters, promoteAuditors bool
+		switch role {
+		case string(inviteapi.InviteRoleManage):
+			promoteWriters = true
+		case string(inviteapi.InviteRoleView):
+			promoteAuditors = true
+		default:
+			promoteWriters = true
+			promoteAuditors = true
+		}
 
 		if promoteWriters {
 			for i := range settings.Writers {
