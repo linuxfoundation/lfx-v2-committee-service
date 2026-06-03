@@ -197,6 +197,52 @@ func TestCommitteeMember_Validate(t *testing.T) {
 			committee:   nonGacCommittee,
 			expectError: false,
 		},
+		{
+			name: "voting enabled - voting status None is rejected",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						ID: "org-456",
+					},
+					Voting: CommitteeMemberVotingInfo{
+						Status: "None",
+					},
+				},
+			},
+			committee:     committeeWithVoting,
+			expectError:   true,
+			expectedError: "voting_status \"None\" is not allowed on voting-enabled committees",
+		},
+		{
+			name: "voting enabled - valid voting status is accepted",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@corp.com",
+					Organization: CommitteeMemberOrganization{
+						ID: "org-456",
+					},
+					Voting: CommitteeMemberVotingInfo{
+						Status: "Voting Rep",
+					},
+				},
+			},
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name: "voting disabled - voting status None is allowed",
+			member: &CommitteeMember{
+				CommitteeMemberBase: CommitteeMemberBase{
+					Email: "user@example.com",
+					Voting: CommitteeMemberVotingInfo{
+						Status: "None",
+					},
+				},
+			},
+			committee:   nonGacCommittee,
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -533,6 +579,109 @@ func TestCommitteeMember_BuildIndexKey_Uniqueness(t *testing.T) {
 
 	if key2 == key3 {
 		t.Errorf("Expected different keys for different committee/email combinations, but got same key: %s", key2)
+	}
+}
+
+func TestCommitteeMember_ValidateUpdate(t *testing.T) {
+	committeeWithVoting := &Committee{
+		CommitteeBase:     CommitteeBase{Category: "Other", EnableVoting: true},
+		CommitteeSettings: &CommitteeSettings{},
+	}
+
+	nonVotingCommittee := &Committee{
+		CommitteeBase:     CommitteeBase{Category: "Other"},
+		CommitteeSettings: &CommitteeSettings{},
+	}
+
+	validMember := func(status string) *CommitteeMember {
+		return &CommitteeMember{
+			CommitteeMemberBase: CommitteeMemberBase{
+				Email: "user@corp.com",
+				Organization: CommitteeMemberOrganization{
+					ID: "org-123",
+				},
+				Voting: CommitteeMemberVotingInfo{Status: status},
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		incoming      *CommitteeMember
+		existing      *CommitteeMember
+		committee     *Committee
+		expectError   bool
+		expectedError string
+	}{
+		{
+			name:          "voting enabled - valid existing, incoming None is rejected",
+			incoming:      validMember("None"),
+			existing:      validMember("Voting Rep"),
+			committee:     committeeWithVoting,
+			expectError:   true,
+			expectedError: "voting_status \"None\" is not allowed on voting-enabled committees",
+		},
+		{
+			name:        "voting enabled - legacy existing None, incoming valid is allowed",
+			incoming:    validMember("Voting Rep"),
+			existing:    validMember("None"),
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name:        "voting enabled - legacy existing None, keeping None is allowed",
+			incoming:    validMember("None"),
+			existing:    validMember("None"),
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name:        "voting enabled - valid to valid transition is allowed",
+			incoming:    validMember("Observer"),
+			existing:    validMember("Voting Rep"),
+			committee:   committeeWithVoting,
+			expectError: false,
+		},
+		{
+			name:        "voting disabled - any status is allowed",
+			incoming:    validMember("None"),
+			existing:    validMember("Voting Rep"),
+			committee:   nonVotingCommittee,
+			expectError: false,
+		},
+		{
+			name:          "nil incoming member",
+			incoming:      nil,
+			existing:      validMember("Voting Rep"),
+			committee:     committeeWithVoting,
+			expectError:   true,
+			expectedError: "committee member cannot be nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.incoming.ValidateUpdate(tt.committee, tt.existing)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got nil")
+					return
+				}
+
+				var validationErr errs.Validation
+				if !errors.As(err, &validationErr) {
+					t.Errorf("expected validation error, got %T: %v", err, err)
+					return
+				}
+
+				if err.Error() != tt.expectedError {
+					t.Errorf("expected error %q, got %q", tt.expectedError, err.Error())
+				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+		})
 	}
 }
 
