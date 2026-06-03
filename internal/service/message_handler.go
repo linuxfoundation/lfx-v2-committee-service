@@ -648,14 +648,20 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
 	result, err := m.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
-		RecipientEmail: strings.TrimSpace(member.Email),
-		RecipientName:  recipientName,
-		InviterName:    "A committee administrator",
-		ResourceUID:    member.CommitteeUID,
-		ResourceName:   member.CommitteeName,
-		ResourceType:   "group",
-		Role:           "Member",
-		ReturnURL:      deepLinkURL,
+		Recipient: &inviteapi.Recipient{
+			Email: strings.TrimSpace(member.Email),
+			Name:  recipientName,
+		},
+		Inviter: &inviteapi.Inviter{
+			Name: "A committee administrator",
+		},
+		Resource: &inviteapi.Resource{
+			UID:  member.CommitteeUID,
+			Name: member.CommitteeName,
+			Type: "group",
+		},
+		Role:      "Member",
+		ReturnURL: deepLinkURL,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to send member invite request",
@@ -776,14 +782,20 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
 				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				result, inviteErr := m.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
-					RecipientEmail: strings.TrimSpace(u.Email),
-					RecipientName:  recipientName,
-					InviterName:    inviterName,
-					ResourceUID:    data.CommitteeUID,
-					ResourceName:   data.CommitteeName,
-					ResourceType:   "group",
-					Role:           inviteRole,
-					ReturnURL:      committeeURL,
+					Recipient: &inviteapi.Recipient{
+						Email: strings.TrimSpace(u.Email),
+						Name:  recipientName,
+					},
+					Inviter: &inviteapi.Inviter{
+						Name: inviterName,
+					},
+					Resource: &inviteapi.Resource{
+						UID:  data.CommitteeUID,
+						Name: data.CommitteeName,
+						Type: "group",
+					},
+					Role:      inviteRole,
+					ReturnURL: committeeURL,
 				})
 				inviteCancel()
 				if inviteErr != nil {
