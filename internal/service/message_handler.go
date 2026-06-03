@@ -954,15 +954,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			if writeSucceeded {
 				slog.DebugContext(ctx, "updated settings with invite data",
 					"committee_uid", data.CommitteeUID)
-
-				// Write the secondary invite-UID → committee-UID index for each new invite so
-				// that HandleInviteAccepted can route acceptance events without scanning all settings.
-				for _, inviteInfo := range inviteResults {
-					if indexErr := m.committeeWriter.IndexSettingsInvite(ctx, inviteInfo.UID, data.CommitteeUID); indexErr != nil {
-						slog.WarnContext(ctx, "failed to write settings invite index",
-							"error", indexErr, "invite_uid", inviteInfo.UID, "committee_uid", data.CommitteeUID)
-					}
-				}
 			}
 		}
 	}
@@ -970,42 +961,31 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 	return nil, nil
 }
 
-// inviteAcceptedEvent is the payload published by the LFX self-serve web app on InviteAcceptedSubject.
-type inviteAcceptedEvent struct {
-	InviteUID string `json:"invite_uid"`
-	Username  string `json:"username"`
-}
-
-// HandleInviteAccepted processes an invite acceptance event from the LFX self-serve web app.
-// It locates the settings record that owns the invite, promotes the user from non-LFID
-// (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
+// HandleInviteAccepted processes an invite acceptance event published by the invite service.
+// It locates the committee settings that own the invite via the resource UID in the enriched
+// payload, promotes the user from non-LFID (email-only) to LFID (username set, invite cleared),
+// and fires FGA + indexer messages via UpdateSettings.
 func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
-	var event inviteAcceptedEvent
+	var event inviteapi.InviteServiceAcceptedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		slog.WarnContext(ctx, "failed to unmarshal invite_accepted event", "error", err)
 		return nil, nil
 	}
 
-	if event.InviteUID == "" || event.Username == "" {
-		slog.WarnContext(ctx, "invite_accepted event missing invite_uid or username — discarding",
-			"invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
+	if event.UID == "" || event.AcceptedBy == "" {
+		slog.WarnContext(ctx, "invite_accepted event missing uid or accepted_by — discarding",
+			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy))
 		return nil, nil
 	}
 
-	// Look up the committee UID from the secondary index.
-	committeeUID, err := m.committeeReader.GetSettingsUIDByInviteUID(ctx, event.InviteUID)
-	if err != nil {
-		var notFound errors.NotFound
-		if stderrors.As(err, &notFound) {
-			// No mapping means this invite belongs to another service — silently ignore.
-			slog.DebugContext(ctx, "invite not tracked by this service — ignoring",
-				"invite_uid", event.InviteUID)
-			return nil, nil
-		}
-		slog.WarnContext(ctx, "KV error looking up invite mapping",
-			"error", err, "invite_uid", event.InviteUID)
+	// The invite service publishes this event for all resource types; only process group invites.
+	if event.Resource.Type != "group" {
+		slog.DebugContext(ctx, "invite not for a group resource — ignoring",
+			"resource_type", event.Resource.Type, "invite_uid", event.UID)
 		return nil, nil
 	}
+
+	committeeUID := event.Resource.UID
 
 	// Persist the updated settings.
 	if m.committeeWriterOrchestrator == nil {
@@ -1029,57 +1009,47 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		settings, revision, settingsErr := m.committeeReader.GetSettings(ctx, committeeUID)
 		if settingsErr != nil {
 			slog.ErrorContext(ctx, "failed to get settings for invite acceptance",
-				"error", settingsErr, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+				"error", settingsErr, "committee_uid", committeeUID, "invite_uid", event.UID)
 			return nil, nil
 		}
 
 		promoted = false
 		for i := range settings.Writers {
-			if settings.Writers[i].Invite != nil && settings.Writers[i].Invite.UID == event.InviteUID {
-				settings.Writers[i].Username = event.Username
+			if settings.Writers[i].Invite != nil && settings.Writers[i].Invite.UID == event.UID {
+				settings.Writers[i].Username = event.AcceptedBy
 				settings.Writers[i].Invite = nil
 				promoted = true
 			}
 		}
 		for i := range settings.Auditors {
-			if settings.Auditors[i].Invite != nil && settings.Auditors[i].Invite.UID == event.InviteUID {
-				settings.Auditors[i].Username = event.Username
+			if settings.Auditors[i].Invite != nil && settings.Auditors[i].Invite.UID == event.UID {
+				settings.Auditors[i].Username = event.AcceptedBy
 				settings.Auditors[i].Invite = nil
 				promoted = true
 			}
 		}
 
 		if !promoted {
-			slog.WarnContext(ctx, "invite UID not found in writers or auditors — stale index, cleaning up",
-				"invite_uid", event.InviteUID, "committee_uid", committeeUID)
-			if delErr := m.committeeWriter.DeleteSettingsInviteIndex(ctx, event.InviteUID); delErr != nil {
-				slog.WarnContext(ctx, "failed to delete stale invite index",
-					"error", delErr, "invite_uid", event.InviteUID)
-			}
+			slog.WarnContext(ctx, "invite UID not found in writers or auditors — may have already been promoted",
+				"invite_uid", event.UID, "committee_uid", committeeUID)
 			return nil, nil
 		}
 
 		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, settings, revision, false); writeErr != nil {
 			if attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict promoting invite — retrying",
-					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", event.UID)
 				continue
 			}
 			slog.ErrorContext(ctx, "failed to update settings after invite acceptance",
-				"error", writeErr, "committee_uid", committeeUID, "invite_uid", event.InviteUID)
+				"error", writeErr, "committee_uid", committeeUID, "invite_uid", event.UID)
 			return nil, nil
 		}
 		break
 	}
 
-	// Remove the now-consumed index entry.
-	if delErr := m.committeeWriter.DeleteSettingsInviteIndex(ctx, event.InviteUID); delErr != nil {
-		slog.WarnContext(ctx, "failed to delete invite index after acceptance",
-			"error", delErr, "invite_uid", event.InviteUID)
-	}
-
 	slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
-		"committee_uid", committeeUID, "invite_uid", event.InviteUID, "username", redaction.Redact(event.Username))
+		"committee_uid", committeeUID, "invite_uid", event.UID, "username", redaction.Redact(event.AcceptedBy))
 
 	return nil, nil
 }
