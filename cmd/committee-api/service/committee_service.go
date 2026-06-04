@@ -906,22 +906,18 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 }
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their bearer token to the auth-service via NATS.
+// their principal (Auth0 sub) to the auth-service via NATS.
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return "", errors.NewValidation("bearer token not present in request context")
-	}
-	authToken := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-	if authToken == "" {
-		return "", errors.NewValidation("bearer token not present in request context")
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByUserToken(ctx, authToken)
+	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
 	if err != nil {
 		return "", err
 	}

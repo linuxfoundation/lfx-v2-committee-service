@@ -69,14 +69,14 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	return response, nil
 }
 
-// EmailsByUserToken retrieves all email addresses for the authenticated caller by sending
-// their bearer token to the NATS subject lfx.auth-service.user_emails.read.
-func (m *messageRequest) EmailsByUserToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
-	if authToken == "" {
-		return nil, errors.NewValidation("authToken must not be empty")
+// EmailsByPrincipal retrieves all email addresses for a user by sending their Auth0 sub
+// as the auth_token to the NATS subject lfx.auth-service.user_emails.read.
+func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+	if principal == "" {
+		return nil, errors.NewValidation("principal must not be empty")
 	}
 	req := UserEmailsNATSRequest{
-		User: UserEmailsNATSRequestUser{AuthToken: authToken},
+		User: UserEmailsNATSRequestUser{AuthToken: principal},
 	}
 	payload, err := json.Marshal(req)
 	if err != nil {
