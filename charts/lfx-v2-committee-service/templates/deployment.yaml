@@ -26,6 +26,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
+      {{- end }}
       containers:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -82,10 +85,15 @@ spec:
             - name: OTEL_TRACES_EXPORTER
               value: {{ $otelTracesExporter | quote }}
             {{- end }}
-            {{- $otelTracesSampleRatio := .Values.app.otel.tracesSampleRatio | toString | trim }}
-            {{- if ne $otelTracesSampleRatio "" }}
-            - name: OTEL_TRACES_SAMPLE_RATIO
-              value: {{ $otelTracesSampleRatio | quote }}
+            {{- $otelTracesSampler := .Values.app.otel.tracesSampler | toString | trim }}
+            {{- if ne $otelTracesSampler "" }}
+            - name: OTEL_TRACES_SAMPLER
+              value: {{ $otelTracesSampler | quote }}
+            {{- end }}
+            {{- $otelTracesSamplerArg := .Values.app.otel.tracesSamplerArg | toString | trim }}
+            {{- if ne $otelTracesSamplerArg "" }}
+            - name: OTEL_TRACES_SAMPLER_ARG
+              value: {{ $otelTracesSamplerArg | quote }}
             {{- end }}
             {{- $otelMetricsExporter := .Values.app.otel.metricsExporter | toString | trim }}
             {{- if ne $otelMetricsExporter "" }}

@@ -45,6 +45,14 @@ type CommitteeNotificationHandler interface {
 	// It locates the settings record that owns the invite, promotes the user from non-LFID
 	// (email-only) to LFID (username set, invite cleared), and fires FGA + indexer messages.
 	HandleInviteAccepted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeDocumentCreated sends notification emails to all LFID members, writers, and
+	// auditors of the committee when a new file document is uploaded. Best-effort: send errors
+	// are logged but not returned.
+	HandleCommitteeDocumentCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeLinkCreated sends notification emails to all LFID members, writers, and
+	// auditors of the committee when a new link is added. Best-effort: send errors are logged
+	// but not returned.
+	HandleCommitteeLinkCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // WeeklyBriefGenerateHandler handles the durable async weekly-brief generation

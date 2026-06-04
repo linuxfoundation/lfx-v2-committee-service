@@ -20,4 +20,11 @@ type CommitteeMemberWriter interface {
 
 	// Checkers for uniqueness
 	UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error)
+
+	// IndexMemberByCommittee writes the secondary index entry mapping
+	// committee_uid → member_uid so that ListMembersByCommittee can use a server-side
+	// filtered scan instead of a full bucket scan.
+	// Returns the written key (for rollback tracking) and nil on success.
+	// Treats ErrKeyExists as idempotent success.
+	IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error)
 }

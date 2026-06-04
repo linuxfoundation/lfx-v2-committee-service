@@ -153,14 +153,9 @@ func (w *TestMockCommitteeWriter) UniqueMember(ctx context.Context, member *mode
 	return mockWriter.UniqueMember(ctx, member)
 }
 
-func (w *TestMockCommitteeWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
+func (w *TestMockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.IndexSettingsInvite(ctx, inviteUID, committeeUID)
-}
-
-func (w *TestMockCommitteeWriter) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.DeleteSettingsInviteIndex(ctx, inviteUID)
+	return mockWriter.IndexMemberByCommittee(ctx, member)
 }
 
 // Implement CommitteeInviteWriter interface

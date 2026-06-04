@@ -53,17 +53,13 @@ func (r *stubCommitteeReader) GetMember(_ context.Context, _, _ string) (*model.
 	panic("not used")
 }
 
-func (r *stubCommitteeReader) ListMembers(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+func (r *stubCommitteeReader) ListMembersByCommittee(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
 	panic("not used")
 }
 
 func (r *stubCommitteeReader) ListAllUIDs(_ context.Context) ([]string, error) { panic("not used") }
 
 func (r *stubCommitteeReader) GetBaseAttributeValue(_ context.Context, _, _ string) (any, error) {
-	panic("not used")
-}
-
-func (r *stubCommitteeReader) GetSettingsUIDByInviteUID(_ context.Context, _ string) (string, error) {
 	panic("not used")
 }
 

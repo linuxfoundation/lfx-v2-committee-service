@@ -26,6 +26,16 @@ const (
 	// KVLookupMemberPrefix is the prefix for member lookup keys in the KV store.
 	KVLookupMemberPrefix = "lookup/committee-members/%s"
 
+	// KVLookupMembersByCommitteePrefix is the secondary index that maps a committee UID to each
+	// of its members. Key pattern: "lookup/committee-members-by-committee/<committee_uid>.<member_uid>",
+	// Value: <member_uid>. The dot-separated tokens allow server-side filtered scans via
+	// ListKeysFiltered with a "<committee_uid>.*" subject wildcard without fetching unrelated members.
+	KVLookupMembersByCommitteePrefix = "lookup/committee-members-by-committee/%s.%s"
+
+	// KVLookupMembersByCommitteeFilter is the ListKeysFiltered subject filter for all members of
+	// one committee: "lookup/committee-members-by-committee/<committee_uid>.*"
+	KVLookupMembersByCommitteeFilter = "lookup/committee-members-by-committee/%s.*"
+
 	// KVLookupInvitePrefix is the prefix for invite lookup keys in the KV store.
 	KVLookupInvitePrefix = "lookup/committee-invites/%s"
 

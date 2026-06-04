@@ -30,8 +30,12 @@ type Subcommand interface {
 type RunContext struct {
 	CommitteeReader             port.CommitteeReader
 	CommitteeWriterOrchestrator service.CommitteeWriter
-	DryRun                      bool
-	Args                        []string // remaining args after command + subcommand, for subcommand flag parsing
+	// CommitteeMemberWriter provides direct storage-layer access to member write operations
+	// (e.g. IndexMemberByCommittee). This is used by data-repair subcommands that bypass the
+	// business-logic orchestrator and write to the storage layer directly.
+	CommitteeMemberWriter port.CommitteeMemberWriter
+	DryRun                bool
+	Args                  []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

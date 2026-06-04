@@ -714,7 +714,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	messageIndexer.IndexingConfig = buildCommitteeIndexingConfig(committee)
 
 	settings, _, errGetSettings := uc.committeeReader.GetSettings(ctx, committee.CommitteeBase.UID)
-	if errGetSettings != nil && !errors.Is(errGetSettings, errs.NotFound{}) {
+	if errGetSettings != nil && !errors.As(errGetSettings, &errs.NotFound{}) {
 		slog.ErrorContext(ctx, "failed to retrieve committee settings",
 			"error", errGetSettings,
 			"committee_uid", committee.CommitteeBase.UID,
