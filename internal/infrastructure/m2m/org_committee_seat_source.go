@@ -111,7 +111,11 @@ func (s *OrgCommitteeSeatSource) ListOrgCommitteeSeats(ctx context.Context, orgS
 func (s *OrgCommitteeSeatSource) queryOnce(ctx context.Context, orgSFID, projectUID string) ([]*model.CommitteeMember, error) {
 	u, err := url.Parse(s.cfg.BaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid query-service base URL: %w", err)
+		// url.Parse errors embed the raw URL (e.g. `parse "https://…": …`). wrapError surfaces
+		// err.Error() to API clients as an InternalServerError, so log the detail server-side and
+		// return a sanitized error that does not leak QUERY_SERVICE_URL.
+		slog.ErrorContext(ctx, "invalid query-service base URL", "error", err)
+		return nil, fmt.Errorf("org-committee-seat source has an invalid base URL")
 	}
 	u.Path = appendPath(u.Path, "/query/resources")
 	q := u.Query()
