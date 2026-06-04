@@ -504,13 +504,19 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
 	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
-		RecipientEmail: strings.TrimSpace(invite.InviteeEmail),
-		InviterName:    "A committee administrator",
-		ResourceUID:    committee.UID,
-		ResourceName:   committee.Name,
-		ResourceType:   "group",
-		Role:           "Member",
-		ReturnURL:      strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		Recipient: &inviteapi.Recipient{
+			Email: strings.TrimSpace(invite.InviteeEmail),
+		},
+		Inviter: &inviteapi.Inviter{
+			Name: "A committee administrator",
+		},
+		Resource: &inviteapi.Resource{
+			UID:  committee.UID,
+			Name: committee.Name,
+			Type: "group",
+		},
+		Role:      "Member",
+		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to dispatch committee invite email",

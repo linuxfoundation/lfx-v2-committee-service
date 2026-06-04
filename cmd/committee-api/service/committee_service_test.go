@@ -706,10 +706,12 @@ func TestCreateInvite(t *testing.T) {
 
 				require.Len(t, sender.calls, 1)
 				call := sender.calls[0]
-				assert.Equal(t, tt.payload.InviteeEmail, call.RecipientEmail)
-				assert.Equal(t, tt.payload.UID, call.ResourceUID)
-				assert.Equal(t, "Technical Advisory Committee", call.ResourceName)
-				assert.Equal(t, "group", call.ResourceType)
+				require.NotNil(t, call.Recipient)
+				assert.Equal(t, tt.payload.InviteeEmail, call.Recipient.Email)
+				require.NotNil(t, call.Resource)
+				assert.Equal(t, tt.payload.UID, call.Resource.UID)
+				assert.Equal(t, "Technical Advisory Committee", call.Resource.Name)
+				assert.Equal(t, "group", call.Resource.Type)
 				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
 			}
 		})
@@ -770,7 +772,8 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 
 	sender := svc.inviteSender.(*mockInviteSender)
 	require.Len(t, sender.calls, 1)
-	assert.Equal(t, "reinvite@example.com", sender.calls[0].RecipientEmail)
+	require.NotNil(t, sender.calls[0].Recipient)
+	assert.Equal(t, "reinvite@example.com", sender.calls[0].Recipient.Email)
 	// SendInviteRequest.Role uses the invite-service permission vocabulary
 	// ("Member"), not the committee role ("chair") which lives on the persisted
 	// invite record and is applied on acceptance.
@@ -793,7 +796,8 @@ func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
 	// Sender must actually be invoked — otherwise this test would still pass
 	// if dispatch were accidentally removed or short-circuited.
 	require.Len(t, sender.calls, 1)
-	assert.Equal(t, "besteffort@example.com", sender.calls[0].RecipientEmail)
+	require.NotNil(t, sender.calls[0].Recipient)
+	assert.Equal(t, "besteffort@example.com", sender.calls[0].Recipient.Email)
 }
 
 func TestCreateInvite_NilInviteSenderSkipsDispatch(t *testing.T) {
