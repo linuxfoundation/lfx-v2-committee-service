@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -71,12 +70,8 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 }
 
 // EmailsByUserToken retrieves all email addresses for the authenticated caller by sending
-// their bearer token to the NATS subject lfx.auth-service.user_emails.read. The token is
-// read from the request context (set by the authorization middleware).
-func (m *messageRequest) EmailsByUserToken(ctx context.Context) (*model.UserEmails, error) {
-	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
-	authToken := strings.TrimPrefix(authHeader, "Bearer ")
-
+// their bearer token to the NATS subject lfx.auth-service.user_emails.read.
+func (m *messageRequest) EmailsByUserToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
 	req := UserEmailsNATSRequest{
 		User: UserEmailsNATSRequestUser{AuthToken: authToken},
 	}

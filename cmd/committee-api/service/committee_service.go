@@ -917,7 +917,13 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByUserToken(ctx)
+	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return "", errors.NewValidation("bearer token not present in request context")
+	}
+	authToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	userEmails, err := s.userReader.EmailsByUserToken(ctx, authToken)
 	if err != nil {
 		return "", err
 	}
