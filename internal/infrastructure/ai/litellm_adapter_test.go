@@ -38,6 +38,9 @@ func newTestAdapter(t *testing.T, reply func(attempt int, req chatRequest) strin
 	attempt := 0
 	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		attempt++
+		if r.Body != nil {
+			defer func() { _ = r.Body.Close() }()
+		}
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read request body: %v", err)
@@ -137,7 +140,10 @@ func TestLiteLLMAdapter_ToolCallArgumentsRecovers(t *testing.T) {
 	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m"})
 	a.backoff = 0
 	a.sleep = func(time.Duration) {}
-	a.client = &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Body != nil {
+			_ = r.Body.Close()
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader(mustChatResponseWithToolCall(t, validBriefJSON))),
@@ -246,10 +252,63 @@ func TestLiteLLMAdapter_RetryRecovers(t *testing.T) {
 	if strings.TrimSpace(brief.BriefText) == "" {
 		t.Fatalf("brief_text must be non-empty")
 	}
-	// The retry must include the failed assistant turn + a corrective nudge.
+	// The retry must include the failed assistant turn + a corrective nudge, and
+	// the nudge must be the stable generic instruction (no interpolated error).
 	last := secondReq.Messages[len(secondReq.Messages)-1]
-	if last.Role != "user" || !strings.Contains(last.Content, "ONLY the JSON object") {
-		t.Errorf("retry missing corrective message; last message = %+v", last)
+	if last.Role != "user" || last.Content != correctiveNudge {
+		t.Errorf("retry missing/altered corrective nudge; last message = %+v", last)
+	}
+}
+
+// TestLiteLLMAdapter_HTTPErrorRetriesWithoutNudge asserts that a transport/HTTP
+// failure (no model reply to correct) is retried WITHOUT appending a corrective
+// assistant/user turn, and that the upstream error body never reaches the prompt.
+func TestLiteLLMAdapter_HTTPErrorRetriesWithoutNudge(t *testing.T) {
+	t.Parallel()
+	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m"})
+	a.backoff = 0
+	a.sleep = func(time.Duration) {}
+
+	attempt := 0
+	var secondReq chatRequest
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		attempt++
+		if r.Body != nil {
+			defer func() { _ = r.Body.Close() }()
+		}
+		body, _ := io.ReadAll(r.Body)
+		if attempt == 1 {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       io.NopCloser(strings.NewReader("<html>nginx 500 sensitive proxy detail</html>")),
+				Header:     make(http.Header),
+			}, nil
+		}
+		_ = json.Unmarshal(body, &secondReq)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(mustChatResponseWithToolCall(t, validBriefJSON))),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	brief, err := a.GenerateWeeklyBrief(context.Background(), liveTestInput())
+	if err != nil {
+		t.Fatalf("expected retry after HTTP 500 to recover, got: %v", err)
+	}
+	if strings.TrimSpace(brief.BriefText) == "" {
+		t.Fatalf("brief_text must be non-empty")
+	}
+	// The retried request must be the original conversation (system + user) only —
+	// no corrective turn, and nothing from the 500 body fed back into the prompt.
+	if len(secondReq.Messages) != 2 {
+		t.Errorf("HTTP-error retry should not append a corrective turn; got %d messages: %+v",
+			len(secondReq.Messages), secondReq.Messages)
+	}
+	for _, m := range secondReq.Messages {
+		if strings.Contains(m.Content, "nginx") || strings.Contains(m.Content, "sensitive") {
+			t.Errorf("upstream error body leaked into prompt: %q", m.Content)
+		}
 	}
 }
 
@@ -291,6 +350,9 @@ func TestExtractJSONObject(t *testing.T) {
 		{"prose-prefix", `Sure! {"a":1}`, `{"a":1}`, true},
 		{"prose-suffix", `{"a":1} hope that helps`, `{"a":1}`, true},
 		{"nested-and-string-braces", `prefix {"a":{"b":"}{"},"c":2} suffix`, `{"a":{"b":"}{"},"c":2}`, true},
+		// A ``` inside a string value must not truncate the object (the old
+		// fence-stripping used LastIndex("```") and broke this).
+		{"backticks-in-string", "```json\n{\"brief_text\":\"see ```code``` here\"}\n```", "{\"brief_text\":\"see ```code``` here\"}", true},
 		{"no-object", `I cannot help with that.`, "", false},
 	}
 	for _, tc := range cases {
