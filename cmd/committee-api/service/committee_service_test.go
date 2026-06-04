@@ -1913,6 +1913,34 @@ func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
 	require.NoError(t, err, "username-only entry should pass validateIdentityFields")
 }
 
+// TestEnrichAllRoleFields_M2MClientUsernamePreserved verifies that an Auth0 M2M client principal
+// (username like "abc123@clients", no email) is left completely untouched by enrichAllRoleFields —
+// no SubByEmail lookup is attempted and the username survives.
+// Regression test for LFXV2-2133.
+func TestEnrichAllRoleFields_M2MClientUsernamePreserved(t *testing.T) {
+	svc, _ := setupServiceTest()
+	// errUserReader causes any SubByEmail call to return a transport error —
+	// if enrichAllRoleFields incorrectly attempts a lookup the test will fail.
+	svc.userReader = &errUserReader{}
+
+	username := "abc123@clients"
+	writers := []*committeeservice.CommitteeUser{
+		{Username: &username}, // no Email — M2M client with only a username
+	}
+
+	err := svc.enrichAllRoleFields(context.Background(), writers)
+	require.NoError(t, err, "M2M username-only entry must not cause enrichment to fail")
+
+	require.NotNil(t, writers[0].Username, "Username must not be nil after enrichment")
+	assert.Equal(t, username, *writers[0].Username, "M2M username must be preserved unchanged")
+	assert.Nil(t, writers[0].Email, "Email must remain nil — enrichment must not populate it")
+	assert.Nil(t, writers[0].Name, "Name must remain nil — enrichment must not overwrite it")
+	assert.Nil(t, writers[0].Avatar, "Avatar must remain nil — enrichment must not overwrite it")
+
+	err = validateIdentityFields(writers, nil)
+	require.NoError(t, err, "M2M username-only entry must pass validateIdentityFields")
+}
+
 func TestEnrichMember(t *testing.T) {
 	tests := []struct {
 		name        string
