@@ -381,11 +381,13 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 
 // ReassignOrgCommitteeSeat reassigns a Membership-Entitlement committee seat to a new holder for the
 // Org Lens Board & Committee tab (spec 026). Authorization (b2b_org:{uid}#writer) is enforced at the
-// edge by Heimdall; this handler additionally enforces the entitlement guard in code.
+// edge by Heimdall; this handler additionally enforces, in code, (a) that the seat belongs to the
+// path org and (b) the Membership-Entitlement guard.
 //
-// TEMPORARY: operates on the in-code dev mock (see mockOrgCommitteeSeats) — the real atomic
-// create+delete against the committee datastore is not wired and local dev lacks M2M credentials.
-// Preserves role/voting/appointed_by and swaps the holder, mirroring the contract invariants.
+// The reassign is performed atomically against the committee datastore via the writer orchestrator:
+// the new holder is created and the old member is deleted, with a best-effort rollback of the new
+// member if the delete fails so no duplicate seat is left. Role/voting/appointed_by are preserved
+// and only the holder identity is swapped, mirroring the contract invariants.
 func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *committeeservice.ReassignOrgCommitteeSeatPayload) (res *committeeservice.OrgCommitteeSeat, err error) {
 	slog.DebugContext(ctx, "committeeService.reassign-org-committee-seat",
 		"org_uid", p.UID,
@@ -398,6 +400,14 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	member, rev, err := s.committeeReaderOrchestrator.GetMember(ctx, p.CommitteeUID, p.MemberUID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
+	}
+
+	// Org-ownership guard: the seat must belong to the org named in the path. The edge only checks
+	// b2b_org:{uid}#writer, so without this a caller authorized for one org could mutate another
+	// org's seat by passing a foreign committee_uid/member_uid. Return NotFound to avoid leaking
+	// the existence of seats outside the caller's org.
+	if !strings.EqualFold(strings.TrimSpace(member.Organization.ID), strings.TrimSpace(p.UID)) {
+		return nil, wrapError(ctx, errors.NewNotFound("seat not found"))
 	}
 
 	// Service-side entitlement guard: only "Membership Entitlement" seats are org-reassignable

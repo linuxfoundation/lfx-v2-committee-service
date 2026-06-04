@@ -4731,7 +4731,7 @@ definitions:
                 type: string
                 description: Error message
                 example: You do not have permission to perform this action.
-        description: Seat is not org-editable (not a Membership Entitlement seat)
+        description: Forbidden
         example:
             message: You do not have permission to perform this action.
         required:
@@ -5111,6 +5111,7 @@ definitions:
                 type: string
                 description: Committee UID
                 example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
             email:
                 type: string
                 description: Email address
@@ -5147,6 +5148,7 @@ definitions:
                 type: string
                 description: Committee member UID (reassignment subject)
                 example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                format: uuid
             voting_status:
                 type: string
                 description: Voting status string

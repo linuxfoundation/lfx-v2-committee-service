@@ -282,7 +282,7 @@ func (c *Client) GetOrgCommitteeSeats(ctx context.Context, p *GetOrgCommitteeSea
 // the "committee-service" service.
 // ReassignOrgCommitteeSeat may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
-//   - "Forbidden" (type *ForbiddenError): Seat is not org-editable (not a Membership Entitlement seat)
+//   - "Forbidden" (type *ForbiddenError): Forbidden
 //   - "NotFound" (type *NotFoundError): Seat not found
 //   - "Conflict" (type *ConflictError): Concurrent modification
 //   - "InternalServerError" (type *InternalServerError): Internal server error

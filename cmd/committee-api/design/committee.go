@@ -447,7 +447,9 @@ var _ = dsl.Service("committee-service", func() {
 		dsl.Result(OrgCommitteeSeatType)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
-		dsl.Error("Forbidden", ForbiddenError, "Seat is not org-editable (not a Membership Entitlement seat)")
+		// Generic description so the shared ForbiddenError OpenAPI schema is not polluted with
+		// seat-specific wording; the precise reason is returned at runtime in the message field.
+		dsl.Error("Forbidden", ForbiddenError, "Forbidden")
 		dsl.Error("NotFound", NotFoundError, "Seat not found")
 		dsl.Error("Conflict", ConflictError, "Concurrent modification")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")

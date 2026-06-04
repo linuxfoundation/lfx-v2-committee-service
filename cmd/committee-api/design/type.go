@@ -487,9 +487,11 @@ func B2BOrgSFIDAttribute() {
 var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	dsl.Description("An organization's committee seat for the Org Lens Board & Committee tab.")
 	dsl.Attribute("uid", dsl.String, "Committee member UID (reassignment subject)", func() {
+		dsl.Format(dsl.FormatUUID)
 		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
 	})
 	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Format(dsl.FormatUUID)
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 	})
 	dsl.Attribute("committee_name", dsl.String, "Committee name", func() {
