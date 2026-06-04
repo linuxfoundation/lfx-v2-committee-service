@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -69,10 +70,23 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	return response, nil
 }
 
-// EmailsByPrincipal retrieves all email addresses for a user by sending their principal
-// to the NATS subject lfx.auth-service.user_emails.read.
+// EmailsByPrincipal retrieves all email addresses for a user by sending their auth token
+// to the NATS subject lfx.auth-service.user_emails.read. The auth token is read from
+// the request context (set by the authorization middleware). The principal parameter is
+// retained for logging and error messages.
 func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, []byte(principal))
+	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
+	authToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	req := UserEmailsNATSRequest{
+		User: UserEmailsNATSRequestUser{AuthToken: authToken},
+	}
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.NewUnexpected("failed to marshal user_emails request", err)
+	}
+
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
 		return nil, err
 	}
