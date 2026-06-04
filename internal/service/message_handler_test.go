@@ -1066,14 +1066,14 @@ func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInvit
 type mockUserReader struct {
 	meta         *model.UserMetadata
 	err          error
-	primaryEmail string // returned by EmailsByPrincipal
+	primaryEmail string // returned by EmailsByUserToken
 }
 
 func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
-func (m *mockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (m *mockUserReader) EmailsByUserToken(_ context.Context) (*model.UserEmails, error) {
 	if m.primaryEmail != "" {
 		return &model.UserEmails{PrimaryEmail: m.primaryEmail}, nil
 	}

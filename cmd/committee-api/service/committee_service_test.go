@@ -20,9 +20,9 @@ import (
 )
 
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailByPrincipal maps principal → primary email; subs maps email → LFID sub.
+// EmailsByUserToken maps principal → primary email; subs maps email → LFID sub.
 type mockUserReader struct {
-	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
+	emails      map[string]string              // principal → primary email (for EmailsByUserToken)
 	subs        map[string]string              // email → sub/LFID (for SubByEmail)
 	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
@@ -67,7 +67,8 @@ func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, 
 	return "", errs.NewNotFound("mock: sub not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+func (m *mockUserReader) EmailsByUserToken(ctx context.Context) (*model.UserEmails, error) {
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	if principal == "" {
 		return nil, errs.NewValidation("mock: principal is empty")
 	}
@@ -1884,7 +1885,7 @@ func (e *errUserReader) SubByEmail(_ context.Context, _ string) (string, error) 
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
-func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (e *errUserReader) EmailsByUserToken(_ context.Context) (*model.UserEmails, error) {
 	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 

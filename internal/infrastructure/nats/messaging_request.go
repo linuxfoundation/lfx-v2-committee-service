@@ -70,11 +70,10 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	return response, nil
 }
 
-// EmailsByPrincipal retrieves all email addresses for a user by sending their auth token
-// to the NATS subject lfx.auth-service.user_emails.read. The auth token is read from
-// the request context (set by the authorization middleware). The principal parameter is
-// retained for logging and error messages.
-func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+// EmailsByUserToken retrieves all email addresses for the authenticated caller by sending
+// their bearer token to the NATS subject lfx.auth-service.user_emails.read. The token is
+// read from the request context (set by the authorization middleware).
+func (m *messageRequest) EmailsByUserToken(ctx context.Context) (*model.UserEmails, error) {
 	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
 	authToken := strings.TrimPrefix(authHeader, "Bearer ")
 
@@ -101,11 +100,11 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 		if errMsg == "" {
 			errMsg = "user not found"
 		}
-		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found for principal %s: %s", redaction.Redact(principal), errMsg))
+		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
 	}
 
 	if response.Data == nil {
-		return nil, errors.NewNotFound(fmt.Sprintf("no email data returned for principal: %s", redaction.Redact(principal)))
+		return nil, errors.NewNotFound("no email data returned for user")
 	}
 
 	result := &model.UserEmails{
