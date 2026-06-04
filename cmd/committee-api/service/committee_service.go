@@ -921,7 +921,10 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return "", errors.NewValidation("bearer token not present in request context")
 	}
-	authToken := strings.TrimPrefix(authHeader, "Bearer ")
+	authToken := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	if authToken == "" {
+		return "", errors.NewValidation("bearer token not present in request context")
+	}
 
 	userEmails, err := s.userReader.EmailsByUserToken(ctx, authToken)
 	if err != nil {

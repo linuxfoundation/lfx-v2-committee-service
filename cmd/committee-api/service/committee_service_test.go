@@ -27,9 +27,9 @@ func testCtx(principal string) context.Context {
 }
 
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailsByUserToken maps principal → primary email; subs maps email → LFID sub.
+// EmailsByUserToken ignores the authToken parameter and looks up email by principal from context.
 type mockUserReader struct {
-	emails      map[string]string              // principal → primary email (for EmailsByUserToken)
+	emails      map[string]string              // principal → primary email (keyed by PrincipalContextID, not auth token)
 	subs        map[string]string              // email → sub/LFID (for SubByEmail)
 	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
