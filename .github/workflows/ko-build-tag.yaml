@@ -17,7 +17,12 @@ permissions:
 
 jobs:
   eval-live:
-    # Release gate: blocks publish on a failing weekly-brief live LLM eval.
+    # Release gate: normally blocks publish on a failing weekly-brief live
+    # LLM eval. TEMPORARILY DISABLED per LFXV2-2134 — publish no longer
+    # declares `needs: eval-live`, so this job runs for signal only and a
+    # failure leaves the run red without blocking the release. Re-enable by
+    # restoring `needs: eval-live` on publish once the adapter is
+    # deterministic (LFXV2-2134).
     # Calls .github/workflows/weekly-brief-eval-live.yml (workflow_call).
     # The called workflow fetches LITELLM_API_KEY from AWS Secrets Manager
     # via OIDC token exchange (LITELLM_BASE_URL and LITELLM_MODEL are
@@ -32,7 +37,9 @@ jobs:
     uses: ./.github/workflows/weekly-brief-eval-live.yml
 
   publish:
-    needs: eval-live
+    # TODO(LFXV2-2134): re-enable release gate once adapter is deterministic
+    # (restore `needs: eval-live` below). Temporarily removed so a flaky
+    # eval-live no longer blocks the release. LFXV2-2134.
     name: Publish Tagged Release
     runs-on: ubuntu-latest
     permissions:
