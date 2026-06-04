@@ -34,7 +34,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeMemberCreatedSubject:      mhs.handleCommitteeMemberCreated,
 		constants.CommitteeMemberDeletedSubject:      mhs.handleCommitteeMemberDeleted,
 		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
-		inviteapi.InviteAcceptedSubject:              mhs.handleInviteAccepted,
+		inviteapi.InviteServiceAcceptedSubject:       mhs.handleInviteAccepted,
 		constants.CommitteeDocumentCreatedSubject:    mhs.handleCommitteeDocumentCreated,
 		constants.CommitteeLinkCreatedSubject:        mhs.handleCommitteeLinkCreated,
 	}
