@@ -866,6 +866,105 @@ func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string
 	return v, nil
 }
 
+// BuildGetOrgCommitteeSeatsPayload builds the payload for the
+// committee-service get-org-committee-seats endpoint from CLI flags.
+func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID string, committeeServiceGetOrgCommitteeSeatsVersion string, committeeServiceGetOrgCommitteeSeatsProjectUids string, committeeServiceGetOrgCommitteeSeatsBearerToken string) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetOrgCommitteeSeatsUID
+	}
+	var version string
+	{
+		version = committeeServiceGetOrgCommitteeSeatsVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var projectUids []string
+	{
+		if committeeServiceGetOrgCommitteeSeatsProjectUids != "" {
+			err = json.Unmarshal([]byte(committeeServiceGetOrgCommitteeSeatsProjectUids), &projectUids)
+			if err != nil {
+				return nil, fmt.Errorf("invalid JSON for projectUids, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\"\n   ]'")
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetOrgCommitteeSeatsBearerToken != "" {
+			bearerToken = &committeeServiceGetOrgCommitteeSeatsBearerToken
+		}
+	}
+	v := &committeeservice.GetOrgCommitteeSeatsPayload{}
+	v.UID = uid
+	v.Version = version
+	v.ProjectUids = projectUids
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildReassignOrgCommitteeSeatPayload builds the payload for the
+// committee-service reassign-org-committee-seat endpoint from CLI flags.
+func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSeatBody string, committeeServiceReassignOrgCommitteeSeatUID string, committeeServiceReassignOrgCommitteeSeatMemberUID string, committeeServiceReassignOrgCommitteeSeatVersion string, committeeServiceReassignOrgCommitteeSeatBearerToken string) (*committeeservice.ReassignOrgCommitteeSeatPayload, error) {
+	var err error
+	var body ReassignOrgCommitteeSeatRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceReassignOrgCommitteeSeatBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"jane.doe@example.com\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Doe\"\n   }'")
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceReassignOrgCommitteeSeatUID
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceReassignOrgCommitteeSeatMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceReassignOrgCommitteeSeatVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceReassignOrgCommitteeSeatBearerToken != "" {
+			bearerToken = &committeeServiceReassignOrgCommitteeSeatBearerToken
+		}
+	}
+	v := &committeeservice.ReassignOrgCommitteeSeatPayload{
+		CommitteeUID: body.CommitteeUID,
+		FirstName:    body.FirstName,
+		LastName:     body.LastName,
+		Email:        body.Email,
+	}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
 // BuildUpdateCommitteeMemberPayload builds the payload for the
 // committee-service update-committee-member endpoint from CLI flags.
 func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
@@ -1808,7 +1907,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vwi\",\n      \"folder_uid\": \"898e8171-0018-4748-9272-505a150ef4b5\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2161,7 +2260,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Velit voluptate ut ullam totam quo consequatur.\",\n      \"description\": \"jly\",\n      \"file\": \"T21uaXMgZXQgb21uaXMgYWNjdXNhbXVzIGxhYm9yZSBxdWlkZW0u\",\n      \"file_name\": \"Corrupti numquam consequatur omnis.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))

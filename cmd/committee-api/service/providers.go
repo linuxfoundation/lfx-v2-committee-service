@@ -672,6 +672,36 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
+// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader (spec 026). In mock mode
+// it returns reshaped dev data; otherwise it reads the query-service index via the M2M
+// (service-identity) HTTP client so private-committee seats are included. When QUERY_SERVICE_URL is
+// unset the live source degrades to zero seats.
+func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock org committee seat reader")
+		return infrastructure.NewMockOrgCommitteeSeatReader()
+	case "nats":
+		baseURL := os.Getenv("QUERY_SERVICE_URL")
+		if baseURL == "" {
+			slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; org committee seat reader will return zero seats")
+		}
+		client := m2mHTTPClient(ctx)
+		return m2m.NewOrgCommitteeSeatSource(m2m.OrgCommitteeSeatSourceConfig{
+			BaseURL: baseURL,
+			Timeout: 15 * time.Second,
+		}, client)
+	default:
+		log.Fatalf("unsupported org committee seat reader implementation: %s", repoSource)
+	}
+	// unreachable
+	return nil
+}
+
 // CommitteeWeeklyMemberReaderImpl builds the live weekly member reader. The
 // reader is backed by any port.CommitteeMemberReader — in production this is
 // the NATS storage adapter — and partitions members by created_at/updated_at

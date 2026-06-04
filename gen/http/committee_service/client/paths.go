@@ -62,6 +62,16 @@ func GetCommitteeMemberCommitteeServicePath(uid string, memberUID string) string
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
 }
 
+// GetOrgCommitteeSeatsCommitteeServicePath returns the URL path to the committee-service service get-org-committee-seats HTTP endpoint.
+func GetOrgCommitteeSeatsCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/b2b-org/%v/seats", uid)
+}
+
+// ReassignOrgCommitteeSeatCommitteeServicePath returns the URL path to the committee-service service reassign-org-committee-seat HTTP endpoint.
+func ReassignOrgCommitteeSeatCommitteeServicePath(uid string, memberUID string) string {
+	return fmt.Sprintf("/committees/b2b-org/%v/seats/%v/reassign", uid, memberUID)
+}
+
 // UpdateCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service update-committee-member HTTP endpoint.
 func UpdateCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)

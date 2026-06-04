@@ -473,6 +473,64 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	UpdatedAtAttribute()
 })
 
+// B2BOrgSFIDAttribute is the DSL attribute for the B2B org UID — the 18-char Salesforce Account
+// SFID (the canonical b2b_org uid per spec 002; NOT a v2 UUID, so no FormatUUID). Spec 026.
+func B2BOrgSFIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)", func() {
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+}
+
+// OrgCommitteeSeatType is one org-scoped committee seat row returned by get-org-committee-seats
+// (Org Lens Board & Committee tab, spec 026). Flat DTO mirroring committee_member with the
+// endpoint-derived is_org_editable / reason.
+var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
+	dsl.Description("An organization's committee seat for the Org Lens Board & Committee tab.")
+	dsl.Attribute("uid", dsl.String, "Committee member UID (reassignment subject)", func() {
+		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("committee_name", dsl.String, "Committee name", func() {
+		dsl.Example("Technical Steering Committee")
+	})
+	dsl.Attribute("committee_category", dsl.String, "Committee category (Board vs other)", func() {
+		dsl.Example("Board")
+	})
+	dsl.Attribute("first_name", dsl.String, "First name", func() {
+		dsl.Example("Alex")
+	})
+	dsl.Attribute("last_name", dsl.String, "Last name", func() {
+		dsl.Example("Rivera")
+	})
+	dsl.Attribute("email", dsl.String, "Email address", func() {
+		dsl.Example("user@example.com")
+	})
+	dsl.Attribute("job_title", dsl.String, "Job title", func() {
+		dsl.Example("Principal Engineer")
+	})
+	dsl.Attribute("role_name", dsl.String, "Role within the committee", func() {
+		dsl.Example("Chair")
+	})
+	dsl.Attribute("voting_status", dsl.String, "Voting status string", func() {
+		dsl.Example("Voting Rep")
+	})
+	dsl.Attribute("appointed_by", dsl.String, "Appointment type", func() {
+		dsl.Example("Membership Entitlement")
+	})
+	dsl.Attribute("organization_id", dsl.String, "Holding organization SFID", func() {
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+	dsl.Attribute("is_org_editable", dsl.Boolean, "Whether the org can reassign this seat (appointed_by == Membership Entitlement)", func() {
+		dsl.Example(true)
+	})
+	dsl.Attribute("reason", dsl.String, "Why the seat is not editable (empty when editable)", func() {
+		dsl.Example("This seat is foundation-controlled.")
+	})
+	dsl.Required("uid", "committee_uid", "committee_name", "committee_category", "first_name", "last_name", "email", "role_name", "voting_status", "appointed_by", "organization_id", "is_org_editable")
+})
+
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
 func CommitteeMemberCreateAttributes() {
 	CommitteeMemberBaseAttributes()

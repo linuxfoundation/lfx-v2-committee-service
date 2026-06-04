@@ -2511,6 +2511,167 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/b2b-org/{uid}/seats:
+        get:
+            tags:
+                - committee-service
+            summary: get-org-committee-seats committee-service
+            description: List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)
+            operationId: committee-service#get-org-committee-seats
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                  required: true
+                  type: string
+                - name: project_uids
+                  in: query
+                  description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
+                  required: false
+                  type: array
+                  items:
+                    type: string
+                  collectionFormat: multi
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/OrgCommitteeSeat'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
+    /committees/b2b-org/{uid}/seats/{member_uid}/reassign:
+        put:
+            tags:
+                - committee-service
+            summary: reassign-org-committee-seat committee-service
+            description: Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)
+            operationId: committee-service#reassign-org-committee-seat
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                  required: true
+                  type: string
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: Reassign-Org-Committee-SeatRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceReassignOrgCommitteeSeatRequestBody'
+                    required:
+                        - committee_uid
+                        - first_name
+                        - last_name
+                        - email
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/OrgCommitteeSeat'
+                        required:
+                            - uid
+                            - committee_uid
+                            - committee_name
+                            - committee_category
+                            - first_name
+                            - last_name
+                            - email
+                            - role_name
+                            - voting_status
+                            - appointed_by
+                            - organization_id
+                            - is_org_editable
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
 definitions:
     BadRequestError:
         title: BadRequestError
@@ -3416,12 +3577,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: xcs
+                example: "287"
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 74716d5c-f7a8-4af3-93a4-dc7ddc0f2686
+                example: 0103f8b9-3f82-4527-ae14-7aa23b2af4db
                 format: uuid
             name:
                 type: string
@@ -3434,8 +3595,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: pm4
-            folder_uid: 20d8098a-647b-45d8-aa69-06be99d03b5a
+            description: 5o7
+            folder_uid: 836400f7-e52b-4e05-922b-5779e5d6bfe9
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -3856,6 +4017,37 @@ definitions:
     CommitteeServiceGetCommitteeSettingsResponseBody:
         title: CommitteeServiceGetCommitteeSettingsResponseBody
         $ref: '#/definitions/CommitteeSettingsWithReadonlyAttributes'
+    CommitteeServiceReassignOrgCommitteeSeatRequestBody:
+        title: CommitteeServiceReassignOrgCommitteeSeatRequestBody
+        type: object
+        properties:
+            committee_uid:
+                type: string
+                description: Committee UID of the seat being reassigned
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            email:
+                type: string
+                description: Replacement holder's email
+                example: jane.doe@example.com
+                format: email
+            first_name:
+                type: string
+                description: Replacement holder's first name
+                example: Jane
+            last_name:
+                type: string
+                description: Replacement holder's last name
+                example: Doe
+        example:
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            email: jane.doe@example.com
+            first_name: Jane
+            last_name: Doe
+        required:
+            - committee_uid
+            - first_name
+            - last_name
+            - email
     CommitteeServiceRejectApplicationRequestBody:
         title: CommitteeServiceRejectApplicationRequestBody
         type: object
@@ -4260,38 +4452,55 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Eligendi adipisci nisi totam.
+                example: Veniam assumenda.
             description:
                 type: string
                 description: Optional description
-                example: bbz
+                example: svp
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 86
-                    - 101
-                    - 110
-                    - 105
+                    - 70
                     - 97
-                    - 109
+                    - 99
+                    - 101
+                    - 114
+                    - 101
                     - 32
                     - 97
-                    - 115
-                    - 115
-                    - 117
-                    - 109
-                    - 101
-                    - 110
                     - 100
+                    - 105
+                    - 112
+                    - 105
+                    - 115
+                    - 99
+                    - 105
+                    - 32
                     - 97
+                    - 114
+                    - 99
+                    - 104
+                    - 105
+                    - 116
+                    - 101
+                    - 99
+                    - 116
+                    - 111
+                    - 32
+                    - 108
+                    - 97
+                    - 98
+                    - 111
+                    - 114
+                    - 101
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Ut eaque eum placeat soluta facere doloribus.
+                example: Eligendi adipisci nisi totam.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4303,30 +4512,57 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Qui odit dolor temporibus eius.
-            description: 91e
+            content_type: Eos aut dolor ea et.
+            description: dnp
             file:
-                - 69
-                - 111
-                - 115
-                - 32
+                - 80
                 - 97
-                - 117
+                - 114
+                - 105
+                - 97
                 - 116
-                - 32
-                - 100
-                - 111
-                - 108
-                - 111
+                - 117
                 - 114
                 - 32
-                - 101
-                - 97
+                - 113
+                - 117
+                - 111
                 - 32
+                - 108
+                - 97
+                - 98
+                - 111
+                - 114
+                - 105
+                - 111
+                - 115
+                - 97
+                - 109
+                - 32
+                - 113
+                - 117
+                - 105
+                - 115
+                - 113
+                - 117
+                - 97
+                - 109
+                - 32
+                - 104
+                - 97
+                - 114
+                - 117
+                - 109
+                - 32
+                - 113
+                - 117
+                - 97
                 - 101
+                - 114
+                - 97
                 - 116
                 - 46
-            file_name: Consectetur consectetur doloremque at.
+            file_name: Qui odit dolor temporibus eius.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4495,7 +4731,7 @@ definitions:
                 type: string
                 description: Error message
                 example: You do not have permission to perform this action.
-        description: You are not the invitee for this invite
+        description: Seat is not org-editable (not a Membership Entitlement seat)
         example:
             message: You do not have permission to perform this action.
         required:
@@ -4510,7 +4746,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: cwx
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4518,15 +4754,11 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4573,7 +4805,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: cwx
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4581,15 +4813,11 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4611,7 +4839,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: pys
+                example: rj0
                 maxLength: 5000
             id:
                 type: string
@@ -4627,7 +4855,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: xjn
+            excerpt: tel
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -4732,7 +4960,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: 5rc
+                example: zxj
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -4768,11 +4996,11 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: tji
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4808,7 +5036,7 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: 0st
+            brief_text: vuy
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             model: fake
@@ -4816,19 +5044,19 @@ definitions:
             prompt_version: v1
             regeneration_count: 0
             source_refs:
-                - excerpt: 0jc
+                - excerpt: tji
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: 0jc
+                - excerpt: tji
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: 0jc
+                - excerpt: tji
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: 0jc
+                - excerpt: tji
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
@@ -4863,6 +5091,95 @@ definitions:
             message: The resource was not found.
         required:
             - message
+    OrgCommitteeSeat:
+        title: OrgCommitteeSeat
+        type: object
+        properties:
+            appointed_by:
+                type: string
+                description: Appointment type
+                example: Membership Entitlement
+            committee_category:
+                type: string
+                description: Committee category (Board vs other)
+                example: Board
+            committee_name:
+                type: string
+                description: Committee name
+                example: Technical Steering Committee
+            committee_uid:
+                type: string
+                description: Committee UID
+                example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            email:
+                type: string
+                description: Email address
+                example: user@example.com
+            first_name:
+                type: string
+                description: First name
+                example: Alex
+            is_org_editable:
+                type: boolean
+                description: Whether the org can reassign this seat (appointed_by == Membership Entitlement)
+                example: true
+            job_title:
+                type: string
+                description: Job title
+                example: Principal Engineer
+            last_name:
+                type: string
+                description: Last name
+                example: Rivera
+            organization_id:
+                type: string
+                description: Holding organization SFID
+                example: 001B000000IqhSLIAZ
+            reason:
+                type: string
+                description: Why the seat is not editable (empty when editable)
+                example: This seat is foundation-controlled.
+            role_name:
+                type: string
+                description: Role within the committee
+                example: Chair
+            uid:
+                type: string
+                description: Committee member UID (reassignment subject)
+                example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            voting_status:
+                type: string
+                description: Voting status string
+                example: Voting Rep
+        description: An organization's committee seat for the Org Lens Board & Committee tab.
+        example:
+            appointed_by: Membership Entitlement
+            committee_category: Board
+            committee_name: Technical Steering Committee
+            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            email: user@example.com
+            first_name: Alex
+            is_org_editable: true
+            job_title: Principal Engineer
+            last_name: Rivera
+            organization_id: 001B000000IqhSLIAZ
+            reason: This seat is foundation-controlled.
+            role_name: Chair
+            uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            voting_status: Voting Rep
+        required:
+            - uid
+            - committee_uid
+            - committee_name
+            - committee_category
+            - first_name
+            - last_name
+            - email
+            - role_name
+            - voting_status
+            - appointed_by
+            - organization_id
+            - is_org_editable
     ServiceUnavailableError:
         title: ServiceUnavailableError
         type: object

@@ -376,6 +376,99 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// GET - Org Lens Board & Committee tab (spec 026): list a B2B org's committee seats across
+	// the membership project family. Account-level read gated on b2b_org:{uid}#auditor by the
+	// Heimdall ruleset (b2b_org is ruleset-only). {uid} is the 18-char Salesforce Account SFID.
+	dsl.Method("get-org-committee-seats", func() {
+		dsl.Description("List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			dsl.Attribute("project_uids", dsl.ArrayOf(dsl.String), "Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to", func() {
+				dsl.Example([]string{"7cad5a8d-19d0-41a4-81a6-043453daf9ee"})
+			})
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Result(dsl.ArrayOf(OrgCommitteeSeatType))
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/b2b-org/{uid}/seats")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("project_uids")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// PUT - Org Lens reassign (spec 026): atomically move a Membership-Entitlement committee seat
+	// to a new holder, preserving role/voting/appointed_by. Gated on b2b_org:{uid}#writer by the
+	// Heimdall ruleset + the service-side entitlement guard. {uid} is the 18-char SFID.
+	dsl.Method("reassign-org-committee-seat", func() {
+		dsl.Description("Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			MemberUIDAttribute()
+			dsl.Attribute("committee_uid", dsl.String, "Committee UID of the seat being reassigned", func() {
+				dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+			})
+			dsl.Attribute("first_name", dsl.String, "Replacement holder's first name", func() {
+				dsl.Example("Jane")
+			})
+			dsl.Attribute("last_name", dsl.String, "Replacement holder's last name", func() {
+				dsl.Example("Doe")
+			})
+			dsl.Attribute("email", dsl.String, "Replacement holder's email", func() {
+				dsl.Format(dsl.FormatEmail)
+				dsl.Example("jane.doe@example.com")
+			})
+
+			dsl.Required("version", "uid", "member_uid", "committee_uid", "first_name", "last_name", "email")
+		})
+
+		dsl.Result(OrgCommitteeSeatType)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Seat is not org-editable (not a Membership Entitlement seat)")
+		dsl.Error("NotFound", NotFoundError, "Seat not found")
+		dsl.Error("Conflict", ConflictError, "Concurrent modification")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/b2b-org/{uid}/seats/{member_uid}/reassign")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// PUT - Replace committee member (complete resource replacement)
 	// This endpoint follows PUT semantics: it replaces the entire member resource.
 	// All required fields must be provided, even if unchanged.
