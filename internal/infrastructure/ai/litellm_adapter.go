@@ -217,8 +217,8 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 			if a.backoff > 0 && a.sleep != nil {
 				a.sleep(a.backoff)
 			}
-			slog.WarnContext(ctx, "litellm adapter: retrying after malformed response",
-				"attempt", attempt, "of", attempts, "prev_error", lastErr.Error(),
+			slog.WarnContext(ctx, "litellm adapter: retrying after failed attempt",
+				"attempt", attempt, "max_attempts", attempts, "prev_error", lastErr.Error(),
 			)
 		}
 
@@ -228,22 +228,58 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 		}
 		lastErr = err
 
-		// Feed the failed reply back and ask for a strict correction so the next
-		// attempt has something to fix rather than repeating itself. We keep the
-		// model's own (raw) turn in context so the correction is grounded.
-		if attempt < attempts {
-			if raw != "" {
-				messages = append(messages, chatMessage{Role: "assistant", Content: raw})
-			}
-			messages = append(messages, chatMessage{
-				Role: "user",
-				Content: "Your previous response was not a valid weekly-brief JSON object (" + err.Error() +
-					"). Respond with ONLY the JSON object matching the schema — no prose, no code fences.",
-			})
+		// Only append a corrective turn when the model actually produced content
+		// to correct (raw != ""). Transport/HTTP/envelope failures (raw == "")
+		// still get a bounded retry for transient resilience, but nudging the
+		// model makes no sense there — there is no malformed reply to fix, and
+		// the error text (e.g. an HTTP proxy body) must not be fed into the
+		// prompt. We feed back a length-capped copy of the reply plus a stable,
+		// generic instruction (no interpolated error string).
+		if attempt < attempts && raw != "" {
+			messages = append(messages,
+				chatMessage{Role: "assistant", Content: truncateForPrompt(raw)},
+				chatMessage{Role: "user", Content: correctiveNudge},
+			)
 		}
 	}
 
 	return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: generation failed after %d attempts: %w", attempts, lastErr)
+}
+
+// correctiveNudge is the stable retry instruction appended after a malformed
+// model reply. It deliberately embeds no error detail so untrusted upstream
+// text can never reach the prompt (prompt-injection / data-leak guard).
+const correctiveNudge = "Your previous response was not a valid weekly-brief JSON object. " +
+	"Respond with ONLY the JSON object matching the schema — no prose, no code fences."
+
+// maxPromptFeedbackBytes caps how much of a malformed reply we feed back on a
+// retry: enough for the model to self-correct, but far below the 1 MiB response
+// bound so a large reply can't balloon the next request.
+const maxPromptFeedbackBytes = 2000
+
+// truncateForPrompt returns s capped to maxPromptFeedbackBytes runes, with an
+// elision marker when truncated.
+func truncateForPrompt(s string) string {
+	r := []rune(s)
+	if len(r) <= maxPromptFeedbackBytes {
+		return s
+	}
+	return string(r[:maxPromptFeedbackBytes]) + " …[truncated]"
+}
+
+// maxErrorBodyBytes caps how much of an upstream non-2xx body we keep in the
+// returned error, which is also surfaced in retry logs/telemetry.
+const maxErrorBodyBytes = 512
+
+// truncateForError trims surrounding whitespace and caps an upstream error body
+// to maxErrorBodyBytes runes so a large proxy/HTML page can't bloat errors/logs.
+func truncateForError(s string) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= maxErrorBodyBytes {
+		return s
+	}
+	return string(r[:maxErrorBodyBytes]) + " …[truncated]"
 }
 
 // attemptGenerate performs a single chat-completions call and parses the result.
@@ -287,7 +323,10 @@ func (a *LiteLLMAdapter) attemptGenerate(ctx context.Context, messages []chatMes
 		return port.WeeklyBrief{}, "", fmt.Errorf("read response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return port.WeeklyBrief{}, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		// The body may be a large HTML/proxy error page; truncate + trim it so it
+		// doesn't bloat errors or logs (this error is also surfaced via prev_error
+		// on retry) or expose more than needed.
+		return port.WeeklyBrief{}, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncateForError(string(respBody)))
 	}
 
 	var parsed chatResponse
@@ -298,12 +337,18 @@ func (a *LiteLLMAdapter) attemptGenerate(ctx context.Context, messages []chatMes
 		return port.WeeklyBrief{}, "", fmt.Errorf("empty choices in response")
 	}
 
-	// Prefer the forced tool call's arguments (already a JSON object). Fall back
-	// to message content for endpoints/replies that ignore the tool directive.
+	// Prefer the forced tool call's arguments (already a JSON object). Select the
+	// call that matches our tool by name with non-empty arguments — never blindly
+	// the first call — so an unexpected/extra tool call can't be parsed as the
+	// brief. Fall back to message content for replies that ignore the tool
+	// directive.
 	msg := parsed.Choices[0].Message
 	raw := msg.Content
-	if len(msg.ToolCalls) > 0 && strings.TrimSpace(msg.ToolCalls[0].Function.Arguments) != "" {
-		raw = msg.ToolCalls[0].Function.Arguments
+	for _, tc := range msg.ToolCalls {
+		if tc.Function.Name == weeklyBriefToolName && strings.TrimSpace(tc.Function.Arguments) != "" {
+			raw = tc.Function.Arguments
+			break
+		}
 	}
 	content, ok := extractJSONObject(raw)
 	if !ok {
@@ -343,26 +388,16 @@ func (a *LiteLLMAdapter) attemptGenerate(ctx context.Context, messages []chatMes
 }
 
 // extractJSONObject recovers a JSON object from a model reply that may be
-// wrapped in prose and/or Markdown code fences. It first strips a fenced block
-// if present, then falls back to scanning for the first balanced, brace-matched
-// top-level object (honoring strings/escapes so braces inside string values do
-// not throw off the count). Returns the candidate JSON and whether one was found.
+// wrapped in prose and/or Markdown code fences. It scans for the first balanced,
+// brace-matched top-level object (honoring strings/escapes so braces inside
+// string values do not throw off the count). This transparently handles a bare
+// object, leading prose, trailing prose, and ```json fences — the scanner starts
+// at the first '{' and stops at its matching '}', so surrounding fences/prose
+// (including a ``` that appears inside brief_text) are ignored. Returns the
+// candidate JSON and whether one was found.
 func extractJSONObject(content string) (string, bool) {
 	s := strings.TrimSpace(content)
 
-	// Strip a leading ```json / ``` fence and trailing ``` if the whole reply is
-	// fenced; this handles the common "here is the JSON in a code block" shape.
-	if strings.HasPrefix(s, "```") {
-		s = strings.TrimPrefix(s, "```json")
-		s = strings.TrimPrefix(s, "```")
-		if i := strings.LastIndex(s, "```"); i >= 0 {
-			s = s[:i]
-		}
-		s = strings.TrimSpace(s)
-	}
-
-	// Extract the first balanced top-level object. This handles a bare object,
-	// an object with trailing prose, and an object embedded after leading prose.
 	start := strings.IndexByte(s, '{')
 	if start < 0 {
 		return "", false
