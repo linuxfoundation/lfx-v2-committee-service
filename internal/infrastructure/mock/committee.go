@@ -42,7 +42,6 @@ func NewMockRepository() *MockRepository {
 			committeeApplications: make(map[string]*model.CommitteeApplication),
 			inviteIndexKeys:       make(map[string]*model.CommitteeInvite),
 			applicationIndexKeys:  make(map[string]*model.CommitteeApplication),
-			settingsInviteIndex:   make(map[string]string),
 			committeeRevisions:    make(map[string]uint64),
 			settingsRevisions:     make(map[string]uint64),
 			memberRevisions:       make(map[string]uint64),
@@ -229,7 +228,6 @@ type MockRepository struct {
 	committeeApplications map[string]*model.CommitteeApplication // applicationUID -> application
 	inviteIndexKeys       map[string]*model.CommitteeInvite      // indexKey -> invite
 	applicationIndexKeys  map[string]*model.CommitteeApplication // indexKey -> application
-	settingsInviteIndex   map[string]string                      // inviteUID -> committeeUID secondary index
 	// Revision tracking for optimistic locking
 	committeeRevisions   map[string]uint64 // committeeUID -> revision
 	settingsRevisions    map[string]uint64 // committeeUID -> settings revision
@@ -291,20 +289,6 @@ func (m *MockRepository) ListAllUIDs(ctx context.Context) ([]string, error) {
 
 // ================== CommitteeSettingsReader implementation ==================
 
-// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the secondary index.
-func (m *MockRepository) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
-	slog.DebugContext(ctx, "mock repository: looking up committee UID by invite UID", "invite_uid", inviteUID)
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	committeeUID, exists := m.settingsInviteIndex[inviteUID]
-	if !exists {
-		return "", errors.NewNotFound(fmt.Sprintf("invite index entry for UID %s not found", inviteUID))
-	}
-	return committeeUID, nil
-}
-
 // GetSettings retrieves committee settings by committee UID
 func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee settings", "committee_uid", committeeUID)
@@ -317,8 +301,19 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
-	// Return version 1 for mock (in real implementation this would be the actual version)
-	return settings, 1, nil
+	if settings == nil {
+		// Committee exists but was stored without a CommitteeSettings pointer.
+		// Treat this identically to "not found" so callers cannot distinguish a nil
+		// value from a missing key — consistent with real NATS storage behavior.
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
+	}
+
+	// Return a deep copy so caller mutations (e.g. in-place field promotion) do not bleed
+	// back into the stored pointer and corrupt subsequent reads in the same test.
+	settingsCopy := *settings
+	settingsCopy.Writers = append([]model.CommitteeUser(nil), settings.Writers...)
+	settingsCopy.Auditors = append([]model.CommitteeUser(nil), settings.Auditors...)
+	return &settingsCopy, 1, nil
 }
 
 // ================== CommitteeMemberReader implementation ==================
@@ -570,24 +565,6 @@ func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model
 		w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
 	}
 
-	return nil
-}
-
-// IndexSettingsInvite creates or overwrites the secondary index entry mapping invite_uid → committee_uid.
-func (w *MockCommitteeWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
-	slog.DebugContext(ctx, "mock committee writer: indexing settings invite", "invite_uid", inviteUID, "committee_uid", committeeUID)
-	w.mock.mu.Lock()
-	defer w.mock.mu.Unlock()
-	w.mock.settingsInviteIndex[inviteUID] = committeeUID
-	return nil
-}
-
-// DeleteSettingsInviteIndex removes the secondary index entry for the given invite UID.
-func (w *MockCommitteeWriter) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
-	slog.DebugContext(ctx, "mock committee writer: deleting settings invite index", "invite_uid", inviteUID)
-	w.mock.mu.Lock()
-	defer w.mock.mu.Unlock()
-	delete(w.mock.settingsInviteIndex, inviteUID)
 	return nil
 }
 
@@ -1040,7 +1017,6 @@ func (m *MockRepository) ClearAll() {
 	m.committeeApplications = make(map[string]*model.CommitteeApplication)
 	m.inviteIndexKeys = make(map[string]*model.CommitteeInvite)
 	m.applicationIndexKeys = make(map[string]*model.CommitteeApplication)
-	m.settingsInviteIndex = make(map[string]string)
 	m.committeeRevisions = make(map[string]uint64)
 	m.settingsRevisions = make(map[string]uint64)
 	m.memberRevisions = make(map[string]uint64)
