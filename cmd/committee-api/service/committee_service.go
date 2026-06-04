@@ -912,11 +912,6 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
-		return "", errors.NewValidation("unable to determine user identity from token")
-	}
-
 	authHeader, _ := ctx.Value(constants.AuthorizationContextID).(string)
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return "", errors.NewValidation("bearer token not present in request context")
