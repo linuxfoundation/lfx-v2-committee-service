@@ -28,8 +28,8 @@ type CommitteeDataReader interface {
 	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
 	// GetBaseAttributeValue retrieves an attribute value by UID and returns the revision
 	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
-	// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the secondary index.
-	GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error)
+	// ListAllUIDs returns all active committee UIDs
+	ListAllUIDs(ctx context.Context) ([]string, error)
 }
 
 // CommitteeMemberDataReader defines the interface for committee member read operations
@@ -38,8 +38,8 @@ type CommitteeMemberDataReader interface {
 	GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error)
 	// GetMemberRevision retrieves the current KV revision for a committee member by UID
 	GetMemberRevision(ctx context.Context, memberUID string) (uint64, error)
-	// ListMembers retrieves all members for a given committee UID
-	ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
+	// ListMembersByCommittee retrieves all members for a given committee UID
+	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -105,6 +105,11 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 	)
 
 	return committeeSettings, revision, nil
+}
+
+// ListAllUIDs returns all active committee UIDs
+func (rc *committeeReaderOrchestrator) ListAllUIDs(ctx context.Context) ([]string, error) {
+	return rc.committeeReader.ListAllUIDs(ctx)
 }
 
 // GetAttributeValue retrieves an attribute value by UID and returns the revision
@@ -176,15 +181,15 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 	return committeeMember, revision, nil
 }
 
-// ListMembers retrieves all members for a given committee UID
-func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a given committee UID
+func (rc *committeeReaderOrchestrator) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 
 	slog.DebugContext(ctx, "executing list committee members use case",
 		"committee_uid", committeeUID,
 	)
 
 	// Get all committee members from storage
-	members, err := rc.committeeReader.ListMembers(ctx, committeeUID)
+	members, err := rc.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list committee members",
 			"error", err,
@@ -199,11 +204,6 @@ func (rc *committeeReaderOrchestrator) ListMembers(ctx context.Context, committe
 	)
 
 	return members, nil
-}
-
-// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the secondary index.
-func (rc *committeeReaderOrchestrator) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
-	return rc.committeeReader.GetSettingsUIDByInviteUID(ctx, inviteUID)
 }
 
 // NewCommitteeReaderOrchestrator creates a new committee reader use case using the option pattern

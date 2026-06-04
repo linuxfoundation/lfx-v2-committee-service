@@ -827,6 +827,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
 			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
+			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),
 		),
 	}
 
@@ -845,7 +846,9 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeMemberDeletedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
-		inviteapi.InviteAcceptedSubject:              messageHandlerService.HandleMessage,
+		inviteapi.InviteServiceAcceptedSubject:       messageHandlerService.HandleMessage,
+		constants.CommitteeDocumentCreatedSubject:    messageHandlerService.HandleMessage,
+		constants.CommitteeLinkCreatedSubject:        messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

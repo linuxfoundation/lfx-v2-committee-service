@@ -36,9 +36,19 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 	)
 
 	for _, key := range keys {
-		// Member keys should use member-specific methods
 		rev, errGet := uc.committeeReader.GetMemberRevision(ctx, key)
 		if errGet != nil {
+			var notFoundErr errs.NotFound
+			if errors.As(errGet, &notFoundErr) {
+				// Key already absent — nothing to delete. This is expected for
+				// the committee→member index on members created before the backfill
+				// was run, and for any key that was never written (e.g. failed partial write).
+				slog.DebugContext(ctx, "member key already absent during cleanup",
+					"key", key,
+					"is_rollback", isRollback,
+				)
+				continue
+			}
 			slog.ErrorContext(ctx, "failed to get revision for member key deletion",
 				"error", errGet,
 				"key", key,
@@ -229,6 +239,24 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 	keys = append(keys, member.UID)
 
+	// Step 8b: Write the committee→member secondary index so ListMembersByCommittee can use a
+	// targeted prefix scan rather than a full bucket scan.
+	indexKey, errIndex := uc.committeeWriter.IndexMemberByCommittee(ctx, member)
+	// Append before checking the error: if the write partially succeeded and
+	// returned an error, rollback must still be able to clean up the written key.
+	if indexKey != "" {
+		keys = append(keys, indexKey)
+	}
+	if errIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member index",
+			"error", errIndex,
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errIndex
+	}
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -383,7 +411,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
-	if errValidation := member.Validate(fullCommittee); errValidation != nil {
+	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
 			"member_uid", member.UID,
@@ -600,9 +628,13 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	// Step 2: Build list of secondary indices to delete
 	var indicesToDelete []string
 
-	// Build member lookup index key (committee_uid + email hash)
+	// Build member lookup index key (committee_uid + email hash) for uniqueness guard.
 	memberIndexKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
 	indicesToDelete = append(indicesToDelete, memberIndexKey)
+
+	// Build committee→member secondary index key so it is cleaned up on delete.
+	membersByCommitteeKey := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, existing.CommitteeUID, existing.UID)
+	indicesToDelete = append(indicesToDelete, membersByCommitteeKey)
 
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
 		"member_uid", uid,

@@ -5,8 +5,10 @@ package utils
 
 import (
 	"context"
-
 	"testing"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TestOTelConfigFromEnv_Defaults verifies that OTelConfigFromEnv returns
@@ -18,7 +20,6 @@ func TestOTelConfigFromEnv_Defaults(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	t.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "")
 	t.Setenv("OTEL_TRACES_EXPORTER", "")
-	t.Setenv("OTEL_TRACES_SAMPLE_RATIO", "")
 	t.Setenv("OTEL_METRICS_EXPORTER", "")
 	t.Setenv("OTEL_LOGS_EXPORTER", "")
 	t.Setenv("OTEL_PROPAGATORS", "")
@@ -43,9 +44,6 @@ func TestOTelConfigFromEnv_Defaults(t *testing.T) {
 	if cfg.TracesExporter != OTelExporterNone {
 		t.Errorf("expected default TracesExporter %q, got %q", OTelExporterNone, cfg.TracesExporter)
 	}
-	if cfg.TracesSampleRatio != 1.0 {
-		t.Errorf("expected default TracesSampleRatio 1.0, got %f", cfg.TracesSampleRatio)
-	}
 	if cfg.MetricsExporter != OTelExporterNone {
 		t.Errorf("expected default MetricsExporter %q, got %q", OTelExporterNone, cfg.MetricsExporter)
 	}
@@ -63,7 +61,6 @@ func TestOTelConfigFromEnv_CustomValues(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318")
 	t.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
 	t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-	t.Setenv("OTEL_TRACES_SAMPLE_RATIO", "0.5")
 	t.Setenv("OTEL_METRICS_EXPORTER", "otlp")
 	t.Setenv("OTEL_LOGS_EXPORTER", "otlp")
 
@@ -86,9 +83,6 @@ func TestOTelConfigFromEnv_CustomValues(t *testing.T) {
 	}
 	if cfg.TracesExporter != OTelExporterOTLP {
 		t.Errorf("expected TracesExporter %q, got %q", OTelExporterOTLP, cfg.TracesExporter)
-	}
-	if cfg.TracesSampleRatio != 0.5 {
-		t.Errorf("expected TracesSampleRatio 0.5, got %f", cfg.TracesSampleRatio)
 	}
 	if cfg.MetricsExporter != OTelExporterOTLP {
 		t.Errorf("expected MetricsExporter %q, got %q", OTelExporterOTLP, cfg.MetricsExporter)
@@ -115,13 +109,12 @@ func TestOTelConfigFromEnv_UnsupportedProtocol(t *testing.T) {
 // disabled, and that the returned shutdown function works correctly.
 func TestSetupOTelSDKWithConfig_AllDisabled(t *testing.T) {
 	cfg := OTelConfig{
-		ServiceName:       "test-service",
-		ServiceVersion:    "1.0.0",
-		Protocol:          OTelProtocolGRPC,
-		TracesExporter:    OTelExporterNone,
-		TracesSampleRatio: 1.0,
-		MetricsExporter:   OTelExporterNone,
-		LogsExporter:      OTelExporterNone,
+		ServiceName:     "test-service",
+		ServiceVersion:  "1.0.0",
+		Protocol:        OTelProtocolGRPC,
+		TracesExporter:  OTelExporterNone,
+		MetricsExporter: OTelExporterNone,
+		LogsExporter:    OTelExporterNone,
 	}
 
 	ctx := context.Background()
@@ -308,16 +301,15 @@ func TestSetupOTelSDKWithConfig_IPEndpoint(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317")
 
 	cfg := OTelConfig{
-		ServiceName:       "test-service",
-		ServiceVersion:    "1.0.0",
-		Protocol:          OTelProtocolGRPC,
-		Endpoint:          "127.0.0.1:4317",
-		Insecure:          true,
-		TracesExporter:    OTelExporterOTLP,
-		TracesSampleRatio: 1.0,
-		MetricsExporter:   OTelExporterNone,
-		LogsExporter:      OTelExporterNone,
-		Propagators:       "tracecontext,baggage",
+		ServiceName:     "test-service",
+		ServiceVersion:  "1.0.0",
+		Protocol:        OTelProtocolGRPC,
+		Endpoint:        "127.0.0.1:4317",
+		Insecure:        true,
+		TracesExporter:  OTelExporterOTLP,
+		MetricsExporter: OTelExporterNone,
+		LogsExporter:    OTelExporterNone,
+		Propagators:     "tracecontext,baggage",
 	}
 
 	ctx := context.Background()
@@ -331,4 +323,71 @@ func TestSetupOTelSDKWithConfig_IPEndpoint(t *testing.T) {
 	}
 
 	_ = shutdown(ctx)
+}
+
+// TestNewSampler verifies that newSampler returns a non-nil sampler for all
+// supported OTEL_TRACES_SAMPLER values, including the default (empty) case.
+func TestNewSampler(t *testing.T) {
+	cfg := OTelConfig{}
+	tests := []struct {
+		name    string
+		sampler string
+		arg     string
+	}{
+		{"default (empty)", "", ""},
+		{"always_on", "always_on", ""},
+		{"always_off", "always_off", ""},
+		{"traceidratio", "traceidratio", "0.5"},
+		{"parentbased_always_on", "parentbased_always_on", ""},
+		{"parentbased_always_off", "parentbased_always_off", ""},
+		{"parentbased_traceidratio", "parentbased_traceidratio", "0.5"},
+		{"unknown", "unknown", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := cfg
+			c.TracesSampler = tt.sampler
+			c.TracesSamplerArg = tt.arg
+			s := newSampler(c)
+			if s == nil {
+				t.Fatalf("newSampler(%q) returned nil", tt.sampler)
+			}
+			if s.Description() == "" {
+				t.Errorf("newSampler(%q).Description() is empty", tt.sampler)
+			}
+		})
+	}
+}
+
+// TestNewSampler_InvalidArg verifies that an invalid OTEL_TRACES_SAMPLER_ARG
+// falls back to 1.0 without panicking.
+func TestNewSampler_InvalidArg(t *testing.T) {
+	cfg := OTelConfig{
+		TracesSampler:    "parentbased_traceidratio",
+		TracesSamplerArg: "invalid",
+	}
+	s := newSampler(cfg)
+	if s == nil {
+		t.Fatal("newSampler returned nil for invalid OTEL_TRACES_SAMPLER_ARG")
+	}
+}
+
+// TestNewSampler_ParentHonored verifies that the default sampler honors
+// parent span sampling decisions.
+func TestNewSampler_ParentHonored(t *testing.T) {
+	cfg := OTelConfig{}
+	s := newSampler(cfg) // default = parentbased_traceidratio
+
+	// With a sampled parent, child should also be sampled.
+	sampledParent := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{1},
+		SpanID:     trace.SpanID{1},
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
+	parentCtx := trace.ContextWithRemoteSpanContext(context.Background(), sampledParent)
+	result := s.ShouldSample(sdktrace.SamplingParameters{ParentContext: parentCtx})
+	if result.Decision != sdktrace.RecordAndSample {
+		t.Errorf("expected RecordAndSample with sampled parent, got %v", result.Decision)
+	}
 }
