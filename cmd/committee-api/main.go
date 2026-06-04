@@ -142,6 +142,7 @@ func main() {
 	mailingListSource := service.MailingListSourceImpl(ctx)
 	voteSource := service.VoteSourceImpl(ctx)
 	weeklyMemberReader := service.CommitteeWeeklyMemberReaderImpl(ctx)
+	orgCommitteeSeatReader := service.OrgCommitteeSeatReaderImpl(ctx)
 
 	weeklyBriefGeneratorUseCase := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(weeklyBriefReader),
@@ -168,6 +169,7 @@ func main() {
 		docWriterUseCase,
 		weeklyBriefReaderUseCase,
 		weeklyBriefGeneratorUseCase,
+		orgCommitteeSeatReader,
 	)
 
 	// Wrap the services in endpoints that can be invoked from other services

@@ -37,6 +37,12 @@ type Service interface {
 	CreateCommitteeMember(context.Context, *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Get a specific committee member by UID
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
+	// List a B2B organization's committee seats across the membership project
+	// family (Org Lens Board & Committee tab)
+	GetOrgCommitteeSeats(context.Context, *GetOrgCommitteeSeatsPayload) (res []*OrgCommitteeSeat, err error)
+	// Reassign a Membership-Entitlement committee seat to a new holder (Org Lens
+	// Board & Committee tab)
+	ReassignOrgCommitteeSeat(context.Context, *ReassignOrgCommitteeSeatPayload) (res *OrgCommitteeSeat, err error)
 	// Replace an existing committee member (requires complete resource)
 	UpdateCommitteeMember(context.Context, *UpdateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Remove a member from a committee
@@ -130,7 +136,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [37]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief"}
+var MethodNames = [39]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -954,6 +960,21 @@ type GetInvitePayload struct {
 	InviteUID string
 }
 
+// GetOrgCommitteeSeatsPayload is the payload type of the committee-service
+// service get-org-committee-seats method.
+type GetOrgCommitteeSeatsPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// B2B organization UID — the 18-char Salesforce Account SFID (canonical
+	// b2b_org uid)
+	UID string
+	// Resolved project-family UIDs (foundation root + descendants) the BFF scopes
+	// seats to
+	ProjectUids []string
+}
+
 // GroupWeeklyBriefCurrentResult is the result type of the committee-service
 // service get-current-weekly-brief method.
 type GroupWeeklyBriefCurrentResult struct {
@@ -1079,6 +1100,62 @@ type ListCommitteeLinksPayload struct {
 	UID *string
 	// Filter links to those inside a specific folder; omit to return all links
 	FolderUID *string
+}
+
+// OrgCommitteeSeat is the result type of the committee-service service
+// reassign-org-committee-seat method.
+type OrgCommitteeSeat struct {
+	// Committee member UID (reassignment subject)
+	UID string
+	// Committee UID
+	CommitteeUID string
+	// Committee name
+	CommitteeName string
+	// Committee category (Board vs other)
+	CommitteeCategory string
+	// First name
+	FirstName string
+	// Last name
+	LastName string
+	// Email address
+	Email string
+	// Job title
+	JobTitle *string
+	// Role within the committee
+	RoleName string
+	// Voting status string
+	VotingStatus string
+	// Appointment type
+	AppointedBy string
+	// Holding organization SFID
+	OrganizationID string
+	// Whether the org can reassign this seat (appointed_by == Membership
+	// Entitlement)
+	IsOrgEditable bool
+	// Why the seat is not editable (empty when editable)
+	Reason *string
+}
+
+// ReassignOrgCommitteeSeatPayload is the payload type of the committee-service
+// service reassign-org-committee-seat method.
+type ReassignOrgCommitteeSeatPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// B2B organization UID — the 18-char Salesforce Account SFID (canonical
+	// b2b_org uid)
+	UID string
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	MemberUID string
+	// Committee UID of the seat being reassigned
+	CommitteeUID string
+	// Replacement holder's first name
+	FirstName string
+	// Replacement holder's last name
+	LastName string
+	// Replacement holder's email
+	Email string
 }
 
 // RejectApplicationPayload is the payload type of the committee-service

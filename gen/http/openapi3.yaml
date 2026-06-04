@@ -955,38 +955,49 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Quae velit voluptate.
-                            description: fi3
+                            content_type: Velit voluptate ut ullam totam quo consequatur.
+                            description: jly
                             file:
-                                - 85
-                                - 108
-                                - 108
-                                - 97
+                                - 79
                                 - 109
-                                - 32
-                                - 116
-                                - 111
-                                - 116
-                                - 97
-                                - 109
-                                - 32
-                                - 113
-                                - 117
-                                - 111
-                                - 32
-                                - 99
-                                - 111
                                 - 110
+                                - 105
                                 - 115
+                                - 32
                                 - 101
+                                - 116
+                                - 32
+                                - 111
+                                - 109
+                                - 110
+                                - 105
+                                - 115
+                                - 32
+                                - 97
+                                - 99
+                                - 99
+                                - 117
+                                - 115
+                                - 97
+                                - 109
+                                - 117
+                                - 115
+                                - 32
+                                - 108
+                                - 97
+                                - 98
+                                - 111
+                                - 114
+                                - 101
+                                - 32
                                 - 113
                                 - 117
-                                - 97
-                                - 116
-                                - 117
-                                - 114
+                                - 105
+                                - 100
+                                - 101
+                                - 109
                                 - 46
-                            file_name: Error pariatur debitis corrupti numquam consequatur.
+                            file_name: Corrupti numquam consequatur omnis.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1376,6 +1387,12 @@ paths:
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_username: alexlee
@@ -2423,9 +2440,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 1e02223c-8e0a-4fd5-8745-7823aa6bda52
+                    example: 2dd27bf5-b711-4dd7-96ad-5cde70af53eb
                     format: uuid
-                  example: e73a3a67-0909-4ac7-9e35-30cb3dd1110f
+                  example: 760c86c7-66c8-4b77-ac2d-1eb86ba7160f
             responses:
                 "200":
                     description: OK response.
@@ -2436,6 +2453,24 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkWithReadonlyAttributes'
                                 example:
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by_username: alexlee
+                                      description: Confluence wiki — architecture decisions log
+                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      name: Technical Architecture Decision Records
+                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      url: https://confluence.example.com/architecture-decisions
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by_username: alexlee
+                                      description: Confluence wiki — architecture decisions log
+                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      name: Technical Architecture Decision Records
+                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by_username: alexlee
@@ -2544,8 +2579,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: vao
-                            folder_uid: 26ffc95d-19b3-4264-bd42-f535e0d919c7
+                            description: vwi
+                            folder_uid: 898e8171-0018-4748-9272-505a150ef4b5
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3570,7 +3605,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefCurrentResult'
                             example:
                                 brief:
-                                    brief_text: sub
+                                    brief_text: cwx
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3578,15 +3613,11 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: 0jc
+                                        - excerpt: tji
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: tji
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3689,7 +3720,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefGenerateResult'
                             example:
                                 brief:
-                                    brief_text: sub
+                                    brief_text: cwx
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3697,15 +3728,11 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: 0jc
+                                        - excerpt: tji
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: tji
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3766,6 +3793,264 @@ paths:
                                 regenerations_limit: 3
                                 regenerations_used: 0
                                 window_resets_at: "2026-05-24T00:00:00Z"
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/b2b-org/{uid}/seats:
+        get:
+            tags:
+                - committee-service
+            summary: get-org-committee-seats committee-service
+            description: List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)
+            operationId: committee-service#get-org-committee-seats
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                  required: true
+                  schema:
+                    type: string
+                    description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                    example: 001B000000IqhSLIAZ
+                  example: 001B000000IqhSLIAZ
+                - name: project_uids
+                  in: query
+                  description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
+                  allowEmptyValue: true
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                        example: Reprehenderit quas.
+                    description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
+                    example:
+                        - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  example:
+                    - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/OrgCommitteeSeat'
+                                example:
+                                    - appointed_by: Membership Entitlement
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: Alex
+                                      is_org_editable: true
+                                      job_title: Principal Engineer
+                                      last_name: Rivera
+                                      organization_id: 001B000000IqhSLIAZ
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      voting_status: Voting Rep
+                                    - appointed_by: Membership Entitlement
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: Alex
+                                      is_org_editable: true
+                                      job_title: Principal Engineer
+                                      last_name: Rivera
+                                      organization_id: 001B000000IqhSLIAZ
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      voting_status: Voting Rep
+                            example:
+                                - appointed_by: Membership Entitlement
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  email: user@example.com
+                                  first_name: Alex
+                                  is_org_editable: true
+                                  job_title: Principal Engineer
+                                  last_name: Rivera
+                                  organization_id: 001B000000IqhSLIAZ
+                                  reason: This seat is foundation-controlled.
+                                  role_name: Chair
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  voting_status: Voting Rep
+                                - appointed_by: Membership Entitlement
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  email: user@example.com
+                                  first_name: Alex
+                                  is_org_editable: true
+                                  job_title: Principal Engineer
+                                  last_name: Rivera
+                                  organization_id: 001B000000IqhSLIAZ
+                                  reason: This seat is foundation-controlled.
+                                  role_name: Chair
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  voting_status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/b2b-org/{uid}/seats/{member_uid}/reassign:
+        put:
+            tags:
+                - committee-service
+            summary: reassign-org-committee-seat committee-service
+            description: Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)
+            operationId: committee-service#reassign-org-committee-seat
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                  required: true
+                  schema:
+                    type: string
+                    description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
+                    example: 001B000000IqhSLIAZ
+                  example: 001B000000IqhSLIAZ
+                - name: member_uid
+                  in: path
+                  description: Committee member UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee member UID -- v2 uid, not related to v1 id directly
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                    format: uuid
+                  example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ReassignOrgCommitteeSeatRequestBody'
+                        example:
+                            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                            email: jane.doe@example.com
+                            first_name: Jane
+                            last_name: Doe
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OrgCommitteeSeat'
+                            example:
+                                appointed_by: Membership Entitlement
+                                committee_category: Board
+                                committee_name: Technical Steering Committee
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                email: user@example.com
+                                first_name: Alex
+                                is_org_editable: true
+                                job_title: Principal Engineer
+                                last_name: Rivera
+                                organization_id: 001B000000IqhSLIAZ
+                                reason: This seat is foundation-controlled.
+                                role_name: Chair
+                                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                voting_status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Seat is not org-editable (not a Membership Entitlement seat)'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Seat not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Concurrent modification'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -5529,12 +5814,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: jhc
+                    example: bis
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: b6457775-471d-4a45-a650-8908718bbb34
+                    example: db7c00c0-176e-4f54-88c4-acc1f03f50dd
                     format: uuid
                 name:
                     type: string
@@ -5547,8 +5832,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: d9n
-                folder_uid: cd5ee31f-d78e-4a0b-9041-ad6f02870f3a
+                description: msc
+                folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -6076,7 +6361,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: i8v
+                    example: 7sh
                     maxLength: 5000
                 id:
                     type: string
@@ -6092,7 +6377,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: ytw
+                excerpt: l10
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -6194,7 +6479,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: shn
+                    example: 4bi
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6238,6 +6523,14 @@ components:
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
+                        - excerpt: 22l
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: 22l
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
                 state:
                     type: string
                     description: Lifecycle state
@@ -6270,7 +6563,7 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: 0k4
+                brief_text: hc0
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -6278,14 +6571,6 @@ components:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: 22l
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: 22l
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
                     - excerpt: 22l
                       id: https://meet.example.org/abc123
                       kind: meeting
@@ -6321,6 +6606,124 @@ components:
                 message: The resource was not found.
             required:
                 - message
+        OrgCommitteeSeat:
+            type: object
+            properties:
+                appointed_by:
+                    type: string
+                    description: Appointment type
+                    example: Membership Entitlement
+                committee_category:
+                    type: string
+                    description: Committee category (Board vs other)
+                    example: Board
+                committee_name:
+                    type: string
+                    description: Committee name
+                    example: Technical Steering Committee
+                committee_uid:
+                    type: string
+                    description: Committee UID
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                email:
+                    type: string
+                    description: Email address
+                    example: user@example.com
+                first_name:
+                    type: string
+                    description: First name
+                    example: Alex
+                is_org_editable:
+                    type: boolean
+                    description: Whether the org can reassign this seat (appointed_by == Membership Entitlement)
+                    example: true
+                job_title:
+                    type: string
+                    description: Job title
+                    example: Principal Engineer
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Rivera
+                organization_id:
+                    type: string
+                    description: Holding organization SFID
+                    example: 001B000000IqhSLIAZ
+                reason:
+                    type: string
+                    description: Why the seat is not editable (empty when editable)
+                    example: This seat is foundation-controlled.
+                role_name:
+                    type: string
+                    description: Role within the committee
+                    example: Chair
+                uid:
+                    type: string
+                    description: Committee member UID (reassignment subject)
+                    example: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                voting_status:
+                    type: string
+                    description: Voting status string
+                    example: Voting Rep
+            description: An organization's committee seat for the Org Lens Board & Committee tab.
+            example:
+                appointed_by: Membership Entitlement
+                committee_category: Board
+                committee_name: Technical Steering Committee
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                email: user@example.com
+                first_name: Alex
+                is_org_editable: true
+                job_title: Principal Engineer
+                last_name: Rivera
+                organization_id: 001B000000IqhSLIAZ
+                reason: This seat is foundation-controlled.
+                role_name: Chair
+                uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                voting_status: Voting Rep
+            required:
+                - uid
+                - committee_uid
+                - committee_name
+                - committee_category
+                - first_name
+                - last_name
+                - email
+                - role_name
+                - voting_status
+                - appointed_by
+                - organization_id
+                - is_org_editable
+        ReassignOrgCommitteeSeatRequestBody:
+            type: object
+            properties:
+                committee_uid:
+                    type: string
+                    description: Committee UID of the seat being reassigned
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                email:
+                    type: string
+                    description: Replacement holder's email
+                    example: jane.doe@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: Replacement holder's first name
+                    example: Jane
+                last_name:
+                    type: string
+                    description: Replacement holder's last name
+                    example: Doe
+            example:
+                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                email: jane.doe@example.com
+                first_name: Jane
+                last_name: Doe
+            required:
+                - committee_uid
+                - first_name
+                - last_name
+                - email
         ServiceUnavailableError:
             type: object
             properties:
@@ -6547,28 +6950,40 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Pariatur velit quos.
+                    example: Qui et sint voluptates expedita quod dolor.
                 description:
                     type: string
                     description: Optional description
-                    example: 7c8
+                    example: rr3
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 69
+                        - 86
+                        - 101
+                        - 114
+                        - 105
                         - 116
-                        - 32
                         - 97
+                        - 116
+                        - 105
+                        - 115
+                        - 32
+                        - 100
+                        - 101
+                        - 115
+                        - 101
+                        - 114
                         - 117
+                        - 110
                         - 116
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Voluptatum vel qui eum quod.
+                    example: Atque et aut ipsam aut enim dicta.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -6580,31 +6995,50 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Veritatis deserunt.
-                description: fyf
+                content_type: Numquam hic et totam quam autem quaerat.
+                description: n1a
                 file:
-                    - 68
-                    - 111
-                    - 108
-                    - 111
-                    - 114
-                    - 101
-                    - 109
+                    - 65
+                    - 116
                     - 32
                     - 113
                     - 117
                     - 105
-                    - 97
                     - 32
-                    - 100
-                    - 117
+                    - 110
+                    - 105
+                    - 104
+                    - 105
+                    - 108
+                    - 32
+                    - 101
+                    - 120
+                    - 101
+                    - 114
                     - 99
                     - 105
+                    - 116
+                    - 97
+                    - 116
+                    - 105
+                    - 111
+                    - 110
+                    - 101
                     - 109
+                    - 32
+                    - 100
+                    - 111
+                    - 108
+                    - 111
+                    - 114
+                    - 32
+                    - 97
+                    - 32
+                    - 113
                     - 117
-                    - 115
+                    - 105
                     - 46
-                file_name: Qui et sint voluptates expedita quod dolor.
+                file_name: Eos provident temporibus quis eos velit facere.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

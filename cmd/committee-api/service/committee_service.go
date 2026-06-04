@@ -46,6 +46,7 @@ type committeeServicesrvc struct {
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
+	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -313,6 +314,130 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	}
 
 	return res, nil
+}
+
+// GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for
+// the Org Lens Board & Committee tab (spec 026). Authorization (b2b_org:{uid}#auditor) is enforced
+// at the edge by Heimdall. Seats are read from the query-service index via the M2M (service-identity)
+// org-seat reader (privileged read → includes private committees), scoped by organization_id +
+// project_uid family. The org filter is the sole scoping control (best-effort: org_id is
+// self-reported until LFXV2-330).
+func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res []*committeeservice.OrgCommitteeSeat, err error) {
+	slog.DebugContext(ctx, "committeeService.get-org-committee-seats",
+		"org_uid", p.UID,
+		"project_uids_count", len(p.ProjectUids),
+	)
+
+	if s.orgSeatReader == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("org committee seat reader is not configured"))
+	}
+
+	members, err := s.orgSeatReader.ListOrgCommitteeSeats(ctx, p.UID, p.ProjectUids)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	out := make([]*committeeservice.OrgCommitteeSeat, 0, len(members))
+	for _, m := range members {
+		if m == nil {
+			continue
+		}
+		out = append(out, orgSeatFromMember(m))
+	}
+	return out, nil
+}
+
+// isMembershipEntitlement reports whether a seat is org-reassignable — appointment type
+// "Membership Entitlement" (case-insensitive), independent of committee type.
+func isMembershipEntitlement(appointedBy string) bool {
+	return strings.EqualFold(strings.TrimSpace(appointedBy), "Membership Entitlement")
+}
+
+// orgSeatFromMember maps a domain committee member to the Org Lens seat DTO, computing the
+// endpoint-derived is_org_editable / reason from the appointment type.
+func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeSeat {
+	editable := isMembershipEntitlement(m.AppointedBy)
+	seat := &committeeservice.OrgCommitteeSeat{
+		UID:               m.UID,
+		CommitteeUID:      m.CommitteeUID,
+		CommitteeName:     m.CommitteeName,
+		CommitteeCategory: m.CommitteeCategory,
+		FirstName:         m.FirstName,
+		LastName:          m.LastName,
+		Email:             m.Email,
+		RoleName:          m.Role.Name,
+		VotingStatus:      m.Voting.Status,
+		AppointedBy:       m.AppointedBy,
+		OrganizationID:    m.Organization.ID,
+		IsOrgEditable:     editable,
+	}
+	if m.JobTitle != "" {
+		jt := m.JobTitle
+		seat.JobTitle = &jt
+	}
+	if !editable {
+		reason := "This seat is held by foundation election or appointment, not by your organization's membership entitlement."
+		seat.Reason = &reason
+	}
+	return seat
+}
+
+// ReassignOrgCommitteeSeat reassigns a Membership-Entitlement committee seat to a new holder for the
+// Org Lens Board & Committee tab (spec 026). Authorization (b2b_org:{uid}#writer) is enforced at the
+// edge by Heimdall; this handler additionally enforces the entitlement guard in code.
+//
+// TEMPORARY: operates on the in-code dev mock (see mockOrgCommitteeSeats) — the real atomic
+// create+delete against the committee datastore is not wired and local dev lacks M2M credentials.
+// Preserves role/voting/appointed_by and swaps the holder, mirroring the contract invariants.
+func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *committeeservice.ReassignOrgCommitteeSeatPayload) (res *committeeservice.OrgCommitteeSeat, err error) {
+	slog.DebugContext(ctx, "committeeService.reassign-org-committee-seat",
+		"org_uid", p.UID,
+		"member_uid", p.MemberUID,
+		"committee_uid", p.CommitteeUID,
+		"new_holder_email", redaction.RedactEmail(p.Email),
+	)
+
+	// Read the current member (system of record) for the entitlement guard + field preservation.
+	member, rev, err := s.committeeReaderOrchestrator.GetMember(ctx, p.CommitteeUID, p.MemberUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Service-side entitlement guard: only "Membership Entitlement" seats are org-reassignable
+	// (by appointment type, independent of committee type). FGA cannot express this.
+	if !isMembershipEntitlement(member.AppointedBy) {
+		return nil, wrapError(ctx, errors.NewForbidden("seat is not org-editable (not a Membership Entitlement seat)"))
+	}
+
+	// Build the replacement: copy role/voting/appointed_by/committee/organization (FR-007 invariant),
+	// swap only the holder identity. Username is resolved from the new email by CreateMember.
+	newMember := &model.CommitteeMember{CommitteeMemberBase: member.CommitteeMemberBase}
+	newMember.UID = ""
+	newMember.Username = ""
+	newMember.FirstName = p.FirstName
+	newMember.LastName = p.LastName
+	newMember.Email = p.Email
+	newMember.JobTitle = ""
+
+	// Atomic-ish reassign: create the new holder, then delete the old; roll back the new member if
+	// the delete fails so no duplicate seat is left (contract invariant; true atomicity TBD upstream).
+	created, err := s.committeeWriterOrchestrator.CreateMember(ctx, newMember, false)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, rev, false); errDelete != nil {
+		if created != nil && created.UID != "" {
+			if _, createdRev, errGet := s.committeeReaderOrchestrator.GetMember(ctx, created.CommitteeUID, created.UID); errGet == nil {
+				if errRollback := s.committeeWriterOrchestrator.DeleteMember(ctx, created.UID, createdRev, false); errRollback != nil {
+					slog.ErrorContext(ctx, "reassign rollback failed; duplicate committee seat may remain",
+						"committee_uid", p.CommitteeUID, "new_member_uid", created.UID, "error", errRollback)
+				}
+			}
+		}
+		return nil, wrapError(ctx, errDelete)
+	}
+
+	return orgSeatFromMember(created), nil
 }
 
 // UpdateCommitteeMember updates an existing committee member
@@ -1290,6 +1415,7 @@ func NewCommitteeService(
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -1306,6 +1432,7 @@ func NewCommitteeService(
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
+		orgSeatReader:               orgSeatReader,
 	}
 }
 
