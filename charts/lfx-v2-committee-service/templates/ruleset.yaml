@@ -62,7 +62,7 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
-    # --- Org Lens Board & Committee tab (spec 026) -------------------------------------------
+    # --- Org Lens Board & Committee tab (LFXV2-1865) -----------------------------------------
     # Org-facing routes gated on the account-level b2b_org relation (object built from the :uid
     # path capture). b2b_org is referenced ONLY here in the ruleset, never in committee-service
     # code (FGA types are not 1:1 with repos). Routes live under the /committees/ prefix so they

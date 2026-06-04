@@ -474,44 +474,33 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 })
 
 // B2BOrgSFIDAttribute is the DSL attribute for the B2B org UID — the 18-char Salesforce Account
-// SFID (the canonical b2b_org uid per spec 002; NOT a v2 UUID, so no FormatUUID). Spec 026.
+// SFID (the canonical b2b_org uid per spec 002; NOT a v2 UUID, so no FormatUUID). LFXV2-1865.
+// The SFID is a well-defined 18-char alphanumeric string, so it's validated with a Pattern.
 func B2BOrgSFIDAttribute() {
 	dsl.Attribute("uid", dsl.String, "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)", func() {
+		dsl.Pattern("^[A-Za-z0-9]{18}$")
 		dsl.Example("001B000000IqhSLIAZ")
 	})
 }
 
 // OrgCommitteeSeatType is one org-scoped committee seat row returned by get-org-committee-seats
-// (Org Lens Board & Committee tab, spec 026). Flat DTO mirroring committee_member with the
-// endpoint-derived is_org_editable / reason.
+// (Org Lens Board & Committee tab, LFXV2-1865). Flat DTO mirroring committee_member with the
+// endpoint-derived is_org_editable / reason. Reuses the shared committee_member attribute helpers
+// so the DTO stays in sync with the existing member endpoints.
 var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	dsl.Description("An organization's committee seat for the Org Lens Board & Committee tab.")
-	dsl.Attribute("uid", dsl.String, "Committee member UID (reassignment subject)", func() {
-		dsl.Format(dsl.FormatUUID)
-		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
-	})
-	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
-		dsl.Format(dsl.FormatUUID)
-		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
-	})
-	dsl.Attribute("committee_name", dsl.String, "Committee name", func() {
-		dsl.Example("Technical Steering Committee")
-	})
-	dsl.Attribute("committee_category", dsl.String, "Committee category (Board vs other)", func() {
-		dsl.Example("Board")
-	})
-	dsl.Attribute("first_name", dsl.String, "First name", func() {
-		dsl.Example("Alex")
-	})
-	dsl.Attribute("last_name", dsl.String, "Last name", func() {
-		dsl.Example("Rivera")
-	})
-	dsl.Attribute("email", dsl.String, "Email address", func() {
-		dsl.Example("user@example.com")
-	})
-	dsl.Attribute("job_title", dsl.String, "Job title", func() {
-		dsl.Example("Principal Engineer")
-	})
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	EmailAttribute()
+	JobTitleAttribute()
+	// role_name / voting_status stay flat strings: the shared RoleNameAttribute/VotingStatusAttribute
+	// name the fields name/status (nested shape) and add enums; appointed_by is also kept flat (no
+	// enum) since its value originates from the upstream committee_member index and may fall outside
+	// the committee_member enum. Keeping these flat mirrors the DTO consumed by the BFF.
 	dsl.Attribute("role_name", dsl.String, "Role within the committee", func() {
 		dsl.Example("Chair")
 	})

@@ -873,6 +873,10 @@ func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID st
 	var uid string
 	{
 		uid = committeeServiceGetOrgCommitteeSeatsUID
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		if err != nil {
+			return nil, err
+		}
 	}
 	var version string
 	{
@@ -916,7 +920,14 @@ func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSe
 	{
 		err = json.Unmarshal([]byte(committeeServiceReassignOrgCommitteeSeatBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"jane.doe@example.com\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Doe\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n   }'")
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", body.CommitteeUID, goa.FormatUUID))
+		if utf8.RuneCountInString(body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", body.FirstName, utf8.RuneCountInString(body.FirstName), 100, false))
+		}
+		if utf8.RuneCountInString(body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", body.LastName, utf8.RuneCountInString(body.LastName), 100, false))
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
 		if err != nil {
@@ -926,6 +937,10 @@ func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSe
 	var uid string
 	{
 		uid = committeeServiceReassignOrgCommitteeSeatUID
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		if err != nil {
+			return nil, err
+		}
 	}
 	var memberUID string
 	{

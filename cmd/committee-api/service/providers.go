@@ -672,7 +672,7 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
-// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader (spec 026). In mock mode
+// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader (LFXV2-1865). In mock mode
 // it returns reshaped dev data; otherwise it reads the query-service index via the M2M
 // (service-identity) HTTP client so private-committee seats are included. When QUERY_SERVICE_URL is
 // unset the live source degrades to zero seats.
@@ -687,8 +687,13 @@ func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader
 		return infrastructure.NewMockOrgCommitteeSeatReader()
 	case "nats":
 		baseURL := os.Getenv("QUERY_SERVICE_URL")
+		// Env-var validation is owned by m2mHTTPClient() (called below): it fail-fasts (log.Fatalf)
+		// when QUERY_SERVICE_URL is set but the M2M credentials (M2M_AUTH_CLIENT_ID / _PRIVATE_KEY /
+		// _DOMAIN) are missing, so we never issue unauthenticated upstream calls. The only degraded
+		// mode left to flag here is QUERY_SERVICE_URL being unset, in which case the source
+		// short-circuits to zero seats without making any query-service call.
 		if baseURL == "" {
-			slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; org committee seat reader will return zero seats")
+			slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; org committee seat reader is disabled and will return zero seats (no query-service call)")
 		}
 		client := m2mHTTPClient(ctx)
 		return m2m.NewOrgCommitteeSeatSource(m2m.OrgCommitteeSeatSourceConfig{

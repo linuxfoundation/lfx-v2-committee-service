@@ -2531,6 +2531,7 @@ paths:
                   description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
                   required: true
                   type: string
+                  pattern: ^[A-Za-z0-9]{18}$
                 - name: project_uids
                   in: query
                   description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
@@ -2593,6 +2594,7 @@ paths:
                   description: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)
                   required: true
                   type: string
+                  pattern: ^[A-Za-z0-9]{18}$
                 - name: member_uid
                   in: path
                   description: Committee member UID -- v2 uid, not related to v1 id directly
@@ -4023,25 +4025,28 @@ definitions:
         properties:
             committee_uid:
                 type: string
-                description: Committee UID of the seat being reassigned
+                description: Committee UID -- v2 uid, not related to v1 id directly
                 example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                format: uuid
             email:
                 type: string
-                description: Replacement holder's email
-                example: jane.doe@example.com
+                description: Primary email address
+                example: user@example.com
                 format: email
             first_name:
                 type: string
-                description: Replacement holder's first name
-                example: Jane
+                description: First name
+                example: John
+                maxLength: 100
             last_name:
                 type: string
-                description: Replacement holder's last name
+                description: Last name
                 example: Doe
+                maxLength: 100
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            email: jane.doe@example.com
-            first_name: Jane
+            email: user@example.com
+            first_name: John
             last_name: Doe
         required:
             - committee_uid
@@ -5101,37 +5106,43 @@ definitions:
                 example: Membership Entitlement
             committee_category:
                 type: string
-                description: Committee category (Board vs other)
+                description: The category of the committee this member belongs to
                 example: Board
+                maxLength: 100
             committee_name:
                 type: string
-                description: Committee name
+                description: The name of the committee this member belongs to
                 example: Technical Steering Committee
+                maxLength: 100
             committee_uid:
                 type: string
-                description: Committee UID
+                description: Committee UID -- v2 uid, not related to v1 id directly
                 example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 format: uuid
             email:
                 type: string
-                description: Email address
+                description: Primary email address
                 example: user@example.com
+                format: email
             first_name:
                 type: string
                 description: First name
-                example: Alex
+                example: John
+                maxLength: 100
             is_org_editable:
                 type: boolean
                 description: Whether the org can reassign this seat (appointed_by == Membership Entitlement)
                 example: true
             job_title:
                 type: string
-                description: Job title
-                example: Principal Engineer
+                description: Job title at organization
+                example: Chief Technology Officer
+                maxLength: 200
             last_name:
                 type: string
                 description: Last name
-                example: Rivera
+                example: Doe
+                maxLength: 100
             organization_id:
                 type: string
                 description: Holding organization SFID
@@ -5146,7 +5157,7 @@ definitions:
                 example: Chair
             uid:
                 type: string
-                description: Committee member UID (reassignment subject)
+                description: Committee member UID -- v2 uid, not related to v1 id directly
                 example: 2200b646-fbb2-4de7-ad80-fd195a874baf
                 format: uuid
             voting_status:
@@ -5160,10 +5171,10 @@ definitions:
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             email: user@example.com
-            first_name: Alex
+            first_name: John
             is_org_editable: true
-            job_title: Principal Engineer
-            last_name: Rivera
+            job_title: Chief Technology Officer
+            last_name: Doe
             organization_id: 001B000000IqhSLIAZ
             reason: This seat is foundation-controlled.
             role_name: Chair

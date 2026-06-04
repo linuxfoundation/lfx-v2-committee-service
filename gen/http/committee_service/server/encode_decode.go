@@ -1271,6 +1271,7 @@ func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Req
 			params = mux.Vars(r)
 		)
 		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
 		qp := r.URL.Query()
 		version = qp.Get("v")
 		if version == "" {
@@ -1400,6 +1401,7 @@ func DecodeReassignOrgCommitteeSeatRequest(mux goahttp.Muxer, decoder func(*http
 			params = mux.Vars(r)
 		)
 		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
 		memberUID = params["member_uid"]
 		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
 		version = r.URL.Query().Get("v")

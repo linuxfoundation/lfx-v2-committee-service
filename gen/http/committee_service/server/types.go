@@ -183,13 +183,13 @@ type CreateCommitteeMemberRequestBody struct {
 // ReassignOrgCommitteeSeatRequestBody is the type of the "committee-service"
 // service "reassign-org-committee-seat" endpoint HTTP request body.
 type ReassignOrgCommitteeSeatRequestBody struct {
-	// Committee UID of the seat being reassigned
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
-	// Replacement holder's first name
+	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
-	// Replacement holder's last name
+	// Last name
 	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
-	// Replacement holder's email
+	// Primary email address
 	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 }
 
@@ -539,21 +539,21 @@ type GetOrgCommitteeSeatsResponseBody []*OrgCommitteeSeatResponse
 // ReassignOrgCommitteeSeatResponseBody is the type of the "committee-service"
 // service "reassign-org-committee-seat" endpoint HTTP response body.
 type ReassignOrgCommitteeSeatResponseBody struct {
-	// Committee member UID (reassignment subject)
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID string `form:"uid" json:"uid" xml:"uid"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID string `form:"committee_uid" json:"committee_uid" xml:"committee_uid"`
-	// Committee name
+	// The name of the committee this member belongs to
 	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
-	// Committee category (Board vs other)
+	// The category of the committee this member belongs to
 	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
 	// First name
 	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
 	// Last name
 	LastName string `form:"last_name" json:"last_name" xml:"last_name"`
-	// Email address
+	// Primary email address
 	Email string `form:"email" json:"email" xml:"email"`
-	// Job title
+	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
 	// Role within the committee
 	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
@@ -2515,21 +2515,21 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 
 // OrgCommitteeSeatResponse is used to define fields on response body types.
 type OrgCommitteeSeatResponse struct {
-	// Committee member UID (reassignment subject)
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID string `form:"uid" json:"uid" xml:"uid"`
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID string `form:"committee_uid" json:"committee_uid" xml:"committee_uid"`
-	// Committee name
+	// The name of the committee this member belongs to
 	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
-	// Committee category (Board vs other)
+	// The category of the committee this member belongs to
 	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
 	// First name
 	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
 	// Last name
 	LastName string `form:"last_name" json:"last_name" xml:"last_name"`
-	// Email address
+	// Primary email address
 	Email string `form:"email" json:"email" xml:"email"`
-	// Job title
+	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
 	// Role within the committee
 	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
@@ -6648,6 +6648,19 @@ func ValidateReassignOrgCommitteeSeatRequestBody(body *ReassignOrgCommitteeSeatR
 	}
 	if body.Email == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("email", "body"))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
 	}
 	if body.Email != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
