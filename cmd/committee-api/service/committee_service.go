@@ -427,7 +427,14 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	newMember.FirstName = p.FirstName
 	newMember.LastName = p.LastName
 	newMember.Email = p.Email
+	// Clear all holder-specific fields so nothing from the old holder leaks onto the new seat
+	// holder. Only the seat-defining fields (role/voting/appointed_by/committee/organization) carry
+	// over; identity, profile, invite, and timestamps belong to the individual and are reset.
 	newMember.JobTitle = ""
+	newMember.LinkedInProfile = ""
+	newMember.Invite = nil
+	newMember.CreatedAt = time.Time{}
+	newMember.UpdatedAt = time.Time{}
 
 	// Atomic-ish reassign: create the new holder, then delete the old; roll back the new member if
 	// the delete fails so no duplicate seat is left (contract invariant; true atomicity TBD upstream).
