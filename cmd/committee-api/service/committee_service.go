@@ -906,7 +906,7 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 }
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their principal (from context) to the auth-service via NATS.
+// their bearer token to the auth-service via NATS.
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -917,7 +917,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
+	userEmails, err := s.userReader.EmailsByUserToken(ctx)
 	if err != nil {
 		return "", err
 	}

@@ -232,7 +232,7 @@ func (r *writerTestUserReader) SubByEmail(_ context.Context, email string) (stri
 	return r.subs[email], nil
 }
 
-func (r *writerTestUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (r *writerTestUserReader) EmailsByUserToken(_ context.Context) (*model.UserEmails, error) {
 	return nil, nil
 }
 
