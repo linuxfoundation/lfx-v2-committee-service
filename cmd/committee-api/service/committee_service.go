@@ -317,7 +317,7 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 }
 
 // GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for
-// the Org Lens Board & Committee tab (spec 026). Authorization (b2b_org:{uid}#auditor) is enforced
+// the Org Lens Board & Committee tab (LFXV2-1865). Authorization (b2b_org:{uid}#auditor) is enforced
 // at the edge by Heimdall. Seats are read from the query-service index via the M2M (service-identity)
 // org-seat reader (privileged read → includes private committees), scoped by organization_id +
 // project_uid family. The org filter is the sole scoping control (best-effort: org_id is
@@ -383,7 +383,7 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 }
 
 // ReassignOrgCommitteeSeat reassigns a Membership-Entitlement committee seat to a new holder for the
-// Org Lens Board & Committee tab (spec 026). Authorization (b2b_org:{uid}#writer) is enforced at the
+// Org Lens Board & Committee tab (LFXV2-1865). Authorization (b2b_org:{uid}#writer) is enforced at the
 // edge by Heimdall; this handler additionally enforces, in code, (a) that the seat belongs to the
 // path org and (b) the Membership-Entitlement guard.
 //
@@ -419,22 +419,27 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 		return nil, wrapError(ctx, errors.NewForbidden("seat is not org-editable (not a Membership Entitlement seat)"))
 	}
 
-	// Build the replacement: copy role/voting/appointed_by/committee/organization (FR-007 invariant),
-	// swap only the holder identity. Username is resolved from the new email by CreateMember.
-	newMember := &model.CommitteeMember{CommitteeMemberBase: member.CommitteeMemberBase}
-	newMember.UID = ""
-	newMember.Username = ""
-	newMember.FirstName = p.FirstName
-	newMember.LastName = p.LastName
-	newMember.Email = p.Email
-	// Clear all holder-specific fields so nothing from the old holder leaks onto the new seat
-	// holder. Only the seat-defining fields (role/voting/appointed_by/committee/organization) carry
-	// over; identity, profile, invite, and timestamps belong to the individual and are reset.
-	newMember.JobTitle = ""
-	newMember.LinkedInProfile = ""
-	newMember.Invite = nil
-	newMember.CreatedAt = time.Time{}
-	newMember.UpdatedAt = time.Time{}
+	// Build the replacement seat. A reassignment preserves the seat itself — its committee, role,
+	// voting status, appointment type, and holding organization — and swaps only the person holding
+	// it. Construct a FRESH base and copy ONLY those seat-defining fields (an allowlist), so future
+	// additions to CommitteeMemberBase don't silently leak the previous holder's identity/profile/
+	// invite/timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
+	// username is resolved from the new holder's email).
+	newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		Role:              member.Role,
+		AppointedBy:       member.AppointedBy,
+		Status:            member.Status,
+		Voting:            member.Voting,
+		Organization:      member.Organization,
+		CommitteeUID:      member.CommitteeUID,
+		CommitteeName:     member.CommitteeName,
+		CommitteeCategory: member.CommitteeCategory,
+		ProjectUID:        member.ProjectUID,
+		ProjectSlug:       member.ProjectSlug,
+		FirstName:         p.FirstName,
+		LastName:          p.LastName,
+		Email:             p.Email,
+	}}
 
 	// Atomic-ish reassign: create the new holder, then delete the old; roll back the new member if
 	// the delete fails so no duplicate seat is left (contract invariant; true atomicity TBD upstream).
@@ -443,13 +448,28 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 		return nil, wrapError(ctx, err)
 	}
 	if errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, rev, false); errDelete != nil {
+		// Best-effort rollback: remove the just-created holder so the reassign doesn't leave a
+		// duplicate seat. If the rollback ALSO fails (or we can't read the new member's revision to
+		// roll it back), the duplicate persists and the caller must take manual recovery steps — so
+		// surface that in the returned error, not just the logs.
+		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := s.committeeReaderOrchestrator.GetMember(ctx, created.CommitteeUID, created.UID); errGet == nil {
-				if errRollback := s.committeeWriterOrchestrator.DeleteMember(ctx, created.UID, createdRev, false); errRollback != nil {
-					slog.ErrorContext(ctx, "reassign rollback failed; duplicate committee seat may remain",
-						"committee_uid", p.CommitteeUID, "new_member_uid", created.UID, "error", errRollback)
-				}
+				errRollback = s.committeeWriterOrchestrator.DeleteMember(ctx, created.UID, createdRev, false)
+			} else {
+				errRollback = errGet
 			}
+		}
+		if errRollback != nil {
+			slog.ErrorContext(ctx, "reassign rollback failed; duplicate committee seat may remain",
+				"committee_uid", p.CommitteeUID,
+				"old_member_uid", p.MemberUID,
+				"new_member_uid", created.UID,
+				"delete_error", errDelete,
+				"rollback_error", errRollback)
+			return nil, wrapError(ctx, fmt.Errorf(
+				"reassign failed and rollback failed; a duplicate seat may remain for committee %s (new member %s) — manual cleanup required: delete error: %w; rollback error: %v",
+				p.CommitteeUID, created.UID, errDelete, errRollback))
 		}
 		return nil, wrapError(ctx, errDelete)
 	}

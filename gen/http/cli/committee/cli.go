@@ -964,7 +964,7 @@ func committeeServiceReassignOrgCommitteeSeatUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reassign-org-committee-seat --body '{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"jane.doe@example.com\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Doe\"\n   }' --uid \"001B000000IqhSLIAZ\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reassign-org-committee-seat --body '{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n   }' --uid \"001B000000IqhSLIAZ\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceUpdateCommitteeMemberUsage() {

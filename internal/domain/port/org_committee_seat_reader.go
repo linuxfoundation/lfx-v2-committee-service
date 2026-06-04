@@ -10,7 +10,7 @@ import (
 )
 
 // OrgCommitteeSeatReader reads the committee members held by a B2B organization, scoped to a
-// project family, for the Org Lens Board & Committee tab (spec 026). The live implementation reads
+// project family, for the Org Lens Board & Committee tab (LFXV2-1865). The live implementation reads
 // the query-service index via an M2M (service-identity) client so private-committee seats are
 // included (the account-level b2b_org gate is enforced at the edge by Heimdall, not per-seat FGA).
 type OrgCommitteeSeatReader interface {

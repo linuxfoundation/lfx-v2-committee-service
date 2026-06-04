@@ -1105,21 +1105,21 @@ type ListCommitteeLinksPayload struct {
 // OrgCommitteeSeat is the result type of the committee-service service
 // reassign-org-committee-seat method.
 type OrgCommitteeSeat struct {
-	// Committee member UID (reassignment subject)
+	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID string
-	// Committee UID
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID string
-	// Committee name
+	// The name of the committee this member belongs to
 	CommitteeName string
-	// Committee category (Board vs other)
+	// The category of the committee this member belongs to
 	CommitteeCategory string
 	// First name
 	FirstName string
 	// Last name
 	LastName string
-	// Email address
+	// Primary email address
 	Email string
-	// Job title
+	// Job title at organization
 	JobTitle *string
 	// Role within the committee
 	RoleName string
@@ -1148,13 +1148,13 @@ type ReassignOrgCommitteeSeatPayload struct {
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	MemberUID string
-	// Committee UID of the seat being reassigned
+	// Committee UID -- v2 uid, not related to v1 id directly
 	CommitteeUID string
-	// Replacement holder's first name
+	// First name
 	FirstName string
-	// Replacement holder's last name
+	// Last name
 	LastName string
-	// Replacement holder's email
+	// Primary email address
 	Email string
 }
 

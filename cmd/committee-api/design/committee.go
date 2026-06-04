@@ -376,7 +376,7 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
-	// GET - Org Lens Board & Committee tab (spec 026): list a B2B org's committee seats across
+	// GET - Org Lens Board & Committee tab (LFXV2-1865): list a B2B org's committee seats across
 	// the membership project family. Account-level read gated on b2b_org:{uid}#auditor by the
 	// Heimdall ruleset (b2b_org is ruleset-only). {uid} is the 18-char Salesforce Account SFID.
 	dsl.Method("get-org-committee-seats", func() {
@@ -414,7 +414,7 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
-	// PUT - Org Lens reassign (spec 026): atomically move a Membership-Entitlement committee seat
+	// PUT - Org Lens reassign (LFXV2-1865): atomically move a Membership-Entitlement committee seat
 	// to a new holder, preserving role/voting/appointed_by. Gated on b2b_org:{uid}#writer by the
 	// Heimdall ruleset + the service-side entitlement guard. {uid} is the 18-char SFID.
 	dsl.Method("reassign-org-committee-seat", func() {
@@ -427,19 +427,13 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			B2BOrgSFIDAttribute()
 			MemberUIDAttribute()
-			dsl.Attribute("committee_uid", dsl.String, "Committee UID of the seat being reassigned", func() {
-				dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
-			})
-			dsl.Attribute("first_name", dsl.String, "Replacement holder's first name", func() {
-				dsl.Example("Jane")
-			})
-			dsl.Attribute("last_name", dsl.String, "Replacement holder's last name", func() {
-				dsl.Example("Doe")
-			})
-			dsl.Attribute("email", dsl.String, "Replacement holder's email", func() {
-				dsl.Format(dsl.FormatEmail)
-				dsl.Example("jane.doe@example.com")
-			})
+			// Reuse the shared committee_member attribute helpers (validation + docs stay in sync with
+			// the existing member endpoints). committee_uid is the seat's committee; first_name/
+			// last_name/email describe the replacement holder.
+			CommitteeUIDMemberAttribute()
+			FirstNameAttribute()
+			LastNameAttribute()
+			EmailAttribute()
 
 			dsl.Required("version", "uid", "member_uid", "committee_uid", "first_name", "last_name", "email")
 		})
