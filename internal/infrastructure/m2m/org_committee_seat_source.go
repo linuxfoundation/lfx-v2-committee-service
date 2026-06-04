@@ -63,14 +63,27 @@ func NewOrgCommitteeSeatSource(cfg OrgCommitteeSeatSourceConfig, client *http.Cl
 // by organization only.
 func (s *OrgCommitteeSeatSource) ListOrgCommitteeSeats(ctx context.Context, orgSFID string, projectUIDs []string) ([]*model.CommitteeMember, error) {
 	if s == nil || s.cfg.BaseURL == "" {
-		slog.WarnContext(ctx, "org committee seat source disabled: QUERY_SERVICE_URL not set")
+		// Startup already warns once (OrgCommitteeSeatReaderImpl) when QUERY_SERVICE_URL is
+		// unset. This is a per-request, user-facing read path, so keep the per-call signal at
+		// debug to avoid log spam when the endpoint is hit frequently.
+		slog.DebugContext(ctx, "org committee seat source disabled: QUERY_SERVICE_URL not set")
 		return nil, nil
 	}
 	if orgSFID == "" {
 		return nil, nil
 	}
 
-	scopes := projectUIDs
+	// Dedupe project scopes so duplicate project_uids (trivially sent via repeated query
+	// params) don't trigger redundant upstream queries.
+	scopes := make([]string, 0, len(projectUIDs))
+	seenScope := make(map[string]bool, len(projectUIDs))
+	for _, projectUID := range projectUIDs {
+		if projectUID == "" || seenScope[projectUID] {
+			continue
+		}
+		seenScope[projectUID] = true
+		scopes = append(scopes, projectUID)
+	}
 	if len(scopes) == 0 {
 		scopes = []string{""} // organization-only scope
 	}
