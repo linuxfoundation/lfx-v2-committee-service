@@ -97,6 +97,7 @@ type mockCommitteeWriterOrchestrator struct {
 	updateMemberCalls []updateMemberCall
 	createMember      *model.CommitteeMember
 	createMemberErr   error
+	createMemberCalls []*model.CommitteeMember
 }
 
 type updateMemberCall struct {
@@ -126,6 +127,7 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 }
 
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	m.createMemberCalls = append(m.createMemberCalls, member)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}

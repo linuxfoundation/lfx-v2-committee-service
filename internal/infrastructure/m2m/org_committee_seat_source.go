@@ -122,8 +122,13 @@ func (s *OrgCommitteeSeatSource) queryOnce(ctx context.Context, orgSFID, project
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode/100 != 2 {
+		// Log the truncated upstream body server-side for diagnostics, but do NOT include it in the
+		// returned error: that error is surfaced to API clients as an InternalServerError and the raw
+		// upstream body could leak internal details. Clients only see the status.
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("org-committee-seat source returned non-2xx: status=%d body=%s", resp.StatusCode, string(body))
+		slog.ErrorContext(ctx, "org-committee-seat source returned non-2xx",
+			"status", resp.StatusCode, "body", string(body))
+		return nil, fmt.Errorf("org-committee-seat source returned status %d", resp.StatusCode)
 	}
 
 	var env queryEnvelope
