@@ -15,7 +15,7 @@ type UserReader interface {
 	SubByEmail(ctx context.Context, email string) (string, error)
 	// EmailsByUserToken retrieves all email addresses (primary and alternate) for the
 	// authenticated caller by sending their bearer token to the auth-service.
-	EmailsByUserToken(ctx context.Context) (*model.UserEmails, error)
+	EmailsByUserToken(ctx context.Context, authToken string) (*model.UserEmails, error)
 	// UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by their principal.
 	UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error)
 }
