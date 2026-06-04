@@ -72,6 +72,9 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 // EmailsByUserToken retrieves all email addresses for the authenticated caller by sending
 // their bearer token to the NATS subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByUserToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
+	if authToken == "" {
+		return nil, errors.NewValidation("authToken must not be empty")
+	}
 	req := UserEmailsNATSRequest{
 		User: UserEmailsNATSRequestUser{AuthToken: authToken},
 	}
