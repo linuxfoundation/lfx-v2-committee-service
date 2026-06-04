@@ -6617,6 +6617,12 @@ func ValidateReassignOrgCommitteeSeatResponseBody(body *ReassignOrgCommitteeSeat
 	if body.IsOrgEditable == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("is_org_editable", "body"))
 	}
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
 	return
 }
 
@@ -9284,6 +9290,12 @@ func ValidateOrgCommitteeSeatResponse(body *OrgCommitteeSeatResponse) (err error
 	}
 	if body.IsOrgEditable == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("is_org_editable", "body"))
+	}
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
 	}
 	return
 }
