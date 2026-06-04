@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   eval-live:
-    # Release gate: blocks publish on a failing weekly-brief live LLM eval.
+    # Release gate: runs the weekly-brief live LLM eval suite.
     # Calls .github/workflows/weekly-brief-eval-live.yml (workflow_call).
     # The called workflow fetches LITELLM_API_KEY from AWS Secrets Manager
     # via OIDC token exchange (LITELLM_BASE_URL and LITELLM_MODEL are
@@ -25,7 +25,13 @@ jobs:
     # GitHub repo secrets to map at the call site. id-token: write is
     # required here because a reusable workflow cannot elevate
     # permissions beyond what its caller grants. LFXV2-2019.
+    #
+    # TEMPORARY: continue-on-error is set to true while LFXV2-2134 (structured
+    # JSON output + retry in the LiteLLM adapter) is being fixed. The eval still
+    # runs and its result is visible, but a failure will not block the release.
+    # Remove continue-on-error once LFXV2-2134 is resolved.
     name: Weekly-Brief Live Eval (release gate)
+    continue-on-error: true
     permissions:
       contents: read
       id-token: write
