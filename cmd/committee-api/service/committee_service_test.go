@@ -19,17 +19,15 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-// testCtx builds a request context with the given principal and a synthetic Bearer token.
-// resolveCallerEmail requires both to be present.
+// testCtx builds a request context with the given principal, as resolveCallerEmail requires.
 func testCtx(principal string) context.Context {
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
-	return context.WithValue(ctx, constants.AuthorizationContextID, "Bearer test-token")
+	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
 }
 
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailsByUserToken ignores the authToken parameter and looks up email by principal from context.
+// EmailsByPrincipal maps principal → primary email.
 type mockUserReader struct {
-	emails      map[string]string              // principal → primary email (keyed by PrincipalContextID, not auth token)
+	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
 	subs        map[string]string              // email → sub/LFID (for SubByEmail)
 	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
@@ -74,8 +72,7 @@ func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, 
 	return "", errs.NewNotFound("mock: sub not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByUserToken(ctx context.Context, _ string) (*model.UserEmails, error) {
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
 	if principal == "" {
 		return nil, errs.NewValidation("mock: principal is empty")
 	}
@@ -1892,7 +1889,7 @@ func (e *errUserReader) SubByEmail(_ context.Context, _ string) (string, error) 
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
-func (e *errUserReader) EmailsByUserToken(_ context.Context, _ string) (*model.UserEmails, error) {
+func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
