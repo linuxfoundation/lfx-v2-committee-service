@@ -737,10 +737,14 @@ func (w *MockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, mem
 		"organization_id", member.Organization.ID,
 		"member_uid", member.UID,
 	)
-	if member.Organization.ID == "" {
+	// Mirror the real NATS storage: normalize to the 18-char canonical SFID so the mock key matches
+	// production. A 15-char stored org id would otherwise yield a divergent key and break rollback /
+	// stale-key tracking against real behavior.
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
 		return "", nil
 	}
-	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, member.Organization.ID, member.UID)
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
 	return key, nil
 }
 
