@@ -499,33 +499,16 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	JobTitleAttribute()
 	// role_name / voting_status / appointed_by are flat in this DTO (the BFF consumes flat fields), but
 	// mirror the canonical committee_member attribute definitions — same descriptions, enums, and
-	// defaults — so the generated documentation stays consistent with the member endpoints. appointed_by
-	// reuses the shared AppointedByAttribute directly (already a flat field).
+	// defaults — so the generated documentation stays consistent with the member endpoints. The enums
+	// reuse the shared committeeRoleNameEnum / committeeVotingStatusEnum vars (single-sourced with the
+	// canonical attributes); appointed_by reuses the shared AppointedByAttribute directly.
 	dsl.Attribute("role_name", dsl.String, "Committee role name", func() {
-		dsl.Enum(
-			"Chair",
-			"Developer Seat",
-			"TAC/TOC Representative",
-			"Director",
-			"Lead",
-			"None",
-			"Secretary",
-			"Technical Lead",
-			"Treasurer",
-			"Vice Chair",
-			"LF Staff",
-		)
+		dsl.Enum(committeeRoleNameEnum...)
 		dsl.Default("None")
 		dsl.Example("Chair")
 	})
 	dsl.Attribute("voting_status", dsl.String, "Voting status", func() {
-		dsl.Enum(
-			"Alternate Voting Rep",
-			"Observer",
-			"Voting Rep",
-			"Emeritus",
-			"None",
-		)
+		dsl.Enum(committeeVotingStatusEnum...)
 		dsl.Default("None")
 		dsl.Example("Voting Rep")
 	})
@@ -684,22 +667,36 @@ func LinkedInProfileAttribute() {
 	})
 }
 
+// committeeRoleNameEnum is the single source of committee role-name enum values, shared by the
+// canonical RoleNameAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeRoleNameEnum = []any{
+	"Chair",
+	"Developer Seat",
+	"TAC/TOC Representative",
+	"Director",
+	"Lead",
+	"None",
+	"Secretary",
+	"Technical Lead",
+	"Treasurer",
+	"Vice Chair",
+	"LF Staff",
+}
+
+// committeeVotingStatusEnum is the single source of voting-status enum values, shared by the canonical
+// VotingStatusAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeVotingStatusEnum = []any{
+	"Alternate Voting Rep",
+	"Observer",
+	"Voting Rep",
+	"Emeritus",
+	"None",
+}
+
 // RoleNameAttribute is the DSL attribute for committee role name.
 func RoleNameAttribute() {
 	dsl.Attribute("name", dsl.String, "Committee role name", func() {
-		dsl.Enum(
-			"Chair",
-			"Developer Seat",
-			"TAC/TOC Representative",
-			"Director",
-			"Lead",
-			"None",
-			"Secretary",
-			"Technical Lead",
-			"Treasurer",
-			"Vice Chair",
-			"LF Staff",
-		)
+		dsl.Enum(committeeRoleNameEnum...)
 		dsl.Default("None")
 		dsl.Example("Chair")
 	})
@@ -759,13 +756,7 @@ func StatusAttribute() {
 // VotingStatusAttribute is the DSL attribute for voting status.
 func VotingStatusAttribute() {
 	dsl.Attribute("status", dsl.String, "Voting status", func() {
-		dsl.Enum(
-			"Alternate Voting Rep",
-			"Observer",
-			"Voting Rep",
-			"Emeritus",
-			"None",
-		)
+		dsl.Enum(committeeVotingStatusEnum...)
 		dsl.Default("None")
 		dsl.Example("Voting Rep")
 	})

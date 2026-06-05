@@ -403,27 +403,12 @@ const (
 )
 
 // seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
-// cursor. The key must be stable across replicas and rolling restarts so pagination survives horizontal
-// scaling. In non-dev environments ORG_SEAT_PAGE_TOKEN_HMAC_KEY is REQUIRED; when it is unset there the
-// key is left empty and GetOrgCommitteeSeats degrades to a 503 (the org-seat read is disabled) WITHOUT
-// crashing the service — signing prod/staging tokens with the public in-repo fallback would make them
-// forgeable and defeat the opaque-cursor guarantee, so we serve neither.
-var seatCursorKey = seatCursorKeyFromConfig()
-
-func seatCursorKeyFromConfig() []byte {
-	if k := os.Getenv("ORG_SEAT_PAGE_TOKEN_HMAC_KEY"); k != "" {
-		return []byte(k)
-	}
-	switch os.Getenv("LFX_ENVIRONMENT") {
-	case "prod", "staging", "stg":
-		// Required but not provisioned: return no key. GetOrgCommitteeSeats checks for this and
-		// returns ServiceUnavailable, so only the org-seat read is disabled — the rest of the
-		// service stays healthy and we never sign tokens with the public in-repo fallback.
-		return nil
-	}
-	// dev/local: a fixed default keeps pagination stable without requiring a secret to be provisioned.
-	return []byte("lfx-v2-committee-service-org-seat-cursor")
-}
+// cursor. It is sourced solely from ORG_SEAT_PAGE_TOKEN_HMAC_KEY and must be stable across replicas and
+// rolling restarts so pagination survives horizontal scaling. There is deliberately no hardcoded
+// fallback for any environment (a public in-repo key would make tokens forgeable, which is unacceptable
+// even in shared dev): when the env var is unset the key is empty and GetOrgCommitteeSeats degrades to a
+// 503 — only the org-seat read is disabled, the rest of the service stays healthy and never crashes.
+var seatCursorKey = []byte(os.Getenv("ORG_SEAT_PAGE_TOKEN_HMAC_KEY"))
 
 // encodeSeatCursor produces an opaque, HMAC-signed page token for the keyset position (the last UID
 // returned): base64url( HMAC-SHA256(afterUID) || afterUID ).

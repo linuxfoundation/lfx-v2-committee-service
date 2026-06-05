@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -18,6 +19,14 @@ import (
 )
 
 const testOrgSFID = "001B000000IqhSLIAZ"
+
+// TestMain provisions a deterministic org-seat page-token signing key for the test binary. Production
+// sources this only from ORG_SEAT_PAGE_TOKEN_HMAC_KEY (there is no in-repo fallback), so tests set it
+// explicitly to exercise the real signed-cursor pagination paths.
+func TestMain(m *testing.M) {
+	seatCursorKey = []byte("test-org-seat-cursor-signing-key")
+	os.Exit(m.Run())
+}
 
 // stubOrgSeatReader is a configurable port.OrgCommitteeSeatReader for the org-seat read tests.
 type stubOrgSeatReader struct {
@@ -191,6 +200,19 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		svc := &committeeServicesrvc{orgSeatReader: reader}
 		_, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID})
 		require.Error(t, err)
+	})
+
+	t.Run("missing signing key degrades to service unavailable", func(t *testing.T) {
+		// ORG_SEAT_PAGE_TOKEN_HMAC_KEY unset → empty key → the endpoint returns 503 (graceful
+		// degradation) instead of crashing the pod or signing forgeable tokens.
+		saved := seatCursorKey
+		seatCursorKey = nil
+		t.Cleanup(func() { seatCursorKey = saved })
+
+		reader := &stubOrgSeatReader{members: []*model.CommitteeMember{entitlementSeat()}}
+		svc := &committeeServicesrvc{orgSeatReader: reader}
+		_, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID})
+		assertGoaErrContains(t, err, "ORG_SEAT_PAGE_TOKEN_HMAC_KEY")
 	})
 }
 
