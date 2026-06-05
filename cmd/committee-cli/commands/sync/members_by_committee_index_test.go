@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // mockMemberWriter is a minimal implementation of port.CommitteeMemberWriter used by
@@ -46,10 +47,11 @@ func (w *mockMemberWriter) IndexMemberByOrganization(_ context.Context, m *model
 	if w.indexError != nil {
 		return "", w.indexError
 	}
-	if m.Organization.ID == "" {
+	orgSFID := utils.NormalizeAccountSFID(m.Organization.ID)
+	if orgSFID == "" {
 		return "", nil
 	}
-	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, m.Organization.ID, m.UID)
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, m.UID)
 	w.orgIndexed = append(w.orgIndexed, key)
 	return key, nil
 }

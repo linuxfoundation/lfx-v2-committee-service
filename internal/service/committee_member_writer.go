@@ -755,8 +755,22 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 
 	// Delete the old holder. On success the reassign is complete.
 	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
-		// Roll back the newly-created holder so no duplicate seat remains. Look up its current
-		// revision first (DeleteMember enforces optimistic locking).
+		// DeleteMember may return an error after the old seat is already gone (e.g. indexer publish
+		// failed post-commit). Rolling back the new seat in that case would leave no holder.
+		if _, _, errGetOld := uc.committeeReader.GetMember(ctx, oldMemberUID); errGetOld != nil {
+			var notFound errs.NotFound
+			if errors.As(errGetOld, &notFound) {
+				slog.WarnContext(ctx, "reassign delete reported failure but old seat is already gone; new seat retained",
+					"committee_uid", newMember.CommitteeUID,
+					"old_member_uid", oldMemberUID,
+					"new_member_uid", created.UID,
+					"error", errDelete,
+				)
+				return created, nil
+			}
+		}
+
+		// Old holder still exists — roll back the newly-created seat so no duplicate remains.
 		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {

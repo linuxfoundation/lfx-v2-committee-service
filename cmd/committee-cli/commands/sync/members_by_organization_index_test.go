@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 func orgMember(uid, orgID string) *model.CommitteeMember {
@@ -40,20 +41,25 @@ func TestMembersByOrganizationIndex_BackfillAll_SkipsMembersWithoutOrg(t *testin
 }
 
 func TestMembersByOrganizationIndex_FilterByOrg(t *testing.T) {
+	fifteenCharOrg := "0017000000abcde"
+	eighteenCharOrg := utils.NormalizeAccountSFID(fifteenCharOrg)
+	otherOrg := "0017000000fghijAAA"
+
 	r := &mockReader{
 		members: map[string][]*model.CommitteeMember{
 			"c1": {
-				orgMember("m1", "001A00000000001AAA"),
-				orgMember("m2", "001A00000000002AAA"),
+				orgMember("m1", eighteenCharOrg),
+				orgMember("m2", otherOrg),
 			},
 		},
 	}
 	w := &mockMemberWriter{}
 
-	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--dry-run=false", "--org-sfid=001A00000000001AAA"))
+	// 15-char --org-sfid must match members keyed with the 18-char canonical SFID.
+	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--dry-run=false", "--org-sfid="+fifteenCharOrg))
 	require.NoError(t, err)
 	require.Len(t, w.orgIndexed, 1)
-	assert.Contains(t, w.orgIndexed[0], "001A00000000001AAA.m1")
+	assert.Contains(t, w.orgIndexed[0], eighteenCharOrg+".m1")
 }
 
 func TestMembersByOrganizationIndex_DryRun(t *testing.T) {

@@ -47,6 +47,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 	}
 
 	rc.DryRun = *dryRun
+	normalizedFilterSFID := utils.NormalizeAccountSFID(*orgSFID)
 
 	if rc.CommitteeReader == nil {
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
@@ -65,22 +66,20 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
 		stats.Total++
 
-		// Only members with an organization.id are org-affiliated seats.
-		if member.Organization.ID == "" {
+		normalizedOrgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+		// Only members with a non-empty normalized organization.id are org-affiliated seats.
+		if normalizedOrgSFID == "" {
 			stats.Skipped++
 			return nil
 		}
-		// Normalize both sides to the 18-char canonical SFID so a 15-char stored organization.id still
-		// matches an 18-char --org-sfid flag (same Salesforce record); IndexMemberByOrganization keys
-		// on the normalized form, so the filter must too or eligible members are silently skipped.
-		if *orgSFID != "" && utils.NormalizeAccountSFID(member.Organization.ID) != utils.NormalizeAccountSFID(*orgSFID) {
+		if normalizedFilterSFID != "" && normalizedOrgSFID != normalizedFilterSFID {
 			stats.Skipped++
 			return nil
 		}
 
 		if rc.DryRun {
 			slog.DebugContext(ctx, "dry-run: would write org member index",
-				"organization_id", member.Organization.ID,
+				"organization_id", normalizedOrgSFID,
 				"member_uid", member.UID,
 			)
 			stats.Updated++
@@ -91,7 +90,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 		if errIdx != nil {
 			slog.WarnContext(ctx, "failed to index member by organization",
 				"error", errIdx,
-				"organization_id", member.Organization.ID,
+				"organization_id", normalizedOrgSFID,
 				"member_uid", member.UID,
 			)
 			stats.Failed++
@@ -104,13 +103,21 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 		}
 
 		slog.DebugContext(ctx, "indexed member by organization",
-			"organization_id", member.Organization.ID,
+			"organization_id", normalizedOrgSFID,
 			"member_uid", member.UID,
 		)
 		stats.Updated++
 
 		if *sleep > 0 {
-			time.Sleep(*sleep)
+			timer := time.NewTimer(*sleep)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
 		return nil
 	})
