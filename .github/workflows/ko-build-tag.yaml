@@ -25,6 +25,10 @@ jobs:
     # GitHub repo secrets to map at the call site. id-token: write is
     # required here because a reusable workflow cannot elevate
     # permissions beyond what its caller grants. LFXV2-2019.
+    #
+    # Re-enabled under LFXV2-2134: weekly-brief generation was hardened to be
+    # deterministic (forced tool-call structured output + bounded retry), so
+    # the gate is meaningful again rather than flaky.
     name: Weekly-Brief Live Eval (release gate)
     permissions:
       contents: read

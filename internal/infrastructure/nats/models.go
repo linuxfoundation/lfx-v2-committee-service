@@ -42,6 +42,17 @@ type ErrorMessageNATSResponse struct {
 	Error   string `json:"error"`
 }
 
+// UserEmailsNATSRequestUser holds the user field for a UserEmailsNATSRequest.
+type UserEmailsNATSRequestUser struct {
+	AuthToken string `json:"auth_token"`
+}
+
+// UserEmailsNATSRequest is the payload sent to lfx.auth-service.user_emails.read.
+// The auth-service expects a JSON body with the caller's bearer token (without the "Bearer " prefix).
+type UserEmailsNATSRequest struct {
+	User UserEmailsNATSRequestUser `json:"user"`
+}
+
 // UserEmailsNATSResponse represents the response from lfx.auth-service.user_emails.read
 type UserEmailsNATSResponse struct {
 	Success bool                    `json:"success"`
