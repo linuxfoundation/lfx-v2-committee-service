@@ -789,7 +789,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 				"delete_error", errDelete,
 				"read_error", errGetOld,
 			)
-			return nil, errs.NewUnexpected("reassign delete failed and the old seat could not be confirmed; new seat retained for manual reconciliation", errDelete)
+			return nil, errs.NewUnexpected("reassign delete failed and the old seat could not be confirmed; new seat retained for manual reconciliation", errDelete, errGetOld)
 		}
 
 		// Old holder positively still exists — roll back the newly-created seat so no duplicate remains.
