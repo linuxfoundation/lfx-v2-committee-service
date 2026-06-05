@@ -13,7 +13,9 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -169,6 +171,20 @@ func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator
 	return service, mockOrchestrator
 }
 
+// mockInviteSender records SendInvite calls and optionally returns a fixed error.
+type mockInviteSender struct {
+	calls  []inviteapi.SendInviteRequest
+	retErr error
+}
+
+func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInviteRequest) (port.InviteResult, error) {
+	m.calls = append(m.calls, req)
+	if m.retErr != nil {
+		return port.InviteResult{}, m.retErr
+	}
+	return port.InviteResult{InviteUID: "remote-invite-uid"}, nil
+}
+
 // setupServiceTestWithRepo returns the service, mock orchestrator, AND the underlying mock repo
 // so tests can seed invite/application/settings data.
 func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator, *mock.MockRepository) {
@@ -181,6 +197,8 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
+		inviteSender:                &mockInviteSender{},
+		lfxSelfServeBaseURL:         "https://app.test.lfx.dev",
 		userReader:                  newMockUserReader(),
 	}
 
@@ -675,12 +693,14 @@ func TestCreateInvite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _, _ := setupServiceTestWithRepo()
+			sender := svc.inviteSender.(*mockInviteSender)
 
 			result, err := svc.CreateInvite(context.Background(), tt.payload)
 
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Nil(t, result)
+				assert.Empty(t, sender.calls)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
@@ -688,6 +708,16 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, tt.payload.UID, *result.CommitteeUID)
 				assert.Equal(t, tt.payload.InviteeEmail, *result.InviteeEmail)
 				assert.Equal(t, "pending", result.Status)
+
+				require.Len(t, sender.calls, 1)
+				call := sender.calls[0]
+				require.NotNil(t, call.Recipient)
+				assert.Equal(t, tt.payload.InviteeEmail, call.Recipient.Email)
+				require.NotNil(t, call.Resource)
+				assert.Equal(t, tt.payload.UID, call.Resource.UID)
+				assert.Equal(t, "Technical Advisory Committee", call.Resource.Name)
+				assert.Equal(t, "group", call.Resource.Type)
+				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
 			}
 		})
 	}
@@ -744,6 +774,49 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	assert.Equal(t, "pending", result.Status)
 	require.NotNil(t, result.Role)
 	assert.Equal(t, "chair", *result.Role)
+
+	sender := svc.inviteSender.(*mockInviteSender)
+	require.Len(t, sender.calls, 1)
+	require.NotNil(t, sender.calls[0].Recipient)
+	assert.Equal(t, "reinvite@example.com", sender.calls[0].Recipient.Email)
+	// SendInviteRequest.Role uses the invite-service permission vocabulary
+	// ("Member"), not the committee role ("chair") which lives on the persisted
+	// invite record and is applied on acceptance.
+	assert.Equal(t, "Member", sender.calls[0].Role)
+}
+
+func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	sender := &mockInviteSender{retErr: assert.AnError}
+	svc.inviteSender = sender
+
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "besteffort@example.com",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "pending", result.Status)
+	// Sender must actually be invoked — otherwise this test would still pass
+	// if dispatch were accidentally removed or short-circuited.
+	require.Len(t, sender.calls, 1)
+	require.NotNil(t, sender.calls[0].Recipient)
+	assert.Equal(t, "besteffort@example.com", sender.calls[0].Recipient.Email)
+}
+
+func TestCreateInvite_NilInviteSenderSkipsDispatch(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	svc.inviteSender = nil
+
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "nosender@example.com",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "pending", result.Status)
 }
 
 func TestCreateInvite_NonRevokedDuplicateRejected(t *testing.T) {
