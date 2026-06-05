@@ -15,6 +15,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // Global mock repository instance to share data between all repositories
@@ -392,10 +393,13 @@ func (m *MockRepository) ListMembersByOrganization(ctx context.Context, orgSFID 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	// Mirror the real NATS KV index (storage.go), which keys on the 18-char canonical SFID: normalize
+	// both sides so a 15-char stored organization.id still matches an 18-char orgSFID (same record).
+	normalizedOrg := utils.NormalizeAccountSFID(orgSFID)
 	var members []*model.CommitteeMember
 	for _, committeeMembers := range m.committeeMembers {
 		for _, member := range committeeMembers {
-			if member.Organization.ID == "" || member.Organization.ID != orgSFID {
+			if member.Organization.ID == "" || utils.NormalizeAccountSFID(member.Organization.ID) != normalizedOrg {
 				continue
 			}
 			memberCopy := *member

@@ -9,8 +9,9 @@ import "strings"
 const sfidSuffixAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
 
 // NormalizeAccountSFID canonicalizes a Salesforce Account id to its 18-character, case-safe form so
-// secondary indexes and lookups key on a single stable value. A 15-char id is upgraded to 18 chars via
-// the standard Salesforce checksum; anything else (already 18 chars, empty, or non-SFID) is returned
+// secondary indexes and lookups key on a single stable value. The function keys on length only: any
+// 15-character input is upgraded to 18 chars via the standard Salesforce checksum (it does not validate
+// that the input is a real SFID); input of any other length (already 18 chars, empty, etc.) is returned
 // trimmed and unchanged. Org Lens routes always carry the 18-char form (ORG_ACCOUNT_ID_PATTERN), so
 // normalizing the stored id keeps the read filter and the index in the same value space.
 //

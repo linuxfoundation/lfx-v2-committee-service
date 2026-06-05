@@ -12,6 +12,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // membersByOrganizationIndexSubcommand backfills the secondary index
@@ -71,7 +72,10 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 			stats.Skipped++
 			continue
 		}
-		if *orgSFID != "" && member.Organization.ID != *orgSFID {
+		// Normalize both sides to the 18-char canonical SFID so a 15-char stored organization.id still
+		// matches an 18-char --org-sfid flag (same Salesforce record); IndexMemberByOrganization keys
+		// on the normalized form, so the filter must too or eligible members are silently skipped.
+		if *orgSFID != "" && utils.NormalizeAccountSFID(member.Organization.ID) != utils.NormalizeAccountSFID(*orgSFID) {
 			stats.Skipped++
 			continue
 		}
