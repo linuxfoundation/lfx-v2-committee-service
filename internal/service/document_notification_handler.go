@@ -153,14 +153,6 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 		recipient := r
 		g.Go(func() error {
 			email := recipient.email
-			if email == "" && m.userReader != nil && recipient.username != "" {
-				lookupCtx, cancel := context.WithTimeout(gctx, committeeNotificationTimeout)
-				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, recipient.username)
-				cancel()
-				if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
-					email = emails.PrimaryEmail
-				}
-			}
 			if email == "" {
 				slog.WarnContext(gctx, "skipping content notification — user has no email address",
 					"committee_uid", item.committeeUID,

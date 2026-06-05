@@ -19,8 +19,13 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
+// testCtx builds a request context with the given principal, as resolveCallerEmail requires.
+func testCtx(principal string) context.Context {
+	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+}
+
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailByPrincipal maps principal → primary email; subs maps email → LFID sub.
+// EmailsByPrincipal maps principal → primary email.
 type mockUserReader struct {
 	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
 	subs        map[string]string              // email → sub/LFID (for SubByEmail)
@@ -67,7 +72,7 @@ func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, 
 	return "", errs.NewNotFound("mock: sub not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
 	if principal == "" {
 		return nil, errs.NewValidation("mock: principal is empty")
 	}
@@ -917,7 +922,7 @@ func TestAcceptInvite(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-accept-test",
@@ -949,7 +954,7 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 
 	// Different user tries to accept someone else's invite
 	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := testCtx("attacker@example.com")
 	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-accept",
@@ -1009,7 +1014,7 @@ func TestDeclineInvite(t *testing.T) {
 			}
 			repo.AddCommitteeInvite(invite)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-decline-test",
@@ -1041,7 +1046,7 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 
 	// Different user tries to decline someone else's invite
 	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := testCtx("attacker@example.com")
 	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-decline",
@@ -1187,7 +1192,7 @@ func TestSubmitApplication(t *testing.T) {
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			msg := "I'd like to join"
 
 			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -1226,7 +1231,7 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 
 	svc.userReader = newMockUserReader("reapplicant@example.com", "reapplicant@example.com")
 	newMsg := "I've improved since last time"
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "reapplicant@example.com")
+	ctx := testCtx("reapplicant@example.com")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 		UID:     "committee-1",
 		Message: &newMsg,
@@ -1257,7 +1262,7 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 			repo.AddCommitteeApplication(existing)
 
 			svc.userReader = newMockUserReader("applicant@example.com", "applicant@example.com")
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "applicant@example.com")
+			ctx := testCtx("applicant@example.com")
 			_, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 				UID: "committee-1",
 			})
@@ -1472,7 +1477,7 @@ func TestJoinCommittee(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
+			ctx := testCtx(tt.username)
 
 			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
 				UID:   "committee-1",
@@ -1541,7 +1546,7 @@ func TestLeaveCommittee(t *testing.T) {
 				mockOrch.deleteError = nil
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 
 			err := svc.LeaveCommittee(ctx, &committeeservice.LeaveCommitteePayload{
 				UID:   "committee-1",
@@ -1648,7 +1653,7 @@ func TestUploadCommitteeDocument_FolderUID(t *testing.T) {
 			svc, linkRepo, _ := setupUploadDocumentService()
 			tt.seedFolder(linkRepo)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "testuser")
+			ctx := testCtx("testuser")
 			payload := &committeeservice.UploadCommitteeDocumentPayload{
 				UID:         committeeUID,
 				Name:        "Test Document",
