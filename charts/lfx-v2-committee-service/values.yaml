@@ -522,6 +522,21 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
+    # ORG_SEAT_PAGE_TOKEN_HMAC_KEY — HMAC signing key for the Org Lens
+    # committee-seat pagination cursor (LFXV2-1865). REQUIRED in
+    # LFX_ENVIRONMENT=prod/staging: the service fails fast at startup if it is
+    # unset there, because the in-repo dev fallback key is public and would make
+    # page tokens forgeable. Sourced from a Kubernetes Secret; operators must
+    # provision the key (or override `name`/`key`) in non-dev environments.
+    # `optional: true` lets local/dev installs start without the secret and use
+    # the dev fallback. The key only needs to be a stable, secret random string
+    # shared across replicas.
+    ORG_SEAT_PAGE_TOKEN_HMAC_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: committee-secrets
+          key: org_seat_page_token_hmac_key
+          optional: true
 
   # otel is the configuration for OpenTelemetry tracing
   otel:

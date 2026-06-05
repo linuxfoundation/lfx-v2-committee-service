@@ -12,6 +12,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -398,13 +399,20 @@ const (
 
 // seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
 // cursor. The key must be stable across replicas and rolling restarts so pagination survives horizontal
-// scaling; override via ORG_SEAT_PAGE_TOKEN_HMAC_KEY in production if desired.
+// scaling. In non-dev environments ORG_SEAT_PAGE_TOKEN_HMAC_KEY is REQUIRED and the service fails fast
+// if it is unset — the dev fallback below is a public, in-repo constant, so signing prod/staging tokens
+// with it would make them forgeable and defeat the opaque-cursor guarantee.
 var seatCursorKey = seatCursorKeyFromConfig()
 
 func seatCursorKeyFromConfig() []byte {
 	if k := os.Getenv("ORG_SEAT_PAGE_TOKEN_HMAC_KEY"); k != "" {
 		return []byte(k)
 	}
+	switch os.Getenv("LFX_ENVIRONMENT") {
+	case "prod", "staging", "stg":
+		log.Fatalf("ORG_SEAT_PAGE_TOKEN_HMAC_KEY is required in LFX_ENVIRONMENT=%q: refusing to sign org-seat page tokens with the public in-repo default key", os.Getenv("LFX_ENVIRONMENT"))
+	}
+	// dev/local: a fixed default keeps pagination stable without requiring a secret to be provisioned.
 	return []byte("lfx-v2-committee-service-org-seat-cursor")
 }
 
