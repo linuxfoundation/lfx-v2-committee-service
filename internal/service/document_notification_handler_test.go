@@ -174,7 +174,7 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 		assert.Empty(t, sender.calls, "users without LFID should not receive emails")
 	})
 
-	t.Run("email backfilled via EmailsByPrincipal when member has no email", func(t *testing.T) {
+	t.Run("member with no stored email is skipped", func(t *testing.T) {
 		noEmailRepo := mock.NewMockRepository()
 		noEmailRepo.AddCommittee(&model.Committee{
 			CommitteeBase:     model.CommitteeBase{UID: "c-noemail", Name: "NoEmail Committee"},
@@ -194,7 +194,6 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 		h := &messageHandlerOrchestrator{
 			committeeReader:     noEmailReader,
 			emailSender:         sender,
-			userReader:          &mockUserReader{primaryEmail: "backfilled@example.com"},
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
 		noEmailDoc := &model.CommitteeDocument{UID: "d1", CommitteeUID: "c-noemail", Name: "Doc", FileName: "doc.pdf", UploadedByUsername: "uploader"}
@@ -202,8 +201,7 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
 
 		assert.NoError(t, err)
-		require.Len(t, sender.calls, 1, "email backfilled via EmailsByPrincipal")
-		assert.Equal(t, "backfilled@example.com", sender.calls[0].To)
+		assert.Empty(t, sender.calls, "member with no stored email should be skipped")
 	})
 
 	t.Run("invalid JSON — returns nil, no panic", func(t *testing.T) {

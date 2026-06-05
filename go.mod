@@ -15,8 +15,8 @@ require (
 	github.com/linuxfoundation/lfx-v2-email-service v0.1.0
 	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17
 	github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16
-	github.com/linuxfoundation/lfx-v2-invite-service v0.1.4-0.20260603200146-27b0e0162e1d
-	github.com/nats-io/nats.go v1.47.0
+	github.com/linuxfoundation/lfx-v2-invite-service v0.1.4
+	github.com/nats-io/nats.go v1.49.0
 	github.com/remychantenay/slog-otel v1.3.4
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
@@ -55,7 +55,7 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.3 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.6 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.1.6 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/manveru/faker v0.0.0-20171103152722-9fbc68a78c4d // indirect
-	github.com/nats-io/nkeys v0.4.11 // indirect
+	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect

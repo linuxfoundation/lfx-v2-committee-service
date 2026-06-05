@@ -457,9 +457,9 @@ func InviteSenderImpl(ctx context.Context) port.InviteSender {
 	return nil
 }
 
-// lfxSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
+// LFXSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
-func lfxSelfServeBaseURL() string {
+func LFXSelfServeBaseURL() string {
 	if url := os.Getenv("LFX_SELF_SERVE_BASE_URL"); url != "" {
 		return url
 	}
@@ -853,7 +853,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
 			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
-			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
+			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(LFXSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),
 		),

@@ -718,16 +718,6 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		g.Go(func() error {
 			u, kind, oldRoles, newRoles := c.user, c.kind, c.oldRoles, c.newRoles
 
-			// For LFID users, look up their email if not already provided.
-			if u.Email == "" && m.userReader != nil && u.Username != "" {
-				lookupCtx, lookupCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
-				emails, lookupErr := m.userReader.EmailsByPrincipal(lookupCtx, u.Username)
-				lookupCancel()
-				if lookupErr == nil && emails != nil && emails.PrimaryEmail != "" {
-					u.Email = emails.PrimaryEmail
-				}
-			}
-
 			// Removed non-LF users get no notification.
 			if kind == roleChangeKindRemoved && u.Username == "" {
 				slog.DebugContext(gctx, "skipping removal notification — non-LF user",

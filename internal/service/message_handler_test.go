@@ -1386,10 +1386,10 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantSendCount: 0,
 		},
 		{
-			name:          "new user has no email but user reader resolves it — email sent",
+			name:          "new user has no stored email — skipped even if user reader is configured",
 			newWriters:    []model.CommitteeUser{noemail},
 			userReader:    &mockUserReader{primaryEmail: "noemail@example.com"},
-			wantSendCount: 1,
+			wantSendCount: 0,
 		},
 		{
 			name:            "no email sender configured — no email sent",

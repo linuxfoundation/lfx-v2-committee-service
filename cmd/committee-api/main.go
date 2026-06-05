@@ -160,6 +160,8 @@ func main() {
 		authService,
 		storage,
 		committeePublisher,
+		service.InviteSenderImpl(ctx),
+		service.LFXSelfServeBaseURL(),
 		userReader,
 		linkReaderUseCase,
 		linkWriterUseCase,
