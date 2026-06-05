@@ -534,7 +534,12 @@ type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesRes
 
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
-type GetOrgCommitteeSeatsResponseBody []*OrgCommitteeSeatResponse
+type GetOrgCommitteeSeatsResponseBody struct {
+	// The committee seats in this page
+	Seats []*OrgCommitteeSeatResponseBody `form:"seats,omitempty" json:"seats,omitempty" xml:"seats,omitempty"`
+	// Opaque cursor for the next page; empty when there are no more results
+	PageToken *string `form:"page_token,omitempty" json:"page_token,omitempty" xml:"page_token,omitempty"`
+}
 
 // ReassignOrgCommitteeSeatResponseBody is the type of the "committee-service"
 // service "reassign-org-committee-seat" endpoint HTTP response body.
@@ -2538,8 +2543,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// OrgCommitteeSeatResponse is used to define fields on response body types.
-type OrgCommitteeSeatResponse struct {
+// OrgCommitteeSeatResponseBody is used to define fields on response body types.
+type OrgCommitteeSeatResponseBody struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -4095,12 +4100,15 @@ func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnav
 	return v
 }
 
-// NewGetOrgCommitteeSeatsOrgCommitteeSeatOK builds a "committee-service"
+// NewGetOrgCommitteeSeatsOrgCommitteeSeatPageOK builds a "committee-service"
 // service "get-org-committee-seats" endpoint result from a HTTP "OK" response.
-func NewGetOrgCommitteeSeatsOrgCommitteeSeatOK(body []*OrgCommitteeSeatResponse) []*committeeservice.OrgCommitteeSeat {
-	v := make([]*committeeservice.OrgCommitteeSeat, len(body))
-	for i, val := range body {
-		v[i] = unmarshalOrgCommitteeSeatResponseToCommitteeserviceOrgCommitteeSeat(val)
+func NewGetOrgCommitteeSeatsOrgCommitteeSeatPageOK(body *GetOrgCommitteeSeatsResponseBody) *committeeservice.OrgCommitteeSeatPage {
+	v := &committeeservice.OrgCommitteeSeatPage{
+		PageToken: body.PageToken,
+	}
+	v.Seats = make([]*committeeservice.OrgCommitteeSeat, len(body.Seats))
+	for i, val := range body.Seats {
+		v.Seats[i] = unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat(val)
 	}
 
 	return v
@@ -6574,6 +6582,22 @@ func ValidateGetCommitteeMemberResponseBody(body *GetCommitteeMemberResponseBody
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetOrgCommitteeSeatsResponseBody runs the validations defined on
+// Get-Org-Committee-SeatsResponseBody
+func ValidateGetOrgCommitteeSeatsResponseBody(body *GetOrgCommitteeSeatsResponseBody) (err error) {
+	if body.Seats == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("seats", "body"))
+	}
+	for _, e := range body.Seats {
+		if e != nil {
+			if err2 := ValidateOrgCommitteeSeatResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
 	}
 	return
 }
@@ -9280,9 +9304,9 @@ func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *Committ
 	return
 }
 
-// ValidateOrgCommitteeSeatResponse runs the validations defined on
-// org-committee-seatResponse
-func ValidateOrgCommitteeSeatResponse(body *OrgCommitteeSeatResponse) (err error) {
+// ValidateOrgCommitteeSeatResponseBody runs the validations defined on
+// org-committee-seatResponseBody
+func ValidateOrgCommitteeSeatResponseBody(body *OrgCommitteeSeatResponseBody) (err error) {
 	if body.UID == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("uid", "body"))
 	}

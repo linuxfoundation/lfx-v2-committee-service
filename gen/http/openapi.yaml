@@ -2540,6 +2540,18 @@ paths:
                   items:
                     type: string
                   collectionFormat: multi
+                - name: page_size
+                  in: query
+                  description: Maximum seats to return in this page (default 100, max 500)
+                  required: false
+                  type: integer
+                  maximum: 500
+                  minimum: 1
+                - name: page_token
+                  in: query
+                  description: Opaque cursor returned by a previous call to fetch the next page
+                  required: false
+                  type: string
                 - name: Authorization
                   in: header
                   description: JWT token issued by Heimdall
@@ -2549,9 +2561,9 @@ paths:
                 "200":
                     description: OK response.
                     schema:
-                        type: array
-                        items:
-                            $ref: '#/definitions/OrgCommitteeSeat'
+                        $ref: '#/definitions/OrgCommitteeSeatPage'
+                        required:
+                            - seats
                 "400":
                     description: Bad Request response.
                     schema:
@@ -3579,12 +3591,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: "287"
+                example: stj
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 0103f8b9-3f82-4527-ae14-7aa23b2af4db
+                example: 74716d5c-f7a8-404b-9560-79be6ac5a9c6
                 format: uuid
             name:
                 type: string
@@ -3597,8 +3609,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: 5o7
-            folder_uid: 836400f7-e52b-4e05-922b-5779e5d6bfe9
+            description: 45a
+            folder_uid: 32fd62b4-e33f-413c-abe4-1fbfc57d982f
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4457,17 +4469,24 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Veniam assumenda.
+                example: Totam provident veniam.
             description:
                 type: string
                 description: Optional description
-                example: svp
+                example: o3t
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 70
+                    - 81
+                    - 117
+                    - 105
+                    - 100
+                    - 101
+                    - 109
+                    - 32
+                    - 102
                     - 97
                     - 99
                     - 101
@@ -4493,19 +4512,12 @@ definitions:
                     - 99
                     - 116
                     - 111
-                    - 32
-                    - 108
-                    - 97
-                    - 98
-                    - 111
-                    - 114
-                    - 101
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Eligendi adipisci nisi totam.
+                example: Placeat soluta facere doloribus autem eligendi adipisci.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4517,10 +4529,19 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Eos aut dolor ea et.
-            description: dnp
+            content_type: Eius voluptas eos aut dolor ea.
+            description: ldn
             file:
-                - 80
+                - 86
+                - 111
+                - 108
+                - 117
+                - 112
+                - 116
+                - 97
+                - 115
+                - 32
+                - 112
                 - 97
                 - 114
                 - 105
@@ -4558,16 +4579,8 @@ definitions:
                 - 114
                 - 117
                 - 109
-                - 32
-                - 113
-                - 117
-                - 97
-                - 101
-                - 114
-                - 97
-                - 116
                 - 46
-            file_name: Qui odit dolor temporibus eius.
+            file_name: Aut qui odit dolor.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4751,7 +4764,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: cwx
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4759,11 +4772,15 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: tji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tji
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4810,7 +4827,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: cwx
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -4818,11 +4835,15 @@ definitions:
                 prompt_version: v1
                 regeneration_count: 0
                 source_refs:
-                    - excerpt: tji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tji
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -4844,7 +4865,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: rj0
+                example: nrj
                 maxLength: 5000
             id:
                 type: string
@@ -4860,7 +4881,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: tel
+            excerpt: ste
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -4965,7 +4986,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: zxj
+                example: szx
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5001,11 +5022,11 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: tji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tji
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5041,7 +5062,7 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: vuy
+            brief_text: 8vu
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             model: fake
@@ -5049,19 +5070,15 @@ definitions:
             prompt_version: v1
             regeneration_count: 0
             source_refs:
-                - excerpt: tji
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: tji
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: tji
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
-                - excerpt: tji
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
@@ -5193,6 +5210,109 @@ definitions:
             - appointed_by
             - organization_id
             - is_org_editable
+    OrgCommitteeSeatPage:
+        title: OrgCommitteeSeatPage
+        type: object
+        properties:
+            page_token:
+                type: string
+                description: Opaque cursor for the next page; empty when there are no more results
+                example: eyJvIjoxMDB9
+            seats:
+                type: array
+                items:
+                    $ref: '#/definitions/OrgCommitteeSeat'
+                description: The committee seats in this page
+                example:
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+        example:
+            page_token: eyJvIjoxMDB9
+            seats:
+                - appointed_by: Membership Entitlement
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  voting_status: Voting Rep
+                - appointed_by: Membership Entitlement
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  voting_status: Voting Rep
+        required:
+            - seats
     ServiceUnavailableError:
         title: ServiceUnavailableError
         type: object

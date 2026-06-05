@@ -868,7 +868,7 @@ func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string
 
 // BuildGetOrgCommitteeSeatsPayload builds the payload for the
 // committee-service get-org-committee-seats endpoint from CLI flags.
-func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID string, committeeServiceGetOrgCommitteeSeatsVersion string, committeeServiceGetOrgCommitteeSeatsProjectUids string, committeeServiceGetOrgCommitteeSeatsBearerToken string) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
+func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID string, committeeServiceGetOrgCommitteeSeatsVersion string, committeeServiceGetOrgCommitteeSeatsProjectUids string, committeeServiceGetOrgCommitteeSeatsPageSize string, committeeServiceGetOrgCommitteeSeatsPageToken string, committeeServiceGetOrgCommitteeSeatsBearerToken string) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
 	var err error
 	var uid string
 	{
@@ -897,6 +897,33 @@ func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID st
 			}
 		}
 	}
+	var pageSize *int
+	{
+		if committeeServiceGetOrgCommitteeSeatsPageSize != "" {
+			var v int64
+			v, err = strconv.ParseInt(committeeServiceGetOrgCommitteeSeatsPageSize, 10, strconv.IntSize)
+			val := int(v)
+			pageSize = &val
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for pageSize, must be INT")
+			}
+			if *pageSize < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 1, true))
+			}
+			if *pageSize > 500 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var pageToken *string
+	{
+		if committeeServiceGetOrgCommitteeSeatsPageToken != "" {
+			pageToken = &committeeServiceGetOrgCommitteeSeatsPageToken
+		}
+	}
 	var bearerToken *string
 	{
 		if committeeServiceGetOrgCommitteeSeatsBearerToken != "" {
@@ -907,6 +934,8 @@ func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID st
 	v.UID = uid
 	v.Version = version
 	v.ProjectUids = projectUids
+	v.PageSize = pageSize
+	v.PageToken = pageToken
 	v.BearerToken = bearerToken
 
 	return v, nil
@@ -1922,7 +1951,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vwi\",\n      \"folder_uid\": \"898e8171-0018-4748-9272-505a150ef4b5\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2275,7 +2304,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Velit voluptate ut ullam totam quo consequatur.\",\n      \"description\": \"jly\",\n      \"file\": \"T21uaXMgZXQgb21uaXMgYWNjdXNhbXVzIGxhYm9yZSBxdWlkZW0u\",\n      \"file_name\": \"Corrupti numquam consequatur omnis.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))

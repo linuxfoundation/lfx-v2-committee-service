@@ -522,6 +522,17 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	dsl.Required("uid", "committee_uid", "committee_name", "committee_category", "first_name", "last_name", "email", "role_name", "voting_status", "appointed_by", "organization_id", "is_org_editable")
 })
 
+// OrgCommitteeSeatPageType is the paginated result of get-org-committee-seats: a page of seats plus an
+// opaque next-page cursor (LFXV2-1865). The cursor is empty/omitted when there are no further results.
+var OrgCommitteeSeatPageType = dsl.Type("org-committee-seat-page", func() {
+	dsl.Description("A page of an organization's committee seats with an optional next-page cursor.")
+	dsl.Attribute("seats", dsl.ArrayOf(OrgCommitteeSeatType), "The committee seats in this page")
+	dsl.Attribute("page_token", dsl.String, "Opaque cursor for the next page; empty when there are no more results", func() {
+		dsl.Example("eyJvIjoxMDB9")
+	})
+	dsl.Required("seats")
+})
+
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
 func CommitteeMemberCreateAttributes() {
 	CommitteeMemberBaseAttributes()

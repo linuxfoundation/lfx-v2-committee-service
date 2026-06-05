@@ -955,49 +955,38 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Velit voluptate ut ullam totam quo consequatur.
-                            description: jly
+                            content_type: Quae velit voluptate.
+                            description: fi3
                             file:
-                                - 79
-                                - 109
-                                - 110
-                                - 105
-                                - 115
-                                - 32
-                                - 101
-                                - 116
-                                - 32
-                                - 111
-                                - 109
-                                - 110
-                                - 105
-                                - 115
-                                - 32
-                                - 97
-                                - 99
-                                - 99
-                                - 117
-                                - 115
-                                - 97
-                                - 109
-                                - 117
-                                - 115
-                                - 32
+                                - 85
+                                - 108
                                 - 108
                                 - 97
-                                - 98
+                                - 109
+                                - 32
+                                - 116
                                 - 111
-                                - 114
-                                - 101
+                                - 116
+                                - 97
+                                - 109
                                 - 32
                                 - 113
                                 - 117
-                                - 105
-                                - 100
+                                - 111
+                                - 32
+                                - 99
+                                - 111
+                                - 110
+                                - 115
                                 - 101
-                                - 109
+                                - 113
+                                - 117
+                                - 97
+                                - 116
+                                - 117
+                                - 114
                                 - 46
-                            file_name: Corrupti numquam consequatur omnis.
+                            file_name: Error pariatur debitis corrupti numquam consequatur.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -2579,8 +2568,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: vwi
-                            folder_uid: 898e8171-0018-4748-9272-505a150ef4b5
+                            description: vao
+                            folder_uid: 26ffc95d-19b3-4264-bd42-f535e0d919c7
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3605,7 +3594,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefCurrentResult'
                             example:
                                 brief:
-                                    brief_text: cwx
+                                    brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3613,11 +3602,15 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: tji
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: tji
+                                        - excerpt: 0jc
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3720,7 +3713,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefGenerateResult'
                             example:
                                 brief:
-                                    brief_text: cwx
+                                    brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     model: fake
@@ -3728,11 +3721,15 @@ paths:
                                     prompt_version: v1
                                     regeneration_count: 0
                                     source_refs:
-                                        - excerpt: tji
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: tji
+                                        - excerpt: 0jc
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: 0jc
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3855,73 +3852,79 @@ paths:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                   example:
                     - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: page_size
+                  in: query
+                  description: Maximum seats to return in this page (default 100, max 500)
+                  allowEmptyValue: true
+                  schema:
+                    type: integer
+                    description: Maximum seats to return in this page (default 100, max 500)
+                    example: 100
+                    format: int64
+                    minimum: 1
+                    maximum: 500
+                  example: 100
+                - name: page_token
+                  in: query
+                  description: Opaque cursor returned by a previous call to fetch the next page
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Opaque cursor returned by a previous call to fetch the next page
+                    example: eyJvIjoxMDB9
+                  example: eyJvIjoxMDB9
             responses:
                 "200":
                     description: OK response.
                     content:
                         application/json:
                             schema:
-                                type: array
-                                items:
-                                    $ref: '#/components/schemas/OrgCommitteeSeat'
-                                example:
-                                    - appointed_by: Membership Entitlement
-                                      committee_category: Board
-                                      committee_name: Technical Steering Committee
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      email: user@example.com
-                                      first_name: John
-                                      is_org_editable: true
-                                      job_title: Chief Technology Officer
-                                      last_name: Doe
-                                      organization_id: 001B000000IqhSLIAZ
-                                      reason: This seat is foundation-controlled.
-                                      role_name: Chair
-                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                      voting_status: Voting Rep
-                                    - appointed_by: Membership Entitlement
-                                      committee_category: Board
-                                      committee_name: Technical Steering Committee
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      email: user@example.com
-                                      first_name: John
-                                      is_org_editable: true
-                                      job_title: Chief Technology Officer
-                                      last_name: Doe
-                                      organization_id: 001B000000IqhSLIAZ
-                                      reason: This seat is foundation-controlled.
-                                      role_name: Chair
-                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                      voting_status: Voting Rep
+                                $ref: '#/components/schemas/OrgCommitteeSeatPage'
                             example:
-                                - appointed_by: Membership Entitlement
-                                  committee_category: Board
-                                  committee_name: Technical Steering Committee
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  email: user@example.com
-                                  first_name: John
-                                  is_org_editable: true
-                                  job_title: Chief Technology Officer
-                                  last_name: Doe
-                                  organization_id: 001B000000IqhSLIAZ
-                                  reason: This seat is foundation-controlled.
-                                  role_name: Chair
-                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                  voting_status: Voting Rep
-                                - appointed_by: Membership Entitlement
-                                  committee_category: Board
-                                  committee_name: Technical Steering Committee
-                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  email: user@example.com
-                                  first_name: John
-                                  is_org_editable: true
-                                  job_title: Chief Technology Officer
-                                  last_name: Doe
-                                  organization_id: 001B000000IqhSLIAZ
-                                  reason: This seat is foundation-controlled.
-                                  role_name: Chair
-                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                  voting_status: Voting Rep
+                                page_token: eyJvIjoxMDB9
+                                seats:
+                                    - appointed_by: Membership Entitlement
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: John
+                                      is_org_editable: true
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      organization_id: 001B000000IqhSLIAZ
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      voting_status: Voting Rep
+                                    - appointed_by: Membership Entitlement
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: John
+                                      is_org_editable: true
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      organization_id: 001B000000IqhSLIAZ
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      voting_status: Voting Rep
+                                    - appointed_by: Membership Entitlement
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: John
+                                      is_org_editable: true
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      organization_id: 001B000000IqhSLIAZ
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      voting_status: Voting Rep
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -5821,7 +5824,7 @@ components:
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: db7c00c0-176e-4f54-88c4-acc1f03f50dd
+                    example: 992000c0-176e-4f54-88c4-acc1f03f50dd
                     format: uuid
                 name:
                     type: string
@@ -6363,7 +6366,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: 7sh
+                    example: shn
                     maxLength: 5000
                 id:
                     type: string
@@ -6379,7 +6382,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: l10
+                excerpt: 10k
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -6481,7 +6484,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: 4bi
+                    example: bib
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6529,10 +6532,6 @@ components:
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
                 state:
                     type: string
                     description: Lifecycle state
@@ -6565,7 +6564,7 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: hc0
+                brief_text: c0x
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 model: fake
@@ -6704,6 +6703,137 @@ components:
                 - appointed_by
                 - organization_id
                 - is_org_editable
+        OrgCommitteeSeatPage:
+            type: object
+            properties:
+                page_token:
+                    type: string
+                    description: Opaque cursor for the next page; empty when there are no more results
+                    example: eyJvIjoxMDB9
+                seats:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OrgCommitteeSeat'
+                    description: The committee seats in this page
+                    example:
+                        - appointed_by: Membership Entitlement
+                          committee_category: Board
+                          committee_name: Technical Steering Committee
+                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          email: user@example.com
+                          first_name: John
+                          is_org_editable: true
+                          job_title: Chief Technology Officer
+                          last_name: Doe
+                          organization_id: 001B000000IqhSLIAZ
+                          reason: This seat is foundation-controlled.
+                          role_name: Chair
+                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                          voting_status: Voting Rep
+                        - appointed_by: Membership Entitlement
+                          committee_category: Board
+                          committee_name: Technical Steering Committee
+                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          email: user@example.com
+                          first_name: John
+                          is_org_editable: true
+                          job_title: Chief Technology Officer
+                          last_name: Doe
+                          organization_id: 001B000000IqhSLIAZ
+                          reason: This seat is foundation-controlled.
+                          role_name: Chair
+                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                          voting_status: Voting Rep
+                        - appointed_by: Membership Entitlement
+                          committee_category: Board
+                          committee_name: Technical Steering Committee
+                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          email: user@example.com
+                          first_name: John
+                          is_org_editable: true
+                          job_title: Chief Technology Officer
+                          last_name: Doe
+                          organization_id: 001B000000IqhSLIAZ
+                          reason: This seat is foundation-controlled.
+                          role_name: Chair
+                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                          voting_status: Voting Rep
+                        - appointed_by: Membership Entitlement
+                          committee_category: Board
+                          committee_name: Technical Steering Committee
+                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          email: user@example.com
+                          first_name: John
+                          is_org_editable: true
+                          job_title: Chief Technology Officer
+                          last_name: Doe
+                          organization_id: 001B000000IqhSLIAZ
+                          reason: This seat is foundation-controlled.
+                          role_name: Chair
+                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                          voting_status: Voting Rep
+            description: A page of an organization's committee seats with an optional next-page cursor.
+            example:
+                page_token: eyJvIjoxMDB9
+                seats:
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+                    - appointed_by: Membership Entitlement
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      voting_status: Voting Rep
+            required:
+                - seats
         ReassignOrgCommitteeSeatRequestBody:
             type: object
             properties:

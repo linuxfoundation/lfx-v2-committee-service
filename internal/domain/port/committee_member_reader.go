@@ -17,6 +17,9 @@ type CommitteeMemberReader interface {
 	GetMemberRevision(ctx context.Context, uid string) (uint64, error)
 	// ListMembersByCommittee retrieves all members for a given committee UID using the secondary index.
 	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
+	// ListMembersByOrganization retrieves all members held by an organization (by the SFID on
+	// committee_member.organization.id) using the by-organization secondary index (Org Lens, LFXV2-1865).
+	ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error)
 	// ListAllMembers retrieves every member across all committees via a full bucket scan.
 	// This is intended only for backfill/repair operations that must read all members
 	// independently of the secondary index.

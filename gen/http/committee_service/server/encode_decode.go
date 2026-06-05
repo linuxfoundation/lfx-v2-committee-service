@@ -1249,7 +1249,7 @@ func EncodeGetCommitteeMemberError(encoder func(context.Context, http.ResponseWr
 // by the committee-service get-org-committee-seats endpoint.
 func EncodeGetOrgCommitteeSeatsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
 	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.([]*committeeservice.OrgCommitteeSeat)
+		res, _ := v.(*committeeservice.OrgCommitteeSeatPage)
 		enc := encoder(ctx, w)
 		body := NewGetOrgCommitteeSeatsResponseBody(res)
 		w.WriteHeader(http.StatusOK)
@@ -1265,6 +1265,8 @@ func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Req
 			uid         string
 			version     string
 			projectUids []string
+			pageSize    *int
+			pageToken   *string
 			bearerToken *string
 			err         error
 
@@ -1281,6 +1283,31 @@ func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Req
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
 		}
 		projectUids = qp["project_uids"]
+		{
+			pageSizeRaw := qp.Get("page_size")
+			if pageSizeRaw != "" {
+				v, err2 := strconv.ParseInt(pageSizeRaw, 10, strconv.IntSize)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("page_size", pageSizeRaw, "integer"))
+				}
+				pv := int(v)
+				pageSize = &pv
+			}
+		}
+		if pageSize != nil {
+			if *pageSize < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 1, true))
+			}
+		}
+		if pageSize != nil {
+			if *pageSize > 500 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			}
+		}
+		pageTokenRaw := qp.Get("page_token")
+		if pageTokenRaw != "" {
+			pageToken = &pageTokenRaw
+		}
 		bearerTokenRaw := r.Header.Get("Authorization")
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
@@ -1288,7 +1315,7 @@ func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Req
 		if err != nil {
 			return nil, err
 		}
-		payload := NewGetOrgCommitteeSeatsPayload(uid, version, projectUids, bearerToken)
+		payload := NewGetOrgCommitteeSeatsPayload(uid, version, projectUids, pageSize, pageToken, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -5428,11 +5455,11 @@ func marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody
 	return res
 }
 
-// marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponse builds a
-// value of type *OrgCommitteeSeatResponse from a value of type
+// marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody builds
+// a value of type *OrgCommitteeSeatResponseBody from a value of type
 // *committeeservice.OrgCommitteeSeat.
-func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponse(v *committeeservice.OrgCommitteeSeat) *OrgCommitteeSeatResponse {
-	res := &OrgCommitteeSeatResponse{
+func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *committeeservice.OrgCommitteeSeat) *OrgCommitteeSeatResponseBody {
+	res := &OrgCommitteeSeatResponseBody{
 		UID:               v.UID,
 		CommitteeUID:      v.CommitteeUID,
 		CommitteeName:     v.CommitteeName,

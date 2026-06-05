@@ -107,6 +107,8 @@ func ParseEndpoint(
 		committeeServiceGetOrgCommitteeSeatsUIDFlag         = committeeServiceGetOrgCommitteeSeatsFlags.String("uid", "REQUIRED", "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)")
 		committeeServiceGetOrgCommitteeSeatsVersionFlag     = committeeServiceGetOrgCommitteeSeatsFlags.String("version", "REQUIRED", "")
 		committeeServiceGetOrgCommitteeSeatsProjectUidsFlag = committeeServiceGetOrgCommitteeSeatsFlags.String("project-uids", "", "")
+		committeeServiceGetOrgCommitteeSeatsPageSizeFlag    = committeeServiceGetOrgCommitteeSeatsFlags.String("page-size", "", "")
+		committeeServiceGetOrgCommitteeSeatsPageTokenFlag   = committeeServiceGetOrgCommitteeSeatsFlags.String("page-token", "", "")
 		committeeServiceGetOrgCommitteeSeatsBearerTokenFlag = committeeServiceGetOrgCommitteeSeatsFlags.String("bearer-token", "", "")
 
 		committeeServiceReassignOrgCommitteeSeatFlags           = flag.NewFlagSet("reassign-org-committee-seat", flag.ExitOnError)
@@ -541,7 +543,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildGetCommitteeMemberPayload(*committeeServiceGetCommitteeMemberUIDFlag, *committeeServiceGetCommitteeMemberMemberUIDFlag, *committeeServiceGetCommitteeMemberVersionFlag, *committeeServiceGetCommitteeMemberBearerTokenFlag)
 			case "get-org-committee-seats":
 				endpoint = c.GetOrgCommitteeSeats()
-				data, err = committeeservicec.BuildGetOrgCommitteeSeatsPayload(*committeeServiceGetOrgCommitteeSeatsUIDFlag, *committeeServiceGetOrgCommitteeSeatsVersionFlag, *committeeServiceGetOrgCommitteeSeatsProjectUidsFlag, *committeeServiceGetOrgCommitteeSeatsBearerTokenFlag)
+				data, err = committeeservicec.BuildGetOrgCommitteeSeatsPayload(*committeeServiceGetOrgCommitteeSeatsUIDFlag, *committeeServiceGetOrgCommitteeSeatsVersionFlag, *committeeServiceGetOrgCommitteeSeatsProjectUidsFlag, *committeeServiceGetOrgCommitteeSeatsPageSizeFlag, *committeeServiceGetOrgCommitteeSeatsPageTokenFlag, *committeeServiceGetOrgCommitteeSeatsBearerTokenFlag)
 			case "reassign-org-committee-seat":
 				endpoint = c.ReassignOrgCommitteeSeat()
 				data, err = committeeservicec.BuildReassignOrgCommitteeSeatPayload(*committeeServiceReassignOrgCommitteeSeatBodyFlag, *committeeServiceReassignOrgCommitteeSeatUIDFlag, *committeeServiceReassignOrgCommitteeSeatMemberUIDFlag, *committeeServiceReassignOrgCommitteeSeatVersionFlag, *committeeServiceReassignOrgCommitteeSeatBearerTokenFlag)
@@ -923,6 +925,8 @@ func committeeServiceGetOrgCommitteeSeatsUsage() {
 	fmt.Fprint(os.Stderr, " -uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -project-uids JSON")
+	fmt.Fprint(os.Stderr, " -page-size INT")
+	fmt.Fprint(os.Stderr, " -page-token STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprintln(os.Stderr)
 
@@ -934,11 +938,13 @@ func committeeServiceGetOrgCommitteeSeatsUsage() {
 	fmt.Fprintln(os.Stderr, `    -uid STRING: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -project-uids JSON: `)
+	fmt.Fprintln(os.Stderr, `    -page-size INT: `)
+	fmt.Fprintln(os.Stderr, `    -page-token STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-org-committee-seats --uid \"001B000000IqhSLIAZ\" --version \"1\" --project-uids '[\n      \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\"\n   ]' --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-org-committee-seats --uid \"001B000000IqhSLIAZ\" --version \"1\" --project-uids '[\n      \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\"\n   ]' --page-size 100 --page-token \"eyJvIjoxMDB9\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceReassignOrgCommitteeSeatUsage() {
@@ -1342,7 +1348,7 @@ func committeeServiceListCommitteeLinksUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66f89-4adb-4552-9b96-ef3885780a4d\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"8fa66f6c-bfc9-45d7-a3f1-05be0d9693cb\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateCommitteeLinkUsage() {
@@ -1368,7 +1374,7 @@ func committeeServiceCreateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"vwi\",\n      \"folder_uid\": \"898e8171-0018-4748-9272-505a150ef4b5\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeLinkUsage() {
@@ -1522,7 +1528,7 @@ func committeeServiceUploadCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Velit voluptate ut ullam totam quo consequatur.\",\n      \"description\": \"jly\",\n      \"file\": \"T21uaXMgZXQgb21uaXMgYWNjdXNhbXVzIGxhYm9yZSBxdWlkZW0u\",\n      \"file_name\": \"Corrupti numquam consequatur omnis.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeDocumentUsage() {

@@ -115,23 +115,69 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Len(t, res, 2)
+		require.NotNil(t, res)
+		require.Len(t, res.Seats, 2)
+		assert.Nil(t, res.PageToken, "single page → no next cursor")
 
-		// Membership-Entitlement seat is editable with no reason.
-		assert.True(t, res[0].IsOrgEditable)
-		assert.Nil(t, res[0].Reason)
-		assert.Equal(t, "Voting Rep", res[0].VotingStatus)
-		assert.Equal(t, "Director", res[0].RoleName)
-		assert.Equal(t, testOrgSFID, res[0].OrganizationID)
+		// Seats are sorted by UID: m-1 (editable) then m-2 (non-editable).
+		assert.True(t, res.Seats[0].IsOrgEditable)
+		assert.Nil(t, res.Seats[0].Reason)
+		assert.Equal(t, "Voting Rep", res.Seats[0].VotingStatus)
+		assert.Equal(t, "Director", res.Seats[0].RoleName)
+		assert.Equal(t, testOrgSFID, res.Seats[0].OrganizationID)
 
 		// Non-entitlement seat is not editable and carries a reason.
-		assert.False(t, res[1].IsOrgEditable)
-		require.NotNil(t, res[1].Reason)
-		assert.NotEmpty(t, *res[1].Reason)
+		assert.False(t, res.Seats[1].IsOrgEditable)
+		require.NotNil(t, res.Seats[1].Reason)
+		assert.NotEmpty(t, *res.Seats[1].Reason)
 
 		// Org + project family forwarded to the reader unchanged.
 		assert.Equal(t, testOrgSFID, reader.gotOrg)
 		assert.Equal(t, []string{"p-1", "p-2"}, reader.gotProjects)
+	})
+
+	t.Run("paginates with page_size and an opaque page_token", func(t *testing.T) {
+		// 5 entitlement seats with sortable UIDs m-1..m-5.
+		var seats []*model.CommitteeMember
+		for _, id := range []string{"m-3", "m-1", "m-5", "m-2", "m-4"} {
+			s := entitlementSeat()
+			s.UID = id
+			seats = append(seats, s)
+		}
+		reader := &stubOrgSeatReader{members: seats}
+		svc := &committeeServicesrvc{orgSeatReader: reader}
+		size := 2
+
+		// Page 1.
+		p1, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID, PageSize: &size})
+		require.NoError(t, err)
+		require.Len(t, p1.Seats, 2)
+		require.NotNil(t, p1.PageToken)
+		assert.Equal(t, "m-1", p1.Seats[0].UID)
+		assert.Equal(t, "m-2", p1.Seats[1].UID)
+
+		// Page 2 via the returned cursor.
+		p2, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID, PageSize: &size, PageToken: p1.PageToken})
+		require.NoError(t, err)
+		require.Len(t, p2.Seats, 2)
+		require.NotNil(t, p2.PageToken)
+		assert.Equal(t, "m-3", p2.Seats[0].UID)
+		assert.Equal(t, "m-4", p2.Seats[1].UID)
+
+		// Page 3 — last seat, no further cursor.
+		p3, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID, PageSize: &size, PageToken: p2.PageToken})
+		require.NoError(t, err)
+		require.Len(t, p3.Seats, 1)
+		assert.Nil(t, p3.PageToken)
+		assert.Equal(t, "m-5", p3.Seats[0].UID)
+	})
+
+	t.Run("malformed page_token is a bad request", func(t *testing.T) {
+		reader := &stubOrgSeatReader{members: []*model.CommitteeMember{entitlementSeat()}}
+		svc := &committeeServicesrvc{orgSeatReader: reader}
+		bad := "!!!not-base64!!!"
+		_, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID, PageToken: &bad})
+		assertGoaErrContains(t, err, "page_token")
 	})
 
 	t.Run("reader not configured returns service unavailable", func(t *testing.T) {

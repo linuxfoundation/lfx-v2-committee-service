@@ -269,13 +269,13 @@ func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPa
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
-func (c *Client) GetOrgCommitteeSeats(ctx context.Context, p *GetOrgCommitteeSeatsPayload) (res []*OrgCommitteeSeat, err error) {
+func (c *Client) GetOrgCommitteeSeats(ctx context.Context, p *GetOrgCommitteeSeatsPayload) (res *OrgCommitteeSeatPage, err error) {
 	var ires any
 	ires, err = c.GetOrgCommitteeSeatsEndpoint(ctx, p)
 	if err != nil {
 		return
 	}
-	return ires.([]*OrgCommitteeSeat), nil
+	return ires.(*OrgCommitteeSeatPage), nil
 }
 
 // ReassignOrgCommitteeSeat calls the "reassign-org-committee-seat" endpoint of

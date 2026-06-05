@@ -17,6 +17,7 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
@@ -255,6 +256,23 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		)
 		rollbackRequired = true
 		return nil, errIndex
+	}
+
+	// Step 8c: Write the organization→member secondary index (Org Lens, LFXV2-1865) so a company's
+	// committee seats can be listed from committee-service's own KV without a query-service call.
+	// No-op (empty key) for members with no organization.id.
+	orgIndexKey, errOrgIndex := uc.committeeWriter.IndexMemberByOrganization(ctx, member)
+	if orgIndexKey != "" {
+		keys = append(keys, orgIndexKey)
+	}
+	if errOrgIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member organization index",
+			"error", errOrgIndex,
+			"organization_id", member.Organization.ID,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errOrgIndex
 	}
 
 	slog.DebugContext(ctx, "committee member created successfully",
@@ -532,6 +550,33 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		"organization_changed", organizationChanged,
 	)
 
+	// Step 7b: Reconcile the organization→member secondary index (Org Lens, LFXV2-1865) when the
+	// holding org id changes. The committee→member index is immutable on update (committee_uid can't
+	// change), but organization.id can — so write the new entry (tracked in newKeys for rollback if
+	// the update fails) and mark the old entry stale for cleanup after a successful update.
+	oldOrgSFID := utils.NormalizeAccountSFID(existing.Organization.ID)
+	newOrgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if oldOrgSFID != newOrgSFID {
+		if newOrgSFID != "" {
+			newOrgIndexKey, errOrgIndex := uc.committeeWriter.IndexMemberByOrganization(ctx, member)
+			if newOrgIndexKey != "" {
+				newKeys = append(newKeys, newOrgIndexKey)
+			}
+			if errOrgIndex != nil {
+				slog.ErrorContext(ctx, "failed to write organization index during member update",
+					"error", errOrgIndex,
+					"organization_id", member.Organization.ID,
+					"member_uid", member.UID,
+				)
+				rollbackRequired = true
+				return nil, errOrgIndex
+			}
+		}
+		if oldOrgSFID != "" {
+			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, oldOrgSFID, existing.UID))
+		}
+	}
+
 	// Step 8: Update the member in storage
 	updatedMember, errUpdate := uc.committeeWriter.UpdateMember(ctx, member, revision)
 	if errUpdate != nil {
@@ -636,6 +681,12 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	membersByCommitteeKey := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, existing.CommitteeUID, existing.UID)
 	indicesToDelete = append(indicesToDelete, membersByCommitteeKey)
 
+	// Build organization→member secondary index key (Org Lens, LFXV2-1865) so it is cleaned up on
+	// delete. Only present when the member had an organization.id; normalized to match the write side.
+	if orgSFID := utils.NormalizeAccountSFID(existing.Organization.ID); orgSFID != "" {
+		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, existing.UID))
+	}
+
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
 		"member_uid", uid,
 		"indices_count", len(indicesToDelete),
@@ -679,6 +730,66 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	)
 
 	return nil
+}
+
+// ReassignMember atomically replaces the holder of an existing seat for the Org Lens reassign flow
+// (LFXV2-1865): it creates newMember (which runs the full create pipeline — validation, secondary
+// indices by committee + organization, FGA, indexer publish) and then deletes the old member at
+// oldRevision. NATS KV has no multi-key transaction, so atomicity is achieved with the codebase's
+// defined rollback pattern: if the delete fails, the just-created member is rolled back (deleted) so
+// the reassign never leaves a duplicate seat. If the rollback ALSO fails, the error is returned so the
+// caller knows manual recovery is required. Returns the created member on success.
+func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "executing reassign committee member use case",
+		"old_member_uid", oldMemberUID,
+		"committee_uid", newMember.CommitteeUID,
+		"new_member_email", redaction.RedactEmail(newMember.Email),
+	)
+
+	// Create the replacement holder first. CreateMember owns its own internal rollback for partial
+	// create failures, so on error nothing is left behind and the old seat is untouched.
+	created, errCreate := uc.CreateMember(ctx, newMember, sync)
+	if errCreate != nil {
+		return nil, errCreate
+	}
+
+	// Delete the old holder. On success the reassign is complete.
+	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+		// Roll back the newly-created holder so no duplicate seat remains. Look up its current
+		// revision first (DeleteMember enforces optimistic locking).
+		var errRollback error
+		if created != nil && created.UID != "" {
+			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {
+				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync)
+			} else {
+				errRollback = errGet
+			}
+		}
+		if errRollback != nil {
+			slog.ErrorContext(ctx, "reassign rollback failed; duplicate committee seat may remain",
+				"committee_uid", newMember.CommitteeUID,
+				"old_member_uid", oldMemberUID,
+				"new_member_uid", created.UID,
+				"delete_error", errDelete,
+				"rollback_error", errRollback,
+			)
+			return nil, errs.NewUnexpected("reassign failed and rollback of the new seat also failed; manual recovery required", errRollback)
+		}
+		slog.WarnContext(ctx, "reassign delete failed; rolled back the new seat",
+			"committee_uid", newMember.CommitteeUID,
+			"old_member_uid", oldMemberUID,
+			"new_member_uid", created.UID,
+			"error", errDelete,
+		)
+		return nil, errDelete
+	}
+
+	slog.DebugContext(ctx, "committee member reassigned successfully",
+		"old_member_uid", oldMemberUID,
+		"new_member_uid", created.UID,
+		"committee_uid", newMember.CommitteeUID,
+	)
+	return created, nil
 }
 
 // validateCorporateEmailDomain validates if the email domain is a corporate domain

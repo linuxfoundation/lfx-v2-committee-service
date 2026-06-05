@@ -39,7 +39,7 @@ type Service interface {
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
 	// List a B2B organization's committee seats across the membership project
 	// family (Org Lens Board & Committee tab)
-	GetOrgCommitteeSeats(context.Context, *GetOrgCommitteeSeatsPayload) (res []*OrgCommitteeSeat, err error)
+	GetOrgCommitteeSeats(context.Context, *GetOrgCommitteeSeatsPayload) (res *OrgCommitteeSeatPage, err error)
 	// Reassign a Membership-Entitlement committee seat to a new holder (Org Lens
 	// Board & Committee tab)
 	ReassignOrgCommitteeSeat(context.Context, *ReassignOrgCommitteeSeatPayload) (res *OrgCommitteeSeat, err error)
@@ -973,6 +973,10 @@ type GetOrgCommitteeSeatsPayload struct {
 	// Resolved project-family UIDs (foundation root + descendants) the BFF scopes
 	// seats to
 	ProjectUids []string
+	// Maximum seats to return in this page (default 100, max 500)
+	PageSize *int
+	// Opaque cursor returned by a previous call to fetch the next page
+	PageToken *string
 }
 
 // GroupWeeklyBriefCurrentResult is the result type of the committee-service
@@ -1134,6 +1138,15 @@ type OrgCommitteeSeat struct {
 	IsOrgEditable bool
 	// Why the seat is not editable (empty when editable)
 	Reason *string
+}
+
+// OrgCommitteeSeatPage is the result type of the committee-service service
+// get-org-committee-seats method.
+type OrgCommitteeSeatPage struct {
+	// The committee seats in this page
+	Seats []*OrgCommitteeSeat
+	// Opaque cursor for the next page; empty when there are no more results
+	PageToken *string
 }
 
 // ReassignOrgCommitteeSeatPayload is the payload type of the committee-service

@@ -384,6 +384,27 @@ func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUI
 	return members, nil
 }
 
+// ListMembersByOrganization retrieves all members held by an organization (by the SFID on
+// committee_member.organization.id) across all committees (Org Lens, LFXV2-1865).
+func (m *MockRepository) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by organization", "org_sfid", orgSFID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if member.Organization.ID == "" || member.Organization.ID != orgSFID {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
 // ListAllMembers retrieves all members across all committees (full scan).
 // Used for backfill/repair operations that need to read all members regardless of the index.
 func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
@@ -701,6 +722,21 @@ func (w *MockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member
 		"member_uid", member.UID,
 	)
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	return key, nil
+}
+
+// IndexMemberByOrganization records the by-organization secondary index entry (Org Lens, LFXV2-1865).
+// In the mock this is a no-op; it returns the key the real storage would write (empty when the member
+// has no organization.id) so callers can track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by organization",
+		"organization_id", member.Organization.ID,
+		"member_uid", member.UID,
+	)
+	if member.Organization.ID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, member.Organization.ID, member.UID)
 	return key, nil
 }
 
