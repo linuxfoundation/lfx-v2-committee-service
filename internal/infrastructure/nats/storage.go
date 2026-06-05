@@ -640,6 +640,7 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 	if errKeys != nil {
 		return nil, errs.NewUnexpected("failed to list member index keys for organization", errKeys)
 	}
+	defer func() { _ = keys.Stop() }()
 
 	var members []*model.CommitteeMember
 

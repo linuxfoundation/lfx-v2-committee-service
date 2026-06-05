@@ -6,7 +6,6 @@ package service
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -397,17 +397,15 @@ const (
 )
 
 // seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
-// cursor. committee-service runs a single replica (replicaCount=1), so a process-scoped random key is
-// sufficient; a process restart simply invalidates outstanding page tokens (the client restarts paging).
-var seatCursorKey = newSeatCursorKey()
+// cursor. The key must be stable across replicas and rolling restarts so pagination survives horizontal
+// scaling; override via ORG_SEAT_PAGE_TOKEN_HMAC_KEY in production if desired.
+var seatCursorKey = seatCursorKeyFromConfig()
 
-func newSeatCursorKey() []byte {
-	k := make([]byte, 32)
-	if _, err := rand.Read(k); err != nil {
-		// RNG should never fail; fall back to a fixed key so token signing still functions.
-		return []byte("lfx-v2-committee-service-org-seat-cursor")
+func seatCursorKeyFromConfig() []byte {
+	if k := os.Getenv("ORG_SEAT_PAGE_TOKEN_HMAC_KEY"); k != "" {
+		return []byte(k)
 	}
-	return k
+	return []byte("lfx-v2-committee-service-org-seat-cursor")
 }
 
 // encodeSeatCursor produces an opaque, HMAC-signed page token for the keyset position (the last UID
@@ -415,7 +413,7 @@ func newSeatCursorKey() []byte {
 func encodeSeatCursor(afterUID string) string {
 	mac := hmac.New(sha256.New, seatCursorKey)
 	mac.Write([]byte(afterUID))
-	return base64.RawURLEncoding.EncodeToString(append(mac.Sum(nil), afterUID...))
+	return base64.RawURLEncoding.EncodeToString(append(mac.Sum(nil), []byte(afterUID)...))
 }
 
 // decodeSeatCursor verifies a page token's signature and returns the keyset position. A nil/empty token

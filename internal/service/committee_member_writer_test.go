@@ -17,6 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
@@ -141,10 +142,11 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context
 }
 
 func (w *TestMockCommitteeMemberWriter) IndexMemberByOrganization(_ context.Context, member *model.CommitteeMember) (string, error) {
-	if member.Organization.ID == "" {
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
 		return "", nil
 	}
-	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, member.Organization.ID, member.UID)
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
 	w.indexedKeys = append(w.indexedKeys, key)
 	return key, nil
 }
