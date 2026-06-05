@@ -11,6 +11,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -1516,6 +1517,12 @@ func EncodeGetOrgCommitteeSeatsRequest(encoder func(*http.Request) goahttp.Encod
 		for _, value := range p.ProjectUids {
 			values.Add("project_uids", value)
 		}
+		if p.PageSize != nil {
+			values.Add("page_size", fmt.Sprintf("%v", *p.PageSize))
+		}
+		if p.PageToken != nil {
+			values.Add("page_token", *p.PageToken)
+		}
 		req.URL.RawQuery = values.Encode()
 		return nil
 	}
@@ -1553,17 +1560,11 @@ func DecodeGetOrgCommitteeSeatsResponse(decoder func(*http.Response) goahttp.Dec
 			if err != nil {
 				return nil, goahttp.ErrDecodingError("committee-service", "get-org-committee-seats", err)
 			}
-			for _, e := range body {
-				if e != nil {
-					if err2 := ValidateOrgCommitteeSeatResponse(e); err2 != nil {
-						err = goa.MergeErrors(err, err2)
-					}
-				}
-			}
+			err = ValidateGetOrgCommitteeSeatsResponseBody(&body)
 			if err != nil {
 				return nil, goahttp.ErrValidationError("committee-service", "get-org-committee-seats", err)
 			}
-			res := NewGetOrgCommitteeSeatsOrgCommitteeSeatOK(body)
+			res := NewGetOrgCommitteeSeatsOrgCommitteeSeatPageOK(&body)
 			return res, nil
 		case http.StatusBadRequest:
 			var (
@@ -6337,10 +6338,10 @@ func unmarshalCommitteeUserInviteResponseBodyToCommitteeserviceCommitteeUserInvi
 	return res
 }
 
-// unmarshalOrgCommitteeSeatResponseToCommitteeserviceOrgCommitteeSeat builds a
-// value of type *committeeservice.OrgCommitteeSeat from a value of type
-// *OrgCommitteeSeatResponse.
-func unmarshalOrgCommitteeSeatResponseToCommitteeserviceOrgCommitteeSeat(v *OrgCommitteeSeatResponse) *committeeservice.OrgCommitteeSeat {
+// unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat
+// builds a value of type *committeeservice.OrgCommitteeSeat from a value of
+// type *OrgCommitteeSeatResponseBody.
+func unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat(v *OrgCommitteeSeatResponseBody) *committeeservice.OrgCommitteeSeat {
 	res := &committeeservice.OrgCommitteeSeat{
 		UID:               *v.UID,
 		CommitteeUID:      *v.CommitteeUID,

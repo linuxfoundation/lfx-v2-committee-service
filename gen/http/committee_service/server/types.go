@@ -534,7 +534,12 @@ type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesRes
 
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
-type GetOrgCommitteeSeatsResponseBody []*OrgCommitteeSeatResponse
+type GetOrgCommitteeSeatsResponseBody struct {
+	// The committee seats in this page
+	Seats []*OrgCommitteeSeatResponseBody `form:"seats" json:"seats" xml:"seats"`
+	// Opaque cursor for the next page; empty when there are no more results
+	PageToken *string `form:"page_token,omitempty" json:"page_token,omitempty" xml:"page_token,omitempty"`
+}
 
 // ReassignOrgCommitteeSeatResponseBody is the type of the "committee-service"
 // service "reassign-org-committee-seat" endpoint HTTP response body.
@@ -2513,8 +2518,8 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// OrgCommitteeSeatResponse is used to define fields on response body types.
-type OrgCommitteeSeatResponse struct {
+// OrgCommitteeSeatResponseBody is used to define fields on response body types.
+type OrgCommitteeSeatResponseBody struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID string `form:"uid" json:"uid" xml:"uid"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -3283,10 +3288,17 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 // NewGetOrgCommitteeSeatsResponseBody builds the HTTP response body from the
 // result of the "get-org-committee-seats" endpoint of the "committee-service"
 // service.
-func NewGetOrgCommitteeSeatsResponseBody(res []*committeeservice.OrgCommitteeSeat) GetOrgCommitteeSeatsResponseBody {
-	body := make([]*OrgCommitteeSeatResponse, len(res))
-	for i, val := range res {
-		body[i] = marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponse(val)
+func NewGetOrgCommitteeSeatsResponseBody(res *committeeservice.OrgCommitteeSeatPage) *GetOrgCommitteeSeatsResponseBody {
+	body := &GetOrgCommitteeSeatsResponseBody{
+		PageToken: res.PageToken,
+	}
+	if res.Seats != nil {
+		body.Seats = make([]*OrgCommitteeSeatResponseBody, len(res.Seats))
+		for i, val := range res.Seats {
+			body.Seats[i] = marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(val)
+		}
+	} else {
+		body.Seats = []*OrgCommitteeSeatResponseBody{}
 	}
 	return body
 }
@@ -5919,11 +5931,13 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 
 // NewGetOrgCommitteeSeatsPayload builds a committee-service service
 // get-org-committee-seats endpoint payload.
-func NewGetOrgCommitteeSeatsPayload(uid string, version string, projectUids []string, bearerToken *string) *committeeservice.GetOrgCommitteeSeatsPayload {
+func NewGetOrgCommitteeSeatsPayload(uid string, version string, projectUids []string, pageSize *int, pageToken *string, bearerToken *string) *committeeservice.GetOrgCommitteeSeatsPayload {
 	v := &committeeservice.GetOrgCommitteeSeatsPayload{}
 	v.UID = uid
 	v.Version = version
 	v.ProjectUids = projectUids
+	v.PageSize = pageSize
+	v.PageToken = pageToken
 	v.BearerToken = bearerToken
 
 	return v

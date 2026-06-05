@@ -47,6 +47,10 @@ func (r *mockReader) ListMembersByCommittee(_ context.Context, uid string) ([]*m
 	return r.members[uid], nil
 }
 
+func (r *mockReader) ListMembersByOrganization(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return nil, nil
+}
+
 // Stub methods required to satisfy port.CommitteeReader.
 
 func (r *mockReader) GetMember(_ context.Context, _ string) (*model.CommitteeMember, uint64, error) {
@@ -109,6 +113,9 @@ func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _
 	return m, nil
 }
 func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error { return nil }
+func (w *mockWriter) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+	return m, nil
+}
 
 // helpers
 
@@ -336,4 +343,7 @@ func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.Commi
 }
 func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool) error {
 	return c.inner.DeleteMember(ctx, uid, rev, sync)
+}
+func (c *conditionalFailWriter) ReassignMember(ctx context.Context, oldUID string, oldRev uint64, m *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	return c.inner.ReassignMember(ctx, oldUID, oldRev, m, sync)
 }

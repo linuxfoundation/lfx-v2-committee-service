@@ -157,6 +157,22 @@ func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid 
 	return m.deleteError
 }
 
+// ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
+// the created member (an extra delete) if the delete fails — so reassign tests can assert the calls.
+func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	created, err := m.CreateMember(ctx, newMember, sync)
+	if err != nil {
+		return nil, err
+	}
+	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+		if created != nil && created.UID != "" {
+			_ = m.DeleteMember(ctx, created.UID, 0, sync) // rollback attempt
+		}
+		return nil, errDelete
+	}
+	return created, nil
+}
+
 func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator) {
 	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
 	mockRepo := mock.NewMockRepository()

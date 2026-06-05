@@ -140,6 +140,15 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context
 	return key, nil
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexMemberByOrganization(_ context.Context, member *model.CommitteeMember) (string, error) {
+	if member.Organization.ID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, member.Organization.ID, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
+	return key, nil
+}
+
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
@@ -264,6 +273,10 @@ func (r *TestMockCommitteeReader) GetMemberRevision(ctx context.Context, uid str
 
 func (r *TestMockCommitteeReader) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
+}
+
+func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
 }
 
 func (r *TestMockCommitteeReader) ListAllMembers(_ context.Context) ([]*model.CommitteeMember, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -562,6 +563,82 @@ func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.Comm
 		return key, errs.NewUnexpected("failed to index member by committee", err)
 	}
 	return key, nil
+}
+
+// IndexMemberByOrganization writes the secondary index entry
+// "lookup/committee-members-by-organization/<org_sfid>.<member_uid>" → <member_uid> into the
+// committee-members bucket, so ListMembersByOrganization (Org Lens, LFXV2-1865) can use a server-side
+// filtered scan instead of a full bucket scan. The org SFID is normalized to its 18-char form.
+//
+// Members without an organization.id are NOT org-affiliated seats, so no index entry is written and an
+// empty key is returned (the caller treats that as a no-op). jetstream.ErrKeyExists is idempotent.
+func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.UID == "" {
+		return "", errs.NewValidation("committee member UID must be non-empty")
+	}
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		// No organization affiliation → nothing to index. Not an error.
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by organization", err)
+	}
+	return key, nil
+}
+
+// ListMembersByOrganization retrieves all committee members held by an organization (by the SFID on
+// committee_member.organization.id) using the by-organization secondary index. It performs a
+// server-side filtered scan of "lookup/committee-members-by-organization/<org_sfid>.*" so only the
+// org's members are fetched. The org SFID is normalized to its 18-char form before scanning.
+func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	orgSFID = utils.NormalizeAccountSFID(orgSFID)
+	if orgSFID == "" {
+		return nil, errs.NewValidation("organization SFID cannot be empty")
+	}
+
+	slog.DebugContext(ctx, "listing committee members by organization from NATS storage", "org_sfid", orgSFID)
+
+	filter := fmt.Sprintf(constants.KVLookupMembersByOrganizationFilter, orgSFID)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for organization", errKeys)
+	}
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-organization/<org_sfid>.<member_uid>".
+	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed org member index key", "key", key, "org_sfid", orgSFID)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing by organization",
+				"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members by organization from NATS storage",
+		"org_sfid", orgSFID, "member_count", len(members))
+
+	return members, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================

@@ -20,6 +20,7 @@ import (
 // the backfill subcommand.  Only IndexMemberByCommittee is exercised here.
 type mockMemberWriter struct {
 	indexed    []string // committee_uid+"."+member_uid keys that were written
+	orgIndexed []string // org_sfid+"."+member_uid keys that were written
 	indexError error
 }
 
@@ -39,6 +40,17 @@ func (w *mockMemberWriter) IndexMemberByCommittee(_ context.Context, m *model.Co
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, m.CommitteeUID, m.UID)
 	w.indexed = append(w.indexed, key)
+	return key, nil
+}
+func (w *mockMemberWriter) IndexMemberByOrganization(_ context.Context, m *model.CommitteeMember) (string, error) {
+	if w.indexError != nil {
+		return "", w.indexError
+	}
+	if m.Organization.ID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, m.Organization.ID, m.UID)
+	w.orgIndexed = append(w.orgIndexed, key)
 	return key, nil
 }
 

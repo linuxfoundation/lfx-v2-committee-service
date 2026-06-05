@@ -391,11 +391,19 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("project_uids", dsl.ArrayOf(dsl.String), "Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to", func() {
 				dsl.Example([]string{"7cad5a8d-19d0-41a4-81a6-043453daf9ee"})
 			})
+			dsl.Attribute("page_size", dsl.Int, "Maximum seats to return in this page (default 100, max 500)", func() {
+				dsl.Minimum(1)
+				dsl.Maximum(500)
+				dsl.Example(100)
+			})
+			dsl.Attribute("page_token", dsl.String, "Opaque cursor returned by a previous call to fetch the next page", func() {
+				dsl.Example("eyJvIjoxMDB9")
+			})
 
 			dsl.Required("version", "uid")
 		})
 
-		dsl.Result(dsl.ArrayOf(OrgCommitteeSeatType))
+		dsl.Result(OrgCommitteeSeatPageType)
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
@@ -406,6 +414,8 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("version:v")
 			dsl.Param("uid")
 			dsl.Param("project_uids")
+			dsl.Param("page_size")
+			dsl.Param("page_token")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)

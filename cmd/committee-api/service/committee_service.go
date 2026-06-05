@@ -5,12 +5,14 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -322,7 +324,7 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 // org-seat reader (privileged read → includes private committees), scoped by organization_id +
 // project_uid family. The org filter is the sole scoping control (best-effort: org_id is
 // self-reported until LFXV2-330).
-func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res []*committeeservice.OrgCommitteeSeat, err error) {
+func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res *committeeservice.OrgCommitteeSeatPage, err error) {
 	slog.DebugContext(ctx, "committeeService.get-org-committee-seats",
 		"org_uid", p.UID,
 		"project_uids_count", len(p.ProjectUids),
@@ -337,14 +339,90 @@ func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *comm
 		return nil, wrapError(ctx, err)
 	}
 
-	out := make([]*committeeservice.OrgCommitteeSeat, 0, len(members))
-	for _, m := range members {
+	// Stable order for cursor pagination — the KV scan order is not guaranteed, so sort by member UID
+	// to keep page boundaries deterministic across calls.
+	sort.Slice(members, func(i, j int) bool {
+		ui, uj := "", ""
+		if members[i] != nil {
+			ui = members[i].UID
+		}
+		if members[j] != nil {
+			uj = members[j].UID
+		}
+		return ui < uj
+	})
+
+	pageSize := defaultOrgSeatPageSize
+	if p.PageSize != nil && *p.PageSize > 0 {
+		pageSize = *p.PageSize
+	}
+	if pageSize > maxOrgSeatPageSize {
+		pageSize = maxOrgSeatPageSize
+	}
+
+	offset, errCursor := decodeSeatCursor(p.PageToken)
+	if errCursor != nil {
+		return nil, wrapError(ctx, errors.NewValidation("invalid page_token"))
+	}
+	if offset < 0 || offset > len(members) {
+		offset = len(members) // out-of-range cursor → empty trailing page
+	}
+	end := offset + pageSize
+	if end > len(members) {
+		end = len(members)
+	}
+
+	page := &committeeservice.OrgCommitteeSeatPage{
+		Seats: make([]*committeeservice.OrgCommitteeSeat, 0, end-offset),
+	}
+	for _, m := range members[offset:end] {
 		if m == nil {
 			continue
 		}
-		out = append(out, orgSeatFromMember(m))
+		page.Seats = append(page.Seats, orgSeatFromMember(m))
 	}
-	return out, nil
+	if end < len(members) {
+		next := encodeSeatCursor(end)
+		page.PageToken = &next
+	}
+	return page, nil
+}
+
+// org-committee-seat pagination defaults (LFXV2-1865).
+const (
+	defaultOrgSeatPageSize = 100
+	maxOrgSeatPageSize     = 500
+)
+
+// seatCursor is the opaque page_token payload — a simple offset into the stable-sorted seat list.
+type seatCursor struct {
+	Offset int `json:"o"`
+}
+
+// encodeSeatCursor base64-encodes the next-page offset into an opaque token.
+func encodeSeatCursor(offset int) string {
+	b, _ := json.Marshal(seatCursor{Offset: offset})
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// decodeSeatCursor parses an opaque page_token back into an offset. A nil/empty token means "first
+// page" (offset 0). A malformed token is an error so the caller can return 400.
+func decodeSeatCursor(token *string) (int, error) {
+	if token == nil || *token == "" {
+		return 0, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(*token)
+	if err != nil {
+		return 0, err
+	}
+	var c seatCursor
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return 0, err
+	}
+	if c.Offset < 0 {
+		return 0, fmt.Errorf("negative cursor offset")
+	}
+	return c.Offset, nil
 }
 
 // isMembershipEntitlement reports whether a seat is org-reassignable — appointment type
@@ -387,10 +465,10 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 // edge by Heimdall; this handler additionally enforces, in code, (a) that the seat belongs to the
 // path org and (b) the Membership-Entitlement guard.
 //
-// The reassign is performed atomically against the committee datastore via the writer orchestrator:
-// the new holder is created and the old member is deleted, with a best-effort rollback of the new
-// member if the delete fails so no duplicate seat is left. Role/voting/appointed_by are preserved
-// and only the holder identity is swapped, mirroring the contract invariants.
+// The reassign is performed via the writer orchestrator's atomic ReassignMember (create the new holder
+// + delete the old, with rollback of the new member if the delete fails so no duplicate seat is left).
+// Role/voting/appointed_by are preserved and only the holder identity is swapped, mirroring the
+// contract invariants.
 func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *committeeservice.ReassignOrgCommitteeSeatPayload) (res *committeeservice.OrgCommitteeSeat, err error) {
 	slog.DebugContext(ctx, "committeeService.reassign-org-committee-seat",
 		"org_uid", p.UID,
@@ -441,37 +519,12 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 		Email:             p.Email,
 	}}
 
-	// Atomic-ish reassign: create the new holder, then delete the old; roll back the new member if
-	// the delete fails so no duplicate seat is left (contract invariant; true atomicity TBD upstream).
-	created, err := s.committeeWriterOrchestrator.CreateMember(ctx, newMember, false)
+	// Atomic reassign via the orchestrator's defined create+delete+rollback pattern: the new holder
+	// is created (full pipeline incl. by-committee + by-organization indices) and the old member is
+	// deleted; if the delete fails the new member is rolled back so no duplicate seat remains.
+	created, err := s.committeeWriterOrchestrator.ReassignMember(ctx, p.MemberUID, rev, newMember, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
-	}
-	if errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, rev, false); errDelete != nil {
-		// Best-effort rollback: remove the just-created holder so the reassign doesn't leave a
-		// duplicate seat. If the rollback ALSO fails (or we can't read the new member's revision to
-		// roll it back), the duplicate persists and the caller must take manual recovery steps — so
-		// surface that in the returned error, not just the logs.
-		var errRollback error
-		if created != nil && created.UID != "" {
-			if _, createdRev, errGet := s.committeeReaderOrchestrator.GetMember(ctx, created.CommitteeUID, created.UID); errGet == nil {
-				errRollback = s.committeeWriterOrchestrator.DeleteMember(ctx, created.UID, createdRev, false)
-			} else {
-				errRollback = errGet
-			}
-		}
-		if errRollback != nil {
-			slog.ErrorContext(ctx, "reassign rollback failed; duplicate committee seat may remain",
-				"committee_uid", p.CommitteeUID,
-				"old_member_uid", p.MemberUID,
-				"new_member_uid", created.UID,
-				"delete_error", errDelete,
-				"rollback_error", errRollback)
-			return nil, wrapError(ctx, fmt.Errorf(
-				"reassign failed and rollback failed; a duplicate seat may remain for committee %s (new member %s) — manual cleanup required: delete error: %w; rollback error: %v",
-				p.CommitteeUID, created.UID, errDelete, errRollback))
-		}
-		return nil, wrapError(ctx, errDelete)
 	}
 
 	return orgSeatFromMember(created), nil
