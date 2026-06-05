@@ -12,7 +12,6 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -335,6 +334,12 @@ func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *comm
 	if s.orgSeatReader == nil {
 		return nil, wrapError(ctx, errors.NewServiceUnavailable("org committee seat reader is not configured"))
 	}
+	if len(seatCursorKey) == 0 {
+		// Page-token signing key not provisioned in this environment (ORG_SEAT_PAGE_TOKEN_HMAC_KEY).
+		// Degrade this endpoint only — the rest of the service stays healthy — rather than serving
+		// forgeable page tokens or crashing the pod.
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("org committee seat pagination is unavailable: ORG_SEAT_PAGE_TOKEN_HMAC_KEY is not configured"))
+	}
 
 	members, err := s.orgSeatReader.ListOrgCommitteeSeats(ctx, p.UID, p.ProjectUids)
 	if err != nil {
@@ -399,9 +404,10 @@ const (
 
 // seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
 // cursor. The key must be stable across replicas and rolling restarts so pagination survives horizontal
-// scaling. In non-dev environments ORG_SEAT_PAGE_TOKEN_HMAC_KEY is REQUIRED and the service fails fast
-// if it is unset — the dev fallback below is a public, in-repo constant, so signing prod/staging tokens
-// with it would make them forgeable and defeat the opaque-cursor guarantee.
+// scaling. In non-dev environments ORG_SEAT_PAGE_TOKEN_HMAC_KEY is REQUIRED; when it is unset there the
+// key is left empty and GetOrgCommitteeSeats degrades to a 503 (the org-seat read is disabled) WITHOUT
+// crashing the service — signing prod/staging tokens with the public in-repo fallback would make them
+// forgeable and defeat the opaque-cursor guarantee, so we serve neither.
 var seatCursorKey = seatCursorKeyFromConfig()
 
 func seatCursorKeyFromConfig() []byte {
@@ -410,7 +416,10 @@ func seatCursorKeyFromConfig() []byte {
 	}
 	switch os.Getenv("LFX_ENVIRONMENT") {
 	case "prod", "staging", "stg":
-		log.Fatalf("ORG_SEAT_PAGE_TOKEN_HMAC_KEY is required in LFX_ENVIRONMENT=%q: refusing to sign org-seat page tokens with the public in-repo default key", os.Getenv("LFX_ENVIRONMENT"))
+		// Required but not provisioned: return no key. GetOrgCommitteeSeats checks for this and
+		// returns ServiceUnavailable, so only the org-seat read is disabled — the rest of the
+		// service stays healthy and we never sign tokens with the public in-repo fallback.
+		return nil
 	}
 	// dev/local: a fixed default keeps pagination stable without requiring a secret to be provisioned.
 	return []byte("lfx-v2-committee-service-org-seat-cursor")
