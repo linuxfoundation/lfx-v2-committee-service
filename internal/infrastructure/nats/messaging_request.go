@@ -69,10 +69,21 @@ func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, 
 	return response, nil
 }
 
-// EmailsByPrincipal retrieves all email addresses for a user by sending their principal
-// to the NATS subject lfx.auth-service.user_emails.read.
+// EmailsByPrincipal retrieves all email addresses for a user by sending their Auth0 sub
+// as the auth_token to the NATS subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, []byte(principal))
+	if principal == "" {
+		return nil, errors.NewValidation("principal must not be empty")
+	}
+	req := UserEmailsNATSRequest{
+		User: UserEmailsNATSRequestUser{AuthToken: principal},
+	}
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.NewUnexpected("failed to marshal user_emails request", err)
+	}
+
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +98,11 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 		if errMsg == "" {
 			errMsg = "user not found"
 		}
-		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found for principal %s: %s", redaction.Redact(principal), errMsg))
+		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
 	}
 
 	if response.Data == nil {
-		return nil, errors.NewNotFound(fmt.Sprintf("no email data returned for principal: %s", redaction.Redact(principal)))
+		return nil, errors.NewNotFound("no email data returned for user")
 	}
 
 	result := &model.UserEmails{

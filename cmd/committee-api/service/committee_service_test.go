@@ -21,8 +21,13 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
+// testCtx builds a request context with the given principal, as resolveCallerEmail requires.
+func testCtx(principal string) context.Context {
+	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+}
+
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailByPrincipal maps principal → primary email; subs maps email → LFID sub.
+// EmailsByPrincipal maps principal → primary email.
 type mockUserReader struct {
 	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
 	subs        map[string]string              // email → sub/LFID (for SubByEmail)
@@ -69,7 +74,7 @@ func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, 
 	return "", errs.NewNotFound("mock: sub not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
+func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
 	if principal == "" {
 		return nil, errs.NewValidation("mock: principal is empty")
 	}
@@ -990,7 +995,7 @@ func TestAcceptInvite(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-accept-test",
@@ -1022,7 +1027,7 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 
 	// Different user tries to accept someone else's invite
 	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := testCtx("attacker@example.com")
 	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-accept",
@@ -1082,7 +1087,7 @@ func TestDeclineInvite(t *testing.T) {
 			}
 			repo.AddCommitteeInvite(invite)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 				UID:       "committee-1",
 				InviteUID: "invite-decline-test",
@@ -1114,7 +1119,7 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 
 	// Different user tries to decline someone else's invite
 	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "attacker@example.com")
+	ctx := testCtx("attacker@example.com")
 	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-ownership-decline",
@@ -1260,7 +1265,7 @@ func TestSubmitApplication(t *testing.T) {
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 			msg := "I'd like to join"
 
 			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -1299,7 +1304,7 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 
 	svc.userReader = newMockUserReader("reapplicant@example.com", "reapplicant@example.com")
 	newMsg := "I've improved since last time"
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "reapplicant@example.com")
+	ctx := testCtx("reapplicant@example.com")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 		UID:     "committee-1",
 		Message: &newMsg,
@@ -1330,7 +1335,7 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 			repo.AddCommitteeApplication(existing)
 
 			svc.userReader = newMockUserReader("applicant@example.com", "applicant@example.com")
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "applicant@example.com")
+			ctx := testCtx("applicant@example.com")
 			_, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 				UID: "committee-1",
 			})
@@ -1545,7 +1550,7 @@ func TestJoinCommittee(t *testing.T) {
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.username)
+			ctx := testCtx(tt.username)
 
 			result, err := svc.JoinCommittee(ctx, &committeeservice.JoinCommitteePayload{
 				UID:   "committee-1",
@@ -1614,7 +1619,7 @@ func TestLeaveCommittee(t *testing.T) {
 				mockOrch.deleteError = nil
 			}
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, tt.principal)
+			ctx := testCtx(tt.principal)
 
 			err := svc.LeaveCommittee(ctx, &committeeservice.LeaveCommitteePayload{
 				UID:   "committee-1",
@@ -1721,7 +1726,7 @@ func TestUploadCommitteeDocument_FolderUID(t *testing.T) {
 			svc, linkRepo, _ := setupUploadDocumentService()
 			tt.seedFolder(linkRepo)
 
-			ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "testuser")
+			ctx := testCtx("testuser")
 			payload := &committeeservice.UploadCommitteeDocumentPayload{
 				UID:         committeeUID,
 				Name:        "Test Document",
@@ -1984,6 +1989,34 @@ func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
 
 	err = validateIdentityFields(writers, nil)
 	require.NoError(t, err, "username-only entry should pass validateIdentityFields")
+}
+
+// TestEnrichAllRoleFields_M2MClientUsernamePreserved verifies that an Auth0 M2M client principal
+// (username like "abc123@clients", no email) is left completely untouched by enrichAllRoleFields —
+// no SubByEmail lookup is attempted and the username survives.
+// Regression test for LFXV2-2133.
+func TestEnrichAllRoleFields_M2MClientUsernamePreserved(t *testing.T) {
+	svc, _ := setupServiceTest()
+	// errUserReader causes any SubByEmail call to return a transport error —
+	// if enrichAllRoleFields incorrectly attempts a lookup the test will fail.
+	svc.userReader = &errUserReader{}
+
+	username := "abc123@clients"
+	writers := []*committeeservice.CommitteeUser{
+		{Username: &username}, // no Email — M2M client with only a username
+	}
+
+	err := svc.enrichAllRoleFields(context.Background(), writers)
+	require.NoError(t, err, "M2M username-only entry must not cause enrichment to fail")
+
+	require.NotNil(t, writers[0].Username, "Username must not be nil after enrichment")
+	assert.Equal(t, username, *writers[0].Username, "M2M username must be preserved unchanged")
+	assert.Nil(t, writers[0].Email, "Email must remain nil — enrichment must not populate it")
+	assert.Nil(t, writers[0].Name, "Name must remain nil — enrichment must not overwrite it")
+	assert.Nil(t, writers[0].Avatar, "Avatar must remain nil — enrichment must not overwrite it")
+
+	err = validateIdentityFields(writers, nil)
+	require.NoError(t, err, "M2M username-only entry must pass validateIdentityFields")
 }
 
 func TestEnrichMember(t *testing.T) {
