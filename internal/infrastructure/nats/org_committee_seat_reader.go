@@ -51,6 +51,11 @@ func (r *natsOrgCommitteeSeatReader) ListOrgCommitteeSeats(ctx context.Context, 
 		}
 	}
 
+	// All supplied project_uids were empty (e.g. ?project_uids=) → treat as organization-only scope.
+	if len(family) == 0 {
+		return members, nil
+	}
+
 	filtered := make([]*model.CommitteeMember, 0, len(members))
 	for _, m := range members {
 		if m == nil {

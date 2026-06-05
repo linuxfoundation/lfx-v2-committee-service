@@ -24,4 +24,8 @@ type CommitteeMemberReader interface {
 	// This is intended only for backfill/repair operations that must read all members
 	// independently of the secondary index.
 	ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error)
+	// EachMember streams every committee member to fn one at a time via a full bucket scan, without
+	// materializing the whole set in memory — for backfill/repair over large buckets. Per-member read
+	// errors are skipped (logged); iteration stops and returns the first error fn returns.
+	EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error
 }

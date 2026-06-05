@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
@@ -37,7 +38,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 	}
 	orgSFID := fs.String("org-sfid", "", "limit backfill to members of a single organization SFID")
 	sleep := fs.Duration("sleep", 0, "wait between each member write (e.g. 200ms, 1s)")
-	dryRun := fs.Bool("dry-run", false, "compute what would be written without actually writing")
+	dryRun := fs.Bool("dry-run", true, "compute what would be written without actually writing (default true; pass --dry-run=false to write)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -56,28 +57,25 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	// Read all members via the full-scan path so we do not depend on the index being backfilled.
-	members, err := rc.CommitteeReader.ListAllMembers(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list all members: %w", err)
-	}
-
 	stats := commands.NewStats()
-	stats.Total = len(members)
 	stats.DryRun = rc.DryRun
 
-	for _, member := range members {
+	// Stream members one at a time (no full in-memory load) and index each as it is read, so the
+	// backfill scales to large buckets without holding the whole member set in memory.
+	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+		stats.Total++
+
 		// Only members with an organization.id are org-affiliated seats.
 		if member.Organization.ID == "" {
 			stats.Skipped++
-			continue
+			return nil
 		}
 		// Normalize both sides to the 18-char canonical SFID so a 15-char stored organization.id still
 		// matches an 18-char --org-sfid flag (same Salesforce record); IndexMemberByOrganization keys
 		// on the normalized form, so the filter must too or eligible members are silently skipped.
 		if *orgSFID != "" && utils.NormalizeAccountSFID(member.Organization.ID) != utils.NormalizeAccountSFID(*orgSFID) {
 			stats.Skipped++
-			continue
+			return nil
 		}
 
 		if rc.DryRun {
@@ -86,7 +84,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 				"member_uid", member.UID,
 			)
 			stats.Updated++
-			continue
+			return nil
 		}
 
 		key, errIdx := rc.CommitteeMemberWriter.IndexMemberByOrganization(ctx, member)
@@ -97,12 +95,12 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 				"member_uid", member.UID,
 			)
 			stats.Failed++
-			continue
+			return nil
 		}
 		if key == "" {
 			// No organization.id after normalization → nothing to write.
 			stats.Skipped++
-			continue
+			return nil
 		}
 
 		slog.DebugContext(ctx, "indexed member by organization",
@@ -114,6 +112,10 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 		if *sleep > 0 {
 			time.Sleep(*sleep)
 		}
+		return nil
+	})
+	if errEach != nil {
+		return fmt.Errorf("failed to stream members: %w", errEach)
 	}
 
 	stats.Log(ctx, "sync members-by-organization-index")

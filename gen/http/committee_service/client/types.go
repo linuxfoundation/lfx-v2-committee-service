@@ -560,11 +560,11 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
-	// Role within the committee
+	// Committee role name
 	RoleName *string `form:"role_name,omitempty" json:"role_name,omitempty" xml:"role_name,omitempty"`
-	// Voting status string
+	// Voting status
 	VotingStatus *string `form:"voting_status,omitempty" json:"voting_status,omitempty" xml:"voting_status,omitempty"`
-	// Appointment type
+	// How the member was appointed
 	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
 	// Holding organization SFID
 	OrganizationID *string `form:"organization_id,omitempty" json:"organization_id,omitempty" xml:"organization_id,omitempty"`
@@ -2561,11 +2561,11 @@ type OrgCommitteeSeatResponseBody struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
-	// Role within the committee
+	// Committee role name
 	RoleName *string `form:"role_name,omitempty" json:"role_name,omitempty" xml:"role_name,omitempty"`
-	// Voting status string
+	// Voting status
 	VotingStatus *string `form:"voting_status,omitempty" json:"voting_status,omitempty" xml:"voting_status,omitempty"`
-	// Appointment type
+	// How the member was appointed
 	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
 	// Holding organization SFID
 	OrganizationID *string `form:"organization_id,omitempty" json:"organization_id,omitempty" xml:"organization_id,omitempty"`
@@ -6675,6 +6675,21 @@ func ValidateReassignOrgCommitteeSeatResponseBody(body *ReassignOrgCommitteeSeat
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
 		}
 	}
+	if body.RoleName != nil {
+		if !(*body.RoleName == "Chair" || *body.RoleName == "Developer Seat" || *body.RoleName == "TAC/TOC Representative" || *body.RoleName == "Director" || *body.RoleName == "Lead" || *body.RoleName == "None" || *body.RoleName == "Secretary" || *body.RoleName == "Technical Lead" || *body.RoleName == "Treasurer" || *body.RoleName == "Vice Chair" || *body.RoleName == "LF Staff") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role_name", *body.RoleName, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+		}
+	}
+	if body.VotingStatus != nil {
+		if !(*body.VotingStatus == "Alternate Voting Rep" || *body.VotingStatus == "Observer" || *body.VotingStatus == "Voting Rep" || *body.VotingStatus == "Emeritus" || *body.VotingStatus == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting_status", *body.VotingStatus, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+	}
 	return
 }
 
@@ -9375,6 +9390,21 @@ func ValidateOrgCommitteeSeatResponseBody(body *OrgCommitteeSeatResponseBody) (e
 	if body.JobTitle != nil {
 		if utf8.RuneCountInString(*body.JobTitle) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.RoleName != nil {
+		if !(*body.RoleName == "Chair" || *body.RoleName == "Developer Seat" || *body.RoleName == "TAC/TOC Representative" || *body.RoleName == "Director" || *body.RoleName == "Lead" || *body.RoleName == "None" || *body.RoleName == "Secretary" || *body.RoleName == "Technical Lead" || *body.RoleName == "Treasurer" || *body.RoleName == "Vice Chair" || *body.RoleName == "LF Staff") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role_name", *body.RoleName, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+		}
+	}
+	if body.VotingStatus != nil {
+		if !(*body.VotingStatus == "Alternate Voting Rep" || *body.VotingStatus == "Observer" || *body.VotingStatus == "Voting Rep" || *body.VotingStatus == "Emeritus" || *body.VotingStatus == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting_status", *body.VotingStatus, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
 		}
 	}
 	return

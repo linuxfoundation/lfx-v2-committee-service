@@ -5119,8 +5119,26 @@ definitions:
         properties:
             appointed_by:
                 type: string
-                description: Appointment type
-                example: Membership Entitlement
+                description: How the member was appointed
+                default: None
+                example: Community
+                enum:
+                    - Community
+                    - Membership Entitlement
+                    - Vote of End User Member Class
+                    - Vote of TSC Committee
+                    - Vote of TAC Committee
+                    - Vote of Academic Member Class
+                    - Vote of Lab Member Class
+                    - Vote of Marketing Committee
+                    - Vote of Governing Board
+                    - Vote of General Member Class
+                    - Vote of End User Committee
+                    - Vote of TOC Committee
+                    - Vote of Gold Member Class
+                    - Vote of Silver Member Class
+                    - Vote of Strategic Membership Class
+                    - None
             committee_category:
                 type: string
                 description: The category of the committee this member belongs to
@@ -5170,8 +5188,21 @@ definitions:
                 example: This seat is foundation-controlled.
             role_name:
                 type: string
-                description: Role within the committee
+                description: Committee role name
+                default: None
                 example: Chair
+                enum:
+                    - Chair
+                    - Developer Seat
+                    - TAC/TOC Representative
+                    - Director
+                    - Lead
+                    - None
+                    - Secretary
+                    - Technical Lead
+                    - Treasurer
+                    - Vice Chair
+                    - LF Staff
             uid:
                 type: string
                 description: Committee member UID -- v2 uid, not related to v1 id directly
@@ -5179,11 +5210,18 @@ definitions:
                 format: uuid
             voting_status:
                 type: string
-                description: Voting status string
+                description: Voting status
+                default: None
                 example: Voting Rep
+                enum:
+                    - Alternate Voting Rep
+                    - Observer
+                    - Voting Rep
+                    - Emeritus
+                    - None
         description: An organization's committee seat for the Org Lens Board & Committee tab.
         example:
-            appointed_by: Membership Entitlement
+            appointed_by: Community
             committee_category: Board
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5224,7 +5262,7 @@ definitions:
                     $ref: '#/definitions/OrgCommitteeSeat'
                 description: The committee seats in this page
                 example:
-                    - appointed_by: Membership Entitlement
+                    - appointed_by: Community
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5238,7 +5276,7 @@ definitions:
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       voting_status: Voting Rep
-                    - appointed_by: Membership Entitlement
+                    - appointed_by: Community
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5252,7 +5290,7 @@ definitions:
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       voting_status: Voting Rep
-                    - appointed_by: Membership Entitlement
+                    - appointed_by: Community
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5266,7 +5304,7 @@ definitions:
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       voting_status: Voting Rep
-                    - appointed_by: Membership Entitlement
+                    - appointed_by: Community
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5283,7 +5321,7 @@ definitions:
         example:
             page_token: eyJvIjoxMDB9
             seats:
-                - appointed_by: Membership Entitlement
+                - appointed_by: Community
                   committee_category: Board
                   committee_name: Technical Steering Committee
                   committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5297,7 +5335,7 @@ definitions:
                   role_name: Chair
                   uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                   voting_status: Voting Rep
-                - appointed_by: Membership Entitlement
+                - appointed_by: Community
                   committee_category: Board
                   committee_name: Technical Steering Committee
                   committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee

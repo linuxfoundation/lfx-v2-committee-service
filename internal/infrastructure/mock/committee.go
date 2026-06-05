@@ -427,6 +427,21 @@ func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.Committee
 	return members, nil
 }
 
+// EachMember streams every mock member to fn one at a time (mirrors the storage streaming scan). The
+// snapshot is copied under the read lock, then fn is invoked outside the lock.
+func (m *MockRepository) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := m.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, member := range members {
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // MockCommitteeWriter implements CommitteeWriter interface
 type MockCommitteeWriter struct {
 	mock *MockRepository

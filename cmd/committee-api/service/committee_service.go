@@ -5,6 +5,9 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
@@ -12,7 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -319,12 +322,8 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	return res, nil
 }
 
-// GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for
-// the Org Lens Board & Committee tab (LFXV2-1865). Authorization (b2b_org:{uid}#auditor) is enforced
-// at the edge by Heimdall. Seats are read from committee-service's own datastore via the configured
-// OrgCommitteeSeatReader (the NATS KV committee-members-by-organization index now, Postgres
-// post-migration) — a privileged own-data read that includes private committees — scoped by
-// organization_id + project_uid family. The org filter is the sole scoping control (best-effort:
+// GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for the
+// Org Lens Board & Committee tab, paginated. The org filter is the sole scoping control (best-effort:
 // org_id is self-reported until LFXV2-330).
 func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res *committeeservice.OrgCommitteeSeatPage, err error) {
 	slog.DebugContext(ctx, "committeeService.get-org-committee-seats",
@@ -341,17 +340,10 @@ func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *comm
 		return nil, wrapError(ctx, err)
 	}
 
-	// Stable order for cursor pagination — the KV scan order is not guaranteed, so sort by member UID
-	// to keep page boundaries deterministic across calls.
-	sort.Slice(members, func(i, j int) bool {
-		ui, uj := "", ""
-		if members[i] != nil {
-			ui = members[i].UID
-		}
-		if members[j] != nil {
-			uj = members[j].UID
-		}
-		return ui < uj
+	// Stable keyset order: sort by member UID so a page boundary is "after the last UID returned".
+	// Unlike an offset, this stays correct when members are inserted/deleted between page calls.
+	slices.SortFunc(members, func(a, b *model.CommitteeMember) int {
+		return strings.Compare(uidOf(a), uidOf(b))
 	})
 
 	pageSize := defaultOrgSeatPageSize
@@ -362,32 +354,40 @@ func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *comm
 		pageSize = maxOrgSeatPageSize
 	}
 
-	offset, errCursor := decodeSeatCursor(p.PageToken)
+	afterUID, errCursor := decodeSeatCursor(p.PageToken)
 	if errCursor != nil {
 		return nil, wrapError(ctx, errors.NewValidation("invalid page_token"))
 	}
-	if offset < 0 || offset > len(members) {
-		offset = len(members) // out-of-range cursor → empty trailing page
-	}
-	end := offset + pageSize
-	if end > len(members) {
-		end = len(members)
-	}
 
 	page := &committeeservice.OrgCommitteeSeatPage{
-		Seats: make([]*committeeservice.OrgCommitteeSeat, 0, end-offset),
+		Seats: make([]*committeeservice.OrgCommitteeSeat, 0, pageSize),
 	}
-	for _, m := range members[offset:end] {
+	var lastUID string
+	for _, m := range members {
 		if m == nil {
 			continue
 		}
+		if afterUID != "" && m.UID <= afterUID { // keyset: skip up to and including the cursor UID
+			continue
+		}
+		if len(page.Seats) >= pageSize {
+			// At least one eligible row remains beyond this page → emit a next-page cursor.
+			next := encodeSeatCursor(lastUID)
+			page.PageToken = &next
+			break
+		}
 		page.Seats = append(page.Seats, orgSeatFromMember(m))
-	}
-	if end < len(members) {
-		next := encodeSeatCursor(end)
-		page.PageToken = &next
+		lastUID = m.UID
 	}
 	return page, nil
+}
+
+// uidOf safely reads a member UID for sorting (nil sorts first).
+func uidOf(m *model.CommitteeMember) string {
+	if m == nil {
+		return ""
+	}
+	return m.UID
 }
 
 // org-committee-seat pagination defaults (LFXV2-1865).
@@ -396,35 +396,45 @@ const (
 	maxOrgSeatPageSize     = 500
 )
 
-// seatCursor is the opaque page_token payload — a simple offset into the stable-sorted seat list.
-type seatCursor struct {
-	Offset int `json:"o"`
+// seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
+// cursor. committee-service runs a single replica (replicaCount=1), so a process-scoped random key is
+// sufficient; a process restart simply invalidates outstanding page tokens (the client restarts paging).
+var seatCursorKey = newSeatCursorKey()
+
+func newSeatCursorKey() []byte {
+	k := make([]byte, 32)
+	if _, err := rand.Read(k); err != nil {
+		// RNG should never fail; fall back to a fixed key so token signing still functions.
+		return []byte("lfx-v2-committee-service-org-seat-cursor")
+	}
+	return k
 }
 
-// encodeSeatCursor base64-encodes the next-page offset into an opaque token.
-func encodeSeatCursor(offset int) string {
-	b, _ := json.Marshal(seatCursor{Offset: offset})
-	return base64.RawURLEncoding.EncodeToString(b)
+// encodeSeatCursor produces an opaque, HMAC-signed page token for the keyset position (the last UID
+// returned): base64url( HMAC-SHA256(afterUID) || afterUID ).
+func encodeSeatCursor(afterUID string) string {
+	mac := hmac.New(sha256.New, seatCursorKey)
+	mac.Write([]byte(afterUID))
+	return base64.RawURLEncoding.EncodeToString(append(mac.Sum(nil), afterUID...))
 }
 
-// decodeSeatCursor parses an opaque page_token back into an offset. A nil/empty token means "first
-// page" (offset 0). A malformed token is an error so the caller can return 400.
-func decodeSeatCursor(token *string) (int, error) {
+// decodeSeatCursor verifies a page token's signature and returns the keyset position. A nil/empty token
+// is the first page (""). A malformed or tampered token is an error so the caller can return 400.
+func decodeSeatCursor(token *string) (string, error) {
 	if token == nil || *token == "" {
-		return 0, nil
+		return "", nil
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(*token)
-	if err != nil {
-		return 0, err
+	if err != nil || len(raw) < sha256.Size {
+		return "", fmt.Errorf("malformed page_token")
 	}
-	var c seatCursor
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return 0, err
+	sig, afterUID := raw[:sha256.Size], raw[sha256.Size:]
+	mac := hmac.New(sha256.New, seatCursorKey)
+	mac.Write(afterUID)
+	if !hmac.Equal(sig, mac.Sum(nil)) {
+		return "", fmt.Errorf("invalid page_token signature")
 	}
-	if c.Offset < 0 {
-		return 0, fmt.Errorf("negative cursor offset")
-	}
-	return c.Offset, nil
+	return string(afterUID), nil
 }
 
 // isMembershipEntitlement reports whether a seat is org-reassignable — appointment type
@@ -448,7 +458,7 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		RoleName:          m.Role.Name,
 		VotingStatus:      m.Voting.Status,
 		AppointedBy:       m.AppointedBy,
-		OrganizationID:    m.Organization.ID,
+		OrganizationID:    utils.NormalizeAccountSFID(m.Organization.ID),
 		IsOrgEditable:     editable,
 	}
 	if m.JobTitle != "" {
@@ -463,14 +473,9 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 }
 
 // ReassignOrgCommitteeSeat reassigns a Membership-Entitlement committee seat to a new holder for the
-// Org Lens Board & Committee tab (LFXV2-1865). Authorization (b2b_org:{uid}#writer) is enforced at the
-// edge by Heimdall; this handler additionally enforces, in code, (a) that the seat belongs to the
-// path org and (b) the Membership-Entitlement guard.
-//
-// The reassign is performed via the writer orchestrator's atomic ReassignMember (create the new holder
-// + delete the old, with rollback of the new member if the delete fails so no duplicate seat is left).
-// Role/voting/appointed_by are preserved and only the holder identity is swapped, mirroring the
-// contract invariants.
+// Org Lens Board & Committee tab. It enforces, in code, that the seat belongs to the path org and that
+// the seat is a Membership-Entitlement seat, then performs an atomic ReassignMember (create new +
+// delete old, with rollback) preserving role/voting/appointed_by.
 func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *committeeservice.ReassignOrgCommitteeSeatPayload) (res *committeeservice.OrgCommitteeSeat, err error) {
 	slog.DebugContext(ctx, "committeeService.reassign-org-committee-seat",
 		"org_uid", p.UID,

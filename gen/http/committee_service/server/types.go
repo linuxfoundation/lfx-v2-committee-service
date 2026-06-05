@@ -560,11 +560,11 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	Email string `form:"email" json:"email" xml:"email"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
-	// Role within the committee
+	// Committee role name
 	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
-	// Voting status string
+	// Voting status
 	VotingStatus string `form:"voting_status" json:"voting_status" xml:"voting_status"`
-	// Appointment type
+	// How the member was appointed
 	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
 	// Holding organization SFID
 	OrganizationID string `form:"organization_id" json:"organization_id" xml:"organization_id"`
@@ -2536,11 +2536,11 @@ type OrgCommitteeSeatResponseBody struct {
 	Email string `form:"email" json:"email" xml:"email"`
 	// Job title at organization
 	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
-	// Role within the committee
+	// Committee role name
 	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
-	// Voting status string
+	// Voting status
 	VotingStatus string `form:"voting_status" json:"voting_status" xml:"voting_status"`
-	// Appointment type
+	// How the member was appointed
 	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
 	// Holding organization SFID
 	OrganizationID string `form:"organization_id" json:"organization_id" xml:"organization_id"`
