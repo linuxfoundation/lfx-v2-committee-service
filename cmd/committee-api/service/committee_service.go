@@ -25,6 +25,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -320,10 +321,11 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 
 // GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for
 // the Org Lens Board & Committee tab (LFXV2-1865). Authorization (b2b_org:{uid}#auditor) is enforced
-// at the edge by Heimdall. Seats are read from the query-service index via the M2M (service-identity)
-// org-seat reader (privileged read → includes private committees), scoped by organization_id +
-// project_uid family. The org filter is the sole scoping control (best-effort: org_id is
-// self-reported until LFXV2-330).
+// at the edge by Heimdall. Seats are read from committee-service's own datastore via the configured
+// OrgCommitteeSeatReader (the NATS KV committee-members-by-organization index now, Postgres
+// post-migration) — a privileged own-data read that includes private committees — scoped by
+// organization_id + project_uid family. The org filter is the sole scoping control (best-effort:
+// org_id is self-reported until LFXV2-330).
 func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res *committeeservice.OrgCommitteeSeatPage, err error) {
 	slog.DebugContext(ctx, "committeeService.get-org-committee-seats",
 		"org_uid", p.UID,
@@ -486,8 +488,9 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	// Org-ownership guard: the seat must belong to the org named in the path. The edge only checks
 	// b2b_org:{uid}#writer, so without this a caller authorized for one org could mutate another
 	// org's seat by passing a foreign committee_uid/member_uid. Return NotFound to avoid leaking
-	// the existence of seats outside the caller's org.
-	if !strings.EqualFold(strings.TrimSpace(member.Organization.ID), strings.TrimSpace(p.UID)) {
+	// the existence of seats outside the caller's org. Normalize both sides to the 18-char canonical
+	// SFID so a 15-char stored organization.id still matches the 18-char path UID (same Salesforce record).
+	if !strings.EqualFold(utils.NormalizeAccountSFID(member.Organization.ID), utils.NormalizeAccountSFID(p.UID)) {
 		return nil, wrapError(ctx, errors.NewNotFound("seat not found"))
 	}
 
