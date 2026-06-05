@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -726,6 +727,79 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	// Index key must also have been removed by the cleanup pass.
 	_, indexStillExists := memberWriter.members[indexKey]
 	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
+}
+
+// flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
+// non-NotFound (transient) error, to exercise ReassignMember's "old seat state unconfirmed" branch.
+type flakyOldSeatReader struct {
+	port.CommitteeReader
+	targetUID string
+	err       error
+}
+
+func (r *flakyOldSeatReader) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	if uid == r.targetUID {
+		return nil, 0, r.err
+	}
+	return r.CommitteeReader.GetMember(ctx, uid)
+}
+
+// TestReassignMember_UnconfirmedOldSeatRetainsNewSeat verifies that when the old-seat delete fails and
+// the confirming re-read also fails with a non-NotFound (transient) error, ReassignMember does NOT roll
+// back the freshly created seat: rolling back when the delete may already have committed would leave the
+// seat with no holder at all. Instead it retains the new seat and returns an error for manual
+// reconciliation (a visible duplicate is preferable to silent data loss).
+func TestReassignMember_UnconfirmedOldSeatRetainsNewSeat(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-reassign-unconfirmed",
+			Name:     "Reassign Unconfirmed Committee",
+			Category: "Technical",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-reassign-unconfirmed",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	const oldMemberUID = "old-holder-unconfirmed"
+	// Force the old-seat read (used by both DeleteMember and the post-delete confirm) to fail with a
+	// transient, non-NotFound error so we land in the "unconfirmed" branch.
+	orchestrator.committeeReader = &flakyOldSeatReader{
+		CommitteeReader: orchestrator.committeeReader,
+		targetUID:       oldMemberUID,
+		err:             errs.NewUnexpected("nats read timeout"),
+	}
+
+	newMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-reassign-unconfirmed",
+			Email:        "new-holder@example.com",
+			Username:     "newholder",
+			Organization: model.CommitteeMemberOrganization{Name: "New Org"},
+		},
+	}
+
+	ctx := context.Background()
+	res, err := orchestrator.ReassignMember(ctx, oldMemberUID, 1, newMember, false)
+
+	// The new seat is retained (nil member returned) and an error signals manual reconciliation.
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "new seat retained")
+
+	// The freshly created seat must still be present — it must NOT have been rolled back.
+	var retained bool
+	for _, m := range memberWriter.members {
+		if m != nil && m.Email == newMember.Email {
+			retained = true
+			break
+		}
+	}
+	assert.True(t, retained, "new seat must be retained (not rolled back) when the old seat state is unconfirmed")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {

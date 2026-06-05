@@ -735,10 +735,16 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 // ReassignMember atomically replaces the holder of an existing seat for the Org Lens reassign flow
 // (LFXV2-1865): it creates newMember (which runs the full create pipeline — validation, secondary
 // indices by committee + organization, FGA, indexer publish) and then deletes the old member at
-// oldRevision. NATS KV has no multi-key transaction, so atomicity is achieved with the codebase's
-// defined rollback pattern: if the delete fails, the just-created member is rolled back (deleted) so
-// the reassign never leaves a duplicate seat. If the rollback ALSO fails, the error is returned so the
-// caller knows manual recovery is required. Returns the created member on success.
+// oldRevision. NATS KV has no multi-key transaction, so atomicity is approximated with a rollback
+// pattern keyed on the old seat's confirmed state after a failed delete:
+//   - old seat already gone (NotFound) → the delete effectively succeeded; the new seat is retained.
+//   - old seat still present → the new seat is rolled back (deleted) so no duplicate remains; if the
+//     rollback ALSO fails, an error is returned so the caller knows manual recovery is required.
+//   - old seat state unconfirmed (the confirming read itself failed) → the new seat is retained and an
+//     error is returned, because rolling back when the delete may have committed would leave the seat
+//     with no holder at all (silent data loss). A visible duplicate is preferable and reconcilable.
+//
+// Returns the created member on success.
 func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "executing reassign committee member use case",
 		"old_member_uid", oldMemberUID,
@@ -755,11 +761,16 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 
 	// Delete the old holder. On success the reassign is complete.
 	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
-		// DeleteMember may return an error after the old seat is already gone (e.g. indexer publish
-		// failed post-commit). Rolling back the new seat in that case would leave no holder.
-		if _, _, errGetOld := uc.committeeReader.GetMember(ctx, oldMemberUID); errGetOld != nil {
+		// DeleteMember can fail after the old seat is already gone (e.g. a post-commit indexer publish
+		// failed). Re-read the old seat to decide what to do: we only roll back the new seat when we can
+		// POSITIVELY confirm the old holder still exists. If the re-read itself fails we cannot tell
+		// whether the delete committed, so rolling back would risk leaving the seat with no holder at
+		// all — we keep the new seat and surface an error for manual reconciliation instead.
+		_, _, errGetOld := uc.committeeReader.GetMember(ctx, oldMemberUID)
+		if errGetOld != nil {
 			var notFound errs.NotFound
 			if errors.As(errGetOld, &notFound) {
+				// Old seat is already gone → the reassign effectively succeeded; keep the new seat.
 				slog.WarnContext(ctx, "reassign delete reported failure but old seat is already gone; new seat retained",
 					"committee_uid", newMember.CommitteeUID,
 					"old_member_uid", oldMemberUID,
@@ -768,9 +779,20 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 				)
 				return created, nil
 			}
+			// Old seat state is unconfirmed (transient read failure). Do NOT roll back: if the delete
+			// actually committed, a rollback would lose the seat's holder entirely. Retain the new seat
+			// and return an error so the at-worst duplicate can be reconciled manually.
+			slog.ErrorContext(ctx, "reassign delete failed and old seat state is unconfirmed; new seat retained for manual reconciliation",
+				"committee_uid", newMember.CommitteeUID,
+				"old_member_uid", oldMemberUID,
+				"new_member_uid", created.UID,
+				"delete_error", errDelete,
+				"read_error", errGetOld,
+			)
+			return nil, errs.NewUnexpected("reassign delete failed and the old seat could not be confirmed; new seat retained for manual reconciliation", errDelete)
 		}
 
-		// Old holder still exists — roll back the newly-created seat so no duplicate remains.
+		// Old holder positively still exists — roll back the newly-created seat so no duplicate remains.
 		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {
