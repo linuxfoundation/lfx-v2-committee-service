@@ -416,6 +416,35 @@ func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember,
 	return members, nil
 }
 
+// EachMember streams every committee member via a full bucket scan, invoking fn per member without
+// accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
+// per-member read error is logged and skipped; the first error fn returns stops iteration.
+func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
+	if errKeys != nil {
+		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		member := &model.CommitteeMember{}
+		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
+			continue
+		}
+
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetMemberRevision retrieves the revision number for a committee member
 func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
 	rev, err := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)

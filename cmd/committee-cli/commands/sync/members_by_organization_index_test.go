@@ -34,7 +34,7 @@ func TestMembersByOrganizationIndex_BackfillAll_SkipsMembersWithoutOrg(t *testin
 	}
 	w := &mockMemberWriter{}
 
-	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w))
+	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--dry-run=false"))
 	require.NoError(t, err)
 	assert.Len(t, w.orgIndexed, 2, "only members with an organization.id are indexed")
 }
@@ -50,7 +50,7 @@ func TestMembersByOrganizationIndex_FilterByOrg(t *testing.T) {
 	}
 	w := &mockMemberWriter{}
 
-	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--org-sfid=001A00000000001AAA"))
+	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--dry-run=false", "--org-sfid=001A00000000001AAA"))
 	require.NoError(t, err)
 	require.Len(t, w.orgIndexed, 1)
 	assert.Contains(t, w.orgIndexed[0], "001A00000000001AAA.m1")
@@ -77,7 +77,7 @@ func TestMembersByOrganizationIndex_IndexError_ReturnsError(t *testing.T) {
 	}
 	w := &mockMemberWriter{indexError: fmt.Errorf("nats unavailable")}
 
-	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w))
+	err := (&membersByOrganizationIndexSubcommand{}).Run(context.Background(), newBackfillRC(r, w, "--dry-run=false"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to index")
 }

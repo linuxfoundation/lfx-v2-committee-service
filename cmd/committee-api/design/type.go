@@ -497,19 +497,39 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	LastNameAttribute()
 	EmailAttribute()
 	JobTitleAttribute()
-	// role_name / voting_status stay flat strings: the shared RoleNameAttribute/VotingStatusAttribute
-	// name the fields name/status (nested shape) and add enums; appointed_by is also kept flat (no
-	// enum) since its value originates from the upstream committee_member index and may fall outside
-	// the committee_member enum. Keeping these flat mirrors the DTO consumed by the BFF.
-	dsl.Attribute("role_name", dsl.String, "Role within the committee", func() {
+	// role_name / voting_status / appointed_by are flat in this DTO (the BFF consumes flat fields), but
+	// mirror the canonical committee_member attribute definitions — same descriptions, enums, and
+	// defaults — so the generated documentation stays consistent with the member endpoints. appointed_by
+	// reuses the shared AppointedByAttribute directly (already a flat field).
+	dsl.Attribute("role_name", dsl.String, "Committee role name", func() {
+		dsl.Enum(
+			"Chair",
+			"Developer Seat",
+			"TAC/TOC Representative",
+			"Director",
+			"Lead",
+			"None",
+			"Secretary",
+			"Technical Lead",
+			"Treasurer",
+			"Vice Chair",
+			"LF Staff",
+		)
+		dsl.Default("None")
 		dsl.Example("Chair")
 	})
-	dsl.Attribute("voting_status", dsl.String, "Voting status string", func() {
+	dsl.Attribute("voting_status", dsl.String, "Voting status", func() {
+		dsl.Enum(
+			"Alternate Voting Rep",
+			"Observer",
+			"Voting Rep",
+			"Emeritus",
+			"None",
+		)
+		dsl.Default("None")
 		dsl.Example("Voting Rep")
 	})
-	dsl.Attribute("appointed_by", dsl.String, "Appointment type", func() {
-		dsl.Example("Membership Entitlement")
-	})
+	AppointedByAttribute()
 	dsl.Attribute("organization_id", dsl.String, "Holding organization SFID", func() {
 		dsl.Example("001B000000IqhSLIAZ")
 	})

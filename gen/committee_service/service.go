@@ -1125,11 +1125,11 @@ type OrgCommitteeSeat struct {
 	Email string
 	// Job title at organization
 	JobTitle *string
-	// Role within the committee
+	// Committee role name
 	RoleName string
-	// Voting status string
+	// Voting status
 	VotingStatus string
-	// Appointment type
+	// How the member was appointed
 	AppointedBy string
 	// Holding organization SFID
 	OrganizationID string

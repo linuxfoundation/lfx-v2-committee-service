@@ -83,6 +83,19 @@ func (r *mockReader) ListAllMembers(_ context.Context) ([]*model.CommitteeMember
 	return all, nil
 }
 
+func (r *mockReader) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := r.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if err := fn(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // mockWriter implements service.CommitteeWriter, recording Update calls.
 type mockWriter struct {
 	updateErr   error

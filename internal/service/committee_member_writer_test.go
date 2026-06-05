@@ -283,6 +283,19 @@ func (r *TestMockCommitteeReader) ListAllMembers(_ context.Context) ([]*model.Co
 	return []*model.CommitteeMember{}, nil
 }
 
+func (r *TestMockCommitteeReader) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := r.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if err := fn(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Implement CommitteeInviteReader interface
 func (r *TestMockCommitteeReader) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")

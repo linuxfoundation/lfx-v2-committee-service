@@ -672,11 +672,9 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
-// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader (LFXV2-1865). In mock mode
-// it returns reshaped dev data; otherwise it reads committee-service's OWN datastore — the
-// committee-members NATS KV bucket via the by-organization secondary index — so private-committee seats
-// are included with NO cross-service query-service / M2M call (the account-level b2b_org gate is
-// enforced at the edge by Heimdall). The project family is supplied by the BFF and filtered in memory.
+// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
+// synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
+// by-organization secondary index.
 func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader {
 	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {
