@@ -22,7 +22,7 @@ type messageRequest struct {
 func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, error) {
 
 	data := []byte(uid)
-	msg, err := m.client.conn.RequestWithContext(ctx, subject, data)
+	msg, err := m.client.requestWithSpan(ctx, subject, data)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +50,7 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
 
 	data := []byte(email)
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToSubLookupSubject, data)
+	msg, err := m.client.requestWithSpan(ctx, constants.AuthEmailToSubLookupSubject, data)
 	if err != nil {
 		return "", err
 	}
@@ -83,7 +83,7 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 		return nil, errors.NewUnexpected("failed to marshal user_emails request", err)
 	}
 
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
+	msg, err := m.client.requestWithSpan(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 
 // UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
 func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
 	if err != nil {
 		return nil, err
 	}

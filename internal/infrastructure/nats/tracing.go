@@ -1,0 +1,39 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package nats
+
+import (
+	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+)
+
+// tracer is safe to initialize at package level — otel.Tracer() returns a
+// delegating tracer that forwards to whatever TracerProvider is registered at
+// call time, so otel.SetTracerProvider() updates it regardless of init order.
+var tracer = otel.Tracer("github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats")
+
+// natsHeaderCarrier adapts nats.Header to the OTel TextMapCarrier interface
+// so trace context can be injected/extracted from NATS message headers.
+// Uses nats.Header's case-insensitive Get/Set methods to ensure proper
+// header canonicalization and cross-service trace context propagation.
+type natsHeaderCarrier nats.Header
+
+func (c natsHeaderCarrier) Get(key string) string {
+	return nats.Header(c).Get(key)
+}
+
+func (c natsHeaderCarrier) Set(key string, value string) {
+	nats.Header(c).Set(key, value)
+}
+
+func (c natsHeaderCarrier) Keys() []string {
+	keys := make([]string, 0, len(c))
+	for k := range c {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+var _ propagation.TextMapCarrier = natsHeaderCarrier{}
