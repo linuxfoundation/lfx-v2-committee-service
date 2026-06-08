@@ -37,7 +37,12 @@ func startTestNATSServer(t *testing.T) (*natsserver.Server, string) {
 	return ns, ns.ClientURL()
 }
 
-func setupUsernameByEmailTest(t *testing.T, responder func(email string) []byte) *messageRequest {
+type usernameByEmailTestEnv struct {
+	reader       *messageRequest
+	respondErrCh <-chan error
+}
+
+func setupUsernameByEmailTest(t *testing.T, responder func(email string) []byte) usernameByEmailTestEnv {
 	t.Helper()
 
 	_, url := startTestNATSServer(t)
@@ -46,17 +51,36 @@ func setupUsernameByEmailTest(t *testing.T, responder func(email string) []byte)
 	require.NoError(t, err)
 	t.Cleanup(nc.Close)
 
+	respondErrCh := make(chan error, 1)
 	_, err = nc.Subscribe(constants.AuthEmailToUsernameLookupSubject, func(msg *nats.Msg) {
-		require.NoError(t, msg.Respond(responder(string(msg.Data))))
+		if respondErr := msg.Respond(responder(string(msg.Data))); respondErr != nil {
+			select {
+			case respondErrCh <- respondErr:
+			default:
+			}
+		}
 	})
 	require.NoError(t, err)
 	require.NoError(t, nc.Flush())
 
-	return &messageRequest{
-		client: &NATSClient{
-			conn:    nc,
-			timeout: 2 * time.Second,
+	return usernameByEmailTestEnv{
+		reader: &messageRequest{
+			client: &NATSClient{
+				conn:    nc,
+				timeout: 2 * time.Second,
+			},
 		},
+		respondErrCh: respondErrCh,
+	}
+}
+
+func assertNoRespondError(t *testing.T, respondErrCh <-chan error) {
+	t.Helper()
+
+	select {
+	case respondErr := <-respondErrCh:
+		require.NoError(t, respondErr)
+	default:
 	}
 }
 
@@ -154,13 +178,19 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var reader *messageRequest
+			var respondErrCh <-chan error
 			if tt.setup != nil {
 				reader = tt.setup(t)
 			} else {
-				reader = setupUsernameByEmailTest(t, tt.responder)
+				env := setupUsernameByEmailTest(t, tt.responder)
+				reader = env.reader
+				respondErrCh = env.respondErrCh
 			}
 
 			got, err := reader.UsernameByEmail(context.Background(), "test@example.com")
+			if respondErrCh != nil {
+				assertNoRespondError(t, respondErrCh)
+			}
 
 			switch {
 			case tt.wantErrStr != "":
@@ -179,11 +209,12 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 }
 
 func TestMessageRequest_UsernameByEmail_NotFoundType(t *testing.T) {
-	reader := setupUsernameByEmailTest(t, func(email string) []byte {
+	env := setupUsernameByEmailTest(t, func(email string) []byte {
 		return []byte(`{"success":false,"error":"user not found"}`)
 	})
 
-	_, err := reader.UsernameByEmail(context.Background(), "test@example.com")
+	_, err := env.reader.UsernameByEmail(context.Background(), "test@example.com")
+	assertNoRespondError(t, env.respondErrCh)
 	require.Error(t, err)
 
 	var notFound pkgerrors.NotFound

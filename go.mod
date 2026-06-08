@@ -16,8 +16,8 @@ require (
 	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17
 	github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16
 	github.com/linuxfoundation/lfx-v2-invite-service v0.1.4
-	github.com/nats-io/nats-server/v2 v2.14.2
-	github.com/nats-io/nats.go v1.51.0
+	github.com/nats-io/nats-server/v2 v2.12.6
+	github.com/nats-io/nats.go v1.49.0
 	github.com/remychantenay/slog-otel v1.3.4
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0

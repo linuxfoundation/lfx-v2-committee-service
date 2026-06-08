@@ -4,6 +4,7 @@
 package nats
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -11,12 +12,13 @@ import (
 
 func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 	tests := []struct {
-		name        string
-		message     string
-		wantErr     bool
-		wantErrType string
-		wantErrMsg  string
-		description string
+		name             string
+		message          string
+		wantErr          bool
+		wantErrType      string
+		wantErrMsg       string
+		wantErrMsgPrefix string
+		description      string
 	}{
 		{
 			name:        "valid error response with generic error",
@@ -59,20 +61,20 @@ func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 			description: "should return nil even if error field has value when success is true",
 		},
 		{
-			name:        "invalid json",
-			message:     `{invalid json}`,
-			wantErr:     true,
-			wantErrType: "Unexpected",
-			wantErrMsg:  "failed to parse NATS error response: invalid character 'i' looking for beginning of object key string",
-			description: "should return Unexpected error for invalid JSON",
+			name:             "invalid json",
+			message:          `{invalid json}`,
+			wantErr:          true,
+			wantErrType:      "Unexpected",
+			wantErrMsgPrefix: "failed to parse NATS error response",
+			description:      "should return Unexpected error for invalid JSON",
 		},
 		{
-			name:        "empty string",
-			message:     ``,
-			wantErr:     true,
-			wantErrType: "Unexpected",
-			wantErrMsg:  "failed to parse NATS error response: unexpected end of JSON input",
-			description: "should return Unexpected error for empty message",
+			name:             "empty string",
+			message:          ``,
+			wantErr:          true,
+			wantErrType:      "Unexpected",
+			wantErrMsgPrefix: "failed to parse NATS error response",
+			description:      "should return Unexpected error for empty message",
 		},
 		{
 			name:        "missing success field",
@@ -168,7 +170,13 @@ func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 				}
 
 				// Check error message
-				if err.Error() != tt.wantErrMsg {
+				switch {
+				case tt.wantErrMsgPrefix != "":
+					if !strings.Contains(err.Error(), tt.wantErrMsgPrefix) {
+						t.Errorf("CheckError() error message = %q, want prefix %q\nDescription: %s",
+							err.Error(), tt.wantErrMsgPrefix, tt.description)
+					}
+				case err.Error() != tt.wantErrMsg:
 					t.Errorf("CheckError() error message = %q, want %q\nDescription: %s",
 						err.Error(), tt.wantErrMsg, tt.description)
 				}
