@@ -30,15 +30,15 @@ func testCtx(principal string) context.Context {
 // EmailsByPrincipal maps principal → primary email.
 type mockUserReader struct {
 	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
-	subs        map[string]string              // email → sub/LFID (for UsernameByEmail)
-	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
-	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
+	usernames   map[string]string              // email → username (for UsernameByEmail)
+	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
+	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
 	m := &mockUserReader{
 		emails:      make(map[string]string),
-		subs:        make(map[string]string),
+		usernames:   make(map[string]string),
 		metadataMap: make(map[string]*model.UserMetadata),
 	}
 	for i := 0; i+1 < len(pairs); i += 2 {
@@ -47,31 +47,31 @@ func newMockUserReader(pairs ...string) *mockUserReader {
 	return m
 }
 
-// withSubs populates the mock's email→sub map and returns the same receiver for chaining.
-func (m *mockUserReader) withSubs(pairs ...string) *mockUserReader {
+// withUsernames populates the mock's email→username map and returns the same receiver for chaining.
+func (m *mockUserReader) withUsernames(pairs ...string) *mockUserReader {
 	for i := 0; i+1 < len(pairs); i += 2 {
-		m.subs[pairs[i]] = pairs[i+1]
+		m.usernames[pairs[i]] = pairs[i+1]
 	}
 	return m
 }
 
-// withMetadata registers a UserMetadata response for a given sub.
-func (m *mockUserReader) withMetadata(sub string, meta *model.UserMetadata) *mockUserReader {
-	m.metadataMap[sub] = meta
+// withMetadata registers a UserMetadata response for a given username.
+func (m *mockUserReader) withMetadata(username string, meta *model.UserMetadata) *mockUserReader {
+	m.metadataMap[username] = meta
 	return m
 }
 
-// withMetadataErr configures a global error returned by UserMetadataByPrincipal for all subs.
+// withMetadataErr configures a global error returned by UserMetadataByPrincipal for all usernames.
 func (m *mockUserReader) withMetadataErr(err error) *mockUserReader {
 	m.metadataErr = err
 	return m
 }
 
 func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (string, error) {
-	if sub, ok := m.subs[email]; ok {
-		return sub, nil
+	if username, ok := m.usernames[email]; ok {
+		return username, nil
 	}
-	return "", errs.NewNotFound("mock: sub not found for email: " + email)
+	return "", errs.NewNotFound("mock: username not found for email: " + email)
 }
 
 func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
@@ -1769,7 +1769,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 	tests := []struct {
 		name         string
 		payload      func() *committeeservice.UpdateCommitteeSettingsPayload
-		subs         []string                // email, sub pairs
+		usernames    []string                // email, username pairs
 		setupReader  func(r *mockUserReader) // optional extra reader configuration (metadata, errors)
 		useErrReader bool                    // use errUserReader (transport error) instead of mockUserReader
 		wantErr      bool
@@ -1784,7 +1784,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"alice@example.com", "alice-lfid"},
+			usernames: []string{"alice@example.com", "alice-lfid"},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Writers, 1)
 				assert.Equal(t, "alice-lfid", *p.Writers[0].Username)
@@ -1799,7 +1799,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			// no subs configured → NotFound → Username cleared; entry kept (converter only drops when both username and email are empty)
+			// no usernames configured → NotFound → Username cleared; entry kept (converter only drops when both username and email are empty)
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Writers, 1)
 				assert.Equal(t, "", *p.Writers[0].Username)
@@ -1832,7 +1832,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"carol@example.com", "carol-lfid"},
+			usernames: []string{"carol@example.com", "carol-lfid"},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				assert.Equal(t, "carol-lfid", *p.Writers[0].Username)
 				assert.Equal(t, "carol-lfid", *p.Auditors[0].Username)
@@ -1847,7 +1847,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"dave@example.com", "dave-lfid"},
+			usernames: []string{"dave@example.com", "dave-lfid"},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				assert.Equal(t, "dave-lfid", *p.Writers[0].Username)
 			},
@@ -1864,7 +1864,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"alice@example.com", "alice-lfid", "bob@example.com", "bob-lfid"},
+			usernames: []string{"alice@example.com", "alice-lfid", "bob@example.com", "bob-lfid"},
 			validate: func(t *testing.T, _ *committeeServicesrvc, p *committeeservice.UpdateCommitteeSettingsPayload) {
 				require.Len(t, p.Writers, 1)
 				require.Len(t, p.Auditors, 1)
@@ -1893,7 +1893,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"carol@example.com", "carol-lfid"},
+			usernames: []string{"carol@example.com", "carol-lfid"},
 			setupReader: func(r *mockUserReader) {
 				r.withMetadata("carol-lfid", &model.UserMetadata{
 					Name:    "Carol Real Name",
@@ -1916,7 +1916,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 				}
 				return p
 			},
-			subs: []string{"dave@example.com", "dave-lfid"},
+			usernames: []string{"dave@example.com", "dave-lfid"},
 			setupReader: func(r *mockUserReader) {
 				r.withMetadataErr(errs.NewUnexpected("nats: metadata timeout"))
 			},
@@ -1935,7 +1935,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			if tt.useErrReader {
 				svc.userReader = &errUserReader{}
 			} else {
-				reader := newMockUserReader().withSubs(tt.subs...)
+				reader := newMockUserReader().withUsernames(tt.usernames...)
 				if tt.setupReader != nil {
 					tt.setupReader(reader)
 				}
@@ -2036,7 +2036,7 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("alice@example.com", "alice-lfid")
+				r.withUsernames("alice@example.com", "alice-lfid")
 				r.withMetadata("alice-lfid", &model.UserMetadata{
 					GivenName:  "Alice",
 					FamilyName: "Smith",
@@ -2059,7 +2059,7 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("alice@example.com", "other-lfid")
+				r.withUsernames("alice@example.com", "other-lfid")
 			},
 			validate: func(t *testing.T, m *model.CommitteeMember) {
 				assert.Equal(t, "other-lfid", m.Username)
@@ -2074,7 +2074,7 @@ func TestEnrichMember(t *testing.T) {
 					},
 				}
 			},
-			// no subs configured → UsernameByEmail returns NotFound
+			// no usernames configured → UsernameByEmail returns NotFound
 			validate: func(t *testing.T, m *model.CommitteeMember) {
 				assert.Empty(t, m.Username)
 				assert.Empty(t, m.FirstName)
@@ -2091,7 +2091,7 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("bob@example.com", "bob-lfid")
+				r.withUsernames("bob@example.com", "bob-lfid")
 				r.withMetadata("bob-lfid", &model.UserMetadata{
 					GivenName:  "Robert",
 					FamilyName: "Jones",
@@ -2113,7 +2113,7 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("carol@example.com", "carol-lfid")
+				r.withUsernames("carol@example.com", "carol-lfid")
 				r.withMetadataErr(errs.NewUnexpected("nats: metadata timeout"))
 			},
 			validate: func(t *testing.T, m *model.CommitteeMember) {

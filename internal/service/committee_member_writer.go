@@ -173,11 +173,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		}
 	}
 
-	// Step 4: Resolve subject identifier from email, overriding any caller-supplied plain LFID.
+	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
 	// Clear first so a failed lookup never leaves an unverified value at rest.
 	if member.Email != "" {
 		member.Username = ""
-		slog.DebugContext(ctx, "resolving subject identifier from email",
+		slog.DebugContext(ctx, "resolving username from email",
 			"email", redaction.RedactEmail(member.Email),
 		)
 		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)

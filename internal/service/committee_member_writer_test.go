@@ -211,15 +211,15 @@ func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository
 
 // writerTestUserReader is a configurable UserReader mock for committee_member_writer tests.
 type writerTestUserReader struct {
-	subs map[string]string // email → sub
-	err  error             // returned by UsernameByEmail when non-nil
+	usernames map[string]string // email → username
+	err       error             // returned by UsernameByEmail when non-nil
 }
 
 func (r *writerTestUserReader) UsernameByEmail(_ context.Context, email string) (string, error) {
 	if r.err != nil {
 		return "", r.err
 	}
-	return r.subs[email], nil
+	return r.usernames[email], nil
 }
 
 func (r *writerTestUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
@@ -950,7 +950,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 
 func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "newuser"}}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
 
 	// Setup committee with settings
 	committee := &model.Committee{
@@ -1011,7 +1011,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Verify the member was updated and the subject identifier was resolved from email.
+	// Verify the member was updated and the username was resolved from email.
 	assert.Equal(t, "member-123", result.UID)
 	assert.Equal(t, "new@example.com", result.Email)
 	assert.Equal(t, "newuser", result.Username)
@@ -1242,9 +1242,9 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		})
 	}
 
-	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, _ := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"alice@example.com": "alice"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "alice"}}
 		addCommittee(mockRepo)
 
 		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
@@ -1300,9 +1300,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		memberWriter.customRevisions["m-1"] = 1
 	}
 
-	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "new"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "new"}}
 		addCommitteeAndMember(mockRepo, memberWriter)
 
 		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
