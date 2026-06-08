@@ -12,7 +12,9 @@ useDefault = true
     paths = [
         # Exclude test files as they often contain dummy/fake data
         '''.*_test\.go$''',
-        '''(go.mod|go.sum)$'''
+        '''(go.mod|go.sum)$''',
+        # Generated OpenAPI specs include example page_token values that trip generic-api-key
+        '''gen/http/openapi.*\.(json|yaml)$''',
     ]
     # K8s Secret key NAMES used by `valueFrom.secretKeyRef.key` in chart
     # values.yaml. They label which key in the Kubernetes Secret to read; the
