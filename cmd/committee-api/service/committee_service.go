@@ -346,8 +346,11 @@ func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *comm
 		return nil, wrapError(ctx, err)
 	}
 
-	// Stable keyset order: sort by member UID so a page boundary is "after the last UID returned".
-	// Unlike an offset, this stays correct when members are inserted/deleted between page calls.
+	// Deterministic keyset order: sort by member UID so a page boundary is "after the last UID
+	// returned". This is stable against deletes and re-fetches within a snapshot; it is NOT
+	// insert-stable — because UIDs are random UUIDs, a seat inserted concurrently between page calls
+	// may sort before the cursor and be missed (acceptable here: the org's seat set is near-static and
+	// a fresh re-list converges). Unlike an offset, it never shifts or skips already-returned rows.
 	slices.SortFunc(members, func(a, b *model.CommitteeMember) int {
 		return strings.Compare(uidOf(a), uidOf(b))
 	})

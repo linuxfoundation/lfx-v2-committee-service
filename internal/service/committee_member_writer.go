@@ -809,7 +809,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 				"delete_error", errDelete,
 				"rollback_error", errRollback,
 			)
-			return nil, errs.NewUnexpected("reassign failed and rollback of the new seat also failed; manual recovery required", errRollback)
+			return nil, errs.NewUnexpected("reassign failed and rollback of the new seat also failed; manual recovery required", errDelete, errRollback)
 		}
 		slog.WarnContext(ctx, "reassign delete failed; rolled back the new seat",
 			"committee_uid", newMember.CommitteeUID,
