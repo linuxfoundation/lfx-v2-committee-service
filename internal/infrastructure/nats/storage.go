@@ -662,6 +662,16 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 			continue
 		}
 
+		// Defensive consistency check: the secondary index is a hint, the member record is the source
+		// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
+		// failed cleanup can leave an index key pointing at a member whose organization.id has since
+		// changed. Skip such entries so a stale key never leaks a seat into another org's list.
+		if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
+			slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
+				"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
+			continue
+		}
+
 		members = append(members, member)
 	}
 

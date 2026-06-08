@@ -162,3 +162,33 @@ func TestStorage_ListMembersByOrganization_EmptyOrgIsValidationError(t *testing.
 	_, err := s.ListMembersByOrganization(context.Background(), "   ")
 	require.Error(t, err)
 }
+
+// TestStorage_ListMembersByOrganization_StaleIndexEntrySkipped verifies the defensive post-read check:
+// when a stale index key (org-change cleanup lagged/failed) points at a member whose organization.id no
+// longer matches the requested org, that member is skipped so a seat never leaks across orgs. A member
+// whose record still matches the requested org is still returned.
+func TestStorage_ListMembersByOrganization_StaleIndexEntrySkipped(t *testing.T) {
+	const reqOrg = "001B000000IqhSLIAZ"
+	const otherOrg = "001C000000AbCdEFGH"
+	matchKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, reqOrg, "m-match")
+	staleKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, reqOrg, "m-stale")
+
+	matchBytes, err := json.Marshal(orgMember("m-match", reqOrg))
+	require.NoError(t, err)
+	// The stale member's record now points at a DIFFERENT org than the index key it is listed under.
+	staleBytes, err := json.Marshal(orgMember("m-stale", otherOrg))
+	require.NoError(t, err)
+
+	s := newTestStorageWithKV(&mockKV{
+		listKeys: []string{matchKey, staleKey},
+		getEntries: map[string]jetstream.KeyValueEntry{
+			"m-match": &mockEntry{value: matchBytes, rev: 1},
+			"m-stale": &mockEntry{value: staleBytes, rev: 1},
+		},
+	})
+
+	members, err := s.ListMembersByOrganization(context.Background(), reqOrg)
+	require.NoError(t, err)
+	require.Len(t, members, 1, "the stale cross-org entry must be skipped")
+	assert.Equal(t, "m-match", members[0].UID)
+}
