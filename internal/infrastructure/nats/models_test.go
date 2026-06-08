@@ -172,7 +172,7 @@ func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 				// Check error message
 				switch {
 				case tt.wantErrMsgPrefix != "":
-					if !strings.Contains(err.Error(), tt.wantErrMsgPrefix) {
+					if !strings.HasPrefix(err.Error(), tt.wantErrMsgPrefix) {
 						t.Errorf("CheckError() error message = %q, want prefix %q\nDescription: %s",
 							err.Error(), tt.wantErrMsgPrefix, tt.description)
 					}
