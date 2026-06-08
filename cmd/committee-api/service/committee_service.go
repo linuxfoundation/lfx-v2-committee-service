@@ -1144,7 +1144,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 
 	// enrichResult holds the resolved identity and profile for one email address.
 	type enrichResult struct {
-		sub      string
+		username string
 		metadata *model.UserMetadata
 	}
 
@@ -1156,7 +1156,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 
 	for email := range byEmail {
 		g.Go(func() error {
-			sub, err := s.userReader.SubByEmail(gCtx, email)
+			username, err := s.userReader.UsernameByEmail(gCtx, email)
 			if err != nil {
 				var notFound errors.NotFound
 				if stderrors.As(err, &notFound) {
@@ -1167,27 +1167,27 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				}
 				return err
 			}
-			if sub == "" {
-				// Empty sub with no error is treated as not found — no valid LFID to persist.
+			if username == "" {
+				// Empty username with no error is treated as not found — no valid LFID to persist.
 				mu.Lock()
 				results[email] = enrichResult{}
 				mu.Unlock()
 				return nil
 			}
 
-			// Sub resolved — now fetch authoritative profile data.
+			// Username resolved — now fetch authoritative profile data.
 			// Metadata failures are non-fatal: display fields must not block the write.
 			var meta *model.UserMetadata
-			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, username)
 			if metaErr != nil {
 				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
-					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
+					"email", redaction.RedactEmail(email), "username", redaction.Redact(username), "error", metaErr)
 			} else {
 				meta = m
 			}
 
 			mu.Lock()
-			results[email] = enrichResult{sub: sub, metadata: meta}
+			results[email] = enrichResult{username: username, metadata: meta}
 			mu.Unlock()
 			return nil
 		})
@@ -1197,15 +1197,15 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return errors.NewUnexpected("enriching committee user role fields failed", err)
 	}
 
-	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// Apply resolved username, name, and avatar. Only overwrite name/avatar when the auth service
 	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
 	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
 	// not currently model; they are fetched now so the domain struct is complete for future callers.
 	for email, users := range byEmail {
 		r := results[email]
 		for _, u := range users {
-			sub := r.sub
-			u.Username = &sub
+			username := r.username
+			u.Username = &username
 			if r.metadata != nil {
 				if r.metadata.Name != "" {
 					name := r.metadata.Name
@@ -1221,9 +1221,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	return nil
 }
 
-// enrichMember resolves the subject identifier (username) and profile metadata for a member from
-// their email address. When email is present the auth-service lookup always runs, overriding any
-// caller-supplied plain LFID so only subject identifiers are persisted.
+// enrichMember resolves the LFID username and profile metadata for a member from their email
+// address. When email is present the auth-service lookup always runs, overriding any
+// caller-supplied plain LFID so only registered usernames are persisted.
 // All lookups are best-effort: failures log a warning and leave the field unchanged so the
 // caller's write is never blocked by an enrichment error.
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
@@ -1243,7 +1243,7 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
 	// failing the request. Individual member writes (create/update/approve) should not be blocked
 	// by a transient auth-service outage — the member is stored without an enriched LFID.
-	sub, err := s.userReader.SubByEmail(ctx, email)
+	username, err := s.userReader.UsernameByEmail(ctx, email)
 	if err != nil {
 		var notFound errors.NotFound
 		if !stderrors.As(err, &notFound) {
@@ -1252,15 +1252,15 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 		}
 		return
 	}
-	if sub == "" {
+	if username == "" {
 		return
 	}
-	member.Username = sub
+	member.Username = username
 
-	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, username)
 	if metaErr != nil {
 		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
-			"sub", redaction.Redact(sub), "error", metaErr)
+			"username", redaction.Redact(username), "error", metaErr)
 		return
 	}
 	if meta == nil {

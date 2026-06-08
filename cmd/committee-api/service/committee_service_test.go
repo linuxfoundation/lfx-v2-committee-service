@@ -30,7 +30,7 @@ func testCtx(principal string) context.Context {
 // EmailsByPrincipal maps principal → primary email.
 type mockUserReader struct {
 	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
-	subs        map[string]string              // email → sub/LFID (for SubByEmail)
+	subs        map[string]string              // email → sub/LFID (for UsernameByEmail)
 	metadataMap map[string]*model.UserMetadata // sub → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all subs
 }
@@ -67,7 +67,7 @@ func (m *mockUserReader) withMetadataErr(err error) *mockUserReader {
 	return m
 }
 
-func (m *mockUserReader) SubByEmail(ctx context.Context, email string) (string, error) {
+func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (string, error) {
 	if sub, ok := m.subs[email]; ok {
 		return sub, nil
 	}
@@ -1492,14 +1492,14 @@ func TestJoinCommittee(t *testing.T) {
 		{
 			name:        "successful join when open",
 			joinMode:    "open",
-			username:    "auth0|joiner",
+			username:    "joiner",
 			email:       "joiner@example.com",
 			expectError: false,
 		},
 		{
 			name:        "rejected when join_mode is application",
 			joinMode:    "application",
-			username:    "auth0|joiner",
+			username:    "joiner",
 			email:       "joiner@example.com",
 			expectError: true,
 			errContains: "join_mode is not open",
@@ -1507,7 +1507,7 @@ func TestJoinCommittee(t *testing.T) {
 		{
 			name:        "rejected when join_mode is empty (closed)",
 			joinMode:    "",
-			username:    "auth0|joiner",
+			username:    "joiner",
 			email:       "joiner@example.com",
 			expectError: true,
 			errContains: "join_mode is not open",
@@ -1523,7 +1523,7 @@ func TestJoinCommittee(t *testing.T) {
 		{
 			name:        "rejected when principal has no email",
 			joinMode:    "open",
-			username:    "auth0|joiner",
+			username:    "joiner",
 			email:       "",
 			expectError: true,
 			errContains: "principal not found",
@@ -1873,7 +1873,7 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "transport error from SubByEmail fails the request",
+			name: "transport error from UsernameByEmail fails the request",
 			payload: func() *committeeservice.UpdateCommitteeSettingsPayload {
 				p := basePayload()
 				p.Writers = []*committeeservice.CommitteeUser{
@@ -1955,10 +1955,10 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 	}
 }
 
-// errUserReader always returns a transport error from SubByEmail (not a NotFound).
+// errUserReader always returns a transport error from UsernameByEmail (not a NotFound).
 type errUserReader struct{}
 
-func (e *errUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+func (e *errUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
@@ -1993,11 +1993,11 @@ func TestUpdateCommitteeSettings_LFIDOnlyEntry(t *testing.T) {
 
 // TestEnrichAllRoleFields_M2MClientUsernamePreserved verifies that an Auth0 M2M client principal
 // (username like "abc123@clients", no email) is left completely untouched by enrichAllRoleFields —
-// no SubByEmail lookup is attempted and the username survives.
+// no UsernameByEmail lookup is attempted and the username survives.
 // Regression test for LFXV2-2133.
 func TestEnrichAllRoleFields_M2MClientUsernamePreserved(t *testing.T) {
 	svc, _ := setupServiceTest()
-	// errUserReader causes any SubByEmail call to return a transport error —
+	// errUserReader causes any UsernameByEmail call to return a transport error —
 	// if enrichAllRoleFields incorrectly attempts a lookup the test will fail.
 	svc.userReader = &errUserReader{}
 
@@ -2059,10 +2059,10 @@ func TestEnrichMember(t *testing.T) {
 				}
 			},
 			setupReader: func(r *mockUserReader) {
-				r.withSubs("alice@example.com", "auth0|other-lfid")
+				r.withSubs("alice@example.com", "other-lfid")
 			},
 			validate: func(t *testing.T, m *model.CommitteeMember) {
-				assert.Equal(t, "auth0|other-lfid", m.Username)
+				assert.Equal(t, "other-lfid", m.Username)
 			},
 		},
 		{
@@ -2074,7 +2074,7 @@ func TestEnrichMember(t *testing.T) {
 					},
 				}
 			},
-			// no subs configured → SubByEmail returns NotFound
+			// no subs configured → UsernameByEmail returns NotFound
 			validate: func(t *testing.T, m *model.CommitteeMember) {
 				assert.Empty(t, m.Username)
 				assert.Empty(t, m.FirstName)

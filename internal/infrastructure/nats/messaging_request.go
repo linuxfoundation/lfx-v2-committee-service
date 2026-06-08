@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -46,27 +47,37 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
-// SubByEmail retrieves a user's sub (subject identifier) for the given email address via a NATS request.
-func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
-
-	data := []byte(email)
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToSubLookupSubject, data)
+// UsernameByEmail resolves the registered LFID username for the given primary email address.
+// The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
+func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToUsernameLookupSubject, []byte(email))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("email_to_username request failed: %w", err)
 	}
 
-	response := string(msg.Data)
-	if response == "" {
-		return "", errors.NewNotFound(fmt.Sprintf("user sub not found for email: %s", redaction.RedactEmail(email)))
+	body := strings.TrimSpace(string(msg.Data))
+	if body == "" {
+		return "", errors.NewNotFound(fmt.Sprintf("user not found for email: %s", redaction.RedactEmail(email)))
 	}
 
-	// handling errors if exists
-	var errorMessage ErrorMessageNATSResponse
-	if err := errorMessage.CheckError(response); err != nil {
-		return "", err
+	if body[0] == '{' {
+		var envelope struct {
+			Success *bool  `json:"success"`
+			Error   string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(msg.Data, &envelope); err != nil {
+			return "", errors.NewUnexpected(fmt.Sprintf("failed to parse email_to_username response: %v", err))
+		}
+		if envelope.Success == nil {
+			return "", errors.NewUnexpected("email_to_username response missing success field")
+		}
+		if !*envelope.Success {
+			return "", errors.NewNotFound(fmt.Sprintf("user not found for email: %s", redaction.RedactEmail(email)))
+		}
+		return "", errors.NewUnexpected("unexpected email_to_username success envelope")
 	}
 
-	return response, nil
+	return body, nil
 }
 
 // EmailsByPrincipal retrieves all email addresses for a user by sending their Auth0 sub

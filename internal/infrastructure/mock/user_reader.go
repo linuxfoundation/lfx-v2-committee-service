@@ -17,8 +17,8 @@ import (
 // environment variable, mirroring the mock auth service pattern.
 type MockUserReader struct{}
 
-// SubByEmail is not used in mock mode; always returns an empty string.
-func (m *MockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+// UsernameByEmail is not used in mock mode; always returns an empty string.
+func (m *MockUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
