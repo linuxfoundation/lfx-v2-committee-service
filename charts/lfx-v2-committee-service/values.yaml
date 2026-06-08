@@ -525,18 +525,18 @@ app:
     # ORG_SEAT_PAGE_TOKEN_HMAC_KEY — HMAC signing key for the Org Lens
     # committee-seat pagination cursor (LFXV2-1865). It is the SOLE source of the
     # key; there is no in-repo fallback for any environment (a public key would
-    # make page tokens forgeable, including in shared dev). Sourced from a
-    # Kubernetes Secret; operators should provision the key (or override
-    # `name`/`key`) in every environment that needs the Org Lens Board & Committee
-    # tab. `optional: true` keeps the pod healthy when the secret/key is absent:
-    # the org-seat read endpoint degrades to a 503 while the rest of the service
-    # stays up — it never crash-loops. The key only needs to be a stable, secret
-    # random string shared across replicas. Set it in values.local.yaml for local
-    # development.
+    # make page tokens forgeable, including in shared dev). It points directly at
+    # the ExternalSecret-managed Secret (`lfx-v2-committee-service-secrets`, key
+    # `org_seat_page_token_hmac_key`, provisioned via lfx-secrets-management) so
+    # no per-environment GitOps override is needed. `optional: true` keeps the pod
+    # healthy when the secret/key is absent: the org-seat read endpoint degrades
+    # to a 503 while the rest of the service stays up — it never crash-loops. The
+    # key only needs to be a stable, secret random string shared across replicas.
+    # Set it in values.local.yaml for local development.
     ORG_SEAT_PAGE_TOKEN_HMAC_KEY:
       valueFrom:
         secretKeyRef:
-          name: committee-secrets
+          name: lfx-v2-committee-service-secrets
           key: org_seat_page_token_hmac_key
           optional: true
 
