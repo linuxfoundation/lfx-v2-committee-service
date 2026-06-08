@@ -99,13 +99,14 @@ type UserMetadataNATSDataBody struct {
 
 // CheckError parses a JSON message and returns an error if the operation was unsuccessful.
 func (e ErrorMessageNATSResponse) CheckError(message string) error {
-	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal == nil {
-		if !e.Success {
-			if strings.Contains(e.Error, "not found") {
-				return errors.NewNotFound(e.Error)
-			}
-			return errors.NewUnexpected(e.Error)
+	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal != nil {
+		return errors.NewUnexpected("failed to parse NATS error response", errUnmarshal)
+	}
+	if !e.Success {
+		if strings.Contains(e.Error, "not found") {
+			return errors.NewNotFound(e.Error)
 		}
+		return errors.NewUnexpected(e.Error)
 	}
 	return nil
 }

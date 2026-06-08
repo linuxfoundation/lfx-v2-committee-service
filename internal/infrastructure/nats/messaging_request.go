@@ -61,21 +61,9 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 	}
 
 	if body[0] == '{' {
-		var envelope struct {
-			Success *bool  `json:"success"`
-			Error   string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal([]byte(body), &envelope); err != nil {
-			return "", errors.NewUnexpected(fmt.Sprintf("failed to parse email_to_username response: %v", err))
-		}
-		if envelope.Success == nil {
-			return "", errors.NewUnexpected("email_to_username response missing success field")
-		}
-		if !*envelope.Success {
-			if strings.Contains(envelope.Error, "not found") {
-				return "", errors.NewNotFound(envelope.Error)
-			}
-			return "", errors.NewUnexpected(envelope.Error)
+		var errorMessage ErrorMessageNATSResponse
+		if err := errorMessage.CheckError(body); err != nil {
+			return "", err
 		}
 		return "", errors.NewUnexpected("unexpected email_to_username success envelope")
 	}
