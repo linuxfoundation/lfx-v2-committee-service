@@ -5,6 +5,9 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -181,6 +184,24 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		assert.Equal(t, "m-5", p3.Seats[0].UID)
 	})
 
+	t.Run("page size is capped at the maximum", func(t *testing.T) {
+		// More members than the cap so a requested page_size above maxOrgSeatPageSize is clamped.
+		seats := make([]*model.CommitteeMember, 0, maxOrgSeatPageSize+1)
+		for i := 0; i <= maxOrgSeatPageSize; i++ { // maxOrgSeatPageSize+1 members
+			s := entitlementSeat()
+			s.UID = fmt.Sprintf("m-%05d", i)
+			seats = append(seats, s)
+		}
+		reader := &stubOrgSeatReader{members: seats}
+		svc := &committeeServicesrvc{orgSeatReader: reader}
+
+		over := maxOrgSeatPageSize + 1000 // request well above the cap
+		p, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID, PageSize: &over})
+		require.NoError(t, err)
+		assert.Len(t, p.Seats, maxOrgSeatPageSize, "page must be clamped to maxOrgSeatPageSize")
+		assert.NotNil(t, p.PageToken, "an extra member remains beyond the capped page → next cursor expected")
+	})
+
 	t.Run("malformed page_token is a bad request", func(t *testing.T) {
 		reader := &stubOrgSeatReader{members: []*model.CommitteeMember{entitlementSeat()}}
 		svc := &committeeServicesrvc{orgSeatReader: reader}
@@ -214,6 +235,75 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		_, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{UID: testOrgSFID})
 		assertGoaErrContains(t, err, "ORG_SEAT_PAGE_TOKEN_HMAC_KEY")
 	})
+}
+
+func TestDecodeSeatCursor(t *testing.T) {
+	t.Run("round-trips a signed cursor", func(t *testing.T) {
+		tok := encodeSeatCursor("m-42")
+		got, err := decodeSeatCursor(&tok)
+		require.NoError(t, err)
+		assert.Equal(t, "m-42", got)
+	})
+
+	t.Run("empty/nil token is the first page", func(t *testing.T) {
+		got, err := decodeSeatCursor(nil)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+
+		empty := ""
+		got, err = decodeSeatCursor(&empty)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("tampered signature is rejected", func(t *testing.T) {
+		// Take a structurally valid, correctly-signed cursor and flip a signature byte so the token is
+		// still valid base64 of the right length but the HMAC no longer matches — this exercises the
+		// !hmac.Equal branch (distinct from the malformed-base64 case).
+		tok := encodeSeatCursor("m-1")
+		raw, err := base64.RawURLEncoding.DecodeString(tok)
+		require.NoError(t, err)
+		require.Greater(t, len(raw), sha256.Size)
+		raw[0] ^= 0xFF // corrupt the first signature byte
+		tampered := base64.RawURLEncoding.EncodeToString(raw)
+
+		_, err = decodeSeatCursor(&tampered)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "signature")
+	})
+
+	t.Run("signature from a different key is rejected", func(t *testing.T) {
+		// A token signed with a different key must not verify under seatCursorKey.
+		saved := seatCursorKey
+		seatCursorKey = []byte("a-totally-different-key")
+		foreign := encodeSeatCursor("m-1")
+		seatCursorKey = saved
+
+		_, err := decodeSeatCursor(&foreign)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "signature")
+	})
+}
+
+func TestIsMembershipEntitlement(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"Membership Entitlement", true},
+		{"membership entitlement", true},        // case-insensitive
+		{"MEMBERSHIP ENTITLEMENT", true},        // case-insensitive
+		{"  Membership Entitlement  ", true},    // surrounding whitespace trimmed
+		{"\tMembership Entitlement\n", true},    // other whitespace trimmed
+		{"", false},                             // empty
+		{"   ", false},                          // whitespace-only
+		{"Community", false},                    // other appointment type
+		{"Membership", false},                   // partial match must not pass
+		{"Membership Entitlement Extra", false}, // superset must not pass
+	}
+	for _, c := range cases {
+		assert.Equalf(t, c.want, isMembershipEntitlement(c.in), "input=%q", c.in)
+	}
 }
 
 func TestReassignOrgCommitteeSeat(t *testing.T) {
