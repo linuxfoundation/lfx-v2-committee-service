@@ -14,12 +14,14 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // mockMemberWriter is a minimal implementation of port.CommitteeMemberWriter used by
 // the backfill subcommand.  Only IndexMemberByCommittee is exercised here.
 type mockMemberWriter struct {
 	indexed    []string // committee_uid+"."+member_uid keys that were written
+	orgIndexed []string // org_sfid+"."+member_uid keys that were written
 	indexError error
 }
 
@@ -39,6 +41,18 @@ func (w *mockMemberWriter) IndexMemberByCommittee(_ context.Context, m *model.Co
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, m.CommitteeUID, m.UID)
 	w.indexed = append(w.indexed, key)
+	return key, nil
+}
+func (w *mockMemberWriter) IndexMemberByOrganization(_ context.Context, m *model.CommitteeMember) (string, error) {
+	if w.indexError != nil {
+		return "", w.indexError
+	}
+	orgSFID := utils.NormalizeAccountSFID(m.Organization.ID)
+	if orgSFID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, m.UID)
+	w.orgIndexed = append(w.orgIndexed, key)
 	return key, nil
 }
 

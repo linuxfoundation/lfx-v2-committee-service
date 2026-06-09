@@ -34,6 +34,8 @@ type Server struct {
 	Livez                     http.Handler
 	CreateCommitteeMember     http.Handler
 	GetCommitteeMember        http.Handler
+	GetOrgCommitteeSeats      http.Handler
+	ReassignOrgCommitteeSeat  http.Handler
 	UpdateCommitteeMember     http.Handler
 	DeleteCommitteeMember     http.Handler
 	GetInvite                 http.Handler
@@ -130,6 +132,8 @@ func New(
 			{"Livez", "GET", "/livez"},
 			{"CreateCommitteeMember", "POST", "/committees/{uid}/members"},
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
+			{"GetOrgCommitteeSeats", "GET", "/committees/b2b-org/{uid}/seats"},
+			{"ReassignOrgCommitteeSeat", "PUT", "/committees/b2b-org/{uid}/seats/{member_uid}/reassign"},
 			{"UpdateCommitteeMember", "PUT", "/committees/{uid}/members/{member_uid}"},
 			{"DeleteCommitteeMember", "DELETE", "/committees/{uid}/members/{member_uid}"},
 			{"GetInvite", "GET", "/committees/{uid}/invites/{invite_uid}"},
@@ -172,6 +176,8 @@ func New(
 		Livez:                     NewLivezHandler(e.Livez, mux, decoder, encoder, errhandler, formatter),
 		CreateCommitteeMember:     NewCreateCommitteeMemberHandler(e.CreateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		GetCommitteeMember:        NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		GetOrgCommitteeSeats:      NewGetOrgCommitteeSeatsHandler(e.GetOrgCommitteeSeats, mux, decoder, encoder, errhandler, formatter),
+		ReassignOrgCommitteeSeat:  NewReassignOrgCommitteeSeatHandler(e.ReassignOrgCommitteeSeat, mux, decoder, encoder, errhandler, formatter),
 		UpdateCommitteeMember:     NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeMember:     NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		GetInvite:                 NewGetInviteHandler(e.GetInvite, mux, decoder, encoder, errhandler, formatter),
@@ -221,6 +227,8 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Livez = m(s.Livez)
 	s.CreateCommitteeMember = m(s.CreateCommitteeMember)
 	s.GetCommitteeMember = m(s.GetCommitteeMember)
+	s.GetOrgCommitteeSeats = m(s.GetOrgCommitteeSeats)
+	s.ReassignOrgCommitteeSeat = m(s.ReassignOrgCommitteeSeat)
 	s.UpdateCommitteeMember = m(s.UpdateCommitteeMember)
 	s.DeleteCommitteeMember = m(s.DeleteCommitteeMember)
 	s.GetInvite = m(s.GetInvite)
@@ -265,6 +273,8 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountLivezHandler(mux, h.Livez)
 	MountCreateCommitteeMemberHandler(mux, h.CreateCommitteeMember)
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
+	MountGetOrgCommitteeSeatsHandler(mux, h.GetOrgCommitteeSeats)
+	MountReassignOrgCommitteeSeatHandler(mux, h.ReassignOrgCommitteeSeat)
 	MountUpdateCommitteeMemberHandler(mux, h.UpdateCommitteeMember)
 	MountDeleteCommitteeMemberHandler(mux, h.DeleteCommitteeMember)
 	MountGetInviteHandler(mux, h.GetInvite)
@@ -804,6 +814,114 @@ func NewGetCommitteeMemberHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "get-committee-member")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountGetOrgCommitteeSeatsHandler configures the mux to serve the
+// "committee-service" service "get-org-committee-seats" endpoint.
+func MountGetOrgCommitteeSeatsHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/committees/b2b-org/{uid}/seats", f)
+}
+
+// NewGetOrgCommitteeSeatsHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "get-org-committee-seats"
+// endpoint.
+func NewGetOrgCommitteeSeatsHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeGetOrgCommitteeSeatsRequest(mux, decoder)
+		encodeResponse = EncodeGetOrgCommitteeSeatsResponse(encoder)
+		encodeError    = EncodeGetOrgCommitteeSeatsError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "get-org-committee-seats")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountReassignOrgCommitteeSeatHandler configures the mux to serve the
+// "committee-service" service "reassign-org-committee-seat" endpoint.
+func MountReassignOrgCommitteeSeatHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("PUT", "/committees/b2b-org/{uid}/seats/{member_uid}/reassign", f)
+}
+
+// NewReassignOrgCommitteeSeatHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "reassign-org-committee-seat" endpoint.
+func NewReassignOrgCommitteeSeatHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeReassignOrgCommitteeSeatRequest(mux, decoder)
+		encodeResponse = EncodeReassignOrgCommitteeSeatResponse(encoder)
+		encodeError    = EncodeReassignOrgCommitteeSeatError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "reassign-org-committee-seat")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

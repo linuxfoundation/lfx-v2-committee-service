@@ -58,6 +58,14 @@ type Client struct {
 	// get-committee-member endpoint.
 	GetCommitteeMemberDoer goahttp.Doer
 
+	// GetOrgCommitteeSeats Doer is the HTTP client used to make requests to the
+	// get-org-committee-seats endpoint.
+	GetOrgCommitteeSeatsDoer goahttp.Doer
+
+	// ReassignOrgCommitteeSeat Doer is the HTTP client used to make requests to
+	// the reassign-org-committee-seat endpoint.
+	ReassignOrgCommitteeSeatDoer goahttp.Doer
+
 	// UpdateCommitteeMember Doer is the HTTP client used to make requests to the
 	// update-committee-member endpoint.
 	UpdateCommitteeMemberDoer goahttp.Doer
@@ -202,6 +210,8 @@ func NewClient(
 		LivezDoer:                     doer,
 		CreateCommitteeMemberDoer:     doer,
 		GetCommitteeMemberDoer:        doer,
+		GetOrgCommitteeSeatsDoer:      doer,
+		ReassignOrgCommitteeSeatDoer:  doer,
 		UpdateCommitteeMemberDoer:     doer,
 		DeleteCommitteeMemberDoer:     doer,
 		GetInviteDoer:                 doer,
@@ -462,6 +472,54 @@ func (c *Client) GetCommitteeMember() goa.Endpoint {
 		resp, err := c.GetCommitteeMemberDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "get-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetOrgCommitteeSeats returns an endpoint that makes HTTP requests to the
+// committee-service service get-org-committee-seats server.
+func (c *Client) GetOrgCommitteeSeats() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeGetOrgCommitteeSeatsRequest(c.encoder)
+		decodeResponse = DecodeGetOrgCommitteeSeatsResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetOrgCommitteeSeatsRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetOrgCommitteeSeatsDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "get-org-committee-seats", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ReassignOrgCommitteeSeat returns an endpoint that makes HTTP requests to the
+// committee-service service reassign-org-committee-seat server.
+func (c *Client) ReassignOrgCommitteeSeat() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeReassignOrgCommitteeSeatRequest(c.encoder)
+		decodeResponse = DecodeReassignOrgCommitteeSeatResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildReassignOrgCommitteeSeatRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ReassignOrgCommitteeSeatDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "reassign-org-committee-seat", err)
 		}
 		return decodeResponse(resp)
 	}

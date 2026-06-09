@@ -27,4 +27,11 @@ type CommitteeMemberWriter interface {
 	// Returns the written key (for rollback tracking) and nil on success.
 	// Treats ErrKeyExists as idempotent success.
 	IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error)
+
+	// IndexMemberByOrganization writes the secondary index entry mapping the holding org SFID
+	// (committee_member.organization.id, normalized to 18 chars) → member_uid so that
+	// ListMembersByOrganization can use a server-side filtered scan (Org Lens, LFXV2-1865).
+	// Returns the written key (for rollback tracking), or an empty key (no-op) when the member has
+	// no organization.id. Treats ErrKeyExists as idempotent success.
+	IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error)
 }

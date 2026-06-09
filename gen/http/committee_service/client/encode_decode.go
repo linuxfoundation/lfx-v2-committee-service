@@ -11,6 +11,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -1465,6 +1466,339 @@ func DecodeGetCommitteeMemberResponse(decoder func(*http.Response) goahttp.Decod
 		default:
 			body, _ := io.ReadAll(resp.Body)
 			return nil, goahttp.ErrInvalidResponse("committee-service", "get-committee-member", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildGetOrgCommitteeSeatsRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "get-org-committee-seats" endpoint
+func (c *Client) BuildGetOrgCommitteeSeatsRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.GetOrgCommitteeSeatsPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "get-org-committee-seats", "*committeeservice.GetOrgCommitteeSeatsPayload", v)
+		}
+		uid = p.UID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetOrgCommitteeSeatsCommitteeServicePath(uid)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "get-org-committee-seats", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeGetOrgCommitteeSeatsRequest returns an encoder for requests sent to
+// the committee-service get-org-committee-seats server.
+func EncodeGetOrgCommitteeSeatsRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.GetOrgCommitteeSeatsPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "get-org-committee-seats", "*committeeservice.GetOrgCommitteeSeatsPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		for _, value := range p.ProjectUids {
+			values.Add("project_uids", value)
+		}
+		if p.PageSize != nil {
+			values.Add("page_size", fmt.Sprintf("%v", *p.PageSize))
+		}
+		if p.PageToken != nil {
+			values.Add("page_token", *p.PageToken)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeGetOrgCommitteeSeatsResponse returns a decoder for responses returned
+// by the committee-service get-org-committee-seats endpoint. restoreBody
+// controls whether the response body should be restored after having been read.
+// DecodeGetOrgCommitteeSeatsResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeGetOrgCommitteeSeatsResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetOrgCommitteeSeatsResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-org-committee-seats", err)
+			}
+			err = ValidateGetOrgCommitteeSeatsResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-org-committee-seats", err)
+			}
+			res := NewGetOrgCommitteeSeatsOrgCommitteeSeatPageOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body GetOrgCommitteeSeatsBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-org-committee-seats", err)
+			}
+			err = ValidateGetOrgCommitteeSeatsBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-org-committee-seats", err)
+			}
+			return nil, NewGetOrgCommitteeSeatsBadRequest(&body)
+		case http.StatusInternalServerError:
+			var (
+				body GetOrgCommitteeSeatsInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-org-committee-seats", err)
+			}
+			err = ValidateGetOrgCommitteeSeatsInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-org-committee-seats", err)
+			}
+			return nil, NewGetOrgCommitteeSeatsInternalServerError(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body GetOrgCommitteeSeatsServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "get-org-committee-seats", err)
+			}
+			err = ValidateGetOrgCommitteeSeatsServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "get-org-committee-seats", err)
+			}
+			return nil, NewGetOrgCommitteeSeatsServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "get-org-committee-seats", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildReassignOrgCommitteeSeatRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "reassign-org-committee-seat" endpoint
+func (c *Client) BuildReassignOrgCommitteeSeatRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid       string
+		memberUID string
+	)
+	{
+		p, ok := v.(*committeeservice.ReassignOrgCommitteeSeatPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "reassign-org-committee-seat", "*committeeservice.ReassignOrgCommitteeSeatPayload", v)
+		}
+		uid = p.UID
+		memberUID = p.MemberUID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ReassignOrgCommitteeSeatCommitteeServicePath(uid, memberUID)}
+	req, err := http.NewRequest("PUT", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "reassign-org-committee-seat", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeReassignOrgCommitteeSeatRequest returns an encoder for requests sent
+// to the committee-service reassign-org-committee-seat server.
+func EncodeReassignOrgCommitteeSeatRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.ReassignOrgCommitteeSeatPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "reassign-org-committee-seat", "*committeeservice.ReassignOrgCommitteeSeatPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		values.Add("v", p.Version)
+		req.URL.RawQuery = values.Encode()
+		body := NewReassignOrgCommitteeSeatRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "reassign-org-committee-seat", err)
+		}
+		return nil
+	}
+}
+
+// DecodeReassignOrgCommitteeSeatResponse returns a decoder for responses
+// returned by the committee-service reassign-org-committee-seat endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeReassignOrgCommitteeSeatResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeReassignOrgCommitteeSeatResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body ReassignOrgCommitteeSeatResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			res := NewReassignOrgCommitteeSeatOrgCommitteeSeatOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body ReassignOrgCommitteeSeatBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body ReassignOrgCommitteeSeatConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatConflict(&body)
+		case http.StatusForbidden:
+			var (
+				body ReassignOrgCommitteeSeatForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatForbidden(&body)
+		case http.StatusInternalServerError:
+			var (
+				body ReassignOrgCommitteeSeatInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body ReassignOrgCommitteeSeatNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body ReassignOrgCommitteeSeatServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "reassign-org-committee-seat", err)
+			}
+			err = ValidateReassignOrgCommitteeSeatServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "reassign-org-committee-seat", err)
+			}
+			return nil, NewReassignOrgCommitteeSeatServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "reassign-org-committee-seat", resp.StatusCode, string(body))
 		}
 	}
 }
@@ -5999,6 +6333,30 @@ func unmarshalCommitteeUserInviteResponseBodyToCommitteeserviceCommitteeUserInvi
 		UID:       v.UID,
 		Email:     v.Email,
 		ExpiresAt: v.ExpiresAt,
+	}
+
+	return res
+}
+
+// unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat
+// builds a value of type *committeeservice.OrgCommitteeSeat from a value of
+// type *OrgCommitteeSeatResponseBody.
+func unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat(v *OrgCommitteeSeatResponseBody) *committeeservice.OrgCommitteeSeat {
+	res := &committeeservice.OrgCommitteeSeat{
+		UID:               *v.UID,
+		CommitteeUID:      *v.CommitteeUID,
+		CommitteeName:     *v.CommitteeName,
+		CommitteeCategory: *v.CommitteeCategory,
+		FirstName:         *v.FirstName,
+		LastName:          *v.LastName,
+		Email:             *v.Email,
+		JobTitle:          v.JobTitle,
+		RoleName:          *v.RoleName,
+		VotingStatus:      *v.VotingStatus,
+		AppointedBy:       *v.AppointedBy,
+		OrganizationID:    *v.OrganizationID,
+		IsOrgEditable:     *v.IsOrgEditable,
+		Reason:            v.Reason,
 	}
 
 	return res

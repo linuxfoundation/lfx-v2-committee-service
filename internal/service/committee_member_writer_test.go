@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,9 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
@@ -26,6 +29,23 @@ type TestMockCommitteeMemberWriter struct {
 	keys            map[string]string // uniqueness keys
 	customRevisions map[string]uint64 // for testing revision conflicts
 	indexedKeys     []string          // keys written by IndexMemberByCommittee
+	orgIndexErr     error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
+
+	mu          sync.Mutex // guards deletedKeys (DeleteMember may run in a background cleanup goroutine)
+	deletedKeys []string   // keys passed to DeleteMember (for asserting rollback / async stale cleanup)
+}
+
+// wasDeleted reports whether DeleteMember was called for key (thread-safe; the org-change stale-key
+// cleanup runs in a background goroutine).
+func (w *TestMockCommitteeMemberWriter) wasDeleted(key string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, k := range w.deletedKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
 
 func NewTestMockCommitteeMemberWriter(mockRepo *mock.MockRepository) *TestMockCommitteeMemberWriter {
@@ -118,6 +138,9 @@ func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid st
 	}
 
 	delete(w.members, uid)
+	w.mu.Lock()
+	w.deletedKeys = append(w.deletedKeys, uid)
+	w.mu.Unlock()
 	return nil
 }
 
@@ -137,6 +160,21 @@ func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member
 func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context, member *model.CommitteeMember) (string, error) {
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	w.indexedKeys = append(w.indexedKeys, key)
+	return key, nil
+}
+
+func (w *TestMockCommitteeMemberWriter) IndexMemberByOrganization(_ context.Context, member *model.CommitteeMember) (string, error) {
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
+	if w.orgIndexErr != nil {
+		// Return the key alongside the error: the create/update paths append the key for rollback
+		// before checking the error, so this exercises the rollback cleanup of a partial write.
+		return key, w.orgIndexErr
+	}
 	return key, nil
 }
 
@@ -266,8 +304,25 @@ func (r *TestMockCommitteeReader) ListMembersByCommittee(ctx context.Context, co
 	return []*model.CommitteeMember{}, errs.NewNotFound("not implemented for this test")
 }
 
+func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
+}
+
 func (r *TestMockCommitteeReader) ListAllMembers(_ context.Context) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, nil
+}
+
+func (r *TestMockCommitteeReader) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := r.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if err := fn(m); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Implement CommitteeInviteReader interface
@@ -698,6 +753,219 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	// Index key must also have been removed by the cleanup pass.
 	_, indexStillExists := memberWriter.members[indexKey]
 	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
+}
+
+// flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
+// non-NotFound (transient) error, to exercise ReassignMember's "old seat state unconfirmed" branch.
+type flakyOldSeatReader struct {
+	port.CommitteeReader
+	targetUID string
+	err       error
+}
+
+func (r *flakyOldSeatReader) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	if uid == r.targetUID {
+		return nil, 0, r.err
+	}
+	return r.CommitteeReader.GetMember(ctx, uid)
+}
+
+// TestReassignMember_UnconfirmedOldSeatRetainsNewSeat verifies that when the old-seat delete fails and
+// the confirming re-read also fails with a non-NotFound (transient) error, ReassignMember does NOT roll
+// back the freshly created seat: rolling back when the delete may already have committed would leave the
+// seat with no holder at all. Instead it retains the new seat and returns an error for manual
+// reconciliation (a visible duplicate is preferable to silent data loss).
+func TestReassignMember_UnconfirmedOldSeatRetainsNewSeat(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:      "committee-reassign-unconfirmed",
+			Name:     "Reassign Unconfirmed Committee",
+			Category: "Technical",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-reassign-unconfirmed",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	const oldMemberUID = "old-holder-unconfirmed"
+	// Force the old-seat read (used by both DeleteMember and the post-delete confirm) to fail with a
+	// transient, non-NotFound error so we land in the "unconfirmed" branch.
+	orchestrator.committeeReader = &flakyOldSeatReader{
+		CommitteeReader: orchestrator.committeeReader,
+		targetUID:       oldMemberUID,
+		err:             errs.NewUnexpected("nats read timeout"),
+	}
+
+	newMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-reassign-unconfirmed",
+			Email:        "new-holder@example.com",
+			Username:     "newholder",
+			Organization: model.CommitteeMemberOrganization{Name: "New Org"},
+		},
+	}
+
+	ctx := context.Background()
+	res, err := orchestrator.ReassignMember(ctx, oldMemberUID, 1, newMember, false)
+
+	// The new seat is retained (nil member returned) and an error signals manual reconciliation.
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "new seat retained")
+
+	// The freshly created seat must still be present — it must NOT have been rolled back.
+	var retained bool
+	for _, m := range memberWriter.members {
+		if m != nil && m.Email == newMember.Email {
+			retained = true
+			break
+		}
+	}
+	assert.True(t, retained, "new seat must be retained (not rolled back) when the old seat state is unconfirmed")
+}
+
+// TestCreateMember_OrgIndexWriteFailsRollsBack verifies the org-index failure path in CreateMember:
+// when IndexMemberByOrganization returns a (key, error), the error is surfaced and the deferred rollback
+// cleans up the records written before the failure (notably the primary member record).
+func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Route reads through the writer so the rollback's GetMemberRevision/DeleteMember see the records
+	// CreateMember just wrote into the in-memory store (same pattern as TestDeleteMember_IndexKeyIncluded).
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{UID: "committee-org-rollback", Name: "Org Rollback Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-org-rollback",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Force the organization-index write to fail (after returning a non-empty key).
+	memberWriter.orgIndexErr = errs.NewUnexpected("org index write failed")
+
+	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		CommitteeUID: "committee-org-rollback",
+		Email:        "org-rollback@example.com",
+		Username:     "orgrollbackuser",
+		Organization: model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Rollback Org"},
+	}}
+
+	ctx := context.Background()
+	res, err := orchestrator.CreateMember(ctx, member, false)
+
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.ErrorIs(t, err, memberWriter.orgIndexErr, "the org-index write error must be surfaced")
+
+	// Rollback must have removed the primary member record created before the failure.
+	_, stillExists := memberWriter.members[member.UID]
+	assert.False(t, stillExists, "primary member record must be rolled back when the org index write fails")
+	assert.True(t, memberWriter.wasDeleted(member.UID), "rollback must delete the primary member record")
+}
+
+// TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes covers the org-change path
+// (oldOrgSFID != newOrgSFID, both non-empty): the new organization index entry is written and the old
+// entry is cleaned up by the background goroutine.
+func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
+	// Route reads through the writer so the background stale-key cleanup goroutine's
+	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	const oldOrg = "001B000000IqhSLIAZ"
+	const newOrg = "001C000000AbCdEFGH"
+	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "old@example.com", Username: "auth0|olduser",
+		FirstName: "Old", LastName: "User",
+		Organization: model.CommitteeMemberOrganization{ID: oldOrg, Name: "Old Org"},
+		CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
+	}}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	// Pre-seed the OLD org index key so the background cleanup goroutine can resolve + delete it.
+	oldKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(oldOrg), "member-123")
+	memberWriter.members[oldKey] = existing
+
+	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "new@example.com", Username: "plain-lfid",
+		FirstName: "New", LastName: "User",
+		Organization: model.CommitteeMemberOrganization{ID: newOrg, Name: "New Org"},
+	}}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// New org index entry must be written synchronously during the update.
+	newKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(newOrg), "member-123")
+	assert.Contains(t, memberWriter.indexedKeys, newKey, "new organization index entry must be written on org change")
+
+	// Old org index entry must be cleaned up by the background goroutine.
+	assert.Eventually(t, func() bool { return memberWriter.wasDeleted(oldKey) }, 2*time.Second, 10*time.Millisecond,
+		"stale old-organization index entry must be cleaned up after the org change")
+}
+
+// TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp covers the org-removal path
+// (newOrgSFID == ""): no new organization index is written, and the old entry is cleaned up.
+func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
+	// Route reads through the writer so the background stale-key cleanup goroutine's
+	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	const oldOrg = "001B000000IqhSLIAZ"
+	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "old@example.com", Username: "auth0|olduser",
+		FirstName: "Old", LastName: "User",
+		Organization: model.CommitteeMemberOrganization{ID: oldOrg, Name: "Old Org"},
+		CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
+	}}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	oldKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(oldOrg), "member-123")
+	memberWriter.members[oldKey] = existing
+
+	// Updated member loses its organization affiliation (no organization id).
+	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "new@example.com", Username: "plain-lfid",
+		FirstName: "New", LastName: "User",
+		Organization: model.CommitteeMemberOrganization{},
+	}}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// No new organization index entry is written when the member loses its org.
+	assert.Empty(t, memberWriter.indexedKeys, "no organization index entry should be written when the org is removed")
+
+	// The old org index entry must still be cleaned up by the background goroutine.
+	assert.Eventually(t, func() bool { return memberWriter.wasDeleted(oldKey) }, 2*time.Second, 10*time.Millisecond,
+		"stale old-organization index entry must be cleaned up after org removal")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {

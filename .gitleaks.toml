@@ -13,8 +13,10 @@ useDefault = true
         # Exclude test files as they often contain dummy/fake data
         '''.*_test\.go$''',
         '''(go.mod|go.sum)$''',
-        # Generated OpenAPI specs include example page_token values that trip generic-api-key
-        '''gen/http/openapi.*\.(json|yaml)$''',
+        # Generated OpenAPI specs (Goa codegen) — they embed DSL `Example(...)` values such as the
+        # opaque `page_token` pagination cursor, which the generic-api-key rule flags as a fake secret.
+        # These are generated artifacts (already excluded from the file linters), not source secrets.
+        '''^gen/http/openapi.*\.(ya?ml|json)$'''
     ]
     # K8s Secret key NAMES used by `valueFrom.secretKeyRef.key` in chart
     # values.yaml. They label which key in the Kubernetes Secret to read; the
