@@ -111,8 +111,9 @@ func (c *NATSClient) ObjectStore(ctx context.Context, storeName string) error {
 }
 
 // publishWithSpan wraps conn.PublishMsg with an OTel producer span and injects
-// trace context into the NATS message headers.
-func (c *NATSClient) publishWithSpan(ctx context.Context, subject string, data []byte) error {
+// trace context into the NATS message headers. Returns the span-bearing context
+// for callers that need to correlate downstream logs with this span.
+func (c *NATSClient) publishWithSpan(ctx context.Context, subject string, data []byte) (context.Context, error) {
 	ctx, span := tracer.Start(ctx, "nats.publish",
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
@@ -131,15 +132,16 @@ func (c *NATSClient) publishWithSpan(ctx context.Context, subject string, data [
 	if err := c.conn.PublishMsg(msg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return err
+		return ctx, err
 	}
 	span.SetStatus(codes.Ok, "")
-	return nil
+	return ctx, nil
 }
 
 // requestWithSpan wraps conn.RequestMsgWithContext with an OTel client span and
-// injects trace context into the NATS message headers.
-func (c *NATSClient) requestWithSpan(ctx context.Context, subject string, data []byte) (*nats.Msg, error) {
+// injects trace context into the NATS message headers. Returns the span-bearing
+// context for callers that need to correlate downstream logs with this span.
+func (c *NATSClient) requestWithSpan(ctx context.Context, subject string, data []byte) (context.Context, *nats.Msg, error) {
 	ctx, span := tracer.Start(ctx, "nats.request",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -159,10 +161,10 @@ func (c *NATSClient) requestWithSpan(ctx context.Context, subject string, data [
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return ctx, nil, err
 	}
 	span.SetStatus(codes.Ok, "")
-	return reply, nil
+	return ctx, reply, nil
 }
 
 // SubscribeWithTransportMessenger subscribes to a subject with proper TransportMessenger handling

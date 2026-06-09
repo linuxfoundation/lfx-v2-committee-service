@@ -14,7 +14,7 @@ useDefault = true
         '''.*_test\.go$''',
         '''(go.mod|go.sum)$''',
         # Generated OpenAPI specifications contain example data with dummy pagination tokens
-        '''gen/http/openapi.*\.(json|yaml)$'''
+        '''^gen/http/openapi.*\.(json|yaml)$'''
     ]
     # K8s Secret key NAMES used by `valueFrom.secretKeyRef.key` in chart
     # values.yaml. They label which key in the Kubernetes Secret to read; the

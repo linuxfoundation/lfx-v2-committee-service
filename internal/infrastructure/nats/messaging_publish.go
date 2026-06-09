@@ -21,7 +21,8 @@ type messagePublisher struct {
 
 // publishMessage handles asynchronous NATS message publishing with an OTel producer span.
 func (m *messagePublisher) publishMessage(ctx context.Context, subject string, data []byte, messageType string) error {
-	if err := m.client.publishWithSpan(ctx, subject, data); err != nil {
+	ctx, err := m.client.publishWithSpan(ctx, subject, data)
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to publish message to NATS",
 			"error", err,
 			"subject", subject,
@@ -44,7 +45,7 @@ func (m *messagePublisher) requestMessage(ctx context.Context, subject string, d
 	ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 	defer cancel()
 
-	msg, err := m.client.requestWithSpan(ctx, subject, data)
+	ctx, msg, err := m.client.requestWithSpan(ctx, subject, data)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to send synchronous request to NATS",
 			"error", err,

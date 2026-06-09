@@ -35,7 +35,7 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 		return port.InviteResult{}, errors.NewUnexpected("failed to marshal invite request", err)
 	}
 
-	reply, err := s.client.requestWithSpan(ctx, inviteapi.SendInviteSubject, data)
+	ctx, reply, err := s.client.requestWithSpan(ctx, inviteapi.SendInviteSubject, data)
 	if err != nil {
 		slog.ErrorContext(ctx, "invite service request failed", "error", err)
 		return port.InviteResult{}, errors.NewServiceUnavailable("invite service unavailable", err)
@@ -54,9 +54,9 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 
 	var result port.InviteResult
 	if resp.InviteData != nil {
-		result.InviteUID = resp.UID
-		result.RecipientEmail = resp.Email
-		result.ExpiresAt = resp.ExpiresAt
+		result.InviteUID = resp.InviteData.UID
+		result.RecipientEmail = resp.InviteData.Email
+		result.ExpiresAt = resp.InviteData.ExpiresAt
 	}
 	slog.DebugContext(ctx, "invite service replied", "invite_uid", result.InviteUID, "expires_at", result.ExpiresAt)
 	return result, nil
