@@ -16,6 +16,9 @@ useDefault = true
         # Generated OpenAPI specs (Goa codegen) — they embed DSL `Example(...)` values such as the
         # opaque `page_token` pagination cursor, which the generic-api-key rule flags as a fake secret.
         # These are generated artifacts (already excluded from the file linters), not source secrets.
+        # Note: the paths allowlist suppresses all gitleaks rules for matched files, not only
+        # generic-api-key. A real secret in a generated spec would be silently ignored — an
+        # accepted trade-off because these files are machine-generated and never hand-edited.
         '''^gen/http/openapi.*\.(ya?ml|json)$'''
     ]
     # K8s Secret key NAMES used by `valueFrom.secretKeyRef.key` in chart

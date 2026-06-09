@@ -814,6 +814,7 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 
 	// Create the committee member first — if this fails the invite remains pending/declined
 	// and the invitee can retry without being stuck in an inconsistent state.
+	// PrincipalContextID is the invitee's LFX username (Heimdall principal claim).
 	username, _ := ctx.Value(constants.PrincipalContextID).(string)
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
@@ -1090,7 +1091,8 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		return nil, wrapError(ctx, errors.NewForbidden("committee join_mode is not open"))
 	}
 
-	// Get username from context — Heimdall injects the user's username as a JWT claim.
+	// PrincipalContextID is the caller's LFX username (Heimdall principal claim).
+	// Coordinated with the LFXV2-1964 migration so FGA tuple subjects match authorization checks.
 	username, _ := ctx.Value(constants.PrincipalContextID).(string)
 	if username == "" {
 		return nil, wrapError(ctx, errors.NewValidation("unable to determine user username from identity"))
@@ -1183,7 +1185,7 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 }
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their principal (Auth0 sub) to the auth-service via NATS.
+// their LFX username (PrincipalContextID) to the auth-service via NATS.
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")

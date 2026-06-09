@@ -60,6 +60,7 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 		return "", errors.NewNotFound(fmt.Sprintf("user not found for email: %s", redaction.RedactEmail(email)))
 	}
 
+	// Auth-service error responses are JSON objects; success replies are plain-text usernames.
 	if body[0] == '{' {
 		var errorMessage ErrorMessageNATSResponse
 		if err := errorMessage.CheckError(body); err != nil {
@@ -71,7 +72,7 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 	return body, nil
 }
 
-// EmailsByPrincipal retrieves all email addresses for a user by sending their Auth0 sub
+// EmailsByPrincipal retrieves all email addresses for a user by sending their LFX username
 // as the auth_token to the NATS subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
 	if principal == "" {

@@ -90,7 +90,6 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 		responder  func(email string) []byte
 		setup      func(t *testing.T) *messageRequest
 		wantUser   string
-		wantErr    error
 		wantErrStr string
 	}{
 		{
@@ -192,18 +191,14 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 				assertNoRespondError(t, respondErrCh)
 			}
 
-			switch {
-			case tt.wantErrStr != "":
+			if tt.wantErrStr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrStr)
 				assert.Empty(t, got)
-			case tt.wantErr != nil:
-				assert.ErrorIs(t, err, tt.wantErr)
-				assert.Empty(t, got)
-			default:
-				require.NoError(t, err)
-				assert.Equal(t, tt.wantUser, got)
+				return
 			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantUser, got)
 		})
 	}
 }
