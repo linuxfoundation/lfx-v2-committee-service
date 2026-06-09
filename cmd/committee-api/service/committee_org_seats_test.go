@@ -112,8 +112,8 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		FirstName:         "Bob",
 		LastName:          "Kim",
 		Email:             "bob@example.com",
-		Role:              model.CommitteeMemberRole{Name: "Member"},
-		AppointedBy:       "Foundation Election",
+		Role:              model.CommitteeMemberRole{Name: "Lead"},
+		AppointedBy:       "Community",
 		Organization:      model.CommitteeMemberOrganization{ID: testOrgSFID},
 	}}
 
@@ -380,7 +380,7 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 
 	t.Run("non-entitlement seat returns forbidden and never mutates", func(t *testing.T) {
 		seat := entitlementSeat()
-		seat.AppointedBy = "Foundation Election"
+		seat.AppointedBy = "Community"
 		writer := &mockCommitteeWriterOrchestrator{}
 		reader := &reassignReaderStub{stubCommitteeReader: &stubCommitteeReader{}, member: seat, rev: 1}
 		svc := &committeeServicesrvc{committeeWriterOrchestrator: writer, committeeReaderOrchestrator: reader}
