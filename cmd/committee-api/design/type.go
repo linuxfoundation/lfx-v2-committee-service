@@ -473,6 +473,69 @@ var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-
 	UpdatedAtAttribute()
 })
 
+// B2BOrgSFIDAttribute is the DSL attribute for the B2B org UID — the 18-char Salesforce Account
+// SFID (the canonical b2b_org uid per spec 002; NOT a v2 UUID, so no FormatUUID). LFXV2-1865.
+// The SFID is a well-defined 18-char alphanumeric string, so it's validated with a Pattern.
+func B2BOrgSFIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)", func() {
+		dsl.Pattern("^[A-Za-z0-9]{18}$")
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+}
+
+// OrgCommitteeSeatType is one org-scoped committee seat row returned by get-org-committee-seats
+// (Org Lens Board & Committee tab, LFXV2-1865). Flat DTO mirroring committee_member with the
+// endpoint-derived is_org_editable / reason. Reuses the shared committee_member attribute helpers
+// so the DTO stays in sync with the existing member endpoints.
+var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
+	dsl.Description("An organization's committee seat for the Org Lens Board & Committee tab.")
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	EmailAttribute()
+	JobTitleAttribute()
+	// role_name / voting_status / appointed_by are flat in this DTO (the BFF consumes flat fields), but
+	// mirror the canonical committee_member attribute definitions — same descriptions, enums, and
+	// defaults — so the generated documentation stays consistent with the member endpoints. The enums
+	// reuse the shared committeeRoleNameEnum / committeeVotingStatusEnum vars (single-sourced with the
+	// canonical attributes); appointed_by reuses the shared AppointedByAttribute directly.
+	dsl.Attribute("role_name", dsl.String, "Committee role name", func() {
+		dsl.Enum(committeeRoleNameEnum...)
+		dsl.Default("None")
+		dsl.Example("Chair")
+	})
+	dsl.Attribute("voting_status", dsl.String, "Voting status", func() {
+		dsl.Enum(committeeVotingStatusEnum...)
+		dsl.Default("None")
+		dsl.Example("Voting Rep")
+	})
+	AppointedByAttribute()
+	dsl.Attribute("organization_id", dsl.String, "Holding organization SFID", func() {
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+	dsl.Attribute("is_org_editable", dsl.Boolean, "Whether the org can reassign this seat (appointed_by == Membership Entitlement)", func() {
+		dsl.Example(true)
+	})
+	dsl.Attribute("reason", dsl.String, "Why the seat is not editable (empty when editable)", func() {
+		dsl.Example("This seat is foundation-controlled.")
+	})
+	dsl.Required("uid", "committee_uid", "committee_name", "committee_category", "first_name", "last_name", "email", "role_name", "voting_status", "appointed_by", "organization_id", "is_org_editable")
+})
+
+// OrgCommitteeSeatPageType is the paginated result of get-org-committee-seats: a page of seats plus an
+// opaque next-page cursor (LFXV2-1865). The cursor is empty/omitted when there are no further results.
+var OrgCommitteeSeatPageType = dsl.Type("org-committee-seat-page", func() {
+	dsl.Description("A page of an organization's committee seats with an optional next-page cursor.")
+	dsl.Attribute("seats", dsl.ArrayOf(OrgCommitteeSeatType), "The committee seats in this page")
+	dsl.Attribute("page_token", dsl.String, "Opaque cursor for the next page; empty when there are no more results", func() {
+		dsl.Example("eyJvIjoxMDB9")
+	})
+	dsl.Required("seats")
+})
+
 // CommitteeMemberCreateAttributes defines attributes for creating a committee member.
 func CommitteeMemberCreateAttributes() {
 	CommitteeMemberBaseAttributes()
@@ -604,22 +667,36 @@ func LinkedInProfileAttribute() {
 	})
 }
 
+// committeeRoleNameEnum is the single source of committee role-name enum values, shared by the
+// canonical RoleNameAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeRoleNameEnum = []any{
+	"Chair",
+	"Developer Seat",
+	"TAC/TOC Representative",
+	"Director",
+	"Lead",
+	"None",
+	"Secretary",
+	"Technical Lead",
+	"Treasurer",
+	"Vice Chair",
+	"LF Staff",
+}
+
+// committeeVotingStatusEnum is the single source of voting-status enum values, shared by the canonical
+// VotingStatusAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeVotingStatusEnum = []any{
+	"Alternate Voting Rep",
+	"Observer",
+	"Voting Rep",
+	"Emeritus",
+	"None",
+}
+
 // RoleNameAttribute is the DSL attribute for committee role name.
 func RoleNameAttribute() {
 	dsl.Attribute("name", dsl.String, "Committee role name", func() {
-		dsl.Enum(
-			"Chair",
-			"Developer Seat",
-			"TAC/TOC Representative",
-			"Director",
-			"Lead",
-			"None",
-			"Secretary",
-			"Technical Lead",
-			"Treasurer",
-			"Vice Chair",
-			"LF Staff",
-		)
+		dsl.Enum(committeeRoleNameEnum...)
 		dsl.Default("None")
 		dsl.Example("Chair")
 	})
@@ -679,13 +756,7 @@ func StatusAttribute() {
 // VotingStatusAttribute is the DSL attribute for voting status.
 func VotingStatusAttribute() {
 	dsl.Attribute("status", dsl.String, "Voting status", func() {
-		dsl.Enum(
-			"Alternate Voting Rep",
-			"Observer",
-			"Voting Rep",
-			"Emeritus",
-			"None",
-		)
+		dsl.Enum(committeeVotingStatusEnum...)
 		dsl.Default("None")
 		dsl.Example("Voting Rep")
 	})

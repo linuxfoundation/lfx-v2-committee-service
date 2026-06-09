@@ -1245,6 +1245,313 @@ func EncodeGetCommitteeMemberError(encoder func(context.Context, http.ResponseWr
 	}
 }
 
+// EncodeGetOrgCommitteeSeatsResponse returns an encoder for responses returned
+// by the committee-service get-org-committee-seats endpoint.
+func EncodeGetOrgCommitteeSeatsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.OrgCommitteeSeatPage)
+		enc := encoder(ctx, w)
+		body := NewGetOrgCommitteeSeatsResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeGetOrgCommitteeSeatsRequest returns a decoder for requests sent to the
+// committee-service get-org-committee-seats endpoint.
+func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
+	return func(r *http.Request) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
+		var (
+			uid         string
+			version     string
+			projectUids []string
+			pageSize    *int
+			pageToken   *string
+			bearerToken *string
+			err         error
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		qp := r.URL.Query()
+		version = qp.Get("v")
+		if version == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
+		}
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		projectUids = qp["project_uids"]
+		{
+			pageSizeRaw := qp.Get("page_size")
+			if pageSizeRaw != "" {
+				v, err2 := strconv.ParseInt(pageSizeRaw, 10, strconv.IntSize)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("page_size", pageSizeRaw, "integer"))
+				}
+				pv := int(v)
+				pageSize = &pv
+			}
+		}
+		if pageSize != nil {
+			if *pageSize < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 1, true))
+			}
+		}
+		if pageSize != nil {
+			if *pageSize > 500 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			}
+		}
+		pageTokenRaw := qp.Get("page_token")
+		if pageTokenRaw != "" {
+			pageToken = &pageTokenRaw
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewGetOrgCommitteeSeatsPayload(uid, version, projectUids, pageSize, pageToken, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeGetOrgCommitteeSeatsError returns an encoder for errors returned by
+// the get-org-committee-seats committee-service endpoint.
+func EncodeGetOrgCommitteeSeatsError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetOrgCommitteeSeatsBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetOrgCommitteeSeatsInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetOrgCommitteeSeatsServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// EncodeReassignOrgCommitteeSeatResponse returns an encoder for responses
+// returned by the committee-service reassign-org-committee-seat endpoint.
+func EncodeReassignOrgCommitteeSeatResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.OrgCommitteeSeat)
+		enc := encoder(ctx, w)
+		body := NewReassignOrgCommitteeSeatResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeReassignOrgCommitteeSeatRequest returns a decoder for requests sent to
+// the committee-service reassign-org-committee-seat endpoint.
+func DecodeReassignOrgCommitteeSeatRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ReassignOrgCommitteeSeatPayload, error) {
+	return func(r *http.Request) (*committeeservice.ReassignOrgCommitteeSeatPayload, error) {
+		var (
+			body ReassignOrgCommitteeSeatRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateReassignOrgCommitteeSeatRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid         string
+			memberUID   string
+			version     string
+			bearerToken *string
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		memberUID = params["member_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		version = r.URL.Query().Get("v")
+		if version == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
+		}
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewReassignOrgCommitteeSeatPayload(&body, uid, memberUID, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeReassignOrgCommitteeSeatError returns an encoder for errors returned
+// by the reassign-org-committee-seat committee-service endpoint.
+func EncodeReassignOrgCommitteeSeatError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Conflict":
+			var res *committeeservice.ConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewReassignOrgCommitteeSeatServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeUpdateCommitteeMemberResponse returns an encoder for responses
 // returned by the committee-service update-committee-member endpoint.
 func EncodeUpdateCommitteeMemberResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -5143,6 +5450,30 @@ func marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody
 		UID:       v.UID,
 		Email:     v.Email,
 		ExpiresAt: v.ExpiresAt,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody builds
+// a value of type *OrgCommitteeSeatResponseBody from a value of type
+// *committeeservice.OrgCommitteeSeat.
+func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *committeeservice.OrgCommitteeSeat) *OrgCommitteeSeatResponseBody {
+	res := &OrgCommitteeSeatResponseBody{
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		CommitteeName:     v.CommitteeName,
+		CommitteeCategory: v.CommitteeCategory,
+		FirstName:         v.FirstName,
+		LastName:          v.LastName,
+		Email:             v.Email,
+		JobTitle:          v.JobTitle,
+		RoleName:          v.RoleName,
+		VotingStatus:      v.VotingStatus,
+		AppointedBy:       v.AppointedBy,
+		OrganizationID:    v.OrganizationID,
+		IsOrgEditable:     v.IsOrgEditable,
+		Reason:            v.Reason,
 	}
 
 	return res

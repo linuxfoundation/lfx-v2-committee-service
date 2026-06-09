@@ -180,6 +180,19 @@ type CreateCommitteeMemberRequestBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
+// ReassignOrgCommitteeSeatRequestBody is the type of the "committee-service"
+// service "reassign-org-committee-seat" endpoint HTTP request body.
+type ReassignOrgCommitteeSeatRequestBody struct {
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+}
+
 // UpdateCommitteeMemberRequestBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP request body.
 type UpdateCommitteeMemberRequestBody struct {
@@ -518,6 +531,49 @@ type CreateCommitteeMemberResponseBody struct {
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
+
+// GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
+// service "get-org-committee-seats" endpoint HTTP response body.
+type GetOrgCommitteeSeatsResponseBody struct {
+	// The committee seats in this page
+	Seats []*OrgCommitteeSeatResponseBody `form:"seats" json:"seats" xml:"seats"`
+	// Opaque cursor for the next page; empty when there are no more results
+	PageToken *string `form:"page_token,omitempty" json:"page_token,omitempty" xml:"page_token,omitempty"`
+}
+
+// ReassignOrgCommitteeSeatResponseBody is the type of the "committee-service"
+// service "reassign-org-committee-seat" endpoint HTTP response body.
+type ReassignOrgCommitteeSeatResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID string `form:"uid" json:"uid" xml:"uid"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID string `form:"committee_uid" json:"committee_uid" xml:"committee_uid"`
+	// The name of the committee this member belongs to
+	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
+	// The category of the committee this member belongs to
+	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
+	// First name
+	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
+	// Last name
+	LastName string `form:"last_name" json:"last_name" xml:"last_name"`
+	// Primary email address
+	Email string `form:"email" json:"email" xml:"email"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// Committee role name
+	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
+	// Voting status
+	VotingStatus string `form:"voting_status" json:"voting_status" xml:"voting_status"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Holding organization SFID
+	OrganizationID string `form:"organization_id" json:"organization_id" xml:"organization_id"`
+	// Whether the org can reassign this seat (appointed_by == Membership
+	// Entitlement)
+	IsOrgEditable bool `form:"is_org_editable" json:"is_org_editable" xml:"is_org_editable"`
+	// Why the seat is not editable (empty when editable)
+	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+}
 
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
 // service "update-committee-member" endpoint HTTP response body.
@@ -1256,6 +1312,78 @@ type GetCommitteeMemberNotFoundResponseBody struct {
 // "committee-service" service "get-committee-member" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GetCommitteeMemberServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetOrgCommitteeSeatsBadRequestResponseBody is the type of the
+// "committee-service" service "get-org-committee-seats" endpoint HTTP response
+// body for the "BadRequest" error.
+type GetOrgCommitteeSeatsBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetOrgCommitteeSeatsInternalServerErrorResponseBody is the type of the
+// "committee-service" service "get-org-committee-seats" endpoint HTTP response
+// body for the "InternalServerError" error.
+type GetOrgCommitteeSeatsInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// GetOrgCommitteeSeatsServiceUnavailableResponseBody is the type of the
+// "committee-service" service "get-org-committee-seats" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type GetOrgCommitteeSeatsServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatBadRequestResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "BadRequest" error.
+type ReassignOrgCommitteeSeatBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatConflictResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "Conflict" error.
+type ReassignOrgCommitteeSeatConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatForbiddenResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "Forbidden" error.
+type ReassignOrgCommitteeSeatForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatInternalServerErrorResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ReassignOrgCommitteeSeatInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatNotFoundResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "NotFound" error.
+type ReassignOrgCommitteeSeatNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ReassignOrgCommitteeSeatServiceUnavailableResponseBody is the type of the
+// "committee-service" service "reassign-org-committee-seat" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type ReassignOrgCommitteeSeatServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -2390,6 +2518,39 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// OrgCommitteeSeatResponseBody is used to define fields on response body types.
+type OrgCommitteeSeatResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID string `form:"uid" json:"uid" xml:"uid"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID string `form:"committee_uid" json:"committee_uid" xml:"committee_uid"`
+	// The name of the committee this member belongs to
+	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
+	// The category of the committee this member belongs to
+	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
+	// First name
+	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
+	// Last name
+	LastName string `form:"last_name" json:"last_name" xml:"last_name"`
+	// Primary email address
+	Email string `form:"email" json:"email" xml:"email"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// Committee role name
+	RoleName string `form:"role_name" json:"role_name" xml:"role_name"`
+	// Voting status
+	VotingStatus string `form:"voting_status" json:"voting_status" xml:"voting_status"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Holding organization SFID
+	OrganizationID string `form:"organization_id" json:"organization_id" xml:"organization_id"`
+	// Whether the org can reassign this seat (appointed_by == Membership
+	// Entitlement)
+	IsOrgEditable bool `form:"is_org_editable" json:"is_org_editable" xml:"is_org_editable"`
+	// Why the seat is not editable (empty when editable)
+	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+}
+
 // CommitteeLinkWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
 type CommitteeLinkWithReadonlyAttributesResponseBody struct {
@@ -3120,6 +3281,47 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 			Name:    res.Member.Organization.Name,
 			Website: res.Member.Organization.Website,
 		}
+	}
+	return body
+}
+
+// NewGetOrgCommitteeSeatsResponseBody builds the HTTP response body from the
+// result of the "get-org-committee-seats" endpoint of the "committee-service"
+// service.
+func NewGetOrgCommitteeSeatsResponseBody(res *committeeservice.OrgCommitteeSeatPage) *GetOrgCommitteeSeatsResponseBody {
+	body := &GetOrgCommitteeSeatsResponseBody{
+		PageToken: res.PageToken,
+	}
+	if res.Seats != nil {
+		body.Seats = make([]*OrgCommitteeSeatResponseBody, len(res.Seats))
+		for i, val := range res.Seats {
+			body.Seats[i] = marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(val)
+		}
+	} else {
+		body.Seats = []*OrgCommitteeSeatResponseBody{}
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatResponseBody builds the HTTP response body from
+// the result of the "reassign-org-committee-seat" endpoint of the
+// "committee-service" service.
+func NewReassignOrgCommitteeSeatResponseBody(res *committeeservice.OrgCommitteeSeat) *ReassignOrgCommitteeSeatResponseBody {
+	body := &ReassignOrgCommitteeSeatResponseBody{
+		UID:               res.UID,
+		CommitteeUID:      res.CommitteeUID,
+		CommitteeName:     res.CommitteeName,
+		CommitteeCategory: res.CommitteeCategory,
+		FirstName:         res.FirstName,
+		LastName:          res.LastName,
+		Email:             res.Email,
+		JobTitle:          res.JobTitle,
+		RoleName:          res.RoleName,
+		VotingStatus:      res.VotingStatus,
+		AppointedBy:       res.AppointedBy,
+		OrganizationID:    res.OrganizationID,
+		IsOrgEditable:     res.IsOrgEditable,
+		Reason:            res.Reason,
 	}
 	return body
 }
@@ -4113,6 +4315,96 @@ func NewGetCommitteeMemberNotFoundResponseBody(res *committeeservice.NotFoundErr
 // "committee-service" service.
 func NewGetCommitteeMemberServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetCommitteeMemberServiceUnavailableResponseBody {
 	body := &GetCommitteeMemberServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetOrgCommitteeSeatsBadRequestResponseBody builds the HTTP response body
+// from the result of the "get-org-committee-seats" endpoint of the
+// "committee-service" service.
+func NewGetOrgCommitteeSeatsBadRequestResponseBody(res *committeeservice.BadRequestError) *GetOrgCommitteeSeatsBadRequestResponseBody {
+	body := &GetOrgCommitteeSeatsBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetOrgCommitteeSeatsInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "get-org-committee-seats" endpoint of
+// the "committee-service" service.
+func NewGetOrgCommitteeSeatsInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *GetOrgCommitteeSeatsInternalServerErrorResponseBody {
+	body := &GetOrgCommitteeSeatsInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewGetOrgCommitteeSeatsServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "get-org-committee-seats" endpoint of
+// the "committee-service" service.
+func NewGetOrgCommitteeSeatsServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetOrgCommitteeSeatsServiceUnavailableResponseBody {
+	body := &GetOrgCommitteeSeatsServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatBadRequestResponseBody builds the HTTP response
+// body from the result of the "reassign-org-committee-seat" endpoint of the
+// "committee-service" service.
+func NewReassignOrgCommitteeSeatBadRequestResponseBody(res *committeeservice.BadRequestError) *ReassignOrgCommitteeSeatBadRequestResponseBody {
+	body := &ReassignOrgCommitteeSeatBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatConflictResponseBody builds the HTTP response
+// body from the result of the "reassign-org-committee-seat" endpoint of the
+// "committee-service" service.
+func NewReassignOrgCommitteeSeatConflictResponseBody(res *committeeservice.ConflictError) *ReassignOrgCommitteeSeatConflictResponseBody {
+	body := &ReassignOrgCommitteeSeatConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatForbiddenResponseBody builds the HTTP response
+// body from the result of the "reassign-org-committee-seat" endpoint of the
+// "committee-service" service.
+func NewReassignOrgCommitteeSeatForbiddenResponseBody(res *committeeservice.ForbiddenError) *ReassignOrgCommitteeSeatForbiddenResponseBody {
+	body := &ReassignOrgCommitteeSeatForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "reassign-org-committee-seat" endpoint
+// of the "committee-service" service.
+func NewReassignOrgCommitteeSeatInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ReassignOrgCommitteeSeatInternalServerErrorResponseBody {
+	body := &ReassignOrgCommitteeSeatInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatNotFoundResponseBody builds the HTTP response
+// body from the result of the "reassign-org-committee-seat" endpoint of the
+// "committee-service" service.
+func NewReassignOrgCommitteeSeatNotFoundResponseBody(res *committeeservice.NotFoundError) *ReassignOrgCommitteeSeatNotFoundResponseBody {
+	body := &ReassignOrgCommitteeSeatNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewReassignOrgCommitteeSeatServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "reassign-org-committee-seat" endpoint
+// of the "committee-service" service.
+func NewReassignOrgCommitteeSeatServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ReassignOrgCommitteeSeatServiceUnavailableResponseBody {
+	body := &ReassignOrgCommitteeSeatServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -5637,6 +5929,37 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 	return v
 }
 
+// NewGetOrgCommitteeSeatsPayload builds a committee-service service
+// get-org-committee-seats endpoint payload.
+func NewGetOrgCommitteeSeatsPayload(uid string, version string, projectUids []string, pageSize *int, pageToken *string, bearerToken *string) *committeeservice.GetOrgCommitteeSeatsPayload {
+	v := &committeeservice.GetOrgCommitteeSeatsPayload{}
+	v.UID = uid
+	v.Version = version
+	v.ProjectUids = projectUids
+	v.PageSize = pageSize
+	v.PageToken = pageToken
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewReassignOrgCommitteeSeatPayload builds a committee-service service
+// reassign-org-committee-seat endpoint payload.
+func NewReassignOrgCommitteeSeatPayload(body *ReassignOrgCommitteeSeatRequestBody, uid string, memberUID string, version string, bearerToken *string) *committeeservice.ReassignOrgCommitteeSeatPayload {
+	v := &committeeservice.ReassignOrgCommitteeSeatPayload{
+		CommitteeUID: *body.CommitteeUID,
+		FirstName:    *body.FirstName,
+		LastName:     *body.LastName,
+		Email:        *body.Email,
+	}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
 // NewUpdateCommitteeMemberPayload builds a committee-service service
 // update-committee-member endpoint payload.
 func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeMemberPayload {
@@ -6321,6 +6644,40 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+	}
+	return
+}
+
+// ValidateReassignOrgCommitteeSeatRequestBody runs the validations defined on
+// Reassign-Org-Committee-SeatRequestBody
+func ValidateReassignOrgCommitteeSeatRequestBody(body *ReassignOrgCommitteeSeatRequestBody) (err error) {
+	if body.CommitteeUID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("committee_uid", "body"))
+	}
+	if body.FirstName == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("first_name", "body"))
+	}
+	if body.LastName == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("last_name", "body"))
+	}
+	if body.Email == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("email", "body"))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
 	}
 	return
 }

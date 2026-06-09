@@ -15,6 +15,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // Global mock repository instance to share data between all repositories
@@ -384,6 +385,30 @@ func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUI
 	return members, nil
 }
 
+// ListMembersByOrganization retrieves all members held by an organization (by the SFID on
+// committee_member.organization.id) across all committees (Org Lens, LFXV2-1865).
+func (m *MockRepository) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by organization", "org_sfid", orgSFID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Mirror the real NATS KV index (storage.go), which keys on the 18-char canonical SFID: normalize
+	// both sides so a 15-char stored organization.id still matches an 18-char orgSFID (same record).
+	normalizedOrg := utils.NormalizeAccountSFID(orgSFID)
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if member.Organization.ID == "" || utils.NormalizeAccountSFID(member.Organization.ID) != normalizedOrg {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
 // ListAllMembers retrieves all members across all committees (full scan).
 // Used for backfill/repair operations that need to read all members regardless of the index.
 func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
@@ -400,6 +425,21 @@ func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.Committee
 		}
 	}
 	return members, nil
+}
+
+// EachMember streams every mock member to fn one at a time (mirrors the storage streaming scan). The
+// snapshot is copied under the read lock, then fn is invoked outside the lock.
+func (m *MockRepository) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := m.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, member := range members {
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MockCommitteeWriter implements CommitteeWriter interface
@@ -701,6 +741,25 @@ func (w *MockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member
 		"member_uid", member.UID,
 	)
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	return key, nil
+}
+
+// IndexMemberByOrganization records the by-organization secondary index entry (Org Lens, LFXV2-1865).
+// In the mock this is a no-op; it returns the key the real storage would write (empty when the member
+// has no organization.id) so callers can track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by organization",
+		"organization_id", member.Organization.ID,
+		"member_uid", member.UID,
+	)
+	// Mirror the real NATS storage: normalize to the 18-char canonical SFID so the mock key matches
+	// production. A 15-char stored org id would otherwise yield a divergent key and break rollback /
+	// stale-key tracking against real behavior.
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
 	return key, nil
 }
 

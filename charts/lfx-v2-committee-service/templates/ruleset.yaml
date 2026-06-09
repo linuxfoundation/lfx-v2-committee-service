@@ -62,6 +62,67 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
+    # --- Org Lens Board & Committee tab (LFXV2-1865) -----------------------------------------
+    # Org-facing routes gated on the account-level b2b_org relation (object built from the :uid
+    # path capture). b2b_org is referenced ONLY here in the ruleset, never in committee-service
+    # code (FGA types are not 1:1 with repos). Routes live under the /committees/ prefix so they
+    # route to committee-service with no HTTPRoute change (Batch 5). @fgadoc:jtbd
+    - id: "rule:lfx:lfx-v2-committee-service:org-committee-seats:get"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - GET
+        routes:
+          - path: /committees/b2b-org/:uid/seats
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: auditor
+              object: "b2b_org:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
+    # Org-facing reassign — gated on b2b_org:{uid}#writer + a service-side entitlement guard
+    # (appointed_by == "Membership Entitlement"); the org admin's user token flows through. @fgadoc:jtbd
+    - id: "rule:lfx:lfx-v2-committee-service:org-committee-seats:reassign"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - PUT
+        routes:
+          - path: /committees/b2b-org/:uid/seats/:member_uid/reassign
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "b2b_org:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
     - id: "rule:lfx:lfx-v2-committee-service:committees:get"
       allow_encoded_slashes: 'off'
       match:

@@ -5,12 +5,17 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +28,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -46,6 +52,7 @@ type committeeServicesrvc struct {
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
+	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -313,6 +320,225 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	}
 
 	return res, nil
+}
+
+// GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for the
+// Org Lens Board & Committee tab, paginated. The org filter is the sole scoping control (best-effort:
+// org_id is self-reported until LFXV2-330).
+func (s *committeeServicesrvc) GetOrgCommitteeSeats(ctx context.Context, p *committeeservice.GetOrgCommitteeSeatsPayload) (res *committeeservice.OrgCommitteeSeatPage, err error) {
+	slog.DebugContext(ctx, "committeeService.get-org-committee-seats",
+		"org_uid", p.UID,
+		"project_uids_count", len(p.ProjectUids),
+	)
+
+	if s.orgSeatReader == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("org committee seat reader is not configured"))
+	}
+	if len(seatCursorKey) == 0 {
+		// Page-token signing key not provisioned in this environment (ORG_SEAT_PAGE_TOKEN_HMAC_KEY).
+		// Degrade this endpoint only — the rest of the service stays healthy — rather than serving
+		// forgeable page tokens or crashing the pod.
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("org committee seat pagination is unavailable: ORG_SEAT_PAGE_TOKEN_HMAC_KEY is not configured"))
+	}
+
+	members, err := s.orgSeatReader.ListOrgCommitteeSeats(ctx, p.UID, p.ProjectUids)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Deterministic keyset order: sort by member UID so a page boundary is "after the last UID
+	// returned". This is stable against deletes and re-fetches within a snapshot; it is NOT
+	// insert-stable — because UIDs are random UUIDs, a seat inserted concurrently between page calls
+	// may sort before the cursor and be missed (acceptable here: the org's seat set is near-static and
+	// a fresh re-list converges). Unlike an offset, it never shifts or skips already-returned rows.
+	slices.SortFunc(members, func(a, b *model.CommitteeMember) int {
+		return strings.Compare(uidOf(a), uidOf(b))
+	})
+
+	pageSize := defaultOrgSeatPageSize
+	if p.PageSize != nil && *p.PageSize > 0 {
+		pageSize = *p.PageSize
+	}
+	if pageSize > maxOrgSeatPageSize {
+		pageSize = maxOrgSeatPageSize
+	}
+
+	afterUID, errCursor := decodeSeatCursor(p.PageToken)
+	if errCursor != nil {
+		return nil, wrapError(ctx, errors.NewValidation("invalid page_token"))
+	}
+
+	page := &committeeservice.OrgCommitteeSeatPage{
+		Seats: make([]*committeeservice.OrgCommitteeSeat, 0, pageSize),
+	}
+	var lastUID string
+	for _, m := range members {
+		if m == nil {
+			continue
+		}
+		if afterUID != "" && m.UID <= afterUID { // keyset: skip up to and including the cursor UID
+			continue
+		}
+		if len(page.Seats) >= pageSize {
+			// At least one eligible row remains beyond this page → emit a next-page cursor.
+			next := encodeSeatCursor(lastUID)
+			page.PageToken = &next
+			break
+		}
+		page.Seats = append(page.Seats, orgSeatFromMember(m))
+		lastUID = m.UID
+	}
+	return page, nil
+}
+
+// uidOf safely reads a member UID for sorting (nil sorts first).
+func uidOf(m *model.CommitteeMember) string {
+	if m == nil {
+		return ""
+	}
+	return m.UID
+}
+
+// org-committee-seat pagination defaults (LFXV2-1865).
+const (
+	defaultOrgSeatPageSize = 100
+	maxOrgSeatPageSize     = 500
+)
+
+// seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
+// cursor. It is sourced solely from ORG_SEAT_PAGE_TOKEN_HMAC_KEY and must be stable across replicas and
+// rolling restarts so pagination survives horizontal scaling. There is deliberately no hardcoded
+// fallback for any environment (a public in-repo key would make tokens forgeable, which is unacceptable
+// even in shared dev): when the env var is unset the key is empty and GetOrgCommitteeSeats degrades to a
+// 503 — only the org-seat read is disabled, the rest of the service stays healthy and never crashes.
+var seatCursorKey = []byte(os.Getenv("ORG_SEAT_PAGE_TOKEN_HMAC_KEY"))
+
+// encodeSeatCursor produces an opaque, HMAC-signed page token for the keyset position (the last UID
+// returned): base64url( HMAC-SHA256(afterUID) || afterUID ).
+func encodeSeatCursor(afterUID string) string {
+	mac := hmac.New(sha256.New, seatCursorKey)
+	mac.Write([]byte(afterUID))
+	return base64.RawURLEncoding.EncodeToString(append(mac.Sum(nil), []byte(afterUID)...))
+}
+
+// decodeSeatCursor verifies a page token's signature and returns the keyset position. A nil/empty token
+// is the first page (""). A malformed or tampered token is an error so the caller can return 400.
+func decodeSeatCursor(token *string) (string, error) {
+	if token == nil || *token == "" {
+		return "", nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(*token)
+	if err != nil || len(raw) < sha256.Size {
+		return "", fmt.Errorf("malformed page_token")
+	}
+	sig, afterUID := raw[:sha256.Size], raw[sha256.Size:]
+	mac := hmac.New(sha256.New, seatCursorKey)
+	mac.Write(afterUID)
+	if !hmac.Equal(sig, mac.Sum(nil)) {
+		return "", fmt.Errorf("invalid page_token signature")
+	}
+	return string(afterUID), nil
+}
+
+// isMembershipEntitlement reports whether a seat is org-reassignable — appointment type
+// "Membership Entitlement" (case-insensitive), independent of committee type.
+func isMembershipEntitlement(appointedBy string) bool {
+	return strings.EqualFold(strings.TrimSpace(appointedBy), "Membership Entitlement")
+}
+
+// orgSeatFromMember maps a domain committee member to the Org Lens seat DTO, computing the
+// endpoint-derived is_org_editable / reason from the appointment type.
+func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeSeat {
+	editable := isMembershipEntitlement(m.AppointedBy)
+	seat := &committeeservice.OrgCommitteeSeat{
+		UID:               m.UID,
+		CommitteeUID:      m.CommitteeUID,
+		CommitteeName:     m.CommitteeName,
+		CommitteeCategory: m.CommitteeCategory,
+		FirstName:         m.FirstName,
+		LastName:          m.LastName,
+		Email:             m.Email,
+		RoleName:          m.Role.Name,
+		VotingStatus:      m.Voting.Status,
+		AppointedBy:       m.AppointedBy,
+		OrganizationID:    utils.NormalizeAccountSFID(m.Organization.ID),
+		IsOrgEditable:     editable,
+	}
+	if m.JobTitle != "" {
+		jt := m.JobTitle
+		seat.JobTitle = &jt
+	}
+	if !editable {
+		reason := "This seat is held by foundation election or appointment, not by your organization's membership entitlement."
+		seat.Reason = &reason
+	}
+	return seat
+}
+
+// ReassignOrgCommitteeSeat reassigns a Membership-Entitlement committee seat to a new holder for the
+// Org Lens Board & Committee tab. It enforces, in code, that the seat belongs to the path org and that
+// the seat is a Membership-Entitlement seat, then performs an atomic ReassignMember (create new +
+// delete old, with rollback) preserving role/voting/appointed_by.
+func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *committeeservice.ReassignOrgCommitteeSeatPayload) (res *committeeservice.OrgCommitteeSeat, err error) {
+	slog.DebugContext(ctx, "committeeService.reassign-org-committee-seat",
+		"org_uid", p.UID,
+		"member_uid", p.MemberUID,
+		"committee_uid", p.CommitteeUID,
+		"new_holder_email", redaction.RedactEmail(p.Email),
+	)
+
+	// Read the current member (system of record) for the entitlement guard + field preservation.
+	member, rev, err := s.committeeReaderOrchestrator.GetMember(ctx, p.CommitteeUID, p.MemberUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	// Org-ownership guard: the seat must belong to the org named in the path. The edge only checks
+	// b2b_org:{uid}#writer, so without this a caller authorized for one org could mutate another
+	// org's seat by passing a foreign committee_uid/member_uid. Return NotFound to avoid leaking
+	// the existence of seats outside the caller's org. Normalize both sides to the 18-char canonical
+	// SFID so a 15-char stored organization.id still matches the 18-char path UID (same Salesforce record).
+	if !strings.EqualFold(utils.NormalizeAccountSFID(member.Organization.ID), utils.NormalizeAccountSFID(p.UID)) {
+		return nil, wrapError(ctx, errors.NewNotFound("seat not found"))
+	}
+
+	// Service-side entitlement guard: only "Membership Entitlement" seats are org-reassignable
+	// (by appointment type, independent of committee type). FGA cannot express this.
+	if !isMembershipEntitlement(member.AppointedBy) {
+		return nil, wrapError(ctx, errors.NewForbidden("seat is not org-editable (not a Membership Entitlement seat)"))
+	}
+
+	// Build the replacement seat. A reassignment preserves the seat itself — its committee, role,
+	// voting status, appointment type, and holding organization — and swaps only the person holding
+	// it. Construct a FRESH base and copy ONLY those seat-defining fields (an allowlist), so future
+	// additions to CommitteeMemberBase don't silently leak the previous holder's identity/profile/
+	// invite/timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
+	// username is resolved from the new holder's email).
+	newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		Role:              member.Role,
+		AppointedBy:       member.AppointedBy,
+		Status:            member.Status,
+		Voting:            member.Voting,
+		Organization:      member.Organization,
+		CommitteeUID:      member.CommitteeUID,
+		CommitteeName:     member.CommitteeName,
+		CommitteeCategory: member.CommitteeCategory,
+		ProjectUID:        member.ProjectUID,
+		ProjectSlug:       member.ProjectSlug,
+		FirstName:         p.FirstName,
+		LastName:          p.LastName,
+		Email:             p.Email,
+	}}
+
+	// Atomic reassign via the orchestrator's defined create+delete+rollback pattern: the new holder
+	// is created (full pipeline incl. by-committee + by-organization indices) and the old member is
+	// deleted; if the delete fails the new member is rolled back so no duplicate seat remains.
+	created, err := s.committeeWriterOrchestrator.ReassignMember(ctx, p.MemberUID, rev, newMember, false)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return orgSeatFromMember(created), nil
 }
 
 // UpdateCommitteeMember updates an existing committee member
@@ -1290,6 +1516,7 @@ func NewCommitteeService(
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -1306,6 +1533,7 @@ func NewCommitteeService(
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
+		orgSeatReader:               orgSeatReader,
 	}
 }
 

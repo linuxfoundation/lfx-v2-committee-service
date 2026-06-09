@@ -15,10 +15,10 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
-	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // testCtx builds a request context with the given principal, as resolveCallerEmail requires.
@@ -104,6 +104,7 @@ type mockCommitteeWriterOrchestrator struct {
 	updateMemberCalls []updateMemberCall
 	createMember      *model.CommitteeMember
 	createMemberErr   error
+	createMemberCalls []*model.CommitteeMember
 }
 
 type updateMemberCall struct {
@@ -133,6 +134,7 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 }
 
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	m.createMemberCalls = append(m.createMemberCalls, member)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}
@@ -153,6 +155,22 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{uid: uid, revision: revision})
 	return m.deleteError
+}
+
+// ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
+// the created member (an extra delete) if the delete fails, so reassign tests can assert the calls.
+func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	created, err := m.CreateMember(ctx, newMember, sync)
+	if err != nil {
+		return nil, err
+	}
+	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+		if created != nil && created.UID != "" {
+			_ = m.DeleteMember(ctx, created.UID, 0, sync) // rollback attempt
+		}
+		return nil, errDelete
+	}
+	return created, nil
 }
 
 func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator) {
