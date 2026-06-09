@@ -905,6 +905,13 @@ func (uc *committeeWriterOrchestrator) lookupUsernameByEmail(ctx context.Context
 		return "", err
 	}
 
+	if username == "" {
+		slog.DebugContext(ctx, "username lookup returned empty",
+			"email", redaction.RedactEmail(email),
+		)
+		return "", nil
+	}
+
 	slog.DebugContext(ctx, "successfully looked up username by email",
 		"email", redaction.RedactEmail(email),
 		"username", redaction.Redact(username),
@@ -916,7 +923,7 @@ func (uc *committeeWriterOrchestrator) lookupUsernameByEmail(ctx context.Context
 // buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member operation.
 // For create/update, it sends member_put to add the user to the "member" relation.
 // For delete, it sends member_remove with empty relations to remove all tuples for the user.
-// FGA subjects use LFX usernames, which are permanently immutable once assigned.
+// FGA subjects use LFX usernames (not Auth0 subs).
 func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) fgatypes.GenericFGAMessage {
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),
