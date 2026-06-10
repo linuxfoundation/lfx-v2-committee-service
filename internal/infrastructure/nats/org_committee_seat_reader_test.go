@@ -106,7 +106,7 @@ func TestNATSOrgCommitteeSeatReader_ProjectFamilyFilter(t *testing.T) {
 
 // TestNATSOrgCommitteeSeatReader_ProjectUIDFallback verifies that a member whose own project_uid is
 // empty (legacy record, pre-LFXV2-1442) is recovered from its committee's project_uid, included in the
-// family filter, and enriched in place — while the committee read is cached per committee and a lookup
+// family filter, and enriched on a shallow copy — while the committee read is cached per committee and a lookup
 // failure degrades to exclusion (the pre-fallback behavior) rather than failing the whole list.
 func TestNATSOrgCommitteeSeatReader_ProjectUIDFallback(t *testing.T) {
 	const org = "001B000000IqhSLIAZ"
@@ -129,7 +129,7 @@ func TestNATSOrgCommitteeSeatReader_ProjectUIDFallback(t *testing.T) {
 		for _, m := range got {
 			uids[m.UID] = m.ProjectUID
 		}
-		assert.Equal(t, "p-1", uids["m-empty-1"], "recovered project_uid must be enriched in place")
+		assert.Equal(t, "p-1", uids["m-empty-1"], "recovered project_uid must be set on the enriched copy")
 		assert.Equal(t, "p-1", uids["m-empty-2"])
 		assert.Equal(t, "p-1", uids["m-populated"])
 		assert.NotContains(t, uids, "m-other", "committee outside the family stays excluded")
