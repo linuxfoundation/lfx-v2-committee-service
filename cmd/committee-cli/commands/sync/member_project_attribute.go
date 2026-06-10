@@ -124,22 +124,28 @@ func (s *memberProjectAttributeSubcommand) Run(ctx context.Context, rc commands.
 			return nil
 		}
 
-		// TOCTOU: the member fields were captured by the EachMember snapshot; the revision is read here,
-		// separately. A concurrent write in this window means the CAS below succeeds against the newer
-		// revision but the snapshot fields overwrite it (lost update). The window is narrow and this is an
-		// operator-run, dry-run-by-default repair — run it during low-traffic periods to avoid clobbering
-		// concurrent writes.
-		revision, errRev := rc.CommitteeReader.GetMemberRevision(ctx, member.UID)
-		if errRev != nil {
-			slog.WarnContext(ctx, "failed to get member revision", "member_uid", member.UID, "error", errRev)
+		// Re-read the member together with its revision (instead of the EachMember snapshot + a separate
+		// revision read) and apply ONLY the project fields to that fresh struct. This avoids a lost update:
+		// if another writer changed other fields after the EachMember snapshot, writing the stale snapshot
+		// back under the latest revision would clobber them. The revision-checked CAS in UpdateMember still
+		// guards the narrow window between this read and the write (a concurrent change fails the CAS).
+		fresh, revision, errGet := rc.CommitteeReader.GetMember(ctx, member.UID)
+		if errGet != nil || fresh == nil {
+			slog.WarnContext(ctx, "failed to re-read member before repair", "member_uid", member.UID, "error", errGet)
 			stats.Failed++
 			return nil
 		}
 
-		member.ProjectUID = want.projectUID
-		member.ProjectSlug = want.projectSlug
+		// Re-check drift against the fresh record — it may have been repaired by a concurrent run.
+		if fresh.ProjectUID == want.projectUID && fresh.ProjectSlug == want.projectSlug {
+			stats.Skipped++
+			return nil
+		}
 
-		if _, errUpdate := rc.CommitteeMemberWriter.UpdateMember(ctx, member, revision); errUpdate != nil {
+		fresh.ProjectUID = want.projectUID
+		fresh.ProjectSlug = want.projectSlug
+
+		if _, errUpdate := rc.CommitteeMemberWriter.UpdateMember(ctx, fresh, revision); errUpdate != nil {
 			slog.WarnContext(ctx, "failed to update member project attributes",
 				"member_uid", member.UID, "committee_uid", member.CommitteeUID, "error", errUpdate)
 			stats.Failed++
