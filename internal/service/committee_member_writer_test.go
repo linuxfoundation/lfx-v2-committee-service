@@ -395,6 +395,50 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			},
 		},
 		{
+			// Regression guard (LFXV2-1442 / Org Lens board-committee tab): CreateMember MUST denormalize
+			// project_uid/project_slug from the parent committee, and MUST override any caller-supplied
+			// value with the committee's authoritative one. Members created without this (pre-LFXV2-1442)
+			// carried an empty project_uid in KV truth and were silently dropped by the org-seat project
+			// family filter. A trusted-but-wrong caller value must not be able to reintroduce the drift.
+			name: "denormalizes project_uid/project_slug from committee, overriding caller input",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				committee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:         "committee-123",
+						Name:        "Test Committee",
+						Category:    "Technical",
+						ProjectUID:  "project-authoritative",
+						ProjectSlug: "authoritative-foundation",
+						CreatedAt:   time.Now(),
+						UpdatedAt:   time.Now(),
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID:                   "committee-123",
+						BusinessEmailRequired: false,
+					},
+				}
+				mockRepo.AddCommittee(committee)
+			},
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-123",
+					Email:        "test@example.com",
+					Username:     "testuser",
+					Organization: model.CommitteeMemberOrganization{Name: "Test Org"},
+					// Caller-supplied values that must be ignored in favor of the committee's.
+					ProjectUID:  "project-wrong",
+					ProjectSlug: "wrong-foundation",
+				},
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, member *model.CommitteeMember) {
+				assert.Equal(t, "project-authoritative", member.ProjectUID,
+					"project_uid must be denormalized from the committee, not the caller")
+				assert.Equal(t, "authoritative-foundation", member.ProjectSlug,
+					"project_slug must be denormalized from the committee, not the caller")
+			},
+		},
+		{
 			name: "committee not found",
 			setupMock: func(mockRepo *mock.MockRepository) {
 				// Don't add any committee

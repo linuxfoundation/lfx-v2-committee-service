@@ -690,7 +690,11 @@ func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader
 		if !ok {
 			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
 		}
-		return nats.NewNATSOrgCommitteeSeatReader(memberReader)
+		baseReader, ok := natsStorage.(port.CommitteeBaseReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeBaseReader")
+		}
+		return nats.NewNATSOrgCommitteeSeatReader(memberReader, baseReader)
 	default:
 		log.Fatalf("unsupported org committee seat reader implementation: %s", repoSource)
 	}

@@ -20,15 +20,21 @@ import (
 // mockMemberWriter is a minimal implementation of port.CommitteeMemberWriter used by
 // the backfill subcommand.  Only IndexMemberByCommittee is exercised here.
 type mockMemberWriter struct {
-	indexed    []string // committee_uid+"."+member_uid keys that were written
-	orgIndexed []string // org_sfid+"."+member_uid keys that were written
-	indexError error
+	indexed     []string                 // committee_uid+"."+member_uid keys that were written
+	orgIndexed  []string                 // org_sfid+"."+member_uid keys that were written
+	updated     []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
+	indexError  error
+	updateError error
 }
 
 func (w *mockMemberWriter) CreateMember(_ context.Context, _ *model.CommitteeMember) error {
 	return nil
 }
 func (w *mockMemberWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64) (*model.CommitteeMember, error) {
+	if w.updateError != nil {
+		return nil, w.updateError
+	}
+	w.updated = append(w.updated, m)
 	return m, nil
 }
 func (w *mockMemberWriter) DeleteMember(_ context.Context, _ string, _ uint64) error { return nil }
