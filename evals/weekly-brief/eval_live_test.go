@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 //go:build live
-// +build live
 
 // This file is built only when -tags=live is passed. It documents and
 // implements the live-LLM eval path against a LiteLLM-compatible endpoint.

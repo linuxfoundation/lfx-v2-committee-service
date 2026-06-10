@@ -40,11 +40,15 @@ func (r *mockReader) GetRevision(_ context.Context, uid string) (uint64, error) 
 	return r.revision[uid], nil
 }
 
-func (r *mockReader) ListMembers(_ context.Context, uid string) ([]*model.CommitteeMember, error) {
+func (r *mockReader) ListMembersByCommittee(_ context.Context, uid string) ([]*model.CommitteeMember, error) {
 	if err, ok := r.membersErr[uid]; ok {
 		return nil, err
 	}
 	return r.members[uid], nil
+}
+
+func (r *mockReader) ListMembersByOrganization(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return nil, nil
 }
 
 // Stub methods required to satisfy port.CommitteeReader.
@@ -70,8 +74,26 @@ func (r *mockReader) ListApplications(_ context.Context, _ string) ([]*model.Com
 func (r *mockReader) GetSettings(_ context.Context, _ string) (*model.CommitteeSettings, uint64, error) {
 	return nil, 0, nil
 }
-func (r *mockReader) GetSettingsUIDByInviteUID(_ context.Context, _ string) (string, error) {
-	return "", nil
+
+func (r *mockReader) ListAllMembers(_ context.Context) ([]*model.CommitteeMember, error) {
+	var all []*model.CommitteeMember
+	for _, members := range r.members {
+		all = append(all, members...)
+	}
+	return all, nil
+}
+
+func (r *mockReader) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := r.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if err := fn(m); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // mockWriter implements service.CommitteeWriter, recording Update calls.
@@ -104,6 +126,9 @@ func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _
 	return m, nil
 }
 func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error { return nil }
+func (w *mockWriter) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+	return m, nil
+}
 
 // helpers
 
@@ -331,4 +356,7 @@ func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.Commi
 }
 func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool) error {
 	return c.inner.DeleteMember(ctx, uid, rev, sync)
+}
+func (c *conditionalFailWriter) ReassignMember(ctx context.Context, oldUID string, oldRev uint64, m *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+	return c.inner.ReassignMember(ctx, oldUID, oldRev, m, sync)
 }

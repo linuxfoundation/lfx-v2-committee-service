@@ -64,6 +64,11 @@ service:
   # port is the service port
   port: 8080
 
+serviceAccount:
+  create: false
+  name: ""
+  automountServiceAccountToken: false
+
 # nats is the configuration for the NATS server
 nats:
   # url is the URL of the NATS server
@@ -517,6 +522,23 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
+    # ORG_SEAT_PAGE_TOKEN_HMAC_KEY — HMAC signing key for the Org Lens
+    # committee-seat pagination cursor (LFXV2-1865). It is the SOLE source of the
+    # key; there is no in-repo fallback for any environment (a public key would
+    # make page tokens forgeable, including in shared dev). It points directly at
+    # the ExternalSecret-managed Secret (`lfx-v2-committee-service-secrets`, key
+    # `org_seat_page_token_hmac_key`, provisioned via lfx-secrets-management) so
+    # no per-environment GitOps override is needed. `optional: true` keeps the pod
+    # healthy when the secret/key is absent: the org-seat read endpoint degrades
+    # to a 503 while the rest of the service stays up — it never crash-loops. The
+    # key only needs to be a stable, secret random string shared across replicas.
+    # Set it in values.local.yaml for local development.
+    ORG_SEAT_PAGE_TOKEN_HMAC_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: org_seat_page_token_hmac_key
+          optional: true
 
   # otel is the configuration for OpenTelemetry tracing
   otel:
@@ -538,10 +560,15 @@ app:
     # tracesExporter specifies the traces exporter: "otlp" or "none"
     # (default: "none")
     tracesExporter: "none"
-    # tracesSampleRatio specifies the sampling ratio for traces (0.0 to 1.0)
-    # A value of 1.0 means all traces are sampled, 0.5 means 50% are sampled
-    # (default: "1.0")
-    tracesSampleRatio: "1.0"
+    # tracesSampler specifies the OTEL_TRACES_SAMPLER type. Supported values:
+    # "always_on", "always_off", "traceidratio", "parentbased_always_on",
+    # "parentbased_always_off", "parentbased_traceidratio".
+    # When empty, the application defaults to parentbased_traceidratio.
+    tracesSampler: ""
+    # tracesSamplerArg specifies the OTEL_TRACES_SAMPLER_ARG (sampler ratio or parent_sampler_arg).
+    # Required for "traceidratio" and "parentbased_traceidratio" samplers.
+    # (default: "")
+    tracesSamplerArg: ""
     # metricsExporter specifies the metrics exporter: "otlp" or "none"
     # (default: "none")
     metricsExporter: "none"

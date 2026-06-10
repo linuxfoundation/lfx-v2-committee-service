@@ -376,6 +376,105 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// GET - Org Lens Board & Committee tab (LFXV2-1865): list a B2B org's committee seats across
+	// the membership project family. Account-level read gated on b2b_org:{uid}#auditor by the
+	// Heimdall ruleset (b2b_org is ruleset-only). {uid} is the 18-char Salesforce Account SFID.
+	dsl.Method("get-org-committee-seats", func() {
+		dsl.Description("List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			dsl.Attribute("project_uids", dsl.ArrayOf(dsl.String), "Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to", func() {
+				dsl.Example([]string{"7cad5a8d-19d0-41a4-81a6-043453daf9ee"})
+			})
+			dsl.Attribute("page_size", dsl.Int, "Maximum seats to return in this page (default 100, max 500)", func() {
+				dsl.Minimum(1)
+				dsl.Maximum(500)
+				dsl.Example(100)
+			})
+			dsl.Attribute("page_token", dsl.String, "Opaque cursor returned by a previous call to fetch the next page", func() {
+				dsl.Example("eyJvIjoxMDB9")
+			})
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Result(OrgCommitteeSeatPageType)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/b2b-org/{uid}/seats")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("project_uids")
+			dsl.Param("page_size")
+			dsl.Param("page_token")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// PUT - Org Lens reassign (LFXV2-1865): atomically move a Membership-Entitlement committee seat
+	// to a new holder, preserving role/voting/appointed_by. Gated on b2b_org:{uid}#writer by the
+	// Heimdall ruleset + the service-side entitlement guard. {uid} is the 18-char SFID.
+	dsl.Method("reassign-org-committee-seat", func() {
+		dsl.Description("Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			MemberUIDAttribute()
+			// Reuse the shared committee_member attribute helpers (validation + docs stay in sync with
+			// the existing member endpoints). committee_uid is the seat's committee; first_name/
+			// last_name/email describe the replacement holder.
+			CommitteeUIDMemberAttribute()
+			FirstNameAttribute()
+			LastNameAttribute()
+			EmailAttribute()
+
+			dsl.Required("version", "uid", "member_uid", "committee_uid", "first_name", "last_name", "email")
+		})
+
+		dsl.Result(OrgCommitteeSeatType)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		// Generic description so the shared ForbiddenError OpenAPI schema is not polluted with
+		// seat-specific wording; the precise reason is returned at runtime in the message field.
+		dsl.Error("Forbidden", ForbiddenError, "Forbidden")
+		dsl.Error("NotFound", NotFoundError, "Seat not found")
+		dsl.Error("Conflict", ConflictError, "Concurrent modification")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/b2b-org/{uid}/seats/{member_uid}/reassign")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// PUT - Replace committee member (complete resource replacement)
 	// This endpoint follows PUT semantics: it replaces the entire member resource.
 	// All required fields must be provided, even if unchanged.

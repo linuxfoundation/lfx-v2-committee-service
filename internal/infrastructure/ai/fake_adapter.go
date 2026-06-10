@@ -124,13 +124,13 @@ func (a *FakeAdapter) GenerateWeeklyBrief(_ context.Context, in port.WeeklyBrief
 // Used to derive synthetic IDs that are deterministic but distinct per input.
 func inputDigest(in port.WeeklyBriefInput) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s",
+	_, _ = fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s",
 		in.CommitteeID, in.CommitteeName, in.ProjectName, in.PeriodStart, in.PeriodEnd)
 	// Iterate claims in a stable order: sort by ID first.
 	claims := append([]port.ClaimEvidence(nil), in.Claims...)
 	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
 	for _, c := range claims {
-		fmt.Fprintf(h, "\x01%s\x00%s", c.ID, c.Summary)
+		_, _ = fmt.Fprintf(h, "\x01%s\x00%s", c.ID, c.Summary)
 		sources := append([]port.SourceRef(nil), c.Sources...)
 		sort.Slice(sources, func(i, j int) bool {
 			if sources[i].Type != sources[j].Type {
@@ -139,7 +139,7 @@ func inputDigest(in port.WeeklyBriefInput) string {
 			return sources[i].ID < sources[j].ID
 		})
 		for _, s := range sources {
-			fmt.Fprintf(h, "\x02%s\x00%s", s.Type, s.ID)
+			_, _ = fmt.Fprintf(h, "\x02%s\x00%s", s.Type, s.ID)
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))

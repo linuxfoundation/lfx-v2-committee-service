@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // Global mock repository instance to share data between all repositories
@@ -41,7 +43,6 @@ func NewMockRepository() *MockRepository {
 			committeeApplications: make(map[string]*model.CommitteeApplication),
 			inviteIndexKeys:       make(map[string]*model.CommitteeInvite),
 			applicationIndexKeys:  make(map[string]*model.CommitteeApplication),
-			settingsInviteIndex:   make(map[string]string),
 			committeeRevisions:    make(map[string]uint64),
 			settingsRevisions:     make(map[string]uint64),
 			memberRevisions:       make(map[string]uint64),
@@ -228,7 +229,6 @@ type MockRepository struct {
 	committeeApplications map[string]*model.CommitteeApplication // applicationUID -> application
 	inviteIndexKeys       map[string]*model.CommitteeInvite      // indexKey -> invite
 	applicationIndexKeys  map[string]*model.CommitteeApplication // indexKey -> application
-	settingsInviteIndex   map[string]string                      // inviteUID -> committeeUID secondary index
 	// Revision tracking for optimistic locking
 	committeeRevisions   map[string]uint64 // committeeUID -> revision
 	settingsRevisions    map[string]uint64 // committeeUID -> settings revision
@@ -290,20 +290,6 @@ func (m *MockRepository) ListAllUIDs(ctx context.Context) ([]string, error) {
 
 // ================== CommitteeSettingsReader implementation ==================
 
-// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the secondary index.
-func (m *MockRepository) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
-	slog.DebugContext(ctx, "mock repository: looking up committee UID by invite UID", "invite_uid", inviteUID)
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	committeeUID, exists := m.settingsInviteIndex[inviteUID]
-	if !exists {
-		return "", errors.NewNotFound(fmt.Sprintf("invite index entry for UID %s not found", inviteUID))
-	}
-	return committeeUID, nil
-}
-
 // GetSettings retrieves committee settings by committee UID
 func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	slog.DebugContext(ctx, "mock repository: getting committee settings", "committee_uid", committeeUID)
@@ -316,8 +302,19 @@ func (m *MockRepository) GetSettings(ctx context.Context, committeeUID string) (
 		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
 	}
 
-	// Return version 1 for mock (in real implementation this would be the actual version)
-	return settings, 1, nil
+	if settings == nil {
+		// Committee exists but was stored without a CommitteeSettings pointer.
+		// Treat this identically to "not found" so callers cannot distinguish a nil
+		// value from a missing key — consistent with real NATS storage behavior.
+		return nil, 0, errors.NewNotFound(fmt.Sprintf("committee settings for UID %s not found", committeeUID))
+	}
+
+	// Return a deep copy so caller mutations (e.g. in-place field promotion) do not bleed
+	// back into the stored pointer and corrupt subsequent reads in the same test.
+	settingsCopy := *settings
+	settingsCopy.Writers = append([]model.CommitteeUser(nil), settings.Writers...)
+	settingsCopy.Auditors = append([]model.CommitteeUser(nil), settings.Auditors...)
+	return &settingsCopy, 1, nil
 }
 
 // ================== CommitteeMemberReader implementation ==================
@@ -366,8 +363,8 @@ func (m *MockRepository) GetMemberRevision(ctx context.Context, memberUID string
 	return 0, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", memberUID))
 }
 
-// ListMembers retrieves all members for a committee
-func (m *MockRepository) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a committee
+func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "mock repository: listing committee members", "committee_uid", committeeUID)
 
 	m.mu.RLock()
@@ -386,6 +383,63 @@ func (m *MockRepository) ListMembers(ctx context.Context, committeeUID string) (
 	}
 
 	return members, nil
+}
+
+// ListMembersByOrganization retrieves all members held by an organization (by the SFID on
+// committee_member.organization.id) across all committees (Org Lens, LFXV2-1865).
+func (m *MockRepository) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by organization", "org_sfid", orgSFID)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Mirror the real NATS KV index (storage.go), which keys on the 18-char canonical SFID: normalize
+	// both sides so a 15-char stored organization.id still matches an 18-char orgSFID (same record).
+	normalizedOrg := utils.NormalizeAccountSFID(orgSFID)
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if member.Organization.ID == "" || utils.NormalizeAccountSFID(member.Organization.ID) != normalizedOrg {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
+// ListAllMembers retrieves all members across all committees (full scan).
+// Used for backfill/repair operations that need to read all members regardless of the index.
+func (m *MockRepository) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing all committee members")
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
+// EachMember streams every mock member to fn one at a time (mirrors the storage streaming scan). The
+// snapshot is copied under the read lock, then fn is invoked outside the lock.
+func (m *MockRepository) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	members, err := m.ListAllMembers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, member := range members {
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MockCommitteeWriter implements CommitteeWriter interface
@@ -554,24 +608,6 @@ func (w *MockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model
 	return nil
 }
 
-// IndexSettingsInvite creates or overwrites the secondary index entry mapping invite_uid → committee_uid.
-func (w *MockCommitteeWriter) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
-	slog.DebugContext(ctx, "mock committee writer: indexing settings invite", "invite_uid", inviteUID, "committee_uid", committeeUID)
-	w.mock.mu.Lock()
-	defer w.mock.mu.Unlock()
-	w.mock.settingsInviteIndex[inviteUID] = committeeUID
-	return nil
-}
-
-// DeleteSettingsInviteIndex removes the secondary index entry for the given invite UID.
-func (w *MockCommitteeWriter) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
-	slog.DebugContext(ctx, "mock committee writer: deleting settings invite index", "invite_uid", inviteUID)
-	w.mock.mu.Lock()
-	defer w.mock.mu.Unlock()
-	delete(w.mock.settingsInviteIndex, inviteUID)
-	return nil
-}
-
 // ================== CommitteeMemberWriter implementation ==================
 
 // CreateMember creates a new committee member
@@ -693,6 +729,38 @@ func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.Co
 	}
 
 	return "", nil
+}
+
+// IndexMemberByCommittee records the secondary index entry for the given member.
+// In the mock this is a no-op (the mock keyed map already indexes by committee);
+// it returns the key string that the real storage would write, so callers can
+// track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by committee",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+	)
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	return key, nil
+}
+
+// IndexMemberByOrganization records the by-organization secondary index entry (Org Lens, LFXV2-1865).
+// In the mock this is a no-op; it returns the key the real storage would write (empty when the member
+// has no organization.id) so callers can track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by organization",
+		"organization_id", member.Organization.ID,
+		"member_uid", member.UID,
+	)
+	// Mirror the real NATS storage: normalize to the 18-char canonical SFID so the mock key matches
+	// production. A 15-char stored org id would otherwise yield a divergent key and break rollback /
+	// stale-key tracking against real behavior.
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	return key, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================
@@ -1008,7 +1076,6 @@ func (m *MockRepository) ClearAll() {
 	m.committeeApplications = make(map[string]*model.CommitteeApplication)
 	m.inviteIndexKeys = make(map[string]*model.CommitteeInvite)
 	m.applicationIndexKeys = make(map[string]*model.CommitteeApplication)
-	m.settingsInviteIndex = make(map[string]string)
 	m.committeeRevisions = make(map[string]uint64)
 	m.settingsRevisions = make(map[string]uint64)
 	m.memberRevisions = make(map[string]uint64)

@@ -457,9 +457,9 @@ func InviteSenderImpl(ctx context.Context) port.InviteSender {
 	return nil
 }
 
-// lfxSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
+// LFXSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
-func lfxSelfServeBaseURL() string {
+func LFXSelfServeBaseURL() string {
 	if url := os.Getenv("LFX_SELF_SERVE_BASE_URL"); url != "" {
 		return url
 	}
@@ -672,6 +672,32 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
+// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
+// synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
+// by-organization secondary index.
+func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock org committee seat reader")
+		return infrastructure.NewMockOrgCommitteeSeatReader()
+	case "nats":
+		natsInit(ctx)
+		memberReader, ok := natsStorage.(port.CommitteeMemberReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
+		}
+		return nats.NewNATSOrgCommitteeSeatReader(memberReader)
+	default:
+		log.Fatalf("unsupported org committee seat reader implementation: %s", repoSource)
+	}
+	// unreachable
+	return nil
+}
+
 // CommitteeWeeklyMemberReaderImpl builds the live weekly member reader. The
 // reader is backed by any port.CommitteeMemberReader — in production this is
 // the NATS storage adapter — and partitions members by created_at/updated_at
@@ -825,8 +851,9 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithCommitteePublisherForMessageHandler(CommitteePublisherImpl(ctx)),
 			usecaseSvc.WithEmailSenderForMessageHandler(EmailSenderImpl(ctx)),
 			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
-			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(lfxSelfServeBaseURL()),
+			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(LFXSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
+			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),
 		),
 	}
 
@@ -845,7 +872,9 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeMemberDeletedSubject:      messageHandlerService.HandleMessage,
 		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
-		inviteapi.InviteAcceptedSubject:              messageHandlerService.HandleMessage,
+		inviteapi.InviteServiceAcceptedSubject:       messageHandlerService.HandleMessage,
+		constants.CommitteeDocumentCreatedSubject:    messageHandlerService.HandleMessage,
+		constants.CommitteeLinkCreatedSubject:        messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

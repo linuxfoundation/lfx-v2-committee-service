@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -320,40 +321,52 @@ func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.Commi
 	return member, rev, nil
 }
 
-// ListMembers retrieves all members for a given committee UID
-func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+// ListMembersByCommittee retrieves all members for a given committee UID using the secondary index.
+// It performs a server-side filtered scan of keys matching
+// "lookup/committee-members-by-committee/<committeeUID>.*" so only members of the target
+// committee are fetched, rather than scanning the entire bucket.
+func (s *storage) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
+	if committeeUID == "" {
+		return nil, errs.NewValidation("committee UID cannot be empty")
+	}
+
 	slog.DebugContext(ctx, "listing committee members from NATS storage", "committee_uid", committeeUID)
 
-	// Get all keys from the committee members bucket
-	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
+	filter := fmt.Sprintf(constants.KVLookupMembersByCommitteeFilter, committeeUID)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
 	if errKeys != nil {
-		return nil, errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+		return nil, errs.NewUnexpected("failed to list member index keys for committee", errKeys)
 	}
 
 	var members []*model.CommitteeMember
 
-	// Iterate through all keys and filter by committee UID
+	// Each key is "lookup/committee-members-by-committee/<committeeUID>.<memberUID>".
+	// Extract the member UID from the suffix after the last dot.
 	for key := range keys.Keys() {
-		// Skip lookup keys (they start with "lookup/")
-		if strings.HasPrefix(key, "lookup/") {
-			continue
-		}
-
-		// Get the member
-		member := &model.CommitteeMember{}
-		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
-		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get member while listing",
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed member index key",
 				"key", key,
+				"committee_uid", committeeUID,
+			)
+			continue
+		}
+		// UIDs are UUIDs (RFC 4122 hex + hyphens only) and never contain dots,
+		// so LastIndex is safe as the committee/member separator.
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing by committee",
+				"member_uid", memberUID,
 				"error", errGet,
-				"committee_uid", committeeUID)
+				"committee_uid", committeeUID,
+			)
 			continue
 		}
 
-		// Filter by committee UID
-		if member.CommitteeUID == committeeUID {
-			members = append(members, member)
-		}
+		members = append(members, member)
 	}
 
 	slog.DebugContext(ctx, "retrieved committee members from NATS storage",
@@ -364,9 +377,90 @@ func (s *storage) ListMembers(ctx context.Context, committeeUID string) ([]*mode
 	return members, nil
 }
 
+// ListAllMembers retrieves every member across all committees via a full bucket scan.
+// It is intended only for backfill/repair operations (e.g. the members-by-committee-index
+// CLI subcommand) that need to read all members without relying on the secondary index.
+func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "listing all committee members from NATS storage")
+
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+	}
+
+	var members []*model.CommitteeMember
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing all",
+				"key", key,
+				"error", errGet,
+			)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved all committee members from NATS storage",
+		"member_count", len(members),
+	)
+
+	return members, nil
+}
+
+// EachMember streams every committee member via a full bucket scan, invoking fn per member without
+// accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
+// per-member read error is logged and skipped; the first error fn returns stops iteration.
+func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
+	if errKeys != nil {
+		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		member := &model.CommitteeMember{}
+		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
+			continue
+		}
+
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetMemberRevision retrieves the revision number for a committee member
 func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
-	return s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
+	rev, err := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
+		}
+		// Return validation errors (e.g. empty UID) and other typed errors as-is
+		// so callers receive the correct error kind instead of an unexpected wrapper.
+		var valErr errs.Validation
+		if errors.As(err, &valErr) {
+			return 0, err
+		}
+		return 0, errs.NewUnexpected("failed to get committee member revision", err)
+	}
+	return rev, nil
 }
 
 // ================== CommitteeMemberWriter implementation ==================
@@ -474,6 +568,117 @@ func (s *storage) UniqueMember(ctx context.Context, member *model.CommitteeMembe
 		return uniqueKey, errs.NewUnexpected("failed to create unique key for member", errUnique)
 	}
 	return uniqueKey, nil
+}
+
+// IndexMemberByCommittee writes the secondary index entry
+// "lookup/committee-members-by-committee/<committee_uid>.<member_uid>" → <member_uid>
+// into the committee-members bucket. This enables ListMembersByCommittee to use a server-side
+// filtered scan instead of a full bucket scan.
+// Returns the written key (for rollback tracking) and nil on success.
+// jetstream.ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
+func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.CommitteeUID == "" || member.UID == "" {
+		return "", errs.NewValidation("committee member CommitteeUID and UID must be non-empty")
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			// Already present — idempotent; treat as success.
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by committee", err)
+	}
+	return key, nil
+}
+
+// IndexMemberByOrganization writes the secondary index entry
+// "lookup/committee-members-by-organization/<org_sfid>.<member_uid>" → <member_uid> into the
+// committee-members bucket, so ListMembersByOrganization (Org Lens, LFXV2-1865) can use a server-side
+// filtered scan instead of a full bucket scan. The org SFID is normalized to its 18-char form.
+//
+// Members without an organization.id are NOT org-affiliated seats, so no index entry is written and an
+// empty key is returned (the caller treats that as a no-op). jetstream.ErrKeyExists is idempotent.
+func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.UID == "" {
+		return "", errs.NewValidation("committee member UID must be non-empty")
+	}
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		// No organization affiliation → nothing to index. Not an error.
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by organization", err)
+	}
+	return key, nil
+}
+
+// ListMembersByOrganization retrieves all committee members held by an organization (by the SFID on
+// committee_member.organization.id) using the by-organization secondary index. It performs a
+// server-side filtered scan of "lookup/committee-members-by-organization/<org_sfid>.*" so only the
+// org's members are fetched. The org SFID is normalized to its 18-char form before scanning.
+func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	orgSFID = utils.NormalizeAccountSFID(orgSFID)
+	if orgSFID == "" {
+		return nil, errs.NewValidation("organization SFID cannot be empty")
+	}
+
+	slog.DebugContext(ctx, "listing committee members by organization from NATS storage", "org_sfid", orgSFID)
+
+	filter := fmt.Sprintf(constants.KVLookupMembersByOrganizationFilter, orgSFID)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for organization", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-organization/<org_sfid>.<member_uid>".
+	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed org member index key", "key", key, "org_sfid", orgSFID)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing by organization",
+				"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+			continue
+		}
+
+		// Defensive consistency check: the secondary index is a hint, the member record is the source
+		// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
+		// failed cleanup can leave an index key pointing at a member whose organization.id has since
+		// changed. Skip such entries so a stale key never leaks a seat into another org's list.
+		if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
+			slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
+				"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members by organization from NATS storage",
+		"org_sfid", orgSFID, "member_count", len(members))
+
+	return members, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================
@@ -601,46 +806,6 @@ func (s *storage) UniqueInvite(ctx context.Context, invite *model.CommitteeInvit
 		return uniqueKey, errs.NewUnexpected("failed to create unique key for invite", errUnique)
 	}
 	return uniqueKey, nil
-}
-
-// ================== CommitteeSettingsInvite secondary index ==================
-
-// GetSettingsUIDByInviteUID looks up the committee UID for a given invite UID via the
-// secondary index written at invite-send time.
-func (s *storage) GetSettingsUIDByInviteUID(ctx context.Context, inviteUID string) (string, error) {
-	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
-	entry, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Get(ctx, key)
-	if err != nil {
-		if errors.Is(err, jetstream.ErrKeyNotFound) {
-			return "", errs.NewNotFound("no settings record found for invite UID")
-		}
-		return "", errs.NewUnexpected("failed to look up settings by invite UID", err)
-	}
-	return string(entry.Value()), nil
-}
-
-// IndexSettingsInvite writes the secondary index entry mapping invite_uid → committee_uid.
-// It uses Create (write-if-absent) so an accidental invite UID collision from the invite
-// service surfaces as an explicit error rather than silently overwriting a valid mapping.
-func (s *storage) IndexSettingsInvite(ctx context.Context, inviteUID, committeeUID string) error {
-	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
-	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Create(ctx, key, []byte(committeeUID)); err != nil {
-		if errors.Is(err, jetstream.ErrKeyExists) {
-			// Mapping already present — idempotent; treat as success.
-			return nil
-		}
-		return errs.NewUnexpected("failed to index settings invite", err)
-	}
-	return nil
-}
-
-// DeleteSettingsInviteIndex removes the secondary index entry for the given invite UID.
-func (s *storage) DeleteSettingsInviteIndex(ctx context.Context, inviteUID string) error {
-	key := fmt.Sprintf(constants.KVLookupSettingsInvitePrefix, inviteUID)
-	if err := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Delete(ctx, key); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
-		return errs.NewUnexpected("failed to delete settings invite index", err)
-	}
-	return nil
 }
 
 // ================== CommitteeApplicationReader implementation ==================

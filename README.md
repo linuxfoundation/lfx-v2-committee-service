@@ -79,11 +79,45 @@ To create a new release of the committee service:
    update the `appVersion` in the released chart.
 
 3. **The GitHub Actions workflow will automatically**:
+   - Gate the release on the weekly-brief live LLM eval — see [Release gate](#release-gate-weekly-brief-live-llm-eval) below
    - Build and publish the container images (committee-api and committee-cli)
    - Package and publish the Helm chart to GitHub Pages
    - Publish the chart to GitHub Container Registry (GHCR)
    - Sign the chart with Cosign
    - Generate SLSA provenance
+
+### Release gate: weekly-brief live LLM eval
+
+Every `v*` tag push runs the [working-group weekly-brief live LLM eval suite](evals/weekly-brief/README.md)
+as a hard gate before any images, Helm charts, SBOMs, or cosign signatures
+are published. The wiring lives in
+[`.github/workflows/ko-build-tag.yaml`](.github/workflows/ko-build-tag.yaml),
+which invokes the reusable
+[`.github/workflows/weekly-brief-eval-live.yml`](.github/workflows/weekly-brief-eval-live.yml)
+as a `needs:` dependency of the `publish` job. A failing eval aborts the
+release.
+
+Configuration in CI is **not via GitHub repository secrets**:
+
+- `LITELLM_BASE_URL` and `LITELLM_MODEL` are pinned in the workflow's
+  `env:` block. To change the endpoint or model, edit
+  [`.github/workflows/weekly-brief-eval-live.yml`](.github/workflows/weekly-brief-eval-live.yml)
+  and merge the change — defaults are
+  `https://litellm.dev.v2.cluster.linuxfound.info` and `claude-sonnet-4-6`.
+- `LITELLM_API_KEY` is fetched from **AWS Secrets Manager** at
+  `/cloudops/managed-secrets/litellm/lfx-one-cicd`, via the OIDC role
+  `arn:aws:iam::450177423209:role/lfx-v2-github-actions`. To rotate the
+  key, update the AWS Secrets Manager entry — no workflow change required.
+
+`ko-build-tag.yaml` grants the calling `eval-live` job
+`permissions: id-token: write` so the called workflow's OIDC token
+exchange with AWS can succeed; a reusable workflow cannot elevate
+permissions beyond what its caller grants.
+
+Missing credentials fail the workflow loudly rather than silently skipping
+(the live test calls `t.Fatalf` under `-tags=live`). To validate against a
+specific endpoint before cutting a release, run the workflow on demand via
+**Actions → Weekly-Brief Live Eval → Run workflow**.
 
 ### Important Notes
 

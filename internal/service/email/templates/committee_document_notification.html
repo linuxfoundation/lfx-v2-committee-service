@@ -1,0 +1,64 @@
+<!-- Copyright The Linux Foundation and each contributor to LFX. -->
+<!-- SPDX-License-Identifier: MIT -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="LFX Self-Serve committee document notification">
+    <meta name="keywords" content="LFX, committee, document, notification">
+    <title>New {{if eq .DocumentType "link"}}link{{else}}document{{end}} added to {{.CommitteeName}}</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #ffffff; font-family: Inter, Arial, sans-serif; color: #111827; }
+        .wrapper { max-width: 600px; margin: 0 auto; padding: 32px 40px; }
+        .logo { margin-bottom: 24px; }
+        .logo img { height: 32px; width: auto; display: block; }
+        hr { border: none; border-top: 1px solid #e5e7eb; margin: 0 0 32px 0; }
+        p { font-size: 16px; color: #374151; line-height: 1.6; margin: 0 0 16px 0; }
+        .greeting { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
+        .detail-label { font-weight: 600; color: #111827; }
+        .detail-link { color: #009AFF; text-decoration: none; word-break: break-all; }
+        .detail-item { margin: 0 0 4px 0; font-size: 15px; color: #374151; }
+        .details-footer { margin-top: 24px; }
+        .btn { display: inline-block; background-color: #009AFF; color: #ffffff !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 24px; border-radius: 8px; margin-bottom: 12px; }
+        .btn-note { font-size: 13px; color: #6b7280; margin: 0 0 28px 0; }
+        .btn-note a { color: #009AFF; text-decoration: none; }
+        .signoff { font-size: 15px; color: #374151; margin: 0 0 32px 0; line-height: 1.7; }
+        .footer-hr { border: none; border-top: 1px solid #e5e7eb; margin: 0 0 24px 0; }
+        .footer { font-size: 12px; color: #9ca3af; line-height: 1.6; margin: 0; }
+        .footer a { color: #9ca3af; }
+        @media only screen and (max-width: 620px) {
+            .wrapper { padding: 24px 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+
+    <div class="logo">
+        <img src="https://itx-project-logos-png-prod.s3.us-west-2.amazonaws.com/lfx-logo-color.png" alt="LFX" width="120" height="32">
+    </div>
+    <hr>
+
+    <p class="greeting">Hi {{.RecipientName}},</p>
+
+    {{if .UploaderName}}<p>{{.UploaderName}} has added a new {{if eq .DocumentType "link"}}link{{else}}document{{end}} to the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>{{else}}<p>A new {{if eq .DocumentType "link"}}link{{else}}document{{end}} has been added to the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>{{end}}
+
+    <p class="detail-item"><span class="detail-label">Name:</span> {{.DocumentName}}</p>
+    {{if eq .DocumentType "file"}}<p class="detail-item"><span class="detail-label">File:</span> {{.FileName}}</p>{{end}}
+    {{if and (eq .DocumentType "link") .URL}}<p class="detail-item"><span class="detail-label">URL:</span> <a href="{{.URL}}" class="detail-link">{{.URL}}</a></p>{{end}}
+    {{if .FolderName}}<p class="detail-item"><span class="detail-label">Folder:</span> {{.FolderName}}</p>{{end}}
+
+    <p class="details-footer">You can view the committee and its content by visiting the link below.</p>
+
+    <!-- djlint:off H021 --><a href="{{.CommitteeURL}}" class="btn" style="color:#ffffff!important;">View Committee</a><!-- djlint:on H021 -->
+    <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.CommitteeURL}}">{{.CommitteeURL}}</a></p>
+
+    <p class="signoff">Thank you,<br><strong>The LFX Team</strong></p>
+
+    <hr class="footer-hr">
+    <p class="footer">Copyright © 2026 The Linux Foundation ®. All rights reserved. The Linux Foundation has registered trademarks and uses trademarks. For a list of trademarks of The Linux Foundation, please see our <a href="https://www.linuxfoundation.org/trademark-usage">Trademark Usage</a> page. Linux is a registered trademark of Linus Torvalds.</p>
+
+</div>
+</body>
+</html>

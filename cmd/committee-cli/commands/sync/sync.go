@@ -16,7 +16,9 @@ func (c *command) Help() string {
 
 func (c *command) Subcommands() map[string]commands.Subcommand {
 	return map[string]commands.Subcommand{
-		"total-members-attribute": &totalMembersAttributeSubcommand{},
+		"total-members-attribute":       &totalMembersAttributeSubcommand{},
+		"members-by-committee-index":    &membersByCommitteeIndexSubcommand{},
+		"members-by-organization-index": &membersByOrganizationIndexSubcommand{},
 	}
 }
 

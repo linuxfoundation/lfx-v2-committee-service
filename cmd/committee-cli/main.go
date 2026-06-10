@@ -108,6 +108,7 @@ func run() error {
 	rc := commands.RunContext{
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
+		CommitteeMemberWriter:       storage,
 		Args:                        parsed.SubArgs,
 	}
 

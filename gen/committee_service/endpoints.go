@@ -28,6 +28,8 @@ type Endpoints struct {
 	Livez                     goa.Endpoint
 	CreateCommitteeMember     goa.Endpoint
 	GetCommitteeMember        goa.Endpoint
+	GetOrgCommitteeSeats      goa.Endpoint
+	ReassignOrgCommitteeSeat  goa.Endpoint
 	UpdateCommitteeMember     goa.Endpoint
 	DeleteCommitteeMember     goa.Endpoint
 	GetInvite                 goa.Endpoint
@@ -80,6 +82,8 @@ func NewEndpoints(s Service) *Endpoints {
 		Livez:                     NewLivezEndpoint(s),
 		CreateCommitteeMember:     NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
 		GetCommitteeMember:        NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetOrgCommitteeSeats:      NewGetOrgCommitteeSeatsEndpoint(s, a.JWTAuth),
+		ReassignOrgCommitteeSeat:  NewReassignOrgCommitteeSeatEndpoint(s, a.JWTAuth),
 		UpdateCommitteeMember:     NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
 		DeleteCommitteeMember:     NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
 		GetInvite:                 NewGetInviteEndpoint(s, a.JWTAuth),
@@ -123,6 +127,8 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Livez = m(e.Livez)
 	e.CreateCommitteeMember = m(e.CreateCommitteeMember)
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
+	e.GetOrgCommitteeSeats = m(e.GetOrgCommitteeSeats)
+	e.ReassignOrgCommitteeSeat = m(e.ReassignOrgCommitteeSeat)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
 	e.DeleteCommitteeMember = m(e.DeleteCommitteeMember)
 	e.GetInvite = m(e.GetInvite)
@@ -349,6 +355,52 @@ func NewGetCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc) go
 			return nil, err
 		}
 		return s.GetCommitteeMember(ctx, p)
+	}
+}
+
+// NewGetOrgCommitteeSeatsEndpoint returns an endpoint function that calls the
+// method "get-org-committee-seats" of service "committee-service".
+func NewGetOrgCommitteeSeatsEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetOrgCommitteeSeatsPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.GetOrgCommitteeSeats(ctx, p)
+	}
+}
+
+// NewReassignOrgCommitteeSeatEndpoint returns an endpoint function that calls
+// the method "reassign-org-committee-seat" of service "committee-service".
+func NewReassignOrgCommitteeSeatEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ReassignOrgCommitteeSeatPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.ReassignOrgCommitteeSeat(ctx, p)
 	}
 }
 
