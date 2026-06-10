@@ -1091,7 +1091,7 @@ type mockUserReader struct {
 	primaryEmail string // returned by EmailsByPrincipal
 }
 
-func (m *mockUserReader) SubByEmail(_ context.Context, _ string) (string, error) {
+func (m *mockUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
