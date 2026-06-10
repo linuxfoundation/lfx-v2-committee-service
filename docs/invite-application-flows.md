@@ -60,6 +60,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - If an invite for the same email already exists in this committee:
   - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role is updated if provided.
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
+- After the invite record is persisted (create or reinstate), the service dispatches a best-effort send-invite request to the invite service (`lfx.invite-service.send_invite`, `dispatchInviteEmail` in `cmd/committee-api/service/committee_service.go`) so the invitee receives an email. The request uses the invite-service permission vocabulary with `role: "Member"` (the committee role on the invite record is applied after acceptance). Dispatch failures are logged and do not fail the API call.
 
 **Accepting an invite** (`POST .../accept`):
 - Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
@@ -137,7 +138,7 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (subject identifier), the service resolves the email at request time via a NATS request/reply call to the auth-service:
 
 - **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** the caller's principal (raw bytes, no JSON wrapping)
+- **Request payload:** JSON — `{ "user": { "auth_token": "<principal>" } }` (see `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
 The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
@@ -164,72 +165,55 @@ When a user is added to `writers` or `auditors` in committee settings via `PUT /
 | User state | `username` field | Action |
 |---|---|---|
 | Has LFID | non-empty | Send a direct role-notification email via the email service |
-| No LFID | empty | Send an invite request to the invite service; store returned invite metadata |
+| No LFID | empty | Send an invite request to the invite service |
 
-The invite service handles rendering and delivering the invite email, and returns a unique invite UID that the committee service uses to track the invite and route the subsequent acceptance event.
+The invite service handles rendering and delivering the invite email, owns the invite record, and later publishes an enriched acceptance event that the committee service consumes to promote the user. The committee service does not persist any invite metadata for settings invites — it only logs the invite UID returned by the invite service.
 
 ### Sending an Invite
 
-**Triggered by:** `HandleCommitteeSettingsUpdated` — called when a `lfx.committee-api.committee_settings.updated` event arrives and the diff contains newly added non-LFID users.
+**Triggered by:** `HandleCommitteeSettingsUpdated` — called when a `lfx.committee-api.committee_settings.updated` event arrives and the diff contains added (or role-changed) non-LFID users.
 
 **NATS subject used:** `lfx.invite-service.send_invite` (request/reply, 5-second timeout)
 
-**Request payload** (`inviteapi.SendInviteRequest`):
+**Request payload** (`inviteapi.SendInviteRequest`, structured fields):
 
 | Field | Value |
 |---|---|
-| `recipient_email` | User's email address |
-| `recipient_name` | User's display name (falls back to email) |
-| `inviter_name` | Actor's display name; falls back to `"A committee administrator"` |
-| `resource_uid` | Committee UID |
-| `resource_name` | Committee name |
-| `resource_type` | `"group"` |
-| `role` | `"Manage"` (Writers) or `"View"` (Auditors) |
+| `recipient.email` | User's email address |
+| `recipient.name` | User's display name (falls back to username, then email) |
+| `inviter.name` | Actor's display name; falls back to `"A committee administrator"` |
+| `resource.uid` | Committee UID |
+| `resource.name` | Committee name |
+| `resource.type` | `"group"` |
+| `role` | `"Manage"` (Writer) or `"View"` (Auditor); for a user with multiple new roles, the highest-privilege role wins (`mapRoleToInviteRole(highestRole(...))`) |
 | `return_url` | Deep link to the committee page |
 
-**On success**, the invite service returns an invite UID, the delivery email, and an expiry timestamp. The committee service:
+A re-invite is skipped when the user's effective access is unchanged (e.g. gaining Auditor on top of Writer).
 
-1. Writes the invite metadata (`uid`, `email`, `expires_at`) onto the matching user entry in `CommitteeSettings.Writers` or `CommitteeSettings.Auditors`.
-2. Writes a secondary mapping entry in the `committee-settings` KV bucket: key `lookup/committee-settings-invite/{invite_uid}` → value `{committee_uid}`. This is used by `HandleInviteAccepted` to route acceptance events without scanning all settings.
-3. Calls `UpdateSettings` (which re-indexes the settings and publishes `committee_settings.updated`).
-
-All steps are best-effort — a failure is logged and does not block further processing.
+**On success**, the invite service returns an invite UID, which the committee service logs. The committee service does **not** write invite metadata onto the settings user entry and does **not** write a secondary KV mapping — the invite service owns the invite record, and acceptance is reconciled by email (below). The whole send is best-effort: a failure is logged and does not block further processing.
 
 ### Invite Acceptance
 
-**Triggered by:** a `lfx.invite.accepted` event published by the LFX self-serve web app when the user completes LFID account creation.
+**Triggered by:** a `lfx.invite-service.invite_accepted` event (`inviteapi.InviteServiceAcceptedSubject`) published by the **invite service** after it processes the self-serve acceptance and updates its own KV record. (Self-serve publishes the raw `lfx.invite.accepted` event to the invite service; the committee service consumes only the enriched re-publish.)
 
-**NATS subscription:** registered in `cmd/committee-api/service/committee_handler.go` and `providers.go` under `inviteapi.InviteAcceptedSubject`.
+**NATS subscription:** registered in `cmd/committee-api/service/committee_handler.go` and `providers.go` under `inviteapi.InviteServiceAcceptedSubject`.
 
-**Message payload:**
-
-```json
-{
-  "invite_uid": "<invite UID>",
-  "username":   "<new LFID username>"
-}
-```
+**Message payload** (`inviteapi.InviteServiceAcceptedEvent` — the full invite record): the handler requires `uid` (invite UID), `accepted_by` (new LFID username), and `recipient.email`; events missing any of these are discarded. `role` selects which settings slices to promote.
 
 **Handler:** `(*messageHandlerOrchestrator).HandleInviteAccepted`
 
 **Processing steps:**
 
-1. Look up the committee UID from the secondary KV mapping using `invite_uid`. If not found, the invite belongs to another service — silently ignored.
-2. Load `CommitteeSettings` with revision.
-3. Scan `Writers` and `Auditors` for a user whose `invite.uid` matches `invite_uid`.
-4. Set `username = <new username>`, clear the `invite` field.
-5. Call `UpdateSettings` (fires FGA and indexer messages; publishes `committee_settings.updated`).
-6. Delete the secondary mapping entry.
+1. Validate the event (`uid`, `accepted_by`, `recipient.email`).
+2. List **all** committee UIDs (`ListAllUIDs`) and, for each committee, load `CommitteeSettings` with revision. (A full scan; replacing it with an email → committee index is tracked as a TODO in the handler.)
+3. In each settings record, find email-only entries (`username == ""`) whose normalized email matches `recipient.email`, scoped by the invite `role`: `Manage` → `Writers`, `View` → `Auditors`, empty/unknown → both slices.
+4. Set `username = accepted_by` and clear any legacy `invite` field on the matched entries.
+5. Call `UpdateSettings` (fires FGA and indexer messages; publishes `committee_settings.updated`), retrying up to 3 times on revision conflicts. Because NATS handlers have no inbound JWT, a service-identity bearer is injected into the write context.
 
-The `committee_settings.updated` event fired by step 5 passes through `HandleCommitteeSettingsUpdated` again. Users who were present in old settings as an email-only invited entry are detected by `wasInvitedInOldSettings` and skipped, preventing a duplicate notification email.
+This reconciles every committee the accepted user was invited to, regardless of which resource triggered the original invite. The `committee_settings.updated` event fired by step 5 passes through `HandleCommitteeSettingsUpdated` again. Users who were present in old settings as an email-only invited entry are detected by `wasInvitedInOldSettings` and skipped, preventing a duplicate notification email.
 
-### KV Mapping Lifecycle
-
-| Event | KV key | Action |
-|---|---|---|
-| Invite sent | `lookup/committee-settings-invite/{invite_uid}` | Created |
-| Invite accepted | `lookup/committee-settings-invite/{invite_uid}` | Deleted |
+> **Note:** earlier versions stored invite metadata on settings user entries and a `lookup/committee-settings-invite/{invite_uid}` KV mapping to route acceptance events. Neither is written anymore; the `KVLookupSettingsInvitePrefix` constant remains only for legacy reference, and any `invite` object still present on a settings entry is legacy data that is cleared on promotion.
 
 ### Member vs. Settings Invite
 
-This LFID invite flow applies only to **settings roles** (Writers / Auditors). It is distinct from the **committee invite API** (above), which manages `CommitteeInvite` records and controls membership in `CommitteeMember`. Promoting `CommitteeMember` records on LFID invite acceptance (for members added via `committee_member.created` who also lack an LFID) is tracked as future work.
+This LFID invite flow applies only to **settings roles** (Writers / Auditors). It is distinct from the **committee invite API** (above), which manages `CommitteeInvite` records and controls membership in `CommitteeMember`. Members added via `committee_member.created` who lack an LFID also receive an invite-service invite (`sendMemberInvite` in `internal/service/message_handler.go`, with the returned invite metadata stored on the member record), but promoting those `CommitteeMember` records on LFID invite acceptance is still tracked as future work — `HandleInviteAccepted` only promotes settings entries.

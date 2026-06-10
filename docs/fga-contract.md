@@ -87,7 +87,7 @@ The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UI
 | `object_type` | `committee` |
 | `operation` | `member_put` |
 
-#### Data (`FGAMemberData`)
+#### Data (`GenericMemberData`)
 
 | Field | Value | Condition |
 |---|---|---|
@@ -106,7 +106,7 @@ Published to `lfx.fga-sync.member_remove` when a committee member is deleted and
 | `object_type` | `committee` |
 | `operation` | `member_remove` |
 
-#### Data (`FGAMemberData`)
+#### Data (`GenericMemberData`)
 
 | Field | Value | Condition |
 |---|---|---|

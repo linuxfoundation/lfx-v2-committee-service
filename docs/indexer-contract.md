@@ -126,7 +126,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 #### Invite Object
 
-When a user in `writers` or `auditors` has no LFID yet (their `username` is empty), a pending invite is tracked in a nested `invite` object. The invite is cleared and `username` is populated when the user accepts the invite.
+> **Legacy:** the service no longer writes invite metadata onto settings user entries — LFID settings invites are owned by the invite service, and acceptance is reconciled by email (see `docs/invite-application-flows.md`). The nested `invite` object may still appear on older indexed records; it is preserved across settings updates and cleared (with `username` populated) when the user's invite acceptance is reconciled.
 
 | Field | Type | Description |
 |---|---|---|
@@ -199,6 +199,7 @@ _(none)_
 | `organization.id` | string (optional) | Member's organization ID |
 | `organization.name` | string | Member's organization name |
 | `organization.website` | string (optional) | Member's organization website |
+| `invite` | object (optional) | Pending invite-service metadata (`uid`, `email`, optional `expires_at`) stored when a member without an LFID is invited via the invite service |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 

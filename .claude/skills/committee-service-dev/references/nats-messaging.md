@@ -24,7 +24,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 
 ```go
 "lfx.mailing-list-api.committee_mailing_list.changed" // handled by internal/service/message_handler.go (updates has_mailing_list + re-index)
-"lfx.invite.accepted"                                 // published by self-serve when an LFID settings-invite is accepted; handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteAcceptedSubject)
+"lfx.invite-service.invite_accepted"                  // published by the invite service after it processes a self-serve acceptance (enriched event embedding the invite record); handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteServiceAcceptedSubject)
 ```
 
 ### Self-consumed event subjects
@@ -37,6 +37,8 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_settings.updated"    // emitted after settings updates; consumed to drive the LFID settings-invite flow
 "lfx.committee-api.committee_member.created"       // also self-consumed (re-index / role-notification paths)
 "lfx.committee-api.committee_member.deleted"       // also self-consumed
+"lfx.committee-api.committee_document.created"     // also self-consumed (document-upload notification emails to committee members)
+"lfx.committee-api.committee_link.created"         // also self-consumed (link-added notification emails to committee members)
 "lfx.committee-api.weekly_brief.generate_requested" // consumed by the durable weekly-brief generate consumer (NOT via the queue subscription)
 ```
 
@@ -48,7 +50,8 @@ These are published by this service and also subscribed by this service (queue
 "lfx.auth-service.email_to_sub"                   // invite/member email -> Auth0 sub lookup
 "lfx.auth-service.user_emails.read"               // principal -> primary/alternate email lookup for self-service flows
 "lfx.auth-service.user_metadata.read"             // principal -> profile metadata lookup
-"lfx.invite-service.send_invite"                  // LFID settings-invite (Writers/Auditors) send (see docs/invite-application-flows.md)
+"lfx.invite-service.send_invite"                  // invite-service send for committee invites, non-LFID members, and LFID settings invites (see docs/invite-application-flows.md)
+"lfx.email-service.send_email"                    // direct notification emails (role/document/link notifications; owned by lfx-v2-email-service: emailapi.SendEmailSubject)
 ```
 
 ### Outbound notification subjects
@@ -59,6 +62,8 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_member.created"
 "lfx.committee-api.committee_member.updated"
 "lfx.committee-api.committee_member.deleted"
+"lfx.committee-api.committee_document.created"     // emitted by internal/service/document_writer.go after a document upload
+"lfx.committee-api.committee_link.created"         // emitted by internal/service/link_writer.go after a link create
 "lfx.committee-api.weekly_brief.generate_requested" // emitted by POST /committees/{uid}/weekly-briefs/generate after the brief is claimed
 ```
 

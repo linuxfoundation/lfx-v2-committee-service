@@ -50,8 +50,9 @@ governs only repo-local implementation, contracts, and chart wiring.
 - `internal/domain/` holds `model/` (entities) and `port/` (interfaces).
 - `internal/service/` holds use-case orchestration (`*Writer`, `*Reader`,
   `MessageHandler`).
-- `internal/infrastructure/` holds NATS storage (`nats/`), auth (`auth/`), and
-  mocks (`mock/`).
+- `internal/infrastructure/` holds NATS storage (`nats/`), auth (`auth/`),
+  AI adapters for the weekly brief (`ai/`), M2M source clients for meetings /
+  mailing lists / votes (`m2m/`), and mocks (`mock/`).
 - `internal/middleware/` holds HTTP middleware (request ID, authorization).
 - `pkg/` holds reusable utilities: `constants`, `errors`, `log`, `redaction`,
   `fields`, `env`, `concurrent`, `utils`.
@@ -100,9 +101,11 @@ This repo has a typed domain-error family in `pkg/errors`. Use it. Do not
 introduce a parallel sentinel-error family.
 
 - Constructors: `errors.NewValidation`, `errors.NewNotFound`,
-  `errors.NewConflict`, `errors.NewForbidden`, `errors.NewServiceUnavailable`,
+  `errors.NewConflict`, `errors.NewForbidden`, `errors.NewTooManyRequests`,
+  `errors.NewEditedBriefExists`, `errors.NewServiceUnavailable`,
   `errors.NewUnexpected` (and matching types: `Validation`, `NotFound`,
-  `Conflict`, `Forbidden`, `ServiceUnavailable`).
+  `Conflict`, `Forbidden`, `TooManyRequests`, `EditedBriefExists`,
+  `ServiceUnavailable`).
 - Use `errors.Join` / wrap upstream errors so `errors.Is` and `errors.As`
   still work. The base type already joins via `errors.Join(err...)`.
 - Translate domain errors at the Goa transport boundary in
@@ -111,8 +114,10 @@ introduce a parallel sentinel-error family.
 - HTTP status mapping enforced by `wrapError`:
   - `errors.Validation` -> 400 `BadRequestError`
   - `errors.NotFound` -> 404 `NotFoundError`
+  - `errors.EditedBriefExists` -> 409 `GroupWeeklyBriefEditedExistsError`
   - `errors.Conflict` -> 409 `ConflictError`
   - `errors.Forbidden` -> 403 `ForbiddenError`
+  - `errors.TooManyRequests` -> 429 `GroupWeeklyBriefThrottleExceededError`
   - `errors.ServiceUnavailable` -> 503 `ServiceUnavailableError`
   - default -> 500 `InternalServerError`
 - When you add a new domain error case, extend `wrapError` in the same change.

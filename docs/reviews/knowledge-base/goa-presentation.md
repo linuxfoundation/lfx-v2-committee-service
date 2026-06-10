@@ -6,7 +6,7 @@ nil-returning stubs, nil-pointer dereferences on payloads, payload↔domain mapp
 field handling, ETag/If-Match optimistic concurrency, and multipart validation.
 
 **Read when:** any file under `cmd/committee-api/service/**` (especially `committee_service.go`,
-`committee_service_response.go`, `committee_member_service.go`), `cmd/committee-api/design/**`, or
+`committee_service_response.go`), `cmd/committee-api/design/**`, or
 `cmd/committee-api/http.go`.
 
 ---
