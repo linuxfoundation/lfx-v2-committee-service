@@ -64,7 +64,7 @@ func (r *natsOrgCommitteeSeatReader) ListOrgCommitteeSeats(ctx context.Context, 
 	// seats would be silently dropped by the family filter even though they belong to the foundation
 	// (the OpenSearch index already recovers project_uid for them). So when a member's own project_uid
 	// is empty, fall back to its committee's project_uid (cached per committee — an org touches few
-	// distinct committees) and enrich the in-memory member so downstream mapping stays consistent.
+	// distinct committees) and enrich the recovered value onto a shallow copy of the member.
 	committeeProjectCache := make(map[string]string)
 	recovered := 0
 	filtered := make([]*model.CommitteeMember, 0, len(members))
@@ -74,7 +74,13 @@ func (r *natsOrgCommitteeSeatReader) ListOrgCommitteeSeats(ctx context.Context, 
 		}
 		if m.ProjectUID == "" {
 			if projectUID := r.resolveCommitteeProjectUID(ctx, m.CommitteeUID, committeeProjectCache); projectUID != "" {
-				m.ProjectUID = projectUID
+				// Enrich a shallow copy rather than the reader-owned struct: CommitteeMember has no
+				// pointer fields needing a deep copy, and we never want to mutate what
+				// ListMembersByOrganization handed us (defensive against a future per-request/per-org
+				// cache silently inheriting the enriched value).
+				enriched := *m
+				enriched.ProjectUID = projectUID
+				m = &enriched
 				recovered++
 			}
 		}

@@ -45,7 +45,7 @@ func (s *memberProjectAttributeSubcommand) Run(ctx context.Context, rc commands.
 		fs.PrintDefaults()
 	}
 	committeeUID := fs.String("committee-uid", "", "limit repair to members of a single committee UID")
-	projectUID := fs.String("project-uid", "", "limit repair to members whose committee belongs to this project UID (foundation root or child)")
+	projectUID := fs.String("project-uid", "", "limit repair to members whose committee belongs to this exact project UID")
 	sleep := fs.Duration("sleep", 0, "wait between each member write (e.g. 200ms, 1s)")
 	dryRun := fs.Bool("dry-run", true, "compute what would be written without actually writing (default true; pass --dry-run=false to write)")
 	if err := fs.Parse(rc.Args); err != nil {
@@ -124,6 +124,11 @@ func (s *memberProjectAttributeSubcommand) Run(ctx context.Context, rc commands.
 			return nil
 		}
 
+		// TOCTOU: the member fields were captured by the EachMember snapshot; the revision is read here,
+		// separately. A concurrent write in this window means the CAS below succeeds against the newer
+		// revision but the snapshot fields overwrite it (lost update). The window is narrow and this is an
+		// operator-run, dry-run-by-default repair — run it during low-traffic periods to avoid clobbering
+		// concurrent writes.
 		revision, errRev := rc.CommitteeReader.GetMemberRevision(ctx, member.UID)
 		if errRev != nil {
 			slog.WarnContext(ctx, "failed to get member revision", "member_uid", member.UID, "error", errRev)
