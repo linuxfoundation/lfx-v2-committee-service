@@ -17,8 +17,11 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
-// mockMemberWriter is a minimal implementation of port.CommitteeMemberWriter used by
-// the backfill subcommand.  Only IndexMemberByCommittee is exercised here.
+// mockMemberWriter is a full implementation of port.CommitteeMemberWriter shared
+// across the sync backfill tests (members-by-committee, members-by-organization, and
+// member-project-attribute). IndexMemberByCommittee, IndexMemberByOrganization, and
+// UpdateMember are exercised; call recording (indexed, orgIndexed, updated) and error
+// simulation (indexError, updateError) support those tests.
 type mockMemberWriter struct {
 	indexed     []string                 // committee_uid+"."+member_uid keys that were written
 	orgIndexed  []string                 // org_sfid+"."+member_uid keys that were written
