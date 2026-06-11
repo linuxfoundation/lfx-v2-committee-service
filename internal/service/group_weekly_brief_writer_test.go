@@ -128,3 +128,72 @@ func TestUpdate_EmptyBriefText_ReturnsValidation(t *testing.T) {
 	// Validation happens before any storage interaction.
 	assert.EqualValues(t, 0, bw.briefPutCount.Load())
 }
+
+// revShiftReader returns base on every call, but bumps the revision to
+// secondRev from the second call onward — simulating a concurrent edit that
+// lands between the orchestrator's pre-check read and its CAS write.
+type revShiftReader struct {
+	base      *model.GroupWeeklyBrief
+	secondRev uint64
+	calls     int
+}
+
+func (r *revShiftReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ string, _ model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
+	r.calls++
+	cp := *r.base
+	if r.calls >= 2 {
+		cp.Revision = r.secondRev
+	}
+	return &cp, nil, nil
+}
+
+func TestUpdate_CASConflictReReadsAndReturns409(t *testing.T) {
+	// Pre-check passes at revision 5, the CAS write fails with the storage's
+	// generic 503, and a re-read shows the revision moved to 6 → a concurrent
+	// edit. The orchestrator must translate this into a 409 carrying revision 6
+	// rather than leaking the transient 503.
+	rd := &revShiftReader{base: editableBrief(), secondRev: 6} // editableBrief() is revision 5
+	bw := &fakeBriefWriter{putErr: errors.NewServiceUnavailable("weekly brief CAS conflict — retry")}
+	w := NewGroupWeeklyBriefWriterOrchestrator(
+		WithGroupWeeklyBriefReaderForWriter(rd),
+		WithGroupWeeklyBriefWriterForWriter(bw),
+	)
+
+	_, err := w.Update(context.Background(), GroupWeeklyBriefUpdateInput{
+		CommitteeUID: "c-1",
+		BriefText:    "edited body",
+		Revision:     5,
+		Now:          testNow,
+	})
+	require.Error(t, err)
+	var rm errors.RevisionMismatch
+	require.ErrorAs(t, err, &rm)
+	assert.Equal(t, uint64(6), rm.Revision)
+	// One CAS write was attempted; the disambiguation re-read makes it 2 reads.
+	assert.EqualValues(t, 1, bw.briefPutCount.Load())
+	assert.Equal(t, 2, rd.calls)
+}
+
+func TestUpdate_WriteErrorWithoutRevisionShift_PropagatesOriginal(t *testing.T) {
+	// The CAS write fails but the re-read shows the same revision — this is a
+	// genuine infrastructure failure, not a conflict. The orchestrator must
+	// propagate the original error (503) unchanged, not fabricate a 409.
+	rd := &revShiftReader{base: editableBrief(), secondRev: 5} // unchanged at 5
+	bw := &fakeBriefWriter{putErr: errors.NewServiceUnavailable("nats unavailable")}
+	w := NewGroupWeeklyBriefWriterOrchestrator(
+		WithGroupWeeklyBriefReaderForWriter(rd),
+		WithGroupWeeklyBriefWriterForWriter(bw),
+	)
+
+	_, err := w.Update(context.Background(), GroupWeeklyBriefUpdateInput{
+		CommitteeUID: "c-1",
+		BriefText:    "edited body",
+		Revision:     5,
+		Now:          testNow,
+	})
+	require.Error(t, err)
+	var su errors.ServiceUnavailable
+	require.ErrorAs(t, err, &su)
+	var rm errors.RevisionMismatch
+	assert.NotErrorAs(t, err, &rm, "must not fabricate a 409 on a genuine infra failure")
+}

@@ -38,9 +38,10 @@ type GroupWeeklyBriefDataWriter interface {
 	//   - no brief for the window      → errors.NotFound (404)
 	//   - empty brief_text             → errors.Validation (400)
 	//   - stale Revision token         → errors.RevisionMismatch (409)
-	// A rare read-then-write race that slips past the revision pre-check is
-	// caught by the storage CAS and surfaces as ServiceUnavailable (503) for
-	// the caller to retry. On success it returns the brief with its new revision.
+	// A read-then-write race that slips past the revision pre-check trips the
+	// storage CAS; we re-read and surface it as RevisionMismatch (409) too, so a
+	// conflict is consistently a 409 rather than a transient 503. On success it
+	// returns the brief with its new revision.
 	Update(ctx context.Context, in GroupWeeklyBriefUpdateInput) (*model.GroupWeeklyBrief, error)
 }
 
@@ -121,6 +122,16 @@ func (o *groupWeeklyBriefWriterOrchestrator) Update(ctx context.Context, in Grou
 
 	updated, err := o.writer.PutGroupWeeklyBrief(ctx, current)
 	if err != nil {
+		// The storage layer maps a CAS conflict to a generic ServiceUnavailable,
+		// indistinguishable by type from a real infra error (NATS down, index
+		// write failure). Re-read to disambiguate: if the live revision has moved
+		// past the token we wrote against, a concurrent edit landed between the
+		// pre-check and the CAS write — surface a consistent 409 carrying the new
+		// revision so clients handle it exactly like the pre-check conflict.
+		// Otherwise it is a genuine failure — propagate it unchanged.
+		if latest, _, reReadErr := o.reader.GetGroupWeeklyBriefForWindow(ctx, in.CommitteeUID, window); reReadErr == nil && latest != nil && latest.Revision != in.Revision {
+			return nil, errors.NewRevisionMismatch(latest.Revision)
+		}
 		return nil, err
 	}
 	return updated, nil
