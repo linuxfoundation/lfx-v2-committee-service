@@ -133,3 +133,7 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
