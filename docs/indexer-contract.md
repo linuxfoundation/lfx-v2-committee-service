@@ -283,7 +283,7 @@ _(none)_
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find documents belonging to a committee |
 | `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find documents within a folder |
 | `content_type:{value}` | `content_type:application/pdf` | Find documents by content type |
-| `uploaded_by:{value}` | `uploaded_by:auth0|abc` | Find documents by uploader |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find documents by uploader (LFID username, from `uploaded_by_username`) |
 
 > Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty.
 

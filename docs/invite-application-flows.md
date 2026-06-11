@@ -141,7 +141,11 @@ Endpoints that act on behalf of the caller (accept/decline invite, submit applic
 - **Request payload:** JSON — `{ "user": { "auth_token": "<principal>" } }` (see `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
+The service uses `primary_email` from the response. Lookup failures map to different status codes:
+
+- **Principal unknown** (auth-service responds with `success: false` or no data): `404 Not Found`.
+- **Auth-service unavailable** (NATS request/transport failure): `500 Internal Server Error`.
+- **No principal in the request context, or no primary email in the response**: `400 Bad Request`.
 
 ---
 
