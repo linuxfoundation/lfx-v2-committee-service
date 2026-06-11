@@ -468,6 +468,16 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		jt := m.JobTitle
 		seat.JobTitle = &jt
 	}
+	// project_uid / project_slug are optional foundation tags on the model; only set them when present
+	// so empty values aren't serialized as empty strings.
+	if m.ProjectUID != "" {
+		pu := m.ProjectUID
+		seat.ProjectUID = &pu
+	}
+	if m.ProjectSlug != "" {
+		ps := m.ProjectSlug
+		seat.ProjectSlug = &ps
+	}
 	if !editable {
 		reason := "This seat is held by foundation election or appointment, not by your organization's membership entitlement."
 		seat.Reason = &reason
