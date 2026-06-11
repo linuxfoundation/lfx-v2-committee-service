@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief)",
 	}
 }
 
@@ -102,6 +102,21 @@ func ParseEndpoint(
 		committeeServiceGetCommitteeMemberMemberUIDFlag   = committeeServiceGetCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeServiceGetCommitteeMemberVersionFlag     = committeeServiceGetCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeServiceGetCommitteeMemberBearerTokenFlag = committeeServiceGetCommitteeMemberFlags.String("bearer-token", "", "")
+
+		committeeServiceGetOrgCommitteeSeatsFlags           = flag.NewFlagSet("get-org-committee-seats", flag.ExitOnError)
+		committeeServiceGetOrgCommitteeSeatsUIDFlag         = committeeServiceGetOrgCommitteeSeatsFlags.String("uid", "REQUIRED", "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)")
+		committeeServiceGetOrgCommitteeSeatsVersionFlag     = committeeServiceGetOrgCommitteeSeatsFlags.String("version", "REQUIRED", "")
+		committeeServiceGetOrgCommitteeSeatsProjectUidsFlag = committeeServiceGetOrgCommitteeSeatsFlags.String("project-uids", "", "")
+		committeeServiceGetOrgCommitteeSeatsPageSizeFlag    = committeeServiceGetOrgCommitteeSeatsFlags.String("page-size", "", "")
+		committeeServiceGetOrgCommitteeSeatsPageTokenFlag   = committeeServiceGetOrgCommitteeSeatsFlags.String("page-token", "", "")
+		committeeServiceGetOrgCommitteeSeatsBearerTokenFlag = committeeServiceGetOrgCommitteeSeatsFlags.String("bearer-token", "", "")
+
+		committeeServiceReassignOrgCommitteeSeatFlags           = flag.NewFlagSet("reassign-org-committee-seat", flag.ExitOnError)
+		committeeServiceReassignOrgCommitteeSeatBodyFlag        = committeeServiceReassignOrgCommitteeSeatFlags.String("body", "REQUIRED", "")
+		committeeServiceReassignOrgCommitteeSeatUIDFlag         = committeeServiceReassignOrgCommitteeSeatFlags.String("uid", "REQUIRED", "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)")
+		committeeServiceReassignOrgCommitteeSeatMemberUIDFlag   = committeeServiceReassignOrgCommitteeSeatFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeServiceReassignOrgCommitteeSeatVersionFlag     = committeeServiceReassignOrgCommitteeSeatFlags.String("version", "REQUIRED", "")
+		committeeServiceReassignOrgCommitteeSeatBearerTokenFlag = committeeServiceReassignOrgCommitteeSeatFlags.String("bearer-token", "", "")
 
 		committeeServiceUpdateCommitteeMemberFlags           = flag.NewFlagSet("update-committee-member", flag.ExitOnError)
 		committeeServiceUpdateCommitteeMemberBodyFlag        = committeeServiceUpdateCommitteeMemberFlags.String("body", "REQUIRED", "")
@@ -292,6 +307,8 @@ func ParseEndpoint(
 	committeeServiceLivezFlags.Usage = committeeServiceLivezUsage
 	committeeServiceCreateCommitteeMemberFlags.Usage = committeeServiceCreateCommitteeMemberUsage
 	committeeServiceGetCommitteeMemberFlags.Usage = committeeServiceGetCommitteeMemberUsage
+	committeeServiceGetOrgCommitteeSeatsFlags.Usage = committeeServiceGetOrgCommitteeSeatsUsage
+	committeeServiceReassignOrgCommitteeSeatFlags.Usage = committeeServiceReassignOrgCommitteeSeatUsage
 	committeeServiceUpdateCommitteeMemberFlags.Usage = committeeServiceUpdateCommitteeMemberUsage
 	committeeServiceDeleteCommitteeMemberFlags.Usage = committeeServiceDeleteCommitteeMemberUsage
 	committeeServiceGetInviteFlags.Usage = committeeServiceGetInviteUsage
@@ -383,6 +400,12 @@ func ParseEndpoint(
 
 			case "get-committee-member":
 				epf = committeeServiceGetCommitteeMemberFlags
+
+			case "get-org-committee-seats":
+				epf = committeeServiceGetOrgCommitteeSeatsFlags
+
+			case "reassign-org-committee-seat":
+				epf = committeeServiceReassignOrgCommitteeSeatFlags
 
 			case "update-committee-member":
 				epf = committeeServiceUpdateCommitteeMemberFlags
@@ -518,6 +541,12 @@ func ParseEndpoint(
 			case "get-committee-member":
 				endpoint = c.GetCommitteeMember()
 				data, err = committeeservicec.BuildGetCommitteeMemberPayload(*committeeServiceGetCommitteeMemberUIDFlag, *committeeServiceGetCommitteeMemberMemberUIDFlag, *committeeServiceGetCommitteeMemberVersionFlag, *committeeServiceGetCommitteeMemberBearerTokenFlag)
+			case "get-org-committee-seats":
+				endpoint = c.GetOrgCommitteeSeats()
+				data, err = committeeservicec.BuildGetOrgCommitteeSeatsPayload(*committeeServiceGetOrgCommitteeSeatsUIDFlag, *committeeServiceGetOrgCommitteeSeatsVersionFlag, *committeeServiceGetOrgCommitteeSeatsProjectUidsFlag, *committeeServiceGetOrgCommitteeSeatsPageSizeFlag, *committeeServiceGetOrgCommitteeSeatsPageTokenFlag, *committeeServiceGetOrgCommitteeSeatsBearerTokenFlag)
+			case "reassign-org-committee-seat":
+				endpoint = c.ReassignOrgCommitteeSeat()
+				data, err = committeeservicec.BuildReassignOrgCommitteeSeatPayload(*committeeServiceReassignOrgCommitteeSeatBodyFlag, *committeeServiceReassignOrgCommitteeSeatUIDFlag, *committeeServiceReassignOrgCommitteeSeatMemberUIDFlag, *committeeServiceReassignOrgCommitteeSeatVersionFlag, *committeeServiceReassignOrgCommitteeSeatBearerTokenFlag)
 			case "update-committee-member":
 				endpoint = c.UpdateCommitteeMember()
 				data, err = committeeservicec.BuildUpdateCommitteeMemberPayload(*committeeServiceUpdateCommitteeMemberBodyFlag, *committeeServiceUpdateCommitteeMemberUIDFlag, *committeeServiceUpdateCommitteeMemberMemberUIDFlag, *committeeServiceUpdateCommitteeMemberVersionFlag, *committeeServiceUpdateCommitteeMemberBearerTokenFlag, *committeeServiceUpdateCommitteeMemberIfMatchFlag, *committeeServiceUpdateCommitteeMemberXSyncFlag)
@@ -625,6 +654,8 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    livez: Check if the service is alive.`)
 	fmt.Fprintln(os.Stderr, `    create-committee-member: Add a new member to a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-member: Get a specific committee member by UID`)
+	fmt.Fprintln(os.Stderr, `    get-org-committee-seats: List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)`)
+	fmt.Fprintln(os.Stderr, `    reassign-org-committee-seat: Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)`)
 	fmt.Fprintln(os.Stderr, `    update-committee-member: Replace an existing committee member (requires complete resource)`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-member: Remove a member from a committee`)
 	fmt.Fprintln(os.Stderr, `    get-invite: Get a single invite by UID`)
@@ -886,6 +917,60 @@ func committeeServiceGetCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceGetOrgCommitteeSeatsUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service get-org-committee-seats", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -project-uids JSON")
+	fmt.Fprint(os.Stderr, " -page-size INT")
+	fmt.Fprint(os.Stderr, " -page-token STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -project-uids JSON: `)
+	fmt.Fprintln(os.Stderr, `    -page-size INT: `)
+	fmt.Fprintln(os.Stderr, `    -page-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-org-committee-seats --uid \"001B000000IqhSLIAZ\" --version \"1\" --project-uids '[\n      \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\"\n   ]' --page-size 100 --page-token \"eyJvIjoxMDB9\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceReassignOrgCommitteeSeatUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service reassign-org-committee-seat", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -member-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)`)
+	fmt.Fprintln(os.Stderr, `    -member-uid STRING: Committee member UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reassign-org-committee-seat --body '{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n   }' --uid \"001B000000IqhSLIAZ\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceUpdateCommitteeMemberUsage() {

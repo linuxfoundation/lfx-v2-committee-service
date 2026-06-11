@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -415,6 +416,35 @@ func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember,
 	return members, nil
 }
 
+// EachMember streams every committee member via a full bucket scan, invoking fn per member without
+// accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
+// per-member read error is logged and skipped; the first error fn returns stops iteration.
+func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
+	if errKeys != nil {
+		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		member := &model.CommitteeMember{}
+		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
+			continue
+		}
+
+		if err := fn(member); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetMemberRevision retrieves the revision number for a committee member
 func (s *storage) GetMemberRevision(ctx context.Context, memberUID string) (uint64, error) {
 	rev, err := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, &model.CommitteeMember{}, true)
@@ -562,6 +592,93 @@ func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.Comm
 		return key, errs.NewUnexpected("failed to index member by committee", err)
 	}
 	return key, nil
+}
+
+// IndexMemberByOrganization writes the secondary index entry
+// "lookup/committee-members-by-organization/<org_sfid>.<member_uid>" → <member_uid> into the
+// committee-members bucket, so ListMembersByOrganization (Org Lens, LFXV2-1865) can use a server-side
+// filtered scan instead of a full bucket scan. The org SFID is normalized to its 18-char form.
+//
+// Members without an organization.id are NOT org-affiliated seats, so no index entry is written and an
+// empty key is returned (the caller treats that as a no-op). jetstream.ErrKeyExists is idempotent.
+func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.UID == "" {
+		return "", errs.NewValidation("committee member UID must be non-empty")
+	}
+	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
+	if orgSFID == "" {
+		// No organization affiliation → nothing to index. Not an error.
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by organization", err)
+	}
+	return key, nil
+}
+
+// ListMembersByOrganization retrieves all committee members held by an organization (by the SFID on
+// committee_member.organization.id) using the by-organization secondary index. It performs a
+// server-side filtered scan of "lookup/committee-members-by-organization/<org_sfid>.*" so only the
+// org's members are fetched. The org SFID is normalized to its 18-char form before scanning.
+func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
+	orgSFID = utils.NormalizeAccountSFID(orgSFID)
+	if orgSFID == "" {
+		return nil, errs.NewValidation("organization SFID cannot be empty")
+	}
+
+	slog.DebugContext(ctx, "listing committee members by organization from NATS storage", "org_sfid", orgSFID)
+
+	filter := fmt.Sprintf(constants.KVLookupMembersByOrganizationFilter, orgSFID)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for organization", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-organization/<org_sfid>.<member_uid>".
+	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed org member index key", "key", key, "org_sfid", orgSFID)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get member while listing by organization",
+				"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+			continue
+		}
+
+		// Defensive consistency check: the secondary index is a hint, the member record is the source
+		// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
+		// failed cleanup can leave an index key pointing at a member whose organization.id has since
+		// changed. Skip such entries so a stale key never leaks a seat into another org's list.
+		if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
+			slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
+				"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members by organization from NATS storage",
+		"org_sfid", orgSFID, "member_count", len(members))
+
+	return members, nil
 }
 
 // ================== CommitteeInviteReader implementation ==================

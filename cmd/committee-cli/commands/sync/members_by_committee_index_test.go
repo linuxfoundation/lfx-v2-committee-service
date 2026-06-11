@@ -14,19 +14,30 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
-// mockMemberWriter is a minimal implementation of port.CommitteeMemberWriter used by
-// the backfill subcommand.  Only IndexMemberByCommittee is exercised here.
+// mockMemberWriter is a full implementation of port.CommitteeMemberWriter shared
+// across the sync backfill tests (members-by-committee, members-by-organization, and
+// member-project-attribute). IndexMemberByCommittee, IndexMemberByOrganization, and
+// UpdateMember are exercised; call recording (indexed, orgIndexed, updated) and error
+// simulation (indexError, updateError) support those tests.
 type mockMemberWriter struct {
-	indexed    []string // committee_uid+"."+member_uid keys that were written
-	indexError error
+	indexed     []string                 // committee_uid+"."+member_uid keys that were written
+	orgIndexed  []string                 // org_sfid+"."+member_uid keys that were written
+	updated     []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
+	indexError  error
+	updateError error
 }
 
 func (w *mockMemberWriter) CreateMember(_ context.Context, _ *model.CommitteeMember) error {
 	return nil
 }
 func (w *mockMemberWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64) (*model.CommitteeMember, error) {
+	if w.updateError != nil {
+		return nil, w.updateError
+	}
+	w.updated = append(w.updated, m)
 	return m, nil
 }
 func (w *mockMemberWriter) DeleteMember(_ context.Context, _ string, _ uint64) error { return nil }
@@ -39,6 +50,18 @@ func (w *mockMemberWriter) IndexMemberByCommittee(_ context.Context, m *model.Co
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, m.CommitteeUID, m.UID)
 	w.indexed = append(w.indexed, key)
+	return key, nil
+}
+func (w *mockMemberWriter) IndexMemberByOrganization(_ context.Context, m *model.CommitteeMember) (string, error) {
+	if w.indexError != nil {
+		return "", w.indexError
+	}
+	orgSFID := utils.NormalizeAccountSFID(m.Organization.ID)
+	if orgSFID == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, m.UID)
+	w.orgIndexed = append(w.orgIndexed, key)
 	return key, nil
 }
 

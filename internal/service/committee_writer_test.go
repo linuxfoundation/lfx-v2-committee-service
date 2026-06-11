@@ -158,6 +158,11 @@ func (w *TestMockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, me
 	return mockWriter.IndexMemberByCommittee(ctx, member)
 }
 
+func (w *TestMockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.IndexMemberByOrganization(ctx, member)
+}
+
 // Implement CommitteeInviteWriter interface
 func (w *TestMockCommitteeWriter) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)

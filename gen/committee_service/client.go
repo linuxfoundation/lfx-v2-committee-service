@@ -27,6 +27,8 @@ type Client struct {
 	LivezEndpoint                     goa.Endpoint
 	CreateCommitteeMemberEndpoint     goa.Endpoint
 	GetCommitteeMemberEndpoint        goa.Endpoint
+	GetOrgCommitteeSeatsEndpoint      goa.Endpoint
+	ReassignOrgCommitteeSeatEndpoint  goa.Endpoint
 	UpdateCommitteeMemberEndpoint     goa.Endpoint
 	DeleteCommitteeMemberEndpoint     goa.Endpoint
 	GetInviteEndpoint                 goa.Endpoint
@@ -58,7 +60,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:           createCommittee,
 		GetCommitteeBaseEndpoint:          getCommitteeBase,
@@ -70,6 +72,8 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		LivezEndpoint:                     livez,
 		CreateCommitteeMemberEndpoint:     createCommitteeMember,
 		GetCommitteeMemberEndpoint:        getCommitteeMember,
+		GetOrgCommitteeSeatsEndpoint:      getOrgCommitteeSeats,
+		ReassignOrgCommitteeSeatEndpoint:  reassignOrgCommitteeSeat,
 		UpdateCommitteeMemberEndpoint:     updateCommitteeMember,
 		DeleteCommitteeMemberEndpoint:     deleteCommitteeMember,
 		GetInviteEndpoint:                 getInvite,
@@ -256,6 +260,41 @@ func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPa
 		return
 	}
 	return ires.(*GetCommitteeMemberResult), nil
+}
+
+// GetOrgCommitteeSeats calls the "get-org-committee-seats" endpoint of the
+// "committee-service" service.
+// GetOrgCommitteeSeats may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) GetOrgCommitteeSeats(ctx context.Context, p *GetOrgCommitteeSeatsPayload) (res *OrgCommitteeSeatPage, err error) {
+	var ires any
+	ires, err = c.GetOrgCommitteeSeatsEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*OrgCommitteeSeatPage), nil
+}
+
+// ReassignOrgCommitteeSeat calls the "reassign-org-committee-seat" endpoint of
+// the "committee-service" service.
+// ReassignOrgCommitteeSeat may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): Forbidden
+//   - "NotFound" (type *NotFoundError): Seat not found
+//   - "Conflict" (type *ConflictError): Concurrent modification
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) ReassignOrgCommitteeSeat(ctx context.Context, p *ReassignOrgCommitteeSeatPayload) (res *OrgCommitteeSeat, err error) {
+	var ires any
+	ires, err = c.ReassignOrgCommitteeSeatEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*OrgCommitteeSeat), nil
 }
 
 // UpdateCommitteeMember calls the "update-committee-member" endpoint of the

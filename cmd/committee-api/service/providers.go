@@ -672,6 +672,36 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
+// OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
+// synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
+// by-organization secondary index.
+func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+	switch repoSource {
+	case "mock":
+		slog.InfoContext(ctx, "initializing mock org committee seat reader")
+		return infrastructure.NewMockOrgCommitteeSeatReader()
+	case "nats":
+		natsInit(ctx)
+		memberReader, ok := natsStorage.(port.CommitteeMemberReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
+		}
+		baseReader, ok := natsStorage.(port.CommitteeBaseReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeBaseReader")
+		}
+		return nats.NewNATSOrgCommitteeSeatReader(memberReader, baseReader)
+	default:
+		log.Fatalf("unsupported org committee seat reader implementation: %s", repoSource)
+	}
+	// unreachable
+	return nil
+}
+
 // CommitteeWeeklyMemberReaderImpl builds the live weekly member reader. The
 // reader is backed by any port.CommitteeMemberReader — in production this is
 // the NATS storage adapter — and partitions members by created_at/updated_at

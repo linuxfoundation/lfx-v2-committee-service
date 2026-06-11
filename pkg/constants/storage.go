@@ -36,6 +36,19 @@ const (
 	// one committee: "lookup/committee-members-by-committee/<committee_uid>.*"
 	KVLookupMembersByCommitteeFilter = "lookup/committee-members-by-committee/%s.*"
 
+	// KVLookupMembersByOrganizationPrefix is the secondary index that maps a holding organization
+	// (the 18-char Salesforce Account SFID stored on committee_member.organization.id) to each of
+	// its members. Key pattern: "lookup/committee-members-by-organization/<org_sfid>.<member_uid>",
+	// Value: <member_uid>. It powers the Org Lens Board & Committee read (LFXV2-1865) so a company's
+	// committee seats can be listed via a server-side filtered scan rather than a full bucket scan,
+	// without any cross-service query-service call. The org SFID and member UID never contain dots,
+	// so the "<org_sfid>.*" subject wildcard matches exactly one org's members.
+	KVLookupMembersByOrganizationPrefix = "lookup/committee-members-by-organization/%s.%s"
+
+	// KVLookupMembersByOrganizationFilter is the ListKeysFiltered subject filter for all members of
+	// one organization: "lookup/committee-members-by-organization/<org_sfid>.*"
+	KVLookupMembersByOrganizationFilter = "lookup/committee-members-by-organization/%s.*"
+
 	// KVLookupInvitePrefix is the prefix for invite lookup keys in the KV store.
 	KVLookupInvitePrefix = "lookup/committee-invites/%s"
 

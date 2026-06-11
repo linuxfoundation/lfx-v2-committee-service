@@ -866,6 +866,149 @@ func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string
 	return v, nil
 }
 
+// BuildGetOrgCommitteeSeatsPayload builds the payload for the
+// committee-service get-org-committee-seats endpoint from CLI flags.
+func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID string, committeeServiceGetOrgCommitteeSeatsVersion string, committeeServiceGetOrgCommitteeSeatsProjectUids string, committeeServiceGetOrgCommitteeSeatsPageSize string, committeeServiceGetOrgCommitteeSeatsPageToken string, committeeServiceGetOrgCommitteeSeatsBearerToken string) (*committeeservice.GetOrgCommitteeSeatsPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceGetOrgCommitteeSeatsUID
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceGetOrgCommitteeSeatsVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var projectUids []string
+	{
+		if committeeServiceGetOrgCommitteeSeatsProjectUids != "" {
+			err = json.Unmarshal([]byte(committeeServiceGetOrgCommitteeSeatsProjectUids), &projectUids)
+			if err != nil {
+				return nil, fmt.Errorf("invalid JSON for projectUids, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\"\n   ]'")
+			}
+		}
+	}
+	var pageSize *int
+	{
+		if committeeServiceGetOrgCommitteeSeatsPageSize != "" {
+			var v int64
+			v, err = strconv.ParseInt(committeeServiceGetOrgCommitteeSeatsPageSize, 10, strconv.IntSize)
+			val := int(v)
+			pageSize = &val
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for pageSize, must be INT")
+			}
+			if *pageSize < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 1, true))
+			}
+			if *pageSize > 500 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var pageToken *string
+	{
+		if committeeServiceGetOrgCommitteeSeatsPageToken != "" {
+			pageToken = &committeeServiceGetOrgCommitteeSeatsPageToken
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceGetOrgCommitteeSeatsBearerToken != "" {
+			bearerToken = &committeeServiceGetOrgCommitteeSeatsBearerToken
+		}
+	}
+	v := &committeeservice.GetOrgCommitteeSeatsPayload{}
+	v.UID = uid
+	v.Version = version
+	v.ProjectUids = projectUids
+	v.PageSize = pageSize
+	v.PageToken = pageToken
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildReassignOrgCommitteeSeatPayload builds the payload for the
+// committee-service reassign-org-committee-seat endpoint from CLI flags.
+func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSeatBody string, committeeServiceReassignOrgCommitteeSeatUID string, committeeServiceReassignOrgCommitteeSeatMemberUID string, committeeServiceReassignOrgCommitteeSeatVersion string, committeeServiceReassignOrgCommitteeSeatBearerToken string) (*committeeservice.ReassignOrgCommitteeSeatPayload, error) {
+	var err error
+	var body ReassignOrgCommitteeSeatRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceReassignOrgCommitteeSeatBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"committee_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n   }'")
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", body.CommitteeUID, goa.FormatUUID))
+		if utf8.RuneCountInString(body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", body.FirstName, utf8.RuneCountInString(body.FirstName), 100, false))
+		}
+		if utf8.RuneCountInString(body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", body.LastName, utf8.RuneCountInString(body.LastName), 100, false))
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", body.Email, goa.FormatEmail))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceReassignOrgCommitteeSeatUID
+		err = goa.MergeErrors(err, goa.ValidatePattern("uid", uid, "^[A-Za-z0-9]{18}$"))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var memberUID string
+	{
+		memberUID = committeeServiceReassignOrgCommitteeSeatMemberUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("member_uid", memberUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceReassignOrgCommitteeSeatVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceReassignOrgCommitteeSeatBearerToken != "" {
+			bearerToken = &committeeServiceReassignOrgCommitteeSeatBearerToken
+		}
+	}
+	v := &committeeservice.ReassignOrgCommitteeSeatPayload{
+		CommitteeUID: body.CommitteeUID,
+		FirstName:    body.FirstName,
+		LastName:     body.LastName,
+		Email:        body.Email,
+	}
+	v.UID = uid
+	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
 // BuildUpdateCommitteeMemberPayload builds the payload for the
 // committee-service update-committee-member endpoint from CLI flags.
 func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string) (*committeeservice.UpdateCommitteeMemberPayload, error) {

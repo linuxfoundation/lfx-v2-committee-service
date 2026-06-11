@@ -11,7 +11,7 @@ const RequestIDHeader requestIDHeaderType = "X-REQUEST-ID"
 type contextID int
 
 const (
-	// PrincipalContextID is the context ID for the principal (username/Auth0 sub) from JWT claims
+	// PrincipalContextID is the context ID for the principal (LFX username) from JWT claims
 	PrincipalContextID contextID = iota
 	// EmailContextID is the context ID for the email from JWT claims
 	EmailContextID contextID = iota
