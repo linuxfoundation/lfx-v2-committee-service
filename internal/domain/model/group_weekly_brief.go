@@ -81,8 +81,14 @@ type GroupWeeklyBrief struct {
 	PrivateSourcePresent bool                  `json:"private_source_present"`
 	CreatedAt            time.Time             `json:"created_at"`
 	UpdatedAt            time.Time             `json:"updated_at"`
+	// LastEditedAt and LastEditedBy record the most recent chair edit via
+	// PUT /current. They are unset on generated-but-never-edited briefs.
+	// LastEditedBy is the caller's Heimdall principal (LFX username).
+	LastEditedAt time.Time `json:"last_edited_at,omitempty"`
+	LastEditedBy string    `json:"last_edited_by,omitempty"`
 	// Revision is the NATS KV revision used for optimistic concurrency.
-	// It is not part of the indexer contract and is not surfaced externally.
+	// It is not part of the indexer contract; it is surfaced on the API
+	// response so clients can round-trip it as the edit/save concurrency token.
 	Revision uint64 `json:"-"`
 }
 

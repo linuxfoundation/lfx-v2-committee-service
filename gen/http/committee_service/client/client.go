@@ -174,6 +174,10 @@ type Client struct {
 	// generate-weekly-brief endpoint.
 	GenerateWeeklyBriefDoer goahttp.Doer
 
+	// UpdateCurrentWeeklyBrief Doer is the HTTP client used to make requests to
+	// the update-current-weekly-brief endpoint.
+	UpdateCurrentWeeklyBriefDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -239,6 +243,7 @@ func NewClient(
 		DeleteCommitteeDocumentDoer:   doer,
 		GetCurrentWeeklyBriefDoer:     doer,
 		GenerateWeeklyBriefDoer:       doer,
+		UpdateCurrentWeeklyBriefDoer:  doer,
 		RestoreResponseBody:           restoreBody,
 		scheme:                        scheme,
 		host:                          host,
@@ -1173,6 +1178,30 @@ func (c *Client) GenerateWeeklyBrief() goa.Endpoint {
 		resp, err := c.GenerateWeeklyBriefDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "generate-weekly-brief", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// UpdateCurrentWeeklyBrief returns an endpoint that makes HTTP requests to the
+// committee-service service update-current-weekly-brief server.
+func (c *Client) UpdateCurrentWeeklyBrief() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeUpdateCurrentWeeklyBriefRequest(c.encoder)
+		decodeResponse = DecodeUpdateCurrentWeeklyBriefResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildUpdateCurrentWeeklyBriefRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.UpdateCurrentWeeklyBriefDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "update-current-weekly-brief", err)
 		}
 		return decodeResponse(resp)
 	}

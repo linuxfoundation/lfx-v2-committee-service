@@ -2621,3 +2621,57 @@ func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody str
 
 	return v, nil
 }
+
+// BuildUpdateCurrentWeeklyBriefPayload builds the payload for the
+// committee-service update-current-weekly-brief endpoint from CLI flags.
+func BuildUpdateCurrentWeeklyBriefPayload(committeeServiceUpdateCurrentWeeklyBriefBody string, committeeServiceUpdateCurrentWeeklyBriefUID string, committeeServiceUpdateCurrentWeeklyBriefVersion string, committeeServiceUpdateCurrentWeeklyBriefBearerToken string) (*committeeservice.UpdateCurrentWeeklyBriefPayload, error) {
+	var err error
+	var body UpdateCurrentWeeklyBriefRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceUpdateCurrentWeeklyBriefBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"brief_text\": \"## This week\\n\\n- Shipped the thing.\",\n      \"revision\": 7\n   }'")
+		}
+		if utf8.RuneCountInString(body.BriefText) > 20000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.brief_text", body.BriefText, utf8.RuneCountInString(body.BriefText), 20000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceUpdateCurrentWeeklyBriefUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceUpdateCurrentWeeklyBriefVersion != "" {
+			version = &committeeServiceUpdateCurrentWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceUpdateCurrentWeeklyBriefBearerToken != "" {
+			bearerToken = &committeeServiceUpdateCurrentWeeklyBriefBearerToken
+		}
+	}
+	v := &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		BriefText: body.BriefText,
+		Revision:  body.Revision,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}

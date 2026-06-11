@@ -6230,6 +6230,194 @@ func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Deco
 	}
 }
 
+// BuildUpdateCurrentWeeklyBriefRequest instantiates a HTTP request object with
+// method and path set to call the "committee-service" service
+// "update-current-weekly-brief" endpoint
+func (c *Client) BuildUpdateCurrentWeeklyBriefRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.UpdateCurrentWeeklyBriefPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "update-current-weekly-brief", "*committeeservice.UpdateCurrentWeeklyBriefPayload", v)
+		}
+		uid = p.UID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: UpdateCurrentWeeklyBriefCommitteeServicePath(uid)}
+	req, err := http.NewRequest("PUT", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "update-current-weekly-brief", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeUpdateCurrentWeeklyBriefRequest returns an encoder for requests sent
+// to the committee-service update-current-weekly-brief server.
+func EncodeUpdateCurrentWeeklyBriefRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.UpdateCurrentWeeklyBriefPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "update-current-weekly-brief", "*committeeservice.UpdateCurrentWeeklyBriefPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		body := NewUpdateCurrentWeeklyBriefRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "update-current-weekly-brief", err)
+		}
+		return nil
+	}
+}
+
+// DecodeUpdateCurrentWeeklyBriefResponse returns a decoder for responses
+// returned by the committee-service update-current-weekly-brief endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodeUpdateCurrentWeeklyBriefResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
+//   - "RevisionConflict" (type *committeeservice.GroupWeeklyBriefRevisionConflictError): http.StatusConflict
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodeUpdateCurrentWeeklyBriefResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body UpdateCurrentWeeklyBriefResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			res := NewUpdateCurrentWeeklyBriefGroupWeeklyBriefWithReadonlyAttributesOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body UpdateCurrentWeeklyBriefBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefBadRequest(&body)
+		case http.StatusForbidden:
+			var (
+				body UpdateCurrentWeeklyBriefForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefForbidden(&body)
+		case http.StatusConflict:
+			var (
+				body UpdateCurrentWeeklyBriefRevisionConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefRevisionConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefRevisionConflict(&body)
+		case http.StatusInternalServerError:
+			var (
+				body UpdateCurrentWeeklyBriefInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body UpdateCurrentWeeklyBriefNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body UpdateCurrentWeeklyBriefServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "update-current-weekly-brief", err)
+			}
+			err = ValidateUpdateCurrentWeeklyBriefServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "update-current-weekly-brief", err)
+			}
+			return nil, NewUpdateCurrentWeeklyBriefServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "update-current-weekly-brief", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody builds a
 // value of type *CommitteeUserRequestBody from a value of type
 // *committeeservice.CommitteeUser.
@@ -6419,6 +6607,9 @@ func unmarshalGroupWeeklyBriefWithReadonlyAttributesResponseBodyToCommitteeservi
 		PrivateSourcePresent: v.PrivateSourcePresent,
 		CreatedAt:            v.CreatedAt,
 		UpdatedAt:            v.UpdatedAt,
+		LastEditedAt:         v.LastEditedAt,
+		LastEditedBy:         v.LastEditedBy,
+		Revision:             v.Revision,
 	}
 	if v.SourceRefs != nil {
 		res.SourceRefs = make([]*committeeservice.GroupWeeklyBriefSourceRef, len(v.SourceRefs))

@@ -3597,10 +3597,13 @@ paths:
                                     brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
+                                    last_edited_at: "2026-05-18T14:03:00Z"
+                                    last_edited_by: jsmith
                                     model: fake
                                     private_source_present: false
                                     prompt_version: v1
                                     regeneration_count: 0
+                                    revision: 7
                                     source_refs:
                                         - excerpt: 0jc
                                           id: https://meet.example.org/abc123
@@ -3649,6 +3652,137 @@ paths:
                                 $ref: '#/components/schemas/NotFoundError'
                             example:
                                 message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+        put:
+            tags:
+                - committee-service
+            summary: update-current-weekly-brief committee-service
+            description: 'Save chair-edited brief text for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Overwrites brief_text and transitions the brief to the "edited" state, preserving source_refs. Optimistic concurrency: the caller echoes the revision from GET /current; a stale revision returns 409 with the current revision so the client can refetch and retry. Returns 404 when no brief exists for the window (generate one first), 400 when brief_text is empty.'
+            operationId: committee-service#update-current-weekly-brief
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateCurrentWeeklyBriefRequestBody'
+                        example:
+                            brief_text: |-
+                                ## This week
+
+                                - Shipped the thing.
+                            revision: 7
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GroupWeeklyBriefWithReadonlyAttributes'
+                            example:
+                                brief_text: xcs
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                last_edited_at: "2026-05-18T14:03:00Z"
+                                last_edited_by: jsmith
+                                model: fake
+                                private_source_present: false
+                                prompt_version: v1
+                                regeneration_count: 0
+                                revision: 7
+                                source_refs:
+                                    - excerpt: 0jc
+                                      id: https://meet.example.org/abc123
+                                      kind: meeting
+                                      title: 2026-05-12 weekly sync
+                                    - excerpt: 0jc
+                                      id: https://meet.example.org/abc123
+                                      kind: meeting
+                                      title: 2026-05-12 weekly sync
+                                    - excerpt: 0jc
+                                      id: https://meet.example.org/abc123
+                                      kind: meeting
+                                      title: 2026-05-12 weekly sync
+                                    - excerpt: 0jc
+                                      id: https://meet.example.org/abc123
+                                      kind: meeting
+                                      title: 2026-05-12 weekly sync
+                                state: generated
+                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                                updated_at: "2023-06-20T14:45:30Z"
+                                window_end: "2026-05-16T23:59:59.999999999Z"
+                                window_start: "2026-05-10T00:00:00Z"
+                "400":
+                    description: 'BadRequest: brief_text is empty or invalid'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Caller lacks writer access on the committee'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Committee not found, or no brief exists for the current window'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'RevisionConflict: The revision token is stale; the brief was edited concurrently'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GroupWeeklyBriefRevisionConflictError'
+                            example:
+                                code: revision_conflict
+                                revision: 8
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -3716,10 +3850,13 @@ paths:
                                     brief_text: sub
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
+                                    last_edited_at: "2026-05-18T14:03:00Z"
+                                    last_edited_by: jsmith
                                     model: fake
                                     private_source_present: false
                                     prompt_version: v1
                                     regeneration_count: 0
+                                    revision: 7
                                     source_refs:
                                         - excerpt: 0jc
                                           id: https://meet.example.org/abc123
@@ -5819,12 +5956,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: bis
+                    example: iso
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 992000c0-176e-4f54-88c4-acc1f03f50dd
+                    example: db7cf23a-c321-4c85-9bf2-38e82505f74c
                     format: uuid
                 name:
                     type: string
@@ -5837,7 +5974,7 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: msc
+                description: c2z
                 folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
@@ -6262,10 +6399,13 @@ components:
                     brief_text: ef5
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     created_at: "2023-01-15T10:30:00Z"
+                    last_edited_at: "2026-05-18T14:03:00Z"
+                    last_edited_by: jsmith
                     model: fake
                     private_source_present: false
                     prompt_version: v1
                     regeneration_count: 0
+                    revision: 7
                     source_refs:
                         - excerpt: 22l
                           id: https://meet.example.org/abc123
@@ -6328,10 +6468,13 @@ components:
                     brief_text: ef5
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     created_at: "2023-01-15T10:30:00Z"
+                    last_edited_at: "2026-05-18T14:03:00Z"
+                    last_edited_by: jsmith
                     model: fake
                     private_source_present: false
                     prompt_version: v1
                     regeneration_count: 0
+                    revision: 7
                     source_refs:
                         - excerpt: 22l
                           id: https://meet.example.org/abc123
@@ -6360,13 +6503,34 @@ components:
                     regenerations_limit: 3
                     regenerations_used: 0
                     window_resets_at: "2026-05-24T00:00:00Z"
+        GroupWeeklyBriefRevisionConflictError:
+            type: object
+            properties:
+                code:
+                    type: string
+                    description: Stable machine code
+                    example: revision_conflict
+                    enum:
+                        - revision_conflict
+                revision:
+                    type: integer
+                    description: Current server-side revision of the brief
+                    example: 8
+                    format: int64
+            description: Returned when the caller's revision token does not match the brief's current revision.
+            example:
+                code: revision_conflict
+                revision: 8
+            required:
+                - code
+                - revision
         GroupWeeklyBriefSourceRef:
             type: object
             properties:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: shn
+                    example: hnl
                     maxLength: 5000
                 id:
                     type: string
@@ -6382,7 +6546,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: 10k
+                excerpt: 0k4
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -6484,7 +6648,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: bib
+                    example: ibj
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6496,6 +6660,15 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
+                last_edited_at:
+                    type: string
+                    description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
+                    example: "2026-05-18T14:03:00Z"
+                    format: date-time
+                last_edited_by:
+                    type: string
+                    description: LFX username of the caller who last edited the brief; absent if never edited
+                    example: jsmith
                 model:
                     type: string
                     description: AI model used by the generator
@@ -6514,12 +6687,21 @@ components:
                     example: 0
                     format: int64
                     minimum: 0
+                revision:
+                    type: integer
+                    description: Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.
+                    example: 7
+                    format: int64
                 source_refs:
                     type: array
                     items:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
+                        - excerpt: 22l
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
                         - excerpt: 22l
                           id: https://meet.example.org/abc123
                           kind: meeting
@@ -6564,14 +6746,25 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: c0x
+                brief_text: 0xr
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                last_edited_at: "2026-05-18T14:03:00Z"
+                last_edited_by: jsmith
                 model: fake
                 private_source_present: false
                 prompt_version: v1
                 regeneration_count: 0
+                revision: 7
                 source_refs:
+                    - excerpt: 22l
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 22l
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
                     - excerpt: 22l
                       id: https://meet.example.org/abc123
                       kind: meeting
@@ -6814,20 +7007,6 @@ components:
             example:
                 page_token: eyJvIjoxMDB9
                 seats:
-                    - appointed_by: Community
-                      committee_category: Board
-                      committee_name: Technical Steering Committee
-                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      email: user@example.com
-                      first_name: John
-                      is_org_editable: true
-                      job_title: Chief Technology Officer
-                      last_name: Doe
-                      organization_id: 001B000000IqhSLIAZ
-                      reason: This seat is foundation-controlled.
-                      role_name: Chair
-                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                      voting_status: Voting Rep
                     - appointed_by: Community
                       committee_category: Board
                       committee_name: Technical Steering Committee
@@ -7125,6 +7304,31 @@ components:
                       username: manager_user_id1
             required:
                 - business_email_required
+        UpdateCurrentWeeklyBriefRequestBody:
+            type: object
+            properties:
+                brief_text:
+                    type: string
+                    description: Edited brief body markdown text
+                    example: |-
+                        ## This week
+
+                        - Shipped the thing.
+                    maxLength: 20000
+                revision:
+                    type: integer
+                    description: Optimistic-concurrency token from the brief being edited (GET /current)
+                    example: 7
+                    format: int64
+            example:
+                brief_text: |-
+                    ## This week
+
+                    - Shipped the thing.
+                revision: 7
+            required:
+                - brief_text
+                - revision
         UploadCommitteeDocumentRequestBody:
             type: object
             properties:

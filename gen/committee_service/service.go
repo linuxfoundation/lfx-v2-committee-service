@@ -114,6 +114,15 @@ type Service interface {
 	// generations and 3 regenerations, enforced synchronously. Returns 409 when an
 	// edited brief exists and force is not set, 429 when the throttle is exhausted.
 	GenerateWeeklyBrief(context.Context, *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error)
+	// Save chair-edited brief text for the UTC Sun→Sat window selected by the
+	// service (Sunday–Friday → the previous, completed week; Saturday → the
+	// current, not-yet-completed week). Overwrites brief_text and transitions the
+	// brief to the "edited" state, preserving source_refs. Optimistic concurrency:
+	// the caller echoes the revision from GET /current; a stale revision returns
+	// 409 with the current revision so the client can refetch and retry. Returns
+	// 404 when no brief exists for the window (generate one first), 400 when
+	// brief_text is empty.
+	UpdateCurrentWeeklyBrief(context.Context, *UpdateCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefWithReadonlyAttributes, err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -136,7 +145,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [39]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief"}
+var MethodNames = [40]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief"}
 
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
@@ -1023,7 +1032,8 @@ type GroupWeeklyBriefThrottle struct {
 	WindowResetsAt *string
 }
 
-// A working-group weekly brief for a single committee and Sun→Sat window.
+// GroupWeeklyBriefWithReadonlyAttributes is the result type of the
+// committee-service service update-current-weekly-brief method.
 type GroupWeeklyBriefWithReadonlyAttributes struct {
 	// Brief UID
 	UID *string
@@ -1052,6 +1062,14 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
+	// Timestamp of the most recent chair edit via PUT /current; absent if never
+	// edited
+	LastEditedAt *string
+	// LFX username of the caller who last edited the brief; absent if never edited
+	LastEditedBy *string
+	// Optimistic-concurrency token. Echo this back in PUT /current; a stale value
+	// yields 409.
+	Revision *uint64
 }
 
 // JoinCommitteePayload is the payload type of the committee-service service
@@ -1359,6 +1377,21 @@ type UpdateCommitteeSettingsPayload struct {
 	Auditors []*CommitteeUser
 }
 
+// UpdateCurrentWeeklyBriefPayload is the payload type of the committee-service
+// service update-current-weekly-brief method.
+type UpdateCurrentWeeklyBriefPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Edited brief body markdown text
+	BriefText string
+	// Optimistic-concurrency token from the brief being edited (GET /current)
+	Revision uint64
+}
+
 // UploadCommitteeDocumentPayload is the payload type of the committee-service
 // service upload-committee-document method.
 type UploadCommitteeDocumentPayload struct {
@@ -1407,6 +1440,15 @@ type GroupWeeklyBriefEditedExistsError struct {
 	// Stable machine code
 	Code string
 	// Current revision of the edited brief
+	Revision uint64
+}
+
+// Returned when the caller's revision token does not match the brief's current
+// revision.
+type GroupWeeklyBriefRevisionConflictError struct {
+	// Stable machine code
+	Code string
+	// Current server-side revision of the brief
 	Revision uint64
 }
 
@@ -1508,6 +1550,23 @@ func (e *GroupWeeklyBriefEditedExistsError) ErrorName() string {
 // GoaErrorName returns "group-weekly-brief-edited-exists-error".
 func (e *GroupWeeklyBriefEditedExistsError) GoaErrorName() string {
 	return "EditedBriefExists"
+}
+
+// Error returns an error description.
+func (e *GroupWeeklyBriefRevisionConflictError) Error() string {
+	return "Returned when the caller's revision token does not match the brief's current revision."
+}
+
+// ErrorName returns "group-weekly-brief-revision-conflict-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *GroupWeeklyBriefRevisionConflictError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "group-weekly-brief-revision-conflict-error".
+func (e *GroupWeeklyBriefRevisionConflictError) GoaErrorName() string {
+	return "RevisionConflict"
 }
 
 // Error returns an error description.
