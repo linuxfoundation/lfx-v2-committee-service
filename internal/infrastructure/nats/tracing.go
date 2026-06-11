@@ -16,16 +16,19 @@ var tracer = otel.Tracer("github.com/linuxfoundation/lfx-v2-committee-service/in
 
 // natsHeaderCarrier adapts nats.Header to the OTel TextMapCarrier interface
 // so trace context can be injected/extracted from NATS message headers.
-// Uses nats.Header's case-insensitive Get/Set methods to ensure proper
-// header canonicalization and cross-service trace context propagation.
+// nats.Header is a case-sensitive map[string][]string; keys must match exactly.
 type natsHeaderCarrier nats.Header
 
 func (c natsHeaderCarrier) Get(key string) string {
-	return nats.Header(c).Get(key)
+	vals := c[key]
+	if len(vals) == 0 {
+		return ""
+	}
+	return vals[0]
 }
 
 func (c natsHeaderCarrier) Set(key string, value string) {
-	nats.Header(c).Set(key, value)
+	c[key] = []string{value}
 }
 
 func (c natsHeaderCarrier) Keys() []string {
