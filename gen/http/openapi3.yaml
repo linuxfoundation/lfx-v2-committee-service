@@ -6691,6 +6691,7 @@ components:
                     type: string
                     description: Project (foundation) UID the seat's committee belongs to
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
                 reason:
                     type: string
                     description: Why the seat is not editable (empty when editable)

@@ -496,10 +496,12 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	// project_uid / project_slug identify the foundation (project) the seat's committee belongs to.
 	// Optional (a member may predate project tagging); sourced from model.CommitteeMember and already
 	// used internally for the project-family filter. Added for the Org Lens People → Committee tab
-	// (spec 027) which groups org-wide seats by foundation. Plain strings (no UUID format) so empty
-	// values encode cleanly.
+	// (spec 027) which groups org-wide seats by foundation. Both are optional (omitempty) and the
+	// service only sets them when non-empty, so a missing value is omitted rather than serialized as
+	// an empty string; UUID format on project_uid only validates a value that is actually present.
 	dsl.Attribute("project_uid", dsl.String, "Project (foundation) UID the seat's committee belongs to", func() {
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
 	})
 	dsl.Attribute("project_slug", dsl.String, "Project (foundation) slug the seat's committee belongs to", func() {
 		dsl.Example("ultra-ethernet-consortium")

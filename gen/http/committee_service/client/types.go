@@ -6667,6 +6667,9 @@ func ValidateReassignOrgCommitteeSeatResponseBody(body *ReassignOrgCommitteeSeat
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
 		}
 	}
+	if body.ProjectUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
+	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
@@ -9383,6 +9386,9 @@ func ValidateOrgCommitteeSeatResponseBody(body *OrgCommitteeSeatResponseBody) (e
 		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
 		}
+	}
+	if body.ProjectUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
