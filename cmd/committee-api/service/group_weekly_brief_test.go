@@ -361,6 +361,139 @@ func TestGenerateWeeklyBrief_PublisherNotConfigured(t *testing.T) {
 	require.ErrorAs(t, err, &su)
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  PUT /committees/{uid}/weekly-briefs/current
+// ─────────────────────────────────────────────────────────────────────────────
+
+// stubGroupWeeklyBriefWriter records the Update input and returns canned
+// output/err so handler tests can assert wiring and error mapping.
+type stubGroupWeeklyBriefWriter struct {
+	out    *model.GroupWeeklyBrief
+	err    error
+	gotIn  internalsvc.GroupWeeklyBriefUpdateInput
+	called bool
+}
+
+func (w *stubGroupWeeklyBriefWriter) Update(_ context.Context, in internalsvc.GroupWeeklyBriefUpdateInput) (*model.GroupWeeklyBrief, error) {
+	w.called = true
+	w.gotIn = in
+	return w.out, w.err
+}
+
+var _ internalsvc.GroupWeeklyBriefDataWriter = (*stubGroupWeeklyBriefWriter)(nil)
+
+func newUpdateSvc(base *model.CommitteeBase, writer internalsvc.GroupWeeklyBriefDataWriter) *committeeServicesrvc {
+	return &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{base: base, rev: 1},
+		weeklyBriefWriter:           writer,
+	}
+}
+
+func TestUpdateCurrentWeeklyBrief_Success(t *testing.T) {
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	edited := &model.GroupWeeklyBrief{
+		UID: "b-1", CommitteeUID: "c-1", WindowStart: start, WindowEnd: end,
+		State: model.GroupWeeklyBriefStateEdited, BriefText: "edited body",
+		LastEditedBy: "alice", Revision: 6,
+	}
+	writer := &stubGroupWeeklyBriefWriter{out: edited}
+	svc := newUpdateSvc(&model.CommitteeBase{Name: "TAC"}, writer)
+
+	// Principal flows from the Heimdall context into last_edited_by.
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+	res, err := svc.UpdateCurrentWeeklyBrief(ctx, &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "edited body", Revision: 5,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, "edited", *res.State)
+	assert.Equal(t, "edited body", *res.BriefText)
+	require.NotNil(t, res.Revision)
+	assert.Equal(t, uint64(6), *res.Revision)
+
+	// The handler forwarded the payload + principal to the writer.
+	require.True(t, writer.called)
+	assert.Equal(t, "c-1", writer.gotIn.CommitteeUID)
+	assert.Equal(t, "edited body", writer.gotIn.BriefText)
+	assert.Equal(t, uint64(5), writer.gotIn.Revision)
+	assert.Equal(t, "alice", writer.gotIn.EditedBy)
+}
+
+func TestUpdateCurrentWeeklyBrief_CommitteeNotFound(t *testing.T) {
+	// base=nil → 404 before the writer is consulted.
+	writer := &stubGroupWeeklyBriefWriter{}
+	svc := newUpdateSvc(nil, writer)
+
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "missing", BriefText: "x", Revision: 1,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var nf *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nf)
+	assert.False(t, writer.called, "writer must not be called when the committee is missing")
+}
+
+func TestUpdateCurrentWeeklyBrief_RevisionConflict(t *testing.T) {
+	// A stale revision maps to the 409 revision-conflict body carrying the current revision.
+	writer := &stubGroupWeeklyBriefWriter{err: errors.NewRevisionMismatch(8)}
+	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
+
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "x", Revision: 7,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var rc *committeeservice.GroupWeeklyBriefRevisionConflictError
+	require.ErrorAs(t, err, &rc)
+	assert.Equal(t, "revision_conflict", rc.Code)
+	assert.Equal(t, uint64(8), rc.Revision)
+}
+
+func TestUpdateCurrentWeeklyBrief_BriefNotFound(t *testing.T) {
+	// No brief for the window → 404.
+	writer := &stubGroupWeeklyBriefWriter{err: errors.NewNotFound("no weekly brief exists for the current window")}
+	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
+
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "x", Revision: 1,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var nf *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nf)
+}
+
+func TestUpdateCurrentWeeklyBrief_EmptyBriefTextBadRequest(t *testing.T) {
+	// Empty brief_text → 400 (Validation → BadRequest).
+	writer := &stubGroupWeeklyBriefWriter{err: errors.NewValidation("brief_text is required")}
+	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
+
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "", Revision: 1,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var br *committeeservice.BadRequestError
+	require.ErrorAs(t, err, &br)
+}
+
+func TestUpdateCurrentWeeklyBrief_WriterNotConfigured(t *testing.T) {
+	// A nil writer is a misconfiguration → 503.
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{base: &model.CommitteeBase{}, rev: 1},
+		weeklyBriefWriter:           nil,
+	}
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "x", Revision: 1,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
 func TestGenerateWeeklyBrief_ClaimError(t *testing.T) {
 	// Claim errors propagate through wrapError; here a ServiceUnavailable from
 	// the generator surfaces as a 503 to the caller.
