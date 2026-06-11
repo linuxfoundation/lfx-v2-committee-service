@@ -5184,11 +5184,11 @@ definitions:
                 example: 001B000000IqhSLIAZ
             project_slug:
                 type: string
-                description: Project (foundation) slug the seat's committee belongs to
-                example: ultra-ethernet-consortium
+                description: The slug of the project this committee belongs to
+                example: example-foundation
             project_uid:
                 type: string
-                description: Project (foundation) UID the seat's committee belongs to
+                description: Project UID this committee belongs to -- v2 uid, not related to v1 id directly
                 example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 format: uuid
             reason:
@@ -5240,7 +5240,7 @@ definitions:
             job_title: Chief Technology Officer
             last_name: Doe
             organization_id: 001B000000IqhSLIAZ
-            project_slug: ultra-ethernet-consortium
+            project_slug: example-foundation
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             reason: This seat is foundation-controlled.
             role_name: Chair
@@ -5283,7 +5283,7 @@ definitions:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
-                      project_slug: ultra-ethernet-consortium
+                      project_slug: example-foundation
                       project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
@@ -5299,7 +5299,7 @@ definitions:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
-                      project_slug: ultra-ethernet-consortium
+                      project_slug: example-foundation
                       project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
@@ -5315,7 +5315,7 @@ definitions:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
-                      project_slug: ultra-ethernet-consortium
+                      project_slug: example-foundation
                       project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
@@ -5331,7 +5331,7 @@ definitions:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
-                      project_slug: ultra-ethernet-consortium
+                      project_slug: example-foundation
                       project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
@@ -5350,7 +5350,7 @@ definitions:
                   job_title: Chief Technology Officer
                   last_name: Doe
                   organization_id: 001B000000IqhSLIAZ
-                  project_slug: ultra-ethernet-consortium
+                  project_slug: example-foundation
                   project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                   reason: This seat is foundation-controlled.
                   role_name: Chair
@@ -5366,7 +5366,7 @@ definitions:
                   job_title: Chief Technology Officer
                   last_name: Doe
                   organization_id: 001B000000IqhSLIAZ
-                  project_slug: ultra-ethernet-consortium
+                  project_slug: example-foundation
                   project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                   reason: This seat is foundation-controlled.
                   role_name: Chair

@@ -468,9 +468,8 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		jt := m.JobTitle
 		seat.JobTitle = &jt
 	}
-	// project_uid / project_slug surface the seat's foundation for the Org Lens People → Committee tab
-	// (spec 027). Both are optional on the model; only set them when present so empty values aren't
-	// serialized as empty strings.
+	// project_uid / project_slug are optional foundation tags on the model; only set them when present
+	// so empty values aren't serialized as empty strings.
 	if m.ProjectUID != "" {
 		pu := m.ProjectUID
 		seat.ProjectUID = &pu

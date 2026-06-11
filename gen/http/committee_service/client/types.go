@@ -552,9 +552,10 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
-	// Project (foundation) UID the seat's committee belongs to
+	// Project UID this committee belongs to -- v2 uid, not related to v1 id
+	// directly
 	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
-	// Project (foundation) slug the seat's committee belongs to
+	// The slug of the project this committee belongs to
 	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
@@ -2557,9 +2558,10 @@ type OrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
-	// Project (foundation) UID the seat's committee belongs to
+	// Project UID this committee belongs to -- v2 uid, not related to v1 id
+	// directly
 	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
-	// Project (foundation) slug the seat's committee belongs to
+	// The slug of the project this committee belongs to
 	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
