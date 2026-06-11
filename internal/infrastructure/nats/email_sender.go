@@ -16,7 +16,7 @@ type emailSender struct {
 	client *NATSClient
 }
 
-// SendEmail sends an email via the email service using NATS request/reply.
+// SendEmail sends an email via the email service using NATS request/reply with trace context propagation.
 func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailRequest) error {
 	if e.client == nil || e.client.conn == nil {
 		return errors.NewServiceUnavailable("email sender is not configured", nil)
@@ -27,7 +27,10 @@ func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailReque
 		return errors.NewUnexpected("failed to marshal email request", err)
 	}
 
-	msg, err := e.client.conn.RequestWithContext(ctx, emailapi.SendEmailSubject, data)
+	ctxReq, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+	defer cancel()
+
+	ctxReq, msg, err := e.client.requestWithSpan(ctxReq, emailapi.SendEmailSubject, data)
 	if err != nil {
 		return errors.NewServiceUnavailable("email service unavailable", err)
 	}
