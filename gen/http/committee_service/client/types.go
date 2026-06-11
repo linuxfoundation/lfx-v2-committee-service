@@ -552,6 +552,10 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// Project (foundation) UID the seat's committee belongs to
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// Project (foundation) slug the seat's committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -2553,6 +2557,10 @@ type OrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// Project (foundation) UID the seat's committee belongs to
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// Project (foundation) slug the seat's committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -4153,6 +4161,8 @@ func NewReassignOrgCommitteeSeatOrgCommitteeSeatOK(body *ReassignOrgCommitteeSea
 		CommitteeUID:      *body.CommitteeUID,
 		CommitteeName:     *body.CommitteeName,
 		CommitteeCategory: *body.CommitteeCategory,
+		ProjectUID:        body.ProjectUID,
+		ProjectSlug:       body.ProjectSlug,
 		FirstName:         *body.FirstName,
 		LastName:          *body.LastName,
 		Email:             *body.Email,

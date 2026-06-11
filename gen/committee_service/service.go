@@ -1117,6 +1117,10 @@ type OrgCommitteeSeat struct {
 	CommitteeName string
 	// The category of the committee this member belongs to
 	CommitteeCategory string
+	// Project (foundation) UID the seat's committee belongs to
+	ProjectUID *string
+	// Project (foundation) slug the seat's committee belongs to
+	ProjectSlug *string
 	// First name
 	FirstName string
 	// Last name

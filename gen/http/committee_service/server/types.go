@@ -552,6 +552,10 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
 	// The category of the committee this member belongs to
 	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
+	// Project (foundation) UID the seat's committee belongs to
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// Project (foundation) slug the seat's committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
 	// Last name
@@ -2528,6 +2532,10 @@ type OrgCommitteeSeatResponseBody struct {
 	CommitteeName string `form:"committee_name" json:"committee_name" xml:"committee_name"`
 	// The category of the committee this member belongs to
 	CommitteeCategory string `form:"committee_category" json:"committee_category" xml:"committee_category"`
+	// Project (foundation) UID the seat's committee belongs to
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// Project (foundation) slug the seat's committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName string `form:"first_name" json:"first_name" xml:"first_name"`
 	// Last name
@@ -3312,6 +3320,8 @@ func NewReassignOrgCommitteeSeatResponseBody(res *committeeservice.OrgCommitteeS
 		CommitteeUID:      res.CommitteeUID,
 		CommitteeName:     res.CommitteeName,
 		CommitteeCategory: res.CommitteeCategory,
+		ProjectUID:        res.ProjectUID,
+		ProjectSlug:       res.ProjectSlug,
 		FirstName:         res.FirstName,
 		LastName:          res.LastName,
 		Email:             res.Email,

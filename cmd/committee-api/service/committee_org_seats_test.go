@@ -96,6 +96,8 @@ func entitlementSeat() *model.CommitteeMember {
 		AppointedBy:       "Membership Entitlement",
 		Voting:            model.CommitteeMemberVotingInfo{Status: "Voting Rep"},
 		Organization:      model.CommitteeMemberOrganization{ID: testOrgSFID, Name: "Acme"},
+		ProjectUID:        "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+		ProjectSlug:       "ultra-ethernet-consortium",
 		Invite:            &model.InviteInfo{},
 		CreatedAt:         time.Now().Add(-72 * time.Hour),
 		UpdatedAt:         time.Now().Add(-48 * time.Hour),
@@ -137,6 +139,15 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		assert.Equal(t, "Voting Rep", res.Seats[0].VotingStatus)
 		assert.Equal(t, "Director", res.Seats[0].RoleName)
 		assert.Equal(t, testOrgSFID, res.Seats[0].OrganizationID)
+		// spec 027: foundation (project) is surfaced per seat for the People → Committee tab.
+		require.NotNil(t, res.Seats[0].ProjectUID)
+		assert.Equal(t, "7cad5a8d-19d0-41a4-81a6-043453daf9ee", *res.Seats[0].ProjectUID)
+		require.NotNil(t, res.Seats[0].ProjectSlug)
+		assert.Equal(t, "ultra-ethernet-consortium", *res.Seats[0].ProjectSlug)
+
+		// Non-entitlement seat carries no project tags (fixture leaves them empty) → nil pointers.
+		assert.Nil(t, res.Seats[1].ProjectUID)
+		assert.Nil(t, res.Seats[1].ProjectSlug)
 
 		// Non-entitlement seat is not editable and carries a reason.
 		assert.False(t, res.Seats[1].IsOrgEditable)
@@ -358,6 +369,9 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		assert.Equal(t, "Voting Rep", nm.Voting.Status)
 		assert.Equal(t, "Membership Entitlement", nm.AppointedBy)
 		assert.Equal(t, testOrgSFID, nm.Organization.ID)
+		// spec 027: the seat's foundation (project) tags must survive the reassign allowlist copy.
+		assert.Equal(t, "7cad5a8d-19d0-41a4-81a6-043453daf9ee", nm.ProjectUID)
+		assert.Equal(t, "ultra-ethernet-consortium", nm.ProjectSlug)
 
 		// Old member deleted exactly once at the read revision.
 		require.Len(t, writer.deleteCalls, 1)
