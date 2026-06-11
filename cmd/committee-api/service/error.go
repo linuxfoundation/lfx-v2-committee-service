@@ -28,6 +28,11 @@ func wrapError(ctx context.Context, err error) error {
 				Code:     "edited_brief_exists",
 				Revision: e.Revision,
 			}
+		case errors.RevisionMismatch:
+			return &committeeservice.GroupWeeklyBriefRevisionConflictError{
+				Code:     "revision_conflict",
+				Revision: e.Revision,
+			}
 		case errors.Conflict:
 			return &committeeservice.ConflictError{
 				Message: e.Error(),
