@@ -552,6 +552,11 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// Project UID this committee belongs to -- v2 uid, not related to v1 id
+	// directly
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// The slug of the project this committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -2553,6 +2558,11 @@ type OrgCommitteeSeatResponseBody struct {
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
 	// The category of the committee this member belongs to
 	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// Project UID this committee belongs to -- v2 uid, not related to v1 id
+	// directly
+	ProjectUID *string `form:"project_uid,omitempty" json:"project_uid,omitempty" xml:"project_uid,omitempty"`
+	// The slug of the project this committee belongs to
+	ProjectSlug *string `form:"project_slug,omitempty" json:"project_slug,omitempty" xml:"project_slug,omitempty"`
 	// First name
 	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
 	// Last name
@@ -4153,6 +4163,8 @@ func NewReassignOrgCommitteeSeatOrgCommitteeSeatOK(body *ReassignOrgCommitteeSea
 		CommitteeUID:      *body.CommitteeUID,
 		CommitteeName:     *body.CommitteeName,
 		CommitteeCategory: *body.CommitteeCategory,
+		ProjectUID:        body.ProjectUID,
+		ProjectSlug:       body.ProjectSlug,
 		FirstName:         *body.FirstName,
 		LastName:          *body.LastName,
 		Email:             *body.Email,
@@ -6656,6 +6668,9 @@ func ValidateReassignOrgCommitteeSeatResponseBody(body *ReassignOrgCommitteeSeat
 		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
 		}
+	}
+	if body.ProjectUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
@@ -9373,6 +9388,9 @@ func ValidateOrgCommitteeSeatResponseBody(body *OrgCommitteeSeatResponseBody) (e
 		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
 		}
+	}
+	if body.ProjectUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", *body.ProjectUID, goa.FormatUUID))
 	}
 	if body.FirstName != nil {
 		if utf8.RuneCountInString(*body.FirstName) > 100 {
