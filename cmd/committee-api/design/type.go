@@ -1133,6 +1133,7 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Example("jsmith")
 	})
 	dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.", func() {
+		dsl.Minimum(1)
 		dsl.Example(uint64(7))
 	})
 })

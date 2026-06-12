@@ -1785,6 +1785,11 @@ func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *
 	// Authorization (committee writer relation) is enforced at the edge by
 	// Heimdall before the request reaches this service; no in-code check here.
 
+	// Fail fast on misconfiguration before any storage I/O.
+	if s.weeklyBriefWriter == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief writer is not configured"))
+	}
+
 	// Verify the committee exists so a typo'd UID returns 404 for the committee
 	// rather than 404 for a missing brief.
 	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
@@ -1795,13 +1800,14 @@ func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *
 		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
 	}
 
-	if s.weeklyBriefWriter == nil {
-		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief writer is not configured"))
-	}
-
 	// PrincipalContextID is the caller's LFX username (Heimdall principal claim),
-	// recorded as last_edited_by.
+	// recorded as last_edited_by. Reject a missing principal rather than persist
+	// an empty editor — this endpoint's audit trail depends on it, and it mirrors
+	// the guard the sibling write handlers use (CreateCommitteeLink, etc.).
 	editedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if editedBy == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
 
 	updated, err := s.weeklyBriefWriter.Update(ctx, service.GroupWeeklyBriefUpdateInput{
 		CommitteeUID: p.UID,

@@ -2635,6 +2635,9 @@ func BuildUpdateCurrentWeeklyBriefPayload(committeeServiceUpdateCurrentWeeklyBri
 		if utf8.RuneCountInString(body.BriefText) > 20000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.brief_text", body.BriefText, utf8.RuneCountInString(body.BriefText), 20000, false))
 		}
+		if body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", body.Revision, 1, true))
+		}
 		if err != nil {
 			return nil, err
 		}

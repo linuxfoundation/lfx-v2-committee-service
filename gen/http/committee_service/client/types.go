@@ -7764,6 +7764,11 @@ func ValidateUpdateCurrentWeeklyBriefResponseBody(body *UpdateCurrentWeeklyBrief
 	if body.LastEditedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_edited_at", *body.LastEditedAt, goa.FormatDateTime))
 	}
+	if body.Revision != nil {
+		if *body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", *body.Revision, 1, true))
+		}
+	}
 	return
 }
 
@@ -9953,6 +9958,11 @@ func ValidateGroupWeeklyBriefWithReadonlyAttributesResponseBody(body *GroupWeekl
 	}
 	if body.LastEditedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_edited_at", *body.LastEditedAt, goa.FormatDateTime))
+	}
+	if body.Revision != nil {
+		if *body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", *body.Revision, 1, true))
+		}
 	}
 	return
 }

@@ -4558,6 +4558,7 @@ definitions:
                 description: Optimistic-concurrency token from the brief being edited (GET /current)
                 example: 7
                 format: int64
+                minimum: 1
         example:
             brief_text: |-
                 ## This week
@@ -5162,6 +5163,7 @@ definitions:
                 description: Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.
                 example: 7
                 format: int64
+                minimum: 1
             source_refs:
                 type: array
                 items:

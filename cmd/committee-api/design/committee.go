@@ -1564,6 +1564,7 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("## This week\n\n- Shipped the thing.")
 			})
 			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from the brief being edited (GET /current)", func() {
+				dsl.Minimum(1)
 				dsl.Example(uint64(7))
 			})
 

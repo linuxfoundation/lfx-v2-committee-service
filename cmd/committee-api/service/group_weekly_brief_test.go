@@ -440,7 +440,8 @@ func TestUpdateCurrentWeeklyBrief_RevisionConflict(t *testing.T) {
 	writer := &stubGroupWeeklyBriefWriter{err: errors.NewRevisionMismatch(8)}
 	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
 
-	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+	res, err := svc.UpdateCurrentWeeklyBrief(ctx, &committeeservice.UpdateCurrentWeeklyBriefPayload{
 		UID: "c-1", BriefText: "x", Revision: 7,
 	})
 	require.Error(t, err)
@@ -456,7 +457,8 @@ func TestUpdateCurrentWeeklyBrief_BriefNotFound(t *testing.T) {
 	writer := &stubGroupWeeklyBriefWriter{err: errors.NewNotFound("no weekly brief exists for the current window")}
 	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
 
-	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+	res, err := svc.UpdateCurrentWeeklyBrief(ctx, &committeeservice.UpdateCurrentWeeklyBriefPayload{
 		UID: "c-1", BriefText: "x", Revision: 1,
 	})
 	require.Error(t, err)
@@ -470,13 +472,31 @@ func TestUpdateCurrentWeeklyBrief_EmptyBriefTextBadRequest(t *testing.T) {
 	writer := &stubGroupWeeklyBriefWriter{err: errors.NewValidation("brief_text is required")}
 	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
 
-	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+	res, err := svc.UpdateCurrentWeeklyBrief(ctx, &committeeservice.UpdateCurrentWeeklyBriefPayload{
 		UID: "c-1", BriefText: "", Revision: 1,
 	})
 	require.Error(t, err)
 	assert.Nil(t, res)
 	var br *committeeservice.BadRequestError
 	require.ErrorAs(t, err, &br)
+}
+
+func TestUpdateCurrentWeeklyBrief_MissingPrincipalBadRequest(t *testing.T) {
+	// No principal in context (e.g. a misconfigured edge) must not persist an
+	// empty last_edited_by — the handler rejects it with 400 before calling the
+	// writer, matching the sibling write handlers (CreateCommitteeLink, etc.).
+	writer := &stubGroupWeeklyBriefWriter{}
+	svc := newUpdateSvc(&model.CommitteeBase{}, writer)
+
+	res, err := svc.UpdateCurrentWeeklyBrief(context.Background(), &committeeservice.UpdateCurrentWeeklyBriefPayload{
+		UID: "c-1", BriefText: "x", Revision: 1,
+	})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var br *committeeservice.BadRequestError
+	require.ErrorAs(t, err, &br)
+	assert.False(t, writer.called, "writer must not be called when the principal is missing")
 }
 
 func TestUpdateCurrentWeeklyBrief_WriterNotConfigured(t *testing.T) {

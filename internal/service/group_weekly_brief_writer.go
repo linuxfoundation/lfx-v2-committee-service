@@ -51,6 +51,12 @@ type groupWeeklyBriefWriterOrchestrator struct {
 }
 
 // GroupWeeklyBriefWriterOption configures the orchestrator.
+//
+// The option constructors carry a "ForWriter" suffix because they are
+// package-level functions, not methods, and would collide with the reader
+// orchestrator's WithGroupWeeklyBriefReader and the generator's
+// WithGroupWeeklyBriefWriter. This mirrors the generator's own "ForGenerator"
+// disambiguation suffix.
 type GroupWeeklyBriefWriterOption func(*groupWeeklyBriefWriterOrchestrator)
 
 // WithGroupWeeklyBriefReaderForWriter injects the persistence-layer reader used
@@ -92,6 +98,19 @@ func (o *groupWeeklyBriefWriterOrchestrator) Update(ctx context.Context, in Grou
 	// regardless of whether a brief exists.
 	if strings.TrimSpace(in.BriefText) == "" {
 		return nil, errors.NewValidation("brief_text is required")
+	}
+	// A persisted brief always carries a KV revision >= 1, so a 0 token can only
+	// be a missing/zero-initialized client value. Reject it as a 400 rather than
+	// letting it fall through to the revision comparison and surface a misleading
+	// 409 "modified by someone else".
+	if in.Revision == 0 {
+		return nil, errors.NewValidation("revision must be >= 1")
+	}
+
+	// Normalize a zero Now to the current time so a caller that omits it computes
+	// the live window rather than a year-0001 window — matching the generator.
+	if in.Now.IsZero() {
+		in.Now = time.Now().UTC()
 	}
 
 	// Load the current brief for the window. The reader stamps current.Revision
