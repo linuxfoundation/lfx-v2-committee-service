@@ -145,6 +145,13 @@ func ProjectNameAttribute() {
 	})
 }
 
+// ProjectSlugAttribute is the DSL attribute for project slug.
+func ProjectSlugAttribute() {
+	dsl.Attribute("project_slug", dsl.String, "The slug of the project this committee belongs to", func() {
+		dsl.Example("example-foundation")
+	})
+}
+
 // NameAttribute is the DSL attribute for committee name.
 func NameAttribute() {
 	dsl.Attribute("name", dsl.String, "The name of the committee", func() {
@@ -493,6 +500,10 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	CommitteeUIDMemberAttribute()
 	CommitteeNameMemberAttribute()
 	CommitteeCategoryMemberAttribute()
+	// project_uid / project_slug are optional foundation (project) tags for the seat's committee,
+	// set only when present on the model so a missing value is omitted rather than serialized empty.
+	ProjectUIDAttribute()
+	ProjectSlugAttribute()
 	FirstNameAttribute()
 	LastNameAttribute()
 	EmailAttribute()

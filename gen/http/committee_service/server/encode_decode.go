@@ -5632,6 +5632,8 @@ func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *co
 		CommitteeUID:      v.CommitteeUID,
 		CommitteeName:     v.CommitteeName,
 		CommitteeCategory: v.CommitteeCategory,
+		ProjectUID:        v.ProjectUID,
+		ProjectSlug:       v.ProjectSlug,
 		FirstName:         v.FirstName,
 		LastName:          v.LastName,
 		Email:             v.Email,

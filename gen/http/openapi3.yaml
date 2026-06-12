@@ -4030,6 +4030,8 @@ paths:
                                       job_title: Chief Technology Officer
                                       last_name: Doe
                                       organization_id: 001B000000IqhSLIAZ
+                                      project_slug: example-foundation
+                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       reason: This seat is foundation-controlled.
                                       role_name: Chair
                                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -4044,6 +4046,8 @@ paths:
                                       job_title: Chief Technology Officer
                                       last_name: Doe
                                       organization_id: 001B000000IqhSLIAZ
+                                      project_slug: example-foundation
+                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       reason: This seat is foundation-controlled.
                                       role_name: Chair
                                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -4058,6 +4062,8 @@ paths:
                                       job_title: Chief Technology Officer
                                       last_name: Doe
                                       organization_id: 001B000000IqhSLIAZ
+                                      project_slug: example-foundation
+                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       reason: This seat is foundation-controlled.
                                       role_name: Chair
                                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -4157,6 +4163,8 @@ paths:
                                 job_title: Chief Technology Officer
                                 last_name: Doe
                                 organization_id: 001B000000IqhSLIAZ
+                                project_slug: example-foundation
+                                project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 reason: This seat is foundation-controlled.
                                 role_name: Chair
                                 uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -6868,6 +6876,15 @@ components:
                     type: string
                     description: Holding organization SFID
                     example: 001B000000IqhSLIAZ
+                project_slug:
+                    type: string
+                    description: The slug of the project this committee belongs to
+                    example: example-foundation
+                project_uid:
+                    type: string
+                    description: Project UID this committee belongs to -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
                 reason:
                     type: string
                     description: Why the seat is not editable (empty when editable)
@@ -6917,6 +6934,8 @@ components:
                 job_title: Chief Technology Officer
                 last_name: Doe
                 organization_id: 001B000000IqhSLIAZ
+                project_slug: example-foundation
+                project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 reason: This seat is foundation-controlled.
                 role_name: Chair
                 uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -6957,6 +6976,8 @@ components:
                           job_title: Chief Technology Officer
                           last_name: Doe
                           organization_id: 001B000000IqhSLIAZ
+                          project_slug: example-foundation
+                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                           reason: This seat is foundation-controlled.
                           role_name: Chair
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -6971,6 +6992,8 @@ components:
                           job_title: Chief Technology Officer
                           last_name: Doe
                           organization_id: 001B000000IqhSLIAZ
+                          project_slug: example-foundation
+                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                           reason: This seat is foundation-controlled.
                           role_name: Chair
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -6985,6 +7008,8 @@ components:
                           job_title: Chief Technology Officer
                           last_name: Doe
                           organization_id: 001B000000IqhSLIAZ
+                          project_slug: example-foundation
+                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                           reason: This seat is foundation-controlled.
                           role_name: Chair
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -6999,6 +7024,8 @@ components:
                           job_title: Chief Technology Officer
                           last_name: Doe
                           organization_id: 001B000000IqhSLIAZ
+                          project_slug: example-foundation
+                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                           reason: This seat is foundation-controlled.
                           role_name: Chair
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -7017,6 +7044,8 @@ components:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -7031,6 +7060,8 @@ components:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
@@ -7045,6 +7076,8 @@ components:
                       job_title: Chief Technology Officer
                       last_name: Doe
                       organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
