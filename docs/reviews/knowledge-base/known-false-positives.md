@@ -23,7 +23,7 @@ discipline for the `lfx-skills:lfx-committee-service-code-reviewer` subagent.
 
 **Pattern matched:** import-block blank lines, gofmt spacing, unchecked-by-the-team style lints, "run gofmt" suggestions (e.g., PR #57 `otel_test.go:8` extra blank line in imports).
 
-**Why false:** `make fmt` (gofmt + goimports) and `make lint` (golangci-lint pinned in the Makefile) run in preflight/CI and own this. Surfacing a formatting-only nit is duplicate signal.
+**Why false:** `make fmt` (`go fmt` + `gofmt -s -w`) and `make lint` (golangci-lint pinned in the Makefile) run in preflight/CI and own this. Surfacing a formatting-only nit is duplicate signal.
 
 **Source:** `Makefile` `fmt`/`lint`; SKILL.md "Formatting, linting, headers".
 

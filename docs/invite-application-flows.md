@@ -11,7 +11,7 @@ Committees support four membership modes, configured via the `join_mode` field o
 | `join_mode` | How members join |
 |-------------|-----------------|
 | `closed` | Admin creates members directly via `POST /committees/{uid}/members` |
-| `invite` | Admin creates an invite; invitee accepts it |
+| `invite_only` | Admin creates an invite; invitee accepts it |
 | `application` | User submits an application; reviewer approves it |
 | `open` | User self-joins via `POST /committees/{uid}/join` |
 

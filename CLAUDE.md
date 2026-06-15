@@ -48,7 +48,7 @@ make build     # build the API binary
 make build-cli # build the committee CLI binary
 make test      # run unit tests
 make lint      # run golangci-lint pinned in Makefile
-make fmt       # gofmt + goimports
+make fmt       # go fmt + gofmt -s -w
 ```
 
 Run `make apigen` after editing any file under `cmd/committee-api/design/`. Never hand-edit `gen/`.
