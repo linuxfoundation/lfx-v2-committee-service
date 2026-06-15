@@ -317,6 +317,7 @@ func TotalVotingReposAttribute() {
 }
 
 // CommitteeUserType is the DSL type for a user object in writers/auditors lists.
+// Pending invite state is owned by the invite service (committee invite endpoints), not embedded here.
 var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
 	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image", func() {

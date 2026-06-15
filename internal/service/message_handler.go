@@ -838,8 +838,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 // them with the accepted user's LFID (username set). Writers, Auditors, and Members are all
 // enriched regardless of which invite role triggered acceptance.
 //
-// TODO: replace the full-scan with an email → [committee_uid] index lookup so we avoid reading
-// every committee's settings on each acceptance event.
+// TODO: replace the full-scan with an email → [committee_uid] index lookup so we avoid
+// loading every committee's settings and listing all members on each acceptance event.
 func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event inviteapi.InviteServiceAcceptedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
@@ -869,7 +869,7 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
 
-	// Scan all committee UIDs for settings that contain the recipient email.
+	// Full scan: per committee, load settings and list members to reconcile email-only records.
 	allUIDs, listErr := m.committeeReader.ListAllUIDs(ctx)
 	if listErr != nil {
 		slog.WarnContext(ctx, "failed to list committee UIDs for invite reconciliation",
