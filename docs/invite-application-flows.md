@@ -153,83 +153,128 @@ Both the invite and application flows are designed so transient failures during 
 
 ---
 
-## LFID Invite Flow (Settings Writers / Auditors)
+## LFID Invite Flow (Email-only Users)
 
-This is a separate flow from the committee invite API above. It handles users added to the committee's **settings** roles (Writers, Auditors) who do not yet have an LF ID (LFID) account.
+This is separate from the **committee invite API** above. It covers users who appear on committee resources **without an LFID** (`username` empty): Writers and Auditors in settings, and Members on the roster.
+
+Pending invite state is owned by the **invite service** (and committee invite endpoints for API-managed invites), not embedded on committee resource rows.
 
 ### Overview
 
-When a user is added to `writers` or `auditors` in committee settings via `PUT /committees/{uid}/settings`, the service branches on whether the user has an LFID:
+| Context | Trigger | No LFID (`username` empty) | Has LFID |
+|---|---|---|---|
+| Settings Writers / Auditors | `committee_settings.updated` diff | Send invite via invite service (`Manage` / `View` role) | Direct role-notification email |
+| Committee Members | `committee_member.created` | Send invite via invite service (`Member` role) | Direct member notification email |
 
-| User state | `username` field | Action |
-|---|---|---|
-| Has LFID | non-empty | Send a direct role-notification email via the email service |
-| No LFID | empty | Send an invite request to the invite service; store returned invite metadata |
-
-The invite service handles rendering and delivering the invite email, and returns a unique invite UID that the committee service uses to track the invite and route the subsequent acceptance event.
+The invite service delivers the invite email. When the user completes LFID signup and accepts, the invite service publishes an enriched acceptance event that committee-service consumes.
 
 ### Sending an Invite
 
-**Triggered by:** `HandleCommitteeSettingsUpdated` — called when a `lfx.committee-api.committee_settings.updated` event arrives and the diff contains newly added non-LFID users.
+**Settings (Writers / Auditors):** `HandleCommitteeSettingsUpdated` on `lfx.committee-api.committee_settings.updated` when the diff adds or changes email-only users.
 
-**NATS subject used:** `lfx.invite-service.send_invite` (request/reply, 5-second timeout)
+**Members:** `HandleCommitteeMemberCreated` on `lfx.committee-api.committee_member.created` when the new member has no `username`.
 
-**Request payload** (`inviteapi.SendInviteRequest`):
+**NATS subject:** `lfx.invite-service.send_invite` (request/reply)
 
-| Field | Value |
-|---|---|
-| `recipient_email` | User's email address |
-| `recipient_name` | User's display name (falls back to email) |
-| `inviter_name` | Actor's display name; falls back to `"A committee administrator"` |
-| `resource_uid` | Committee UID |
-| `resource_name` | Committee name |
-| `resource_type` | `"group"` |
-| `role` | `"Manage"` (Writers) or `"View"` (Auditors) |
-| `return_url` | Deep link to the committee page |
+Invite requests use `inviteapi.SendInviteRequest` with resource type `group`, committee UID/name, recipient email, and role `Manage`, `View`, or `Member`.
 
-**On success**, the invite service returns an invite UID, the delivery email, and an expiry timestamp. The committee service:
-
-1. Writes the invite metadata (`uid`, `email`, `expires_at`) onto the matching user entry in `CommitteeSettings.Writers` or `CommitteeSettings.Auditors`.
-2. Writes a secondary mapping entry in the `committee-settings` KV bucket: key `lookup/committee-settings-invite/{invite_uid}` → value `{committee_uid}`. This is used by `HandleInviteAccepted` to route acceptance events without scanning all settings.
-3. Calls `UpdateSettings` (which re-indexes the settings and publishes `committee_settings.updated`).
-
-All steps are best-effort — a failure is logged and does not block further processing.
+Failures are logged inside `sendMemberInvite` / the settings invite path; callers do not duplicate those warnings.
 
 ### Invite Acceptance
 
-**Triggered by:** a `lfx.invite.accepted` event published by the LFX self-serve web app when the user completes LFID account creation.
+**Published by:** invite service after processing acceptance.
 
-**NATS subscription:** registered in `cmd/committee-api/service/committee_handler.go` and `providers.go` under `inviteapi.InviteAcceptedSubject`.
+**NATS subject:** `lfx.invite-service.invite_accepted` (`inviteapi.InviteServiceAcceptedSubject`)
 
-**Message payload:**
+**Subscription:** `cmd/committee-api/service/committee_handler.go` and `providers.go`
+
+**Message payload** (`inviteapi.InviteServiceAcceptedEvent` — embeds full `Invite`):
 
 ```json
 {
-  "invite_uid": "<invite UID>",
-  "username":   "<new LFID username>"
+  "uid": "<invite UID>",
+  "accepted_by": "<new LFID username>",
+  "role": "Member",
+  "recipient": {
+    "email": "user@example.com"
+  }
 }
 ```
+
+Required fields for committee-service: `uid`, `accepted_by`, and `recipient.email`. `role` is informational; enrichment does not branch on it.
 
 **Handler:** `(*messageHandlerOrchestrator).HandleInviteAccepted`
 
 **Processing steps:**
 
-1. Look up the committee UID from the secondary KV mapping using `invite_uid`. If not found, the invite belongs to another service — silently ignored.
-2. Load `CommitteeSettings` with revision.
-3. Scan `Writers` and `Auditors` for a user whose `invite.uid` matches `invite_uid`.
-4. Set `username = <new username>`, clear the `invite` field.
-5. Call `UpdateSettings` (fires FGA and indexer messages; publishes `committee_settings.updated`).
-6. Delete the secondary mapping entry.
+1. Normalize `recipient.email` (lowercase, trimmed).
+2. List all committee UIDs (full scan today; see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for planned email-index lookup).
+3. For each committee, enrich email-only records matching that email:
+   - **Settings:** Writers and Auditors — set `username` from `accepted_by` (revision-conflict retries on `UpdateSettings`).
+   - **Members:** email-only roster rows — set `username` via `UpdateMember` (revision-conflict retries). Member updates resolve `username` through `lfx.auth-service.email_to_username` for the member's email, so the auth lookup must return the LFID for member enrichment to persist.
 
-The `committee_settings.updated` event fired by step 5 passes through `HandleCommitteeSettingsUpdated` again. Users who were present in old settings as an email-only invited entry are detected by `wasInvitedInOldSettings` and skipped, preventing a duplicate notification email.
+Invite metadata is **not** read or written on committee resource rows during enrichment.
 
-### KV Mapping Lifecycle
+A subsequent `committee_settings.updated` event skips duplicate notification emails for users promoted from email-only entries (`wasInvitedInOldSettings`).
 
-| Event | KV key | Action |
+### Local testing with NATS CLI
+
+Use this to exercise `HandleInviteAccepted` without the UI or invite-service acceptance path.
+
+**Prerequisites**
+
+- `committee-api` running locally (see [cmd/committee-api/README.md](../cmd/committee-api/README.md)).
+- `NATS_URL` points at the same NATS instance as the running service.
+- Test data exists for an email you control: at least one **email-only** Writer, Auditor, or Member (`username` empty) on some committee. Use that same email in the event payload.
+
+**1. Mock auth-service email lookup (required for member enrichment)**
+
+`UpdateMember` resolves `username` from the member's email via NATS request/reply on `lfx.auth-service.email_to_username` (request body = email; success reply = plain-text username).
+
+Run a responder that returns your test LFID for your test email:
+
+```bash
+export NATS_URL="${NATS_URL:-nats://localhost:4222}"
+export TEST_EMAIL="you+invite-test@example.com"
+export TEST_USERNAME="your-lfid-username"
+
+# Responds with TEST_USERNAME for every request (fine when only you are testing).
+nats reply --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_USERNAME"
+```
+
+Verify the lookup before publishing the acceptance event:
+
+```bash
+nats request --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_EMAIL"
+```
+
+On shared dev NATS, another auth-service consumer may answer instead of your mock; prefer isolated local NATS or ensure only your `nats reply` process is subscribed.
+
+**2. Publish invite accepted**
+
+```bash
+nats pub --server "$NATS_URL" lfx.invite-service.invite_accepted \
+  "{\"uid\":\"local-test-invite-001\",\"accepted_by\":\"$TEST_USERNAME\",\"role\":\"Member\",\"recipient\":{\"email\":\"$TEST_EMAIL\"}}"
+```
+
+**3. Verify**
+
+- **Settings (Writers / Auditors):** `GET /committees/{uid}/settings?v=1` — matching entries should have `username` set.
+- **Members:** `GET /committees/{uid}/members/{member_uid}?v=1` or NATS KV:
+
+```bash
+nats kv get --server "$NATS_URL" committee-members <member_uid>
+```
+
+- **Logs:** look for `invite accepted — enriched email-only` on the `lfx.invite-service.invite_accepted` subscription.
+
+**Unit tests:** `go test ./internal/service/ -run TestHandleInviteAccepted` covers the handler without NATS.
+
+### Committee Invite API vs LFID Invite Flow
+
+| Mechanism | Records | Acceptance path |
 |---|---|---|
-| Invite sent | `lookup/committee-settings-invite/{invite_uid}` | Created |
-| Invite accepted | `lookup/committee-settings-invite/{invite_uid}` | Deleted |
+| Committee invite API (`POST /committees/{uid}/invites`) | `CommitteeInvite` + member on accept | HTTP accept endpoint creates member immediately |
+| LFID invite flow (this section) | Email-only Writers, Auditors, Members | `lfx.invite-service.invite_accepted` enriches matching rows with `username` |
 
-### Member vs. Settings Invite
-
-This LFID invite flow applies only to **settings roles** (Writers / Auditors). It is distinct from the **committee invite API** (above), which manages `CommitteeInvite` records and controls membership in `CommitteeMember`. Promoting `CommitteeMember` records on LFID invite acceptance (for members added via `committee_member.created` who also lack an LFID) is tracked as future work.
+Both can apply to the same person over time; enrichment matches by **email**, not invite UID on resource rows.
