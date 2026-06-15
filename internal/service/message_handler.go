@@ -894,7 +894,7 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx, writeCtx 
 // revision conflicts.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
 	const maxRetries = 3
-	for attempt := range maxRetries {
+	for attempt := 0; attempt < maxRetries; attempt++ {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to get settings for invite enrichment",
@@ -958,7 +958,7 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, wr
 // Revision-conflict retries are handled here, not in enrichInvitedUserInCommitteeMembers.
 func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID string) {
 	const maxRetries = 3
-	for attempt := range maxRetries {
+	for attempt := 0; attempt < maxRetries; attempt++ {
 		member, revision, err := m.committeeReader.GetMember(ctx, committeeUID, memberUID)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to get member for invite enrichment",
@@ -972,7 +972,8 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx 
 
 		member.Username = username
 
-		if _, writeErr := m.committeeWriterOrchestrator.UpdateMember(writeCtx, member, revision, false); writeErr != nil {
+		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(writeCtx, member, revision, false)
+		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict enriching member — retrying",
@@ -984,8 +985,13 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx 
 			return
 		}
 
+		persistedUsername := username
+		if updated != nil {
+			persistedUsername = updated.Username
+		}
 		slog.DebugContext(ctx, "invite accepted — enriched email-only member with LFID",
-			"committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID, "username", redaction.Redact(username))
+			"committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID,
+			"username", redaction.Redact(persistedUsername))
 		return
 	}
 }
