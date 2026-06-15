@@ -556,10 +556,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 	if member.Username == "" {
 		// No LFID — route through the invite service so the user must create an
 		// account before gaining committee access.
-		if inviteErr := m.sendMemberInvite(ctx, &member, recipientName, committeeURL); inviteErr != nil {
-			slog.WarnContext(ctx, "invite failed for non-LFID member",
-				"error", inviteErr, "committee_uid", member.CommitteeUID)
-		}
+		_ = m.sendMemberInvite(ctx, &member, recipientName, committeeURL)
 		return nil, nil
 	}
 

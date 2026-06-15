@@ -2189,9 +2189,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 				updateSettingsErr:  tt.spyErr,
 				updateSettingsErrs: tt.spyErrs,
 				updateMemberErr:    tt.spyMemberErr,
-			}
-			if len(tt.spyMemberErrs) > 0 {
-				spy.updateMemberErrs = tt.spyMemberErrs
+				updateMemberErrs:   tt.spyMemberErrs,
 			}
 			handler := makeHandler(mockRepo, spy)
 
