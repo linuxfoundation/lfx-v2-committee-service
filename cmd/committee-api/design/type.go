@@ -316,21 +316,6 @@ func TotalVotingReposAttribute() {
 	})
 }
 
-// CommitteeUserInviteType holds pending invite metadata for a non-LFID user.
-var CommitteeUserInviteType = dsl.Type("committee-user-invite", func() {
-	dsl.Description("Pending invite metadata for a user who has not yet created an LFID account.")
-	dsl.Attribute("uid", dsl.String, "Invite UID", func() {
-		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-	})
-	dsl.Attribute("email", dsl.String, "Email address the invite was sent to", func() {
-		dsl.Example("alice.johnson@example.com")
-	})
-	dsl.Attribute("expires_at", dsl.String, "Invite expiry timestamp (RFC 3339)", func() {
-		dsl.Example("2026-06-01T00:00:00Z")
-		dsl.Format(dsl.FormatDateTime)
-	})
-})
-
 // CommitteeUserType is the DSL type for a user object in writers/auditors lists.
 var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
@@ -346,7 +331,6 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
 		dsl.Example("alicejohnson789")
 	})
-	dsl.Attribute("invite", CommitteeUserInviteType, "Pending invite info, present when the user has no LFID")
 })
 
 // WritersAttribute is the DSL attribute for committee writers.

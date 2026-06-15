@@ -1972,7 +1972,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 		},
 		{
-			name: "happy path — Manage role promotes Writer entries across matching committees",
+			name: "happy path — enriches Writer entries across matching committees",
 			setupRepo: func(r *mock.MockRepository) {
 				// Two committees both have an email-only Writer entry.
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
@@ -1985,32 +1985,67 @@ func TestHandleInviteAccepted(t *testing.T) {
 			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
 				for _, s := range captured {
 					require.Len(t, s.Writers, 1)
-					assert.Equal(t, username, s.Writers[0].Username, "writer should be promoted")
-					assert.Nil(t, s.Writers[0].Invite, "invite should be cleared")
+					assert.Equal(t, username, s.Writers[0].Username, "writer should be enriched")
 				}
 			},
 		},
 		{
-			name: "View role — only Auditors promoted, Writers untouched",
+			name: "Manage role invite — enriches Writers and matching members with same email",
 			setupRepo: func(r *mock.MockRepository) {
-				// Committee has both a pending Writer and pending Auditor entry with the same email.
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-writer",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			msgData:               makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Writers[0].Username, "writer should be enriched")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username, "member should be enriched for Manage role invite")
+			},
+		},
+		{
+			name: "View role invite — enriches Writers, Auditors, and matching members with same email",
+			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
 					UID:      committee1UID,
 					Writers:  []model.CommitteeUser{{Email: auditorEmail}},
 					Auditors: []model.CommitteeUser{{Email: auditorEmail}},
 				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-auditor",
+						CommitteeUID: committee1UID,
+						Email:        auditorEmail,
+					},
+				})
 			},
-			msgData:         makeEvent(inviteUID, username, auditorEmail, string(inviteapi.InviteRoleView)),
-			wantUpdateCalls: 1,
+			msgData:               makeEvent(inviteUID, username, auditorEmail, string(inviteapi.InviteRoleView)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
 			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
 				require.Len(t, captured, 1)
 				s := captured[0]
-				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be promoted")
-				assert.Equal(t, "", s.Writers[0].Username, "writer should remain email-only")
+				assert.Equal(t, username, s.Writers[0].Username, "writer should be enriched")
+				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be enriched")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username, "member should be enriched for View role invite")
 			},
 		},
 		{
-			name: "Member role — promotes matching committee members, not Writers or Auditors",
+			name: "Member role invite — enriches members, Writers, and Auditors with matching email",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
 					UID:      committee1UID,
@@ -2025,7 +2060,6 @@ func TestHandleInviteAccepted(t *testing.T) {
 						UID:          "member-1",
 						CommitteeUID: committee1UID,
 						Email:        memberEmail,
-						Invite:       &model.InviteInfo{UID: inviteUID, Email: memberEmail},
 					},
 				})
 				r.AddCommitteeMember(committee2UID, &model.CommitteeMember{
@@ -2033,36 +2067,52 @@ func TestHandleInviteAccepted(t *testing.T) {
 						UID:          "member-2",
 						CommitteeUID: committee2UID,
 						Email:        memberEmail,
-						Invite:       &model.InviteInfo{UID: inviteUID, Email: memberEmail},
 					},
 				})
 			},
 			msgData:               makeEvent(inviteUID, username, memberEmail, string(inviteapi.InviteRoleMember)),
-			wantUpdateCalls:       0,
+			wantUpdateCalls:       1,
 			wantUpdateMemberCalls: 2,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				s := captured[0]
+				assert.Equal(t, username, s.Writers[0].Username, "writer should be enriched")
+				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be enriched")
+			},
 			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
 				for _, member := range captured {
-					assert.Equal(t, username, member.Username, "member should be promoted")
-					assert.Nil(t, member.Invite, "invite should be cleared")
+					assert.Equal(t, username, member.Username, "member should be enriched")
 				}
 			},
 		},
 		{
-			name: "unknown role — both Writers and Auditors promoted",
+			name: "unknown invite role — enriches Writers, Auditors, and matching members",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
 					UID:      committee1UID,
 					Writers:  []model.CommitteeUser{{Email: writerEmail}},
 					Auditors: []model.CommitteeUser{{Email: writerEmail}},
 				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-unknown-role",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
 			},
-			msgData:         makeEvent(inviteUID, username, writerEmail, "SomeFutureRole"),
-			wantUpdateCalls: 1,
+			msgData:               makeEvent(inviteUID, username, writerEmail, "SomeFutureRole"),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
 			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
 				require.Len(t, captured, 1)
 				s := captured[0]
-				assert.Equal(t, username, s.Writers[0].Username, "writer should be promoted for unknown role")
-				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be promoted for unknown role")
+				assert.Equal(t, username, s.Writers[0].Username, "writer should be enriched for unknown role")
+				assert.Equal(t, username, s.Auditors[0].Username, "auditor should be enriched for unknown role")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username, "member should be enriched for unknown role")
 			},
 		},
 		{
@@ -2075,7 +2125,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 		},
 		{
-			name: "already-promoted entry (has Username) — not double-promoted",
+			name: "already-enriched entry (has Username) — not double-enriched",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
 					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail, Username: "already-set"}}}))
@@ -2100,7 +2150,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 					&model.CommitteeSettings{UID: committee1UID, Writers: []model.CommitteeUser{{Email: writerEmail}}}))
 			},
 			// First UpdateSettings call returns a conflict; second succeeds.
-			// GetSettings returns a deep copy each time, so the in-memory promotion
+			// GetSettings returns a deep copy each time, so the in-memory enrichment
 			// from attempt 1 is not visible on re-read — a genuine second write happens.
 			spyErrs:         []error{errs.NewConflict("revision mismatch"), nil},
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),

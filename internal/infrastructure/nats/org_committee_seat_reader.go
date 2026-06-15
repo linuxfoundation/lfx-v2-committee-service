@@ -77,8 +77,8 @@ func (r *natsOrgCommitteeSeatReader) ListOrgCommitteeSeats(ctx context.Context, 
 				// Enrich a shallow copy rather than the reader-owned struct returned by
 				// ListMembersByOrganization (defensive against a future per-request/per-org cache silently
 				// inheriting the enriched value). A shallow copy is sufficient here: we only overwrite the
-				// scalar ProjectUID and never mutate the pointer fields the copy shares with the source
-				// (e.g. Invite), so no deep copy is needed.
+				// scalar ProjectUID and never mutate the pointer fields the copy shares with the source,
+				// so no deep copy is needed.
 				enriched := *m
 				enriched.ProjectUID = projectUID
 				m = &enriched
