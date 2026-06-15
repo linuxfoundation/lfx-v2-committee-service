@@ -654,6 +654,7 @@ type spyCommitteeWriterOrchestrator struct {
 
 	updateMemberCalls int
 	updateMemberErr   error
+	updateMemberErrs  []error
 	updatedMembers    []*model.CommitteeMember
 
 	updateSettingsCalls int
@@ -697,6 +698,11 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
+	if len(s.updateMemberErrs) > 0 {
+		err := s.updateMemberErrs[0]
+		s.updateMemberErrs = s.updateMemberErrs[1:]
+		return member, err
+	}
 	return member, s.updateMemberErr
 }
 func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error {
@@ -1895,6 +1901,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 	const committee2UID = "committee-2"
 	const writerEmail = "writer@example.com"
 	const auditorEmail = "auditor@example.com"
+	const memberEmail = "member@example.com"
 
 	makeEvent := func(invUID, acceptedBy, recipientEmail, role string) []byte {
 		event := inviteapi.InviteServiceAcceptedEvent{Invite: inviteapi.Invite{
@@ -1925,13 +1932,17 @@ func TestHandleInviteAccepted(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		setupRepo        func(*mock.MockRepository)
-		spyErr           error
-		spyErrs          []error // per-call error queue; takes precedence over spyErr when non-nil
-		msgData          []byte
-		wantUpdateCalls  int
-		validateSettings func(*testing.T, []*model.CommitteeSettings)
+		name                  string
+		setupRepo             func(*mock.MockRepository)
+		spyErr                error
+		spyErrs               []error // per-call error queue; takes precedence over spyErr when non-nil
+		spyMemberErr          error
+		spyMemberErrs         []error
+		msgData               []byte
+		wantUpdateCalls       int
+		wantUpdateMemberCalls int
+		validateSettings      func(*testing.T, []*model.CommitteeSettings)
+		validateMembers       func(*testing.T, []*model.CommitteeMember)
 	}{
 		{
 			name: "malformed payload — no update called",
@@ -1999,7 +2010,45 @@ func TestHandleInviteAccepted(t *testing.T) {
 			},
 		},
 		{
-			name: "unknown role (e.g. 'Member') — both Writers and Auditors promoted",
+			name: "Member role — promotes matching committee members, not Writers or Auditors",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:      committee1UID,
+					Writers:  []model.CommitteeUser{{Email: memberEmail}},
+					Auditors: []model.CommitteeUser{{Email: memberEmail}},
+				}))
+				r.AddCommittee(makeCommitteeWithSettings(committee2UID, &model.CommitteeSettings{
+					UID: committee2UID,
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-1",
+						CommitteeUID: committee1UID,
+						Email:        memberEmail,
+						Invite:       &model.InviteInfo{UID: inviteUID, Email: memberEmail},
+					},
+				})
+				r.AddCommitteeMember(committee2UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-2",
+						CommitteeUID: committee2UID,
+						Email:        memberEmail,
+						Invite:       &model.InviteInfo{UID: inviteUID, Email: memberEmail},
+					},
+				})
+			},
+			msgData:               makeEvent(inviteUID, username, memberEmail, string(inviteapi.InviteRoleMember)),
+			wantUpdateCalls:       0,
+			wantUpdateMemberCalls: 2,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				for _, member := range captured {
+					assert.Equal(t, username, member.Username, "member should be promoted")
+					assert.Nil(t, member.Invite, "invite should be cleared")
+				}
+			},
+		},
+		{
+			name: "unknown role — both Writers and Auditors promoted",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
 					UID:      committee1UID,
@@ -2007,7 +2056,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 					Auditors: []model.CommitteeUser{{Email: writerEmail}},
 				}))
 			},
-			msgData:         makeEvent(inviteUID, username, writerEmail, "Member"),
+			msgData:         makeEvent(inviteUID, username, writerEmail, "SomeFutureRole"),
 			wantUpdateCalls: 1,
 			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
 				require.Len(t, captured, 1)
@@ -2065,7 +2114,14 @@ func TestHandleInviteAccepted(t *testing.T) {
 			mockRepo.ClearAll()
 			tt.setupRepo(mockRepo)
 
-			spy := &spyCommitteeWriterOrchestrator{updateSettingsErr: tt.spyErr, updateSettingsErrs: tt.spyErrs}
+			spy := &spyCommitteeWriterOrchestrator{
+				updateSettingsErr:  tt.spyErr,
+				updateSettingsErrs: tt.spyErrs,
+				updateMemberErr:    tt.spyMemberErr,
+			}
+			if len(tt.spyMemberErrs) > 0 {
+				spy.updateMemberErrs = tt.spyMemberErrs
+			}
 			handler := makeHandler(mockRepo, spy)
 
 			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
@@ -2073,9 +2129,13 @@ func TestHandleInviteAccepted(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantUpdateCalls, spy.updateSettingsCalls, "UpdateSettings call count")
+			assert.Equal(t, tt.wantUpdateMemberCalls, spy.updateMemberCalls, "UpdateMember call count")
 
 			if tt.validateSettings != nil && len(spy.capturedSettings) > 0 {
 				tt.validateSettings(t, spy.capturedSettings)
+			}
+			if tt.validateMembers != nil && len(spy.updatedMembers) > 0 {
+				tt.validateMembers(t, spy.updatedMembers)
 			}
 		})
 	}

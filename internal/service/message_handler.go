@@ -659,7 +659,7 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 			Name: member.CommitteeName,
 			Type: "group",
 		},
-		Role:      "Member",
+		Role:      string(inviteapi.InviteRoleMember),
 		ReturnURL: deepLinkURL,
 	})
 	if err != nil {
@@ -913,7 +913,11 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	}
 
 	for _, committeeUID := range allUIDs {
-		m.promoteInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID, event.Role)
+		if event.Role == string(inviteapi.InviteRoleMember) {
+			m.promoteInvitedUserInCommitteeMembers(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID)
+		} else {
+			m.promoteInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID, event.Role)
+		}
 	}
 
 	return nil, nil
@@ -933,7 +937,8 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 
 		promoted := false
 		// Only promote the slices that correspond to the accepted invite role.
-		// "Manage" → Writers; "View" → Auditors; anything else (empty or unknown) → both.
+		// "Manage" → Writers; "View" → Auditors; "Member" is handled separately via
+		// promoteInvitedUserInCommitteeMembers; anything else (empty or unknown) → both.
 		// NOTE: the default branch intentionally promotes both slices. If the invite service
 		// introduces a new role before this switch is updated, the user gets promoted to both
 		// Writers and Auditors — an over-grant. This is acceptable given the tight internal
@@ -988,6 +993,59 @@ func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeSettings(ctx, 
 
 		slog.DebugContext(ctx, "invite accepted — promoted user from non-LFID to LFID in settings",
 			"committee_uid", committeeUID, "invite_uid", inviteUID, "username", redaction.Redact(username))
+		return
+	}
+}
+
+// promoteInvitedUserInCommitteeMembers promotes all email-only committee members matching
+// normalizedEmail in the given committee to full LFID users. It retries on revision conflicts.
+func (m *messageHandlerOrchestrator) promoteInvitedUserInCommitteeMembers(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to list members for invite promotion",
+			"error", err, "committee_uid", committeeUID, "invite_uid", inviteUID)
+		return
+	}
+
+	for _, member := range members {
+		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
+			continue
+		}
+		m.promoteInvitedCommitteeMember(ctx, writeCtx, committeeUID, member.UID, normalizedEmail, username, inviteUID)
+	}
+}
+
+func (m *messageHandlerOrchestrator) promoteInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID string) {
+	const maxRetries = 3
+	for attempt := range maxRetries {
+		member, revision, err := m.committeeReader.GetMember(ctx, committeeUID, memberUID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to get member for invite promotion",
+				"error", err, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+			return
+		}
+
+		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
+			return
+		}
+
+		member.Username = username
+		member.Invite = nil
+
+		if _, writeErr := m.committeeWriterOrchestrator.UpdateMember(writeCtx, member, revision, false); writeErr != nil {
+			var conflictErr errors.Conflict
+			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
+				slog.DebugContext(ctx, "revision conflict promoting member invite — retrying",
+					"attempt", attempt+1, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+				continue
+			}
+			slog.ErrorContext(ctx, "failed to update member after invite acceptance",
+				"error", writeErr, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+			return
+		}
+
+		slog.DebugContext(ctx, "invite accepted — promoted member from non-LFID to LFID",
+			"committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID, "username", redaction.Redact(username))
 		return
 	}
 }
