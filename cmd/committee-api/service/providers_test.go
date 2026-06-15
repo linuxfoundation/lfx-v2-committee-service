@@ -42,6 +42,11 @@ func TestLFXSelfServeBaseURL(t *testing.T) {
 			want:        "https://app.staging.lfx.dev",
 		},
 		{
+			name:        "stage alias",
+			environment: "stage",
+			want:        "https://app.staging.lfx.dev",
+		},
+		{
 			name:        "dev environment",
 			environment: "dev",
 			want:        "https://app.dev.lfx.dev",
@@ -54,6 +59,11 @@ func TestLFXSelfServeBaseURL(t *testing.T) {
 		{
 			name: "unset environment defaults to prod",
 			want: "https://app.lfx.dev",
+		},
+		{
+			name:        "unrecognized environment defaults to prod",
+			environment: "qa",
+			want:        "https://app.lfx.dev",
 		},
 	}
 
