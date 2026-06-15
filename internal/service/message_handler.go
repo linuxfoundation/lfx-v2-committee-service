@@ -598,7 +598,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 }
 
 // sendMemberInvite sends an invite request for a new committee member who does not
-// yet have an LFID. Best-effort: errors are propagated to the caller to handle.
+// yet have an LFID. Best-effort: logs failures internally; callers may ignore the returned error.
 func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) error {
 	if m.inviteSender == nil {
 		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
