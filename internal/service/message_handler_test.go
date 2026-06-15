@@ -2156,6 +2156,27 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 2,
 		},
+		{
+			name: "member conflict on write — retries and succeeds on second attempt",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-retry",
+						CommitteeUID: committee1UID,
+						Email:        memberEmail,
+					},
+				})
+			},
+			spyMemberErrs:         []error{errs.NewConflict("revision mismatch"), nil},
+			msgData:               makeEvent(inviteUID, username, memberEmail, string(inviteapi.InviteRoleMember)),
+			wantUpdateCalls:       0,
+			wantUpdateMemberCalls: 2,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 2)
+				assert.Equal(t, username, captured[len(captured)-1].Username)
+			},
+		},
 	}
 
 	for _, tt := range tests {

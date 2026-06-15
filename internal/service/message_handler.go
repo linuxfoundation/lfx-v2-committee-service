@@ -957,6 +957,8 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, wr
 	}
 }
 
+// enrichInvitedCommitteeMember enriches a single email-only member with the accepted LFID.
+// Revision-conflict retries are handled here, not in enrichInvitedUserInCommitteeMembers.
 func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID string) {
 	const maxRetries = 3
 	for attempt := range maxRetries {
