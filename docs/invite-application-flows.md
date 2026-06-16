@@ -134,13 +134,13 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 
 ## Identity Resolution
 
-Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (subject identifier), the service resolves the email at request time via a NATS request/reply call to the auth-service:
+Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (LFX username), the service maps that username to an Auth0 sub (`auth0|{userID}`) and resolves the email at request time via a NATS request/reply call to the auth-service:
 
 - **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** JSON `{"user":{"auth_token":"<caller JWT>"}}` (token without the `Bearer` scheme prefix)
+- **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username (safe usernames are used directly; unsafe usernames are SHA-512 hashed and base58-encoded)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing/invalid Authorization header) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`) → `404 Not Found`; auth-service or NATS unavailable → `503 Service Unavailable`.
+The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing principal) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`) → `404 Not Found`; auth-service or NATS unavailable → `503 Service Unavailable`.
 
 ---
 

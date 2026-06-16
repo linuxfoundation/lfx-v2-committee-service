@@ -25,6 +25,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -1195,19 +1196,25 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their bearer token to the auth-service via NATS (lfx.auth-service.user_emails.read).
+// resolveCallerEmail looks up the primary email for the authenticated caller by converting
+// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	authToken, err := bearerTokenFromContext(ctx)
-	if err != nil {
-		return "", err
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if principal == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authToken)
+	authSub := authpkg.MapUsernameToAuthSub(principal)
+	if authSub == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
+	}
+
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
 	if err != nil {
 		return "", err
 	}
@@ -1217,35 +1224,6 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	return userEmails.PrimaryEmail, nil
-}
-
-// bearerTokenFromContext extracts the raw JWT from the Authorization header stored by middleware.
-// Accepts either a raw JWT or a two-part "Bearer <jwt>" value; rejects bare "Bearer" and other schemes.
-func bearerTokenFromContext(ctx context.Context) (string, error) {
-	authorization, _ := ctx.Value(constants.AuthorizationContextID).(string)
-	authorization = strings.TrimSpace(authorization)
-	if authorization == "" {
-		return "", errors.NewValidation("authorization header is required")
-	}
-
-	parts := strings.Fields(authorization)
-	switch len(parts) {
-	case 1:
-		if strings.EqualFold(parts[0], "Bearer") {
-			return "", errors.NewValidation("authorization token is empty")
-		}
-		return parts[0], nil
-	case 2:
-		if !strings.EqualFold(parts[0], "Bearer") {
-			return "", errors.NewValidation("authorization scheme must be Bearer")
-		}
-		if parts[1] == "" {
-			return "", errors.NewValidation("authorization token is empty")
-		}
-		return parts[1], nil
-	default:
-		return "", errors.NewValidation("invalid authorization header format")
-	}
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
