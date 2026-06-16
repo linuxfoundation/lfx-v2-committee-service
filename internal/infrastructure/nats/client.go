@@ -119,6 +119,7 @@ func (c *NATSClient) publishWithSpan(ctx context.Context, subject string, data [
 		trace.WithAttributes(
 			attribute.String("messaging.system", "nats"),
 			attribute.String("messaging.destination.name", subject),
+			attribute.String("messaging.operation.type", "publish"),
 			attribute.Int("messaging.message.body.size", len(data)),
 		),
 	)
@@ -177,6 +178,7 @@ func (c *NATSClient) SubscribeWithTransportMessenger(ctx context.Context, subjec
 			trace.WithAttributes(
 				attribute.String("messaging.system", "nats"),
 				attribute.String("messaging.destination.name", subject),
+				attribute.String("messaging.operation.type", "process"),
 				attribute.Int("messaging.message.body.size", len(msg.Data)),
 			),
 		)
@@ -197,7 +199,6 @@ func (c *NATSClient) SubscribeWithTransportMessenger(ctx context.Context, subjec
 		}()
 
 		handler(msgCtx, transportMsg)
-		span.SetStatus(codes.Ok, "")
 	})
 }
 
