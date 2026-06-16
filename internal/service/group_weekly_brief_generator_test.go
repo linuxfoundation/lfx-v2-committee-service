@@ -39,12 +39,16 @@ type fakeBriefWriter struct {
 	throttle      *model.GroupWeeklyBriefThrottle
 	putThrottle   *model.GroupWeeklyBriefThrottle
 	putBrief      *model.GroupWeeklyBrief
+	putErr        error // when set, PutGroupWeeklyBrief fails with this (e.g. a CAS-conflict 503)
 	briefPutCount atomic.Int32
 	thPutCount    atomic.Int32
 }
 
 func (f *fakeBriefWriter) PutGroupWeeklyBrief(_ context.Context, b *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error) {
 	f.briefPutCount.Add(1)
+	if f.putErr != nil {
+		return nil, f.putErr
+	}
 	if b.UID == "" {
 		b.UID = "brief-1"
 	}

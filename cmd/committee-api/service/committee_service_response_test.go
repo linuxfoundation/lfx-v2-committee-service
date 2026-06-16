@@ -346,8 +346,6 @@ func TestConvertPayloadToUpdateBase(t *testing.T) {
 }
 
 func TestConvertPayloadToUpdateSettings(t *testing.T) {
-	invite := &model.InviteInfo{UID: "inv-1", Email: "nolfid@example.com"}
-
 	tests := []struct {
 		name     string
 		payload  *committeeservice.UpdateCommitteeSettingsPayload
@@ -379,21 +377,21 @@ func TestConvertPayloadToUpdateSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "invite preserved from existing — non-LFID user matched by email",
+			name: "existing user matched by email — name updated from payload",
 			payload: &committeeservice.UpdateCommitteeSettingsPayload{
 				UID:     stringPtr("committee-123"),
 				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com"), Name: stringPtr("Updated Name")}},
 			},
 			existing: &model.CommitteeSettings{
-				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Old Name", Invite: invite}},
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Old Name"}},
 			},
 			expected: &model.CommitteeSettings{
 				UID:     "committee-123",
-				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Updated Name", Invite: invite}},
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Updated Name"}},
 			},
 		},
 		{
-			name: "no existing — invite stays nil",
+			name: "no existing — writer created from payload only",
 			payload: &committeeservice.UpdateCommitteeSettingsPayload{
 				UID:     stringPtr("committee-123"),
 				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com")}},

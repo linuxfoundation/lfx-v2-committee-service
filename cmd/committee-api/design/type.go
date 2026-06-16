@@ -145,6 +145,13 @@ func ProjectNameAttribute() {
 	})
 }
 
+// ProjectSlugAttribute is the DSL attribute for project slug.
+func ProjectSlugAttribute() {
+	dsl.Attribute("project_slug", dsl.String, "The slug of the project this committee belongs to", func() {
+		dsl.Example("example-foundation")
+	})
+}
+
 // NameAttribute is the DSL attribute for committee name.
 func NameAttribute() {
 	dsl.Attribute("name", dsl.String, "The name of the committee", func() {
@@ -309,22 +316,8 @@ func TotalVotingReposAttribute() {
 	})
 }
 
-// CommitteeUserInviteType holds pending invite metadata for a non-LFID user.
-var CommitteeUserInviteType = dsl.Type("committee-user-invite", func() {
-	dsl.Description("Pending invite metadata for a user who has not yet created an LFID account.")
-	dsl.Attribute("uid", dsl.String, "Invite UID", func() {
-		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-	})
-	dsl.Attribute("email", dsl.String, "Email address the invite was sent to", func() {
-		dsl.Example("alice.johnson@example.com")
-	})
-	dsl.Attribute("expires_at", dsl.String, "Invite expiry timestamp (RFC 3339)", func() {
-		dsl.Example("2026-06-01T00:00:00Z")
-		dsl.Format(dsl.FormatDateTime)
-	})
-})
-
 // CommitteeUserType is the DSL type for a user object in writers/auditors lists.
+// Pending invite state is owned by the invite service (committee invite endpoints), not embedded here.
 var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
 	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image", func() {
@@ -339,7 +332,6 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
 		dsl.Example("alicejohnson789")
 	})
-	dsl.Attribute("invite", CommitteeUserInviteType, "Pending invite info, present when the user has no LFID")
 })
 
 // WritersAttribute is the DSL attribute for committee writers.
@@ -493,6 +485,10 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	CommitteeUIDMemberAttribute()
 	CommitteeNameMemberAttribute()
 	CommitteeCategoryMemberAttribute()
+	// project_uid / project_slug are optional foundation (project) tags for the seat's committee,
+	// set only when present on the model so a missing value is omitted rather than serialized empty.
+	ProjectUIDAttribute()
+	ProjectSlugAttribute()
 	FirstNameAttribute()
 	LastNameAttribute()
 	EmailAttribute()
@@ -1114,6 +1110,17 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 	})
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
+	dsl.Attribute("last_edited_at", dsl.String, "Timestamp of the most recent chair edit via PUT /current; absent if never edited", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-18T14:03:00Z")
+	})
+	dsl.Attribute("last_edited_by", dsl.String, "LFX username of the caller who last edited the brief; absent if never edited", func() {
+		dsl.Example("jsmith")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.", func() {
+		dsl.Minimum(1)
+		dsl.Example(uint64(7))
+	})
 })
 
 // GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
@@ -1214,6 +1221,22 @@ var GroupWeeklyBriefEditedExistsError = dsl.Type("group-weekly-brief-edited-exis
 	})
 	dsl.Attribute("revision", dsl.UInt64, "Current revision of the edited brief", func() {
 		dsl.Example(uint64(7))
+	})
+	dsl.Required("code", "revision")
+})
+
+// GroupWeeklyBriefRevisionConflictError is the 409 body returned by
+// PUT /committees/{uid}/weekly-briefs/current when the caller's revision token
+// is stale (the brief was edited concurrently). It carries the current
+// server-side revision so the client can refetch via GET /current and retry.
+var GroupWeeklyBriefRevisionConflictError = dsl.Type("group-weekly-brief-revision-conflict-error", func() {
+	dsl.Description("Returned when the caller's revision token does not match the brief's current revision.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("revision_conflict")
+		dsl.Example("revision_conflict")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Current server-side revision of the brief", func() {
+		dsl.Example(uint64(8))
 	})
 	dsl.Required("code", "revision")
 })

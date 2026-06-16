@@ -154,6 +154,11 @@ func main() {
 		usecaseSvc.WithAIAdapter(aiAdapter),
 	)
 
+	weeklyBriefWriterUseCase := usecaseSvc.NewGroupWeeklyBriefWriterOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForWriter(weeklyBriefReader),
+		usecaseSvc.WithGroupWeeklyBriefWriterForWriter(weeklyBriefWriter),
+	)
+
 	committeeServiceSvc := service.NewCommitteeService(
 		writeCommitteeUseCase,
 		readCommitteeUseCase,
@@ -169,6 +174,7 @@ func main() {
 		docWriterUseCase,
 		weeklyBriefReaderUseCase,
 		weeklyBriefGeneratorUseCase,
+		weeklyBriefWriterUseCase,
 		orgCommitteeSeatReader,
 	)
 

@@ -1545,6 +1545,61 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	dsl.Method("update-current-weekly-brief", func() {
+		dsl.Description("Save chair-edited brief text for the UTC Sun→Sat window selected by the service " +
+			"(Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). " +
+			"Overwrites brief_text and transitions the brief to the \"edited\" state, preserving source_refs. " +
+			"Optimistic concurrency: the caller echoes the revision from GET /current; a stale revision returns " +
+			"409 with the current revision so the client can refetch and retry. Returns 404 when no brief exists " +
+			"for the window (generate one first), 400 when brief_text is empty.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("brief_text", dsl.String, "Edited brief body markdown text", func() {
+				dsl.MaxLength(20000)
+				dsl.Example("## This week\n\n- Shipped the thing.")
+			})
+			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from the brief being edited (GET /current)", func() {
+				dsl.Minimum(1)
+				dsl.Example(uint64(7))
+			})
+
+			dsl.Required("uid", "brief_text", "revision")
+		})
+
+		dsl.Result(GroupWeeklyBriefWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "brief_text is empty or invalid")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found, or no brief exists for the current window")
+		dsl.Error("RevisionConflict", GroupWeeklyBriefRevisionConflictError, "The revision token is stale; the brief was edited concurrently")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/weekly-briefs/current")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			// Let Goa derive the request body from the unmapped attributes
+			// (brief_text, revision). An explicit inline dsl.Body here makes Goa
+			// encode the whole payload, leaking the bearer token/uid/version into
+			// the JSON body; the implicit form generates a dedicated
+			// {brief_text, revision} request-body type instead. Mirrors generate.
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
 	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
 		dsl.Meta("swagger:generate", "false")
