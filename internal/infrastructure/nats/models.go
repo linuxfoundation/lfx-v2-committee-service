@@ -48,7 +48,7 @@ type UserEmailsNATSRequestUser struct {
 }
 
 // UserEmailsNATSRequest is the payload sent to lfx.auth-service.user_emails.read.
-// The auth-service expects a JSON body with the caller's bearer token (without the "Bearer " prefix).
+// The auth-service expects JSON with auth_token set to the caller's Auth0 subject (auth0|{userID}).
 type UserEmailsNATSRequest struct {
 	User UserEmailsNATSRequestUser `json:"user"`
 }

@@ -72,8 +72,8 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 	return body, nil
 }
 
-// EmailsByAuthToken retrieves all email addresses for a user by sending their bearer token
-// (without the "Bearer " prefix) to the NATS subject lfx.auth-service.user_emails.read.
+// EmailsByAuthToken retrieves all email addresses for a user by sending their Auth0 subject
+// (auth0|{userID}) as auth_token to the NATS subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
 	if authToken == "" {
 		return nil, errors.NewValidation("auth token must not be empty")

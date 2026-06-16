@@ -17,7 +17,7 @@ func TestMapUsernameToAuthSub(t *testing.T) {
 	}{
 		{name: "empty", username: "", want: ""},
 		{name: "safe username", username: "joiner", want: "auth0|joiner"},
-		{name: "email is hashed", username: "accept@example.com", want: MapUsernameToAuthSub("accept@example.com")},
+		{name: "email is hashed", username: "accept@example.com", want: ""},
 	}
 
 	for _, tt := range tests {

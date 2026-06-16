@@ -497,7 +497,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	}
 
 	// Resolve username from email when auth can map the email to an LFID.
-	// When lookup fails or returns empty, keep the username already stored on the member.
+	// When lookup fails or returns empty, keep the stored username only if the email did not change.
+	// If the email changed, clear username to avoid persisting a username/email mismatch.
 	// Invite acceptance skips this block and persists accepted_by directly (see contextWithSkipMemberUsernameEmailResolution).
 	if member.Email != "" && !skipMemberUsernameEmailResolution(ctx) {
 		slog.DebugContext(ctx, "resolving username from email during update",
@@ -507,12 +508,21 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
 		switch {
 		case errLookup != nil:
-			slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
-				"error", errLookup,
-				"email", redaction.RedactEmail(member.Email),
-				"stored_username", redaction.Redact(existing.Username),
-			)
-			member.Username = existing.Username
+			if emailChanged {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; clearing username after email change",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = existing.Username
+			}
 		case username != "":
 			member.Username = username
 			slog.DebugContext(ctx, "username resolved from email during update",
@@ -520,7 +530,15 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 				"username", redaction.Redact(member.Username),
 			)
 		default:
-			member.Username = existing.Username
+			if emailChanged {
+				slog.WarnContext(ctx, "username lookup returned empty during update; clearing username after email change",
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				member.Username = existing.Username
+			}
 		}
 	}
 
