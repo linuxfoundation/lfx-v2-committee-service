@@ -251,6 +251,13 @@ func (cm *CommitteeMember) validateVotingStatus(committee *Committee, existingSt
 	return nil
 }
 
+// ValidateOrganizationForCommittee checks whether organization info satisfies committee requirements.
+// When business_email_required or voting is enabled, either organization ID or both name and website
+// must be present. Used for invite creation as well as member create/update validation.
+func ValidateOrganizationForCommittee(org CommitteeMemberOrganization, committee *Committee) error {
+	return (&CommitteeMember{CommitteeMemberBase: CommitteeMemberBase{Organization: org}}).validateOrganizationFields(committee)
+}
+
 // validateOrganizationFields validates that organization information is provided when required.
 // When business_email_required or voting is enabled on the committee, the member must supply
 // either an organization ID or both an organization name and domain (website).

@@ -1751,6 +1751,10 @@ paths:
                             $ref: '#/components/schemas/CreateInviteRequestBody'
                         example:
                             invitee_email: invitee@example.com
+                            organization:
+                                id: org-123456
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
                             role: None
             responses:
                 "201":
@@ -1763,6 +1767,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -1935,6 +1943,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -2004,6 +2016,18 @@ paths:
                     example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     format: uuid
                   example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            requestBody:
+                description: Optional JSON body
+                required: false
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AcceptInviteOptionalBody'
+                        example:
+                            organization:
+                                id: org-123456
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
             responses:
                 "200":
                     description: OK response.
@@ -2139,6 +2163,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -4221,6 +4249,37 @@ paths:
                 - jwt_header_Authorization: []
 components:
     schemas:
+        AcceptInviteOptionalBody:
+            type: object
+            properties:
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+            description: Optional accept-invite request body.
+            example:
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
         ApproveApplicationRequestBody:
             type: object
             properties:
@@ -5084,6 +5143,28 @@ components:
                     description: Email of the invited person
                     example: invitee@example.com
                     format: email
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
                 role:
                     type: string
                     description: Suggested role for the invitee
@@ -5108,6 +5189,10 @@ components:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 invitee_email: invitee@example.com
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
                 role: None
                 status: pending
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -6336,12 +6421,38 @@ components:
                     description: Email of the person to invite
                     example: invitee@example.com
                     format: email
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
                 role:
                     type: string
                     description: Suggested role for the invitee
                     example: None
             example:
                 invitee_email: invitee@example.com
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
                 role: None
             required:
                 - invitee_email

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -110,6 +111,11 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 
 	var handler http.Handler = mux
 
+	// Accept-invite must allow an empty POST body for backward compatibility with
+	// decline-invite clients. Goa decoders treat an empty body as EOF; older generated
+	// code mapped that to missing_payload before optional-body support landed.
+	handler = acceptInviteEmptyBodyMiddleware()(handler)
+
 	// Add RequestID middleware first
 	handler = middleware.RequestIDMiddleware()(handler)
 	// Add Authorization middleware
@@ -159,6 +165,45 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 			slog.ErrorContext(ctx, "failed to shutdown HTTP server", "error", err)
 		}
 	}()
+}
+
+const acceptInviteMaxBodyBytes = 1 << 20 // 1MB
+
+// acceptInviteEmptyBodyMiddleware replaces a missing accept-invite POST body with "{}".
+// Clients may omit the body entirely (same as decline-invite); without this, older
+// Goa-generated decoders return missing_payload on io.EOF.
+func acceptInviteEmptyBodyMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && isCommitteeInviteAcceptPath(r.URL.Path) {
+				limitedBody := http.MaxBytesReader(w, r.Body, acceptInviteMaxBodyBytes)
+				bodyBytes, err := io.ReadAll(limitedBody)
+				_ = r.Body.Close()
+				if err != nil {
+					if strings.Contains(err.Error(), "request body too large") {
+						http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+						return
+					}
+					http.Error(w, "failed to read request body", http.StatusBadRequest)
+					return
+				}
+				if len(bytes.TrimSpace(bodyBytes)) == 0 {
+					bodyBytes = []byte("{}")
+				}
+				r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+				r.ContentLength = int64(len(bodyBytes))
+				if r.Header.Get("Content-Type") == "" {
+					r.Header.Set("Content-Type", "application/json")
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func isCommitteeInviteAcceptPath(path string) bool {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	return len(parts) == 5 && parts[0] == "committees" && parts[2] == "invites" && parts[4] == "accept"
 }
 
 // uploadCommitteeDocumentDecoder is the multipart decoder for the

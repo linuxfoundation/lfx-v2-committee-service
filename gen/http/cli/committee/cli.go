@@ -155,6 +155,7 @@ func ParseEndpoint(
 		committeeServiceRevokeInviteBearerTokenFlag = committeeServiceRevokeInviteFlags.String("bearer-token", "", "")
 
 		committeeServiceAcceptInviteFlags           = flag.NewFlagSet("accept-invite", flag.ExitOnError)
+		committeeServiceAcceptInviteBodyFlag        = committeeServiceAcceptInviteFlags.String("body", "{}", "")
 		committeeServiceAcceptInviteUIDFlag         = committeeServiceAcceptInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceAcceptInviteInviteUIDFlag   = committeeServiceAcceptInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
 		committeeServiceAcceptInviteVersionFlag     = committeeServiceAcceptInviteFlags.String("version", "REQUIRED", "")
@@ -574,7 +575,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildRevokeInvitePayload(*committeeServiceRevokeInviteUIDFlag, *committeeServiceRevokeInviteInviteUIDFlag, *committeeServiceRevokeInviteVersionFlag, *committeeServiceRevokeInviteBearerTokenFlag)
 			case "accept-invite":
 				endpoint = c.AcceptInvite()
-				data, err = committeeservicec.BuildAcceptInvitePayload(*committeeServiceAcceptInviteUIDFlag, *committeeServiceAcceptInviteInviteUIDFlag, *committeeServiceAcceptInviteVersionFlag, *committeeServiceAcceptInviteBearerTokenFlag)
+				data, err = committeeservicec.BuildAcceptInvitePayload(*committeeServiceAcceptInviteBodyFlag, *committeeServiceAcceptInviteUIDFlag, *committeeServiceAcceptInviteInviteUIDFlag, *committeeServiceAcceptInviteVersionFlag, *committeeServiceAcceptInviteBearerTokenFlag)
 			case "decline-invite":
 				endpoint = c.DeclineInvite()
 				data, err = committeeservicec.BuildDeclineInvitePayload(*committeeServiceDeclineInviteUIDFlag, *committeeServiceDeclineInviteInviteUIDFlag, *committeeServiceDeclineInviteVersionFlag, *committeeServiceDeclineInviteBearerTokenFlag)
@@ -1092,7 +1093,7 @@ func committeeServiceCreateInviteUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-invite --body '{\n      \"invitee_email\": \"invitee@example.com\",\n      \"role\": \"None\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-invite --body '{\n      \"invitee_email\": \"invitee@example.com\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": \"None\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceRevokeInviteUsage() {
@@ -1122,6 +1123,7 @@ func committeeServiceRevokeInviteUsage() {
 func committeeServiceAcceptInviteUsage() {
 	// Header with flags
 	fmt.Fprintf(os.Stderr, "%s [flags] committee-service accept-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
 	fmt.Fprint(os.Stderr, " -uid STRING")
 	fmt.Fprint(os.Stderr, " -invite-uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
@@ -1133,6 +1135,7 @@ func committeeServiceAcceptInviteUsage() {
 	fmt.Fprintln(os.Stderr, `Accept a pending invite`)
 
 	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
 	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
@@ -1140,7 +1143,7 @@ func committeeServiceAcceptInviteUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service accept-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service accept-invite --body '{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceDeclineInviteUsage() {

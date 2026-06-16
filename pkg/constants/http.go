@@ -13,8 +13,8 @@ type contextID int
 const (
 	// PrincipalContextID is the context ID for the principal (LFX username) from JWT claims
 	PrincipalContextID contextID = iota
-	// EmailContextID is the context ID for the email from JWT claims
-	EmailContextID contextID = iota
+	// EmailContextID is reserved for a future JWT email claim; currently unused (email is resolved via auth-service).
+	EmailContextID
 )
 
 type contextPrincipal string

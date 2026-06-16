@@ -972,7 +972,8 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx 
 
 		member.Username = username
 
-		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(writeCtx, member, revision, false)
+		inviteCtx := contextWithSkipMemberUsernameEmailResolution(writeCtx)
+		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
 		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {

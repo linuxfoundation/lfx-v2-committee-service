@@ -2644,6 +2644,10 @@ func EncodeAcceptInviteRequest(encoder func(*http.Request) goahttp.Encoder) func
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()
+		body := NewAcceptInviteRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "accept-invite", err)
+		}
 		return nil
 	}
 }

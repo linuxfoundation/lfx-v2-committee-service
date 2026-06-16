@@ -248,6 +248,29 @@ type CreateInviteRequestBody struct {
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
 	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+}
+
+// AcceptInviteRequestBody is the type of the "committee-service" service
+// "accept-invite" endpoint HTTP request body.
+type AcceptInviteRequestBody struct {
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
 // SubmitApplicationRequestBody is the type of the "committee-service" service
@@ -660,6 +683,15 @@ type GetInviteResponseBody struct {
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
 	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
 	// The timestamp when the resource was created (read-only)
@@ -677,6 +709,15 @@ type CreateInviteResponseBody struct {
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
 	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
 	// The timestamp when the resource was created (read-only)
@@ -754,6 +795,15 @@ type DeclineInviteResponseBody struct {
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
 	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
 	// The timestamp when the resource was created (read-only)
@@ -3519,6 +3569,20 @@ func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyA
 		Status:       res.Status,
 		CreatedAt:    res.CreatedAt,
 	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
 	{
 		var zero string
 		if body.Status == zero {
@@ -3538,6 +3602,20 @@ func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadon
 		Role:         res.Role,
 		Status:       res.Status,
 		CreatedAt:    res.CreatedAt,
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
 	}
 	{
 		var zero string
@@ -3646,6 +3724,20 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 		Role:         res.Role,
 		Status:       res.Status,
 		CreatedAt:    res.CreatedAt,
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
 	}
 	{
 		var zero string
@@ -6262,6 +6354,20 @@ func NewCreateInvitePayload(body *CreateInviteRequestBody, uid string, version s
 		InviteeEmail: *body.InviteeEmail,
 		Role:         body.Role,
 	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -6284,14 +6390,31 @@ func NewRevokeInvitePayload(uid string, inviteUID string, version string, bearer
 
 // NewAcceptInvitePayload builds a committee-service service accept-invite
 // endpoint payload.
-func NewAcceptInvitePayload(uid string, inviteUID string, version string, bearerToken *string) *committeeservice.AcceptInvitePayload {
-	v := &committeeservice.AcceptInvitePayload{}
-	v.UID = uid
-	v.InviteUID = inviteUID
-	v.Version = version
-	v.BearerToken = bearerToken
+func NewAcceptInvitePayload(body *AcceptInviteRequestBody, uid string, inviteUID string, version string, bearerToken *string) *committeeservice.AcceptInvitePayload {
+	v := &committeeservice.AcceptInviteOptionalBody{}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	res := &committeeservice.AcceptInvitePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.InviteUID = inviteUID
+	res.Version = version
+	res.BearerToken = bearerToken
 
-	return v
+	return res
 }
 
 // NewDeclineInvitePayload builds a committee-service service decline-invite
@@ -6944,6 +7067,32 @@ func ValidateCreateInviteRequestBody(body *CreateInviteRequestBody) (err error) 
 	}
 	if body.InviteeEmail != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", *body.InviteeEmail, goa.FormatEmail))
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+	}
+	return
+}
+
+// ValidateAcceptInviteRequestBody runs the validations defined on
+// Accept-InviteRequestBody
+func ValidateAcceptInviteRequestBody(body *AcceptInviteRequestBody) (err error) {
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
 	}
 	return
 }

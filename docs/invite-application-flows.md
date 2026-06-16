@@ -57,12 +57,14 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 
 **Creating an invite** (`POST /committees/{uid}/invites`):
 - Creates a new invite with `status: pending`.
+- Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
 - If an invite for the same email already exists in this committee:
-  - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role is updated if provided.
+  - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role and organization are updated if provided.
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
 
 **Accepting an invite** (`POST .../accept`):
 - Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
+- Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `accepted` (already done), `revoked` (invite was withdrawn).
 - On success: creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
@@ -134,13 +136,13 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 
 ## Identity Resolution
 
-Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (subject identifier), the service resolves the email at request time via a NATS request/reply call to the auth-service:
+Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (LFX username), the service maps that username to an Auth0 sub (`auth0|{userID}`) and resolves the email at request time via a NATS request/reply call to the auth-service:
 
 - **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** the caller's principal (raw bytes, no JSON wrapping)
+- **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username (safe usernames are used directly; unsafe usernames are SHA-512 hashed and base58-encoded to ~88 characters)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
+The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing principal) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`) → `404 Not Found`; auth-service or NATS unavailable → `503 Service Unavailable`.
 
 ---
 
@@ -211,7 +213,7 @@ Required fields for committee-service: `uid`, `accepted_by`, and `recipient.emai
 2. List all committee UIDs (full scan today; see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for planned email-index lookup).
 3. For each committee, enrich email-only records matching that email:
    - **Settings:** Writers and Auditors — set `username` from `accepted_by` (revision-conflict retries on `UpdateSettings`).
-   - **Members:** email-only roster rows — set `username` via `UpdateMember` (revision-conflict retries). Member updates resolve `username` through `lfx.auth-service.email_to_username` for the member's email, so the auth lookup must return the LFID for member enrichment to persist.
+   - **Members:** email-only roster rows — set `username` from `accepted_by` via `UpdateMember` (revision-conflict retries), same as Writers/Auditors. No auth email lookup on this path.
 
 Invite metadata is **not** read or written on committee resource rows during enrichment.
 
@@ -227,37 +229,20 @@ Use this to exercise `HandleInviteAccepted` without the UI or invite-service acc
 - `NATS_URL` points at the same NATS instance as the running service.
 - Test data exists for an email you control: at least one **email-only** Writer, Auditor, or Member (`username` empty) on some committee. Use that same email in the event payload.
 
-**1. Mock auth-service email lookup (required for member enrichment)**
+**1. Publish invite accepted**
 
-`UpdateMember` resolves `username` from the member's email via NATS request/reply on `lfx.auth-service.email_to_username` (request body = email; success reply = plain-text username).
-
-Run a responder that returns your test LFID for your test email:
+Member enrichment uses `accepted_by` from the event directly (no auth email lookup), same as Writers and Auditors.
 
 ```bash
 export NATS_URL="${NATS_URL:-nats://localhost:4222}"
 export TEST_EMAIL="you+invite-test@example.com"
 export TEST_USERNAME="your-lfid-username"
 
-# Responds with TEST_USERNAME for every request (fine when only you are testing).
-nats reply --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_USERNAME"
-```
-
-Verify the lookup before publishing the acceptance event:
-
-```bash
-nats request --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_EMAIL"
-```
-
-On shared dev NATS, another auth-service consumer may answer instead of your mock; prefer isolated local NATS or ensure only your `nats reply` process is subscribed.
-
-**2. Publish invite accepted**
-
-```bash
 nats pub --server "$NATS_URL" lfx.invite-service.invite_accepted \
   "{\"uid\":\"local-test-invite-001\",\"accepted_by\":\"$TEST_USERNAME\",\"role\":\"Member\",\"recipient\":{\"email\":\"$TEST_EMAIL\"}}"
 ```
 
-**3. Verify**
+**2. Verify**
 
 - **Settings (Writers / Auditors):** `GET /committees/{uid}/settings?v=1` — matching entries should have `username` set.
 - **Members:** `GET /committees/{uid}/members/{member_uid}?v=1` or NATS KV:
