@@ -649,16 +649,11 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		"invitee_email", redaction.RedactEmail(p.InviteeEmail),
 	)
 
-	// Verify committee exists and load settings for organization validation.
+	// Verify committee exists.
 	committeeBase, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
-	settings, _, err := s.storage.GetSettings(ctx, p.UID)
-	if err != nil {
-		return nil, wrapError(ctx, err)
-	}
-	committee := committeeForOrgValidation(committeeBase, settings)
 
 	var inviteOrgID, inviteOrgName, inviteOrgWebsite *string
 	if p.Organization != nil {
@@ -667,11 +662,6 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		inviteOrgWebsite = p.Organization.Website
 	}
 	inviteOrganization := organizationFromOptionalFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
-	if committeeRequiresOrganization(committee) {
-		if errOrg := model.ValidateOrganizationForCommittee(inviteOrganization, committee); errOrg != nil {
-			return nil, wrapError(ctx, errOrg)
-		}
-	}
 
 	invite := &model.CommitteeInvite{
 		UID:          uuid.New().String(),

@@ -49,16 +49,3 @@ func mergeInviteOrganization(base, override model.CommitteeMemberOrganization) m
 	normalizeMemberOrganization(&merged)
 	return merged
 }
-
-func committeeForOrgValidation(base *model.CommitteeBase, settings *model.CommitteeSettings) *model.Committee {
-	committee := &model.Committee{CommitteeBase: *base}
-	if settings != nil {
-		committee.CommitteeSettings = settings
-	}
-	return committee
-}
-
-func committeeRequiresOrganization(committee *model.Committee) bool {
-	businessEmailRequired := committee.CommitteeSettings != nil && committee.BusinessEmailRequired
-	return businessEmailRequired || committee.EnableVoting
-}

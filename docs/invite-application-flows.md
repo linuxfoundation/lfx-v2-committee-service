@@ -57,8 +57,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 
 **Creating an invite** (`POST /committees/{uid}/invites`):
 - Creates a new invite with `status: pending`.
-- Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record.
-- When the committee has `business_email_required` or `enable_voting`, `organization` is required and must satisfy the same rules as member create (organization `id`, or both `name` and `website`).
+- Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
 - If an invite for the same email already exists in this committee:
   - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role and organization are updated if provided.
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.

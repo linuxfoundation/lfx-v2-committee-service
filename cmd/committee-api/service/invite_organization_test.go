@@ -52,16 +52,16 @@ func TestMergeInviteOrganization(t *testing.T) {
 	assert.Equal(t, "https://override.org", partial.Website)
 }
 
-func TestCreateInvite_OrganizationRequired(t *testing.T) {
+func TestCreateInvite_OrganizationOptionalOnOrgGatedCommittee(t *testing.T) {
 	svc, _, _ := setupServiceTestWithRepo()
 
-	_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 		UID:          "committee-1",
-		InviteeEmail: "missing-org@example.com",
+		InviteeEmail: "no-org@example.com",
 	})
-	require.Error(t, err)
-	var badReq *committeeservice.BadRequestError
-	require.ErrorAs(t, err, &badReq)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Nil(t, result.Organization)
 }
 
 func TestCreateInvite_OrganizationStored(t *testing.T) {

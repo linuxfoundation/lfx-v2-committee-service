@@ -263,7 +263,7 @@ _(none)_
 | `committee_uid` | string | UID of the committee this invite belongs to |
 | `invitee_email` | string | Email address of the invitee |
 | `role` | string | Role the invitee is being invited to |
-| `organization` | object | Organization for the invitee (`id`, `name`, `website`). Required when the committee has `business_email_required` or `enable_voting`. |
+| `organization` | object | Organization for the invitee (`id`, `name`, `website`) when provided on create |
 | `status` | string | Invite status (e.g., `Pending`, `Accepted`, `Declined`) |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
