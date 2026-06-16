@@ -167,6 +167,8 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	}()
 }
 
+const acceptInviteMaxBodyBytes = 1 << 20 // 1MB
+
 // acceptInviteEmptyBodyMiddleware replaces a missing accept-invite POST body with "{}".
 // Clients may omit the body entirely (same as decline-invite); without this, older
 // Goa-generated decoders return missing_payload on io.EOF.
@@ -174,9 +176,14 @@ func acceptInviteEmptyBodyMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost && isCommitteeInviteAcceptPath(r.URL.Path) {
-				bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+				limitedBody := http.MaxBytesReader(w, r.Body, acceptInviteMaxBodyBytes)
+				bodyBytes, err := io.ReadAll(limitedBody)
 				_ = r.Body.Close()
 				if err != nil {
+					if strings.Contains(err.Error(), "request body too large") {
+						http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+						return
+					}
 					http.Error(w, "failed to read request body", http.StatusBadRequest)
 					return
 				}

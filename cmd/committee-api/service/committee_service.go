@@ -1561,8 +1561,9 @@ func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...s
 	return nil
 }
 
-// enrichMemberOrganization fills organization name from auth-service profile metadata when
-// missing so self-service member creation can satisfy committees that require org info.
+// enrichMemberOrganization fills organization.Name from auth-service profile metadata when
+// missing. It does not set ID or website; org-gated committees still require a complete
+// organization from the invite record or accept payload before member validation runs.
 func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
 	if member.Organization.ID != "" {
 		return

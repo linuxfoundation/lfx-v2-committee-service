@@ -18,7 +18,7 @@ func TestAcceptInviteEmptyBodyMiddleware(t *testing.T) {
 
 	t.Run("injects empty JSON for missing accept body", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, acceptPath+"?v=1", nil)
-		body := serveThroughMiddleware(req)
+		body := serveThroughMiddleware(t, req)
 		if body != "{}" {
 			t.Fatalf("expected injected body {}, got %q", body)
 		}
@@ -27,7 +27,7 @@ func TestAcceptInviteEmptyBodyMiddleware(t *testing.T) {
 	t.Run("preserves provided accept body", func(t *testing.T) {
 		want := `{"organization":{"name":"LF"}}`
 		req := httptest.NewRequest(http.MethodPost, acceptPath+"?v=1", strings.NewReader(want))
-		body := serveThroughMiddleware(req)
+		body := serveThroughMiddleware(t, req)
 		if body != want {
 			t.Fatalf("expected body preserved, got %q", body)
 		}
@@ -39,22 +39,36 @@ func TestAcceptInviteEmptyBodyMiddleware(t *testing.T) {
 			"/committees/"+committeeUID+"/invites/"+inviteUID+"/decline?v=1",
 			nil,
 		)
-		body := serveThroughMiddleware(req)
+		body := serveThroughMiddleware(t, req)
 		if body != "" {
 			t.Fatalf("expected decline path left unchanged, got %q", body)
 		}
 	})
+
+	t.Run("rejects oversized accept body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, acceptPath+"?v=1", strings.NewReader(strings.Repeat("x", acceptInviteMaxBodyBytes+1)))
+		rec := httptest.NewRecorder()
+		acceptInviteEmptyBodyMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Fatal("handler should not be called")
+		})).ServeHTTP(rec, req)
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("expected 413, got %d", rec.Code)
+		}
+	})
 }
 
-func serveThroughMiddleware(req *http.Request) string {
+func serveThroughMiddleware(t *testing.T, req *http.Request) string {
 	var captured string
-	handler := acceptInviteEmptyBodyMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	rec := httptest.NewRecorder()
+	acceptInviteEmptyBodyMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
 		}
 		captured = string(bodyBytes)
-	}))
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected middleware to succeed, got status %d body %q", rec.Code, rec.Body.String())
+	}
 	return captured
 }
