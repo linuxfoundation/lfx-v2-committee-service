@@ -248,7 +248,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	// Fetch existing settings so stored writer/auditor identity can be preserved during conversion.
 	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
 	if errGet != nil {
 		return nil, wrapError(ctx, errGet)
@@ -523,7 +523,7 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	// voting status, appointment type, and holding organization — and swaps only the person holding
 	// it. Construct a FRESH base and copy ONLY those seat-defining fields (an allowlist), so future
 	// additions to CommitteeMemberBase don't silently leak the previous holder's identity/profile/
-	// invite/timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
+	// timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
 	// username is resolved from the new holder's email).
 	newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		Role:              member.Role,

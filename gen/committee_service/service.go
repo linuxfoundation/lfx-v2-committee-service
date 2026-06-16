@@ -493,18 +493,6 @@ type CommitteeUser struct {
 	Name *string
 	// User identifier (LF ID / sub)
 	Username *string
-	// Pending invite info, present when the user has no LFID
-	Invite *CommitteeUserInvite
-}
-
-// Pending invite metadata for a user who has not yet created an LFID account.
-type CommitteeUserInvite struct {
-	// Invite UID
-	UID *string
-	// Email address the invite was sent to
-	Email *string
-	// Invite expiry timestamp (RFC 3339)
-	ExpiresAt *string
 }
 
 // CreateCommitteeLinkFolderPayload is the payload type of the

@@ -44,7 +44,6 @@ type CommitteeMemberBase struct {
 	CommitteeCategory string                      `json:"committee_category"`
 	ProjectUID        string                      `json:"project_uid,omitempty"`
 	ProjectSlug       string                      `json:"project_slug,omitempty"`
-	Invite            *InviteInfo                 `json:"invite,omitempty"`
 	CreatedAt         time.Time                   `json:"created_at"`
 	UpdatedAt         time.Time                   `json:"updated_at"`
 }
