@@ -845,8 +845,7 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		acceptOrgName = p.Body.Organization.Name
 		acceptOrgWebsite = p.Body.Organization.Website
 	}
-	acceptOrganization := organizationFromOptionalFields(acceptOrgID, acceptOrgName, acceptOrgWebsite)
-	memberOrganization := mergeInviteOrganization(inviteOrganizationValue(invite), acceptOrganization)
+	memberOrganization := acceptInviteOrganization(invite, acceptOrgID, acceptOrgName, acceptOrgWebsite)
 
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{

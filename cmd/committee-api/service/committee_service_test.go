@@ -1162,7 +1162,57 @@ func TestAcceptInvite_Organization(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("merges payload organization over invite", func(t *testing.T) {
+	t.Run("uses payload organization when ID present", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-payload",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		orgID := "org-123456"
+		payloadName := "Payload Org"
+		payloadWebsite := "https://payload.org"
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-payload",
+			Body: &committeeservice.AcceptInviteOptionalBody{
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      &orgID,
+					Name:    &payloadName,
+					Website: &payloadWebsite,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "org-123456", member.Organization.ID)
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://payload.org", member.Organization.Website)
+	})
+
+	t.Run("ignores partial payload without organization ID", func(t *testing.T) {
 		svc, mockOrch, repo := setupServiceTestWithRepo()
 		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
 
@@ -1203,7 +1253,7 @@ func TestAcceptInvite_Organization(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, mockOrch.createMemberCalls, 1)
 		member := mockOrch.createMemberCalls[0]
-		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "Invite Org", member.Organization.Name)
 		assert.Equal(t, "https://invite.org", member.Organization.Website)
 	})
 

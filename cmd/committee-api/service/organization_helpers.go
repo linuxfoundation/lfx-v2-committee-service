@@ -53,18 +53,13 @@ func normalizeMemberOrganization(org *model.CommitteeMemberOrganization) {
 	org.Website = strings.TrimSpace(org.Website)
 }
 
-// mergeInviteOrganization applies override fields when set; unset override fields keep base values.
-func mergeInviteOrganization(base, override model.CommitteeMemberOrganization) model.CommitteeMemberOrganization {
-	merged := base
-	if strings.TrimSpace(override.ID) != "" {
-		merged.ID = strings.TrimSpace(override.ID)
+// acceptInviteOrganization selects the organization for member creation on invite accept.
+// When the accept payload includes an organization ID, the entire payload organization is
+// used. Otherwise the stored invite organization is used as-is (no field-level merging).
+func acceptInviteOrganization(invite *model.CommitteeInvite, id, name, website *string) model.CommitteeMemberOrganization {
+	payloadOrg := organizationFromOptionalFields(id, name, website)
+	if strings.TrimSpace(payloadOrg.ID) != "" {
+		return payloadOrg
 	}
-	if strings.TrimSpace(override.Name) != "" {
-		merged.Name = strings.TrimSpace(override.Name)
-	}
-	if strings.TrimSpace(override.Website) != "" {
-		merged.Website = strings.TrimSpace(override.Website)
-	}
-	normalizeMemberOrganization(&merged)
-	return merged
+	return inviteOrganizationValue(invite)
 }

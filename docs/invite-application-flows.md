@@ -64,7 +64,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 
 **Accepting an invite** (`POST .../accept`):
 - Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
-- Optional body field `organization` overrides individual fields on the stored invite when provided; unset payload fields fall back to the invite record.
+- Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `accepted` (already done), `revoked` (invite was withdrawn).
 - On success: creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
