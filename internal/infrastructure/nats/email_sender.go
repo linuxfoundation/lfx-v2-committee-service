@@ -30,7 +30,7 @@ func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailReque
 	ctxReq, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 	defer cancel()
 
-	ctxReq, msg, err := e.client.requestWithSpan(ctxReq, emailapi.SendEmailSubject, data)
+	_, msg, err := e.client.requestWithSpan(ctxReq, emailapi.SendEmailSubject, data)
 	if err != nil {
 		return errors.NewServiceUnavailable("email service unavailable", err)
 	}

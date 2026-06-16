@@ -54,9 +54,9 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 
 	var result port.InviteResult
 	if resp.InviteData != nil {
-		result.InviteUID = resp.InviteData.UID
-		result.RecipientEmail = resp.InviteData.Email
-		result.ExpiresAt = resp.InviteData.ExpiresAt
+		result.InviteUID = resp.UID
+		result.RecipientEmail = resp.Email
+		result.ExpiresAt = resp.ExpiresAt
 	}
 	slog.DebugContext(ctx, "invite service replied", "invite_uid", result.InviteUID, "expires_at", result.ExpiresAt)
 	return result, nil
