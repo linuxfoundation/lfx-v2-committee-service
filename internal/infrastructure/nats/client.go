@@ -135,7 +135,6 @@ func (c *NATSClient) publishWithSpan(ctx context.Context, subject string, data [
 		span.SetStatus(codes.Error, err.Error())
 		return ctx, err
 	}
-	span.SetStatus(codes.Ok, "")
 	return ctx, nil
 }
 
@@ -164,7 +163,6 @@ func (c *NATSClient) requestWithSpan(ctx context.Context, subject string, data [
 		span.SetStatus(codes.Error, err.Error())
 		return ctx, nil, err
 	}
-	span.SetStatus(codes.Ok, "")
 	return ctx, reply, nil
 }
 
