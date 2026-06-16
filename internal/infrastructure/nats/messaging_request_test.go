@@ -215,3 +215,25 @@ func TestMessageRequest_UsernameByEmail_NotFoundType(t *testing.T) {
 	var notFound pkgerrors.NotFound
 	assert.True(t, errors.As(err, &notFound))
 }
+
+func TestMessageRequest_EmailsByAuthToken_TransportError(t *testing.T) {
+	_, url := startTestNATSServer(t)
+
+	nc, err := nats.Connect(url)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	reader := &messageRequest{
+		client: &NATSClient{
+			conn:    nc,
+			timeout: 50 * time.Millisecond,
+		},
+	}
+
+	_, err = reader.EmailsByAuthToken(context.Background(), "test-jwt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "auth service unavailable")
+
+	var unavailable pkgerrors.ServiceUnavailable
+	assert.True(t, errors.As(err, &unavailable))
+}

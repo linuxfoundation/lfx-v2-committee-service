@@ -88,7 +88,7 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 
 	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewServiceUnavailable("auth service unavailable", err)
 	}
 
 	var response UserEmailsNATSResponse
