@@ -17,12 +17,13 @@ import (
 
 // CommitteeInvite represents a committee invitation business entity
 type CommitteeInvite struct {
-	UID          string    `json:"uid"`
-	CommitteeUID string    `json:"committee_uid"`
-	InviteeEmail string    `json:"invitee_email"`
-	Role         string    `json:"role"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
+	UID          string                      `json:"uid"`
+	CommitteeUID string                      `json:"committee_uid"`
+	InviteeEmail string                      `json:"invitee_email"`
+	Role         string                      `json:"role"`
+	Organization CommitteeMemberOrganization `json:"organization,omitempty"`
+	Status       string                      `json:"status"`
+	CreatedAt    time.Time                   `json:"created_at"`
 }
 
 // BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.

@@ -2287,11 +2287,30 @@ func EncodeAcceptInviteResponse(encoder func(context.Context, http.ResponseWrite
 func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.AcceptInvitePayload, error) {
 	return func(r *http.Request) (*committeeservice.AcceptInvitePayload, error) {
 		var (
+			body AcceptInviteRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateAcceptInviteRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
 			uid         string
 			inviteUID   string
 			version     string
 			bearerToken *string
-			err         error
 
 			params = mux.Vars(r)
 		)
@@ -2313,7 +2332,7 @@ func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) go
 		if err != nil {
 			return nil, err
 		}
-		payload := NewAcceptInvitePayload(uid, inviteUID, version, bearerToken)
+		payload := NewAcceptInvitePayload(&body, uid, inviteUID, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

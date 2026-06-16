@@ -699,6 +699,7 @@ func TestCreateInvite(t *testing.T) {
 				UID:          "committee-1",
 				InviteeEmail: "newinvitee@example.com",
 				Role:         stringPtr("member"),
+				Organization: sampleInviteOrganizationPayload(),
 				XSync:        false,
 			},
 			expectError: false,
@@ -764,6 +765,7 @@ func TestCreateInvite_DuplicateRejected(t *testing.T) {
 	_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 		UID:          "committee-1",
 		InviteeEmail: "dup@example.com",
+		Organization: sampleInviteOrganizationPayload(),
 	})
 
 	require.Error(t, err)
@@ -789,6 +791,7 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 		UID:          "committee-1",
 		InviteeEmail: "reinvite@example.com",
 		Role:         stringPtr("chair"),
+		Organization: sampleInviteOrganizationPayload(),
 	})
 
 	require.NoError(t, err)
@@ -817,6 +820,7 @@ func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
 	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 		UID:          "committee-1",
 		InviteeEmail: "besteffort@example.com",
+		Organization: sampleInviteOrganizationPayload(),
 	})
 
 	require.NoError(t, err)
@@ -836,6 +840,7 @@ func TestCreateInvite_NilInviteSenderSkipsDispatch(t *testing.T) {
 	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 		UID:          "committee-1",
 		InviteeEmail: "nosender@example.com",
+		Organization: sampleInviteOrganizationPayload(),
 	})
 
 	require.NoError(t, err)
@@ -860,6 +865,7 @@ func TestCreateInvite_NonRevokedDuplicateRejected(t *testing.T) {
 			_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 				UID:          "committee-1",
 				InviteeEmail: "dup@example.com",
+				Organization: sampleInviteOrganizationPayload(),
 			})
 
 			require.Error(t, err)

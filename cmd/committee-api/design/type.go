@@ -884,6 +884,7 @@ var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-read
 	dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
 		dsl.Example("None")
 	})
+	OrganizationInfoAttributes()
 	dsl.Attribute("status", dsl.String, "Invite status", func() {
 		dsl.Enum("pending", "accepted", "declined", "revoked")
 		dsl.Default("pending")

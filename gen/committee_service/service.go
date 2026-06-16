@@ -158,6 +158,15 @@ type AcceptInvitePayload struct {
 	UID string
 	// Committee invite UID
 	InviteUID string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // ApproveApplicationPayload is the payload type of the committee-service
@@ -350,6 +359,15 @@ type CommitteeInviteWithReadonlyAttributes struct {
 	InviteeEmail *string
 	// Suggested role for the invitee
 	Role *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 	// Invite status
 	Status string
 	// The timestamp when the resource was created (read-only)
@@ -669,6 +687,15 @@ type CreateInvitePayload struct {
 	InviteeEmail string
 	// Suggested role for the invitee
 	Role *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // DeclineInvitePayload is the payload type of the committee-service service

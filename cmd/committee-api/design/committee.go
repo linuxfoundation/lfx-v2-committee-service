@@ -613,6 +613,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
 				dsl.Example("None")
 			})
+			OrganizationInfoAttributes()
 
 			dsl.Required("version", "uid", "invitee_email")
 		})
@@ -683,6 +684,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			CommitteeUIDAttribute()
 			InviteUIDAttribute()
+			OrganizationInfoAttributes()
 
 			dsl.Required("version", "uid", "invite_uid")
 		})

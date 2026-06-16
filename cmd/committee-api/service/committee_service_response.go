@@ -636,6 +636,23 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 	if invite.Role != "" {
 		result.Role = &invite.Role
 	}
+	if invite.Organization.ID != "" || invite.Organization.Name != "" || invite.Organization.Website != "" {
+		org := &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{}
+		if invite.Organization.ID != "" {
+			org.ID = &invite.Organization.ID
+		}
+		if invite.Organization.Name != "" {
+			org.Name = &invite.Organization.Name
+		}
+		if invite.Organization.Website != "" {
+			org.Website = &invite.Organization.Website
+		}
+		result.Organization = org
+	}
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
