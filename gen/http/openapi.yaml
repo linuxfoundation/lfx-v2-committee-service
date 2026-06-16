@@ -1377,7 +1377,7 @@ paths:
                 - name: Accept-InviteRequestBody
                   in: body
                   description: Optional JSON body
-                  required: true
+                  required: false
                   schema:
                     $ref: '#/definitions/AcceptInviteOptionalBody'
             responses:

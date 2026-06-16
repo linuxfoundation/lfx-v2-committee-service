@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -1435,7 +1436,11 @@ func BuildAcceptInvitePayload(committeeServiceAcceptInviteBody string, committee
 	var err error
 	var body AcceptInviteRequestBody
 	{
-		err = json.Unmarshal([]byte(committeeServiceAcceptInviteBody), &body)
+		bodyJSON := strings.TrimSpace(committeeServiceAcceptInviteBody)
+		if bodyJSON == "" || bodyJSON == "REQUIRED" {
+			bodyJSON = "{}"
+		}
+		err = json.Unmarshal([]byte(bodyJSON), &body)
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
 		}

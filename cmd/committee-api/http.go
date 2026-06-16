@@ -175,16 +175,18 @@ func acceptInviteEmptyBodyMiddleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost && isCommitteeInviteAcceptPath(r.URL.Path) {
 				bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-				if err == nil {
-					_ = r.Body.Close()
-					if len(bytes.TrimSpace(bodyBytes)) == 0 {
-						bodyBytes = []byte("{}")
-					}
-					r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-					r.ContentLength = int64(len(bodyBytes))
-					if r.Header.Get("Content-Type") == "" {
-						r.Header.Set("Content-Type", "application/json")
-					}
+				_ = r.Body.Close()
+				if err != nil {
+					http.Error(w, "failed to read request body", http.StatusBadRequest)
+					return
+				}
+				if len(bytes.TrimSpace(bodyBytes)) == 0 {
+					bodyBytes = []byte("{}")
+				}
+				r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+				r.ContentLength = int64(len(bodyBytes))
+				if r.Header.Get("Content-Type") == "" {
+					r.Header.Set("Content-Type", "application/json")
 				}
 			}
 			next.ServeHTTP(w, r)

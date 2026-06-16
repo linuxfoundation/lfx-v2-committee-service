@@ -155,7 +155,7 @@ func ParseEndpoint(
 		committeeServiceRevokeInviteBearerTokenFlag = committeeServiceRevokeInviteFlags.String("bearer-token", "", "")
 
 		committeeServiceAcceptInviteFlags           = flag.NewFlagSet("accept-invite", flag.ExitOnError)
-		committeeServiceAcceptInviteBodyFlag        = committeeServiceAcceptInviteFlags.String("body", "REQUIRED", "")
+		committeeServiceAcceptInviteBodyFlag        = committeeServiceAcceptInviteFlags.String("body", "{}", "")
 		committeeServiceAcceptInviteUIDFlag         = committeeServiceAcceptInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceAcceptInviteInviteUIDFlag   = committeeServiceAcceptInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
 		committeeServiceAcceptInviteVersionFlag     = committeeServiceAcceptInviteFlags.String("version", "REQUIRED", "")
