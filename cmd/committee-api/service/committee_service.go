@@ -1207,7 +1207,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", err
 	}
 
-	userEmails, err := s.userReader.EmailsByPrincipal(ctx, authToken)
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authToken)
 	if err != nil {
 		return "", err
 	}
@@ -1220,6 +1220,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 }
 
 // bearerTokenFromContext extracts the raw JWT from the Authorization header stored by middleware.
+// Accepts either a raw JWT or a two-part "Bearer <jwt>" value; rejects bare "Bearer" and other schemes.
 func bearerTokenFromContext(ctx context.Context) (string, error) {
 	authorization, _ := ctx.Value(constants.AuthorizationContextID).(string)
 	authorization = strings.TrimSpace(authorization)
@@ -1227,16 +1228,24 @@ func bearerTokenFromContext(ctx context.Context) (string, error) {
 		return "", errors.NewValidation("authorization header is required")
 	}
 
-	const bearerPrefix = "Bearer "
-	if len(authorization) > len(bearerPrefix) && strings.EqualFold(authorization[:len(bearerPrefix)], bearerPrefix) {
-		authorization = strings.TrimSpace(authorization[len(bearerPrefix):])
+	parts := strings.Fields(authorization)
+	switch len(parts) {
+	case 1:
+		if strings.EqualFold(parts[0], "Bearer") {
+			return "", errors.NewValidation("authorization token is empty")
+		}
+		return parts[0], nil
+	case 2:
+		if !strings.EqualFold(parts[0], "Bearer") {
+			return "", errors.NewValidation("authorization scheme must be Bearer")
+		}
+		if parts[1] == "" {
+			return "", errors.NewValidation("authorization token is empty")
+		}
+		return parts[1], nil
+	default:
+		return "", errors.NewValidation("invalid authorization header format")
 	}
-
-	if authorization == "" {
-		return "", errors.NewValidation("authorization token is empty")
-	}
-
-	return authorization, nil
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.

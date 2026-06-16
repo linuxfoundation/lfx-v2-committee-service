@@ -260,7 +260,7 @@ func (r *writerTestUserReader) UsernameByEmail(_ context.Context, email string) 
 	return r.usernames[email], nil
 }
 
-func (r *writerTestUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (r *writerTestUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, nil
 }
 

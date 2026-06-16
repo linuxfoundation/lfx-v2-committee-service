@@ -140,7 +140,7 @@ Endpoints that act on behalf of the caller (accept/decline invite, submit applic
 - **Request payload:** JSON `{"user":{"auth_token":"<caller JWT>"}}` (token without the `Bearer ` prefix)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
+The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing/invalid Authorization header) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`) → `404 Not Found`; auth-service or NATS unavailable → `503 Service Unavailable`.
 
 ---
 

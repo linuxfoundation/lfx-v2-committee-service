@@ -28,10 +28,42 @@ func testCtx(principal string) context.Context {
 	return context.WithValue(ctx, constants.AuthorizationContextID, "Bearer "+principal)
 }
 
+func TestBearerTokenFromContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		auth    string
+		want    string
+		wantErr bool
+	}{
+		{name: "bearer token", auth: "Bearer my-jwt", want: "my-jwt"},
+		{name: "raw jwt", auth: "my-jwt", want: "my-jwt"},
+		{name: "bare bearer", auth: "Bearer", wantErr: true},
+		{name: "bearer without token", auth: "Bearer ", wantErr: true},
+		{name: "basic scheme", auth: "Basic xyz", wantErr: true},
+		{name: "missing header", auth: "", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.auth != "" {
+				ctx = context.WithValue(ctx, constants.AuthorizationContextID, tt.auth)
+			}
+			got, err := bearerTokenFromContext(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailsByPrincipal maps principal → primary email.
+// EmailsByAuthToken maps auth token → primary email.
 type mockUserReader struct {
-	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
+	emails      map[string]string              // auth token → primary email (for EmailsByAuthToken)
 	usernames   map[string]string              // email → username (for UsernameByEmail)
 	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
@@ -76,13 +108,13 @@ func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (str
 	return "", errs.NewNotFound("mock: username not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
-	if principal == "" {
-		return nil, errs.NewValidation("mock: principal is empty")
+func (m *mockUserReader) EmailsByAuthToken(_ context.Context, authToken string) (*model.UserEmails, error) {
+	if authToken == "" {
+		return nil, errs.NewValidation("mock: auth token is empty")
 	}
-	email, ok := m.emails[principal]
+	email, ok := m.emails[authToken]
 	if !ok {
-		return nil, errs.NewNotFound("mock: principal not found: " + principal)
+		return nil, errs.NewNotFound("mock: auth token not found: " + authToken)
 	}
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
@@ -1982,7 +2014,7 @@ func (e *errUserReader) UsernameByEmail(_ context.Context, _ string) (string, er
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
-func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (e *errUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
