@@ -459,17 +459,20 @@ func InviteSenderImpl(ctx context.Context) port.InviteSender {
 
 // LFXSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
+// When LFX_ENVIRONMENT is unset, prod is assumed (safe default for deployed environments).
 func LFXSelfServeBaseURL() string {
 	if url := os.Getenv("LFX_SELF_SERVE_BASE_URL"); url != "" {
 		return url
 	}
 	switch os.Getenv("LFX_ENVIRONMENT") {
-	case "prod":
+	case "prod", "production":
 		return "https://app.lfx.dev"
-	case "staging", "stg":
+	case "staging", "stg", "stage":
 		return "https://app.staging.lfx.dev"
-	default:
+	case "dev", "development":
 		return "https://app.dev.lfx.dev"
+	default:
+		return "https://app.lfx.dev"
 	}
 }
 

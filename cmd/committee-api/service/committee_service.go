@@ -52,6 +52,7 @@ type committeeServicesrvc struct {
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
+	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
 	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
@@ -247,7 +248,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	// Fetch existing settings so stored writer/auditor identity can be preserved during conversion.
 	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
 	if errGet != nil {
 		return nil, wrapError(ctx, errGet)
@@ -522,7 +523,7 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	// voting status, appointment type, and holding organization — and swaps only the person holding
 	// it. Construct a FRESH base and copy ONLY those seat-defining fields (an allowlist), so future
 	// additions to CommitteeMemberBase don't silently leak the previous holder's identity/profile/
-	// invite/timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
+	// timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
 	// username is resolved from the new holder's email).
 	newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		Role:              member.Role,
@@ -1528,6 +1529,7 @@ func NewCommitteeService(
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
 	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
@@ -1545,6 +1547,7 @@ func NewCommitteeService(
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
+		weeklyBriefWriter:           weeklyBriefWriter,
 		orgSeatReader:               orgSeatReader,
 	}
 }
@@ -1654,6 +1657,20 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		}
 		out.SourceRefs = append(out.SourceRefs, ref)
 	}
+	// Edit-audit fields are only present once a chair has saved an edit; mirror
+	// the CreatedAt/UpdatedAt zero-time handling above.
+	if !b.LastEditedAt.IsZero() {
+		v := b.LastEditedAt.UTC().Format(time.RFC3339)
+		out.LastEditedAt = &v
+	}
+	if b.LastEditedBy != "" {
+		v := b.LastEditedBy
+		out.LastEditedBy = &v
+	}
+	// Always surface the revision: clients echo it back as the edit/save
+	// optimistic-concurrency token (PUT /current).
+	rev := b.Revision
+	out.Revision = &rev
 	return out
 }
 
@@ -1751,6 +1768,59 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
 	}
 	return res, nil
+}
+
+// UpdateCurrentWeeklyBrief is the PUT /committees/{uid}/weekly-briefs/current
+// handler. It saves chair-edited brief text for the current UTC Sun→Sat window,
+// transitioning the brief to "edited" and preserving source_refs. Optimistic
+// concurrency is enforced on the revision token the caller read from
+// GET /current: a stale token yields 409 with the current revision so the
+// client can refetch and retry; a missing brief yields 404; empty text 400.
+func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *committeeservice.UpdateCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.update-current-weekly-brief",
+		"committee_uid", p.UID,
+		"revision", p.Revision,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Fail fast on misconfiguration before any storage I/O.
+	if s.weeklyBriefWriter == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief writer is not configured"))
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404 for the committee
+	// rather than 404 for a missing brief.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	// PrincipalContextID is the caller's LFX username (Heimdall principal claim),
+	// recorded as last_edited_by. Reject a missing principal rather than persist
+	// an empty editor — this endpoint's audit trail depends on it, and it mirrors
+	// the guard the sibling write handlers use (CreateCommitteeLink, etc.).
+	editedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if editedBy == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	updated, err := s.weeklyBriefWriter.Update(ctx, service.GroupWeeklyBriefUpdateInput{
+		CommitteeUID: p.UID,
+		BriefText:    p.BriefText,
+		Revision:     p.Revision,
+		EditedBy:     editedBy,
+		Now:          time.Now().UTC(),
+	})
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return domainGroupWeeklyBriefToGoa(updated), nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

@@ -98,7 +98,6 @@ func entitlementSeat() *model.CommitteeMember {
 		Organization:      model.CommitteeMemberOrganization{ID: testOrgSFID, Name: "Acme"},
 		ProjectUID:        "11111111-1111-1111-1111-111111111111",
 		ProjectSlug:       "test-project",
-		Invite:            &model.InviteInfo{},
 		CreatedAt:         time.Now().Add(-72 * time.Hour),
 		UpdatedAt:         time.Now().Add(-48 * time.Hour),
 	}}
@@ -361,7 +360,6 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		// Holder-specific fields cleared (regression guard for the carry-over fix).
 		assert.Empty(t, nm.JobTitle)
 		assert.Empty(t, nm.LinkedInProfile)
-		assert.Nil(t, nm.Invite)
 		assert.True(t, nm.CreatedAt.IsZero())
 		assert.True(t, nm.UpdatedAt.IsZero())
 		// Seat-defining fields preserved.
