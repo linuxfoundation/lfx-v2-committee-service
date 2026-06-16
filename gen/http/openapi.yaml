@@ -1376,9 +1376,10 @@ paths:
                   type: string
                 - name: Accept-InviteRequestBody
                   in: body
+                  description: Optional JSON body
                   required: true
                   schema:
-                    $ref: '#/definitions/CommitteeServiceAcceptInviteRequestBody'
+                    $ref: '#/definitions/AcceptInviteOptionalBody'
             responses:
                 "200":
                     description: OK response.
@@ -2771,6 +2772,38 @@ paths:
             security:
                 - jwt_header_Authorization: []
 definitions:
+    AcceptInviteOptionalBody:
+        title: AcceptInviteOptionalBody
+        type: object
+        properties:
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+        description: Optional accept-invite request body.
+        example:
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
     BadRequestError:
         title: BadRequestError
         type: object
@@ -3670,37 +3703,6 @@ definitions:
                 end_date: "2024-12-31"
                 start_date: "2023-01-01"
                 status: Voting Rep
-    CommitteeServiceAcceptInviteRequestBody:
-        title: CommitteeServiceAcceptInviteRequestBody
-        type: object
-        properties:
-            organization:
-                type: object
-                properties:
-                    id:
-                        type: string
-                        description: Organization ID
-                        example: org-123456
-                    name:
-                        type: string
-                        description: Organization name
-                        example: The Linux Foundation
-                        maxLength: 200
-                    website:
-                        type: string
-                        description: Organization website URL
-                        example: https://linuxfoundation.org
-                        format: uri
-                description: Organization information for the committee member
-                example:
-                    id: org-123456
-                    name: The Linux Foundation
-                    website: https://linuxfoundation.org
-        example:
-            organization:
-                id: org-123456
-                name: The Linux Foundation
-                website: https://linuxfoundation.org
     CommitteeServiceApproveApplicationRequestBody:
         title: CommitteeServiceApproveApplicationRequestBody
         type: object

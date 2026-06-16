@@ -1439,19 +1439,6 @@ func BuildAcceptInvitePayload(committeeServiceAcceptInviteBody string, committee
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
 		}
-		if body.Organization != nil {
-			if body.Organization.Name != nil {
-				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
-					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
-				}
-			}
-			if body.Organization.Website != nil {
-				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
-			}
-		}
-		if err != nil {
-			return nil, err
-		}
 	}
 	var uid string
 	{
@@ -1485,7 +1472,7 @@ func BuildAcceptInvitePayload(committeeServiceAcceptInviteBody string, committee
 			bearerToken = &committeeServiceAcceptInviteBearerToken
 		}
 	}
-	v := &committeeservice.AcceptInvitePayload{}
+	v := &committeeservice.AcceptInviteOptionalBody{}
 	if body.Organization != nil {
 		v.Organization = &struct {
 			// Organization ID
@@ -1500,12 +1487,15 @@ func BuildAcceptInvitePayload(committeeServiceAcceptInviteBody string, committee
 			Website: body.Organization.Website,
 		}
 	}
-	v.UID = uid
-	v.InviteUID = inviteUID
-	v.Version = version
-	v.BearerToken = bearerToken
+	res := &committeeservice.AcceptInvitePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.InviteUID = inviteUID
+	res.Version = version
+	res.BearerToken = bearerToken
 
-	return v, nil
+	return res, nil
 }
 
 // BuildDeclineInvitePayload builds the payload for the committee-service

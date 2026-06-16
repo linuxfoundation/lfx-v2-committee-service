@@ -147,6 +147,19 @@ const ServiceName = "committee-service"
 // MethodKey key.
 var MethodNames = [40]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief"}
 
+// Optional accept-invite request body.
+type AcceptInviteOptionalBody struct {
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
+}
+
 // AcceptInvitePayload is the payload type of the committee-service service
 // accept-invite method.
 type AcceptInvitePayload struct {
@@ -158,15 +171,8 @@ type AcceptInvitePayload struct {
 	UID string
 	// Committee invite UID
 	InviteUID string
-	// Organization information for the committee member
-	Organization *struct {
-		// Organization ID
-		ID *string
-		// Organization name
-		Name *string
-		// Organization website URL
-		Website *string
-	}
+	// Optional JSON body
+	Body *AcceptInviteOptionalBody
 }
 
 // ApproveApplicationPayload is the payload type of the committee-service

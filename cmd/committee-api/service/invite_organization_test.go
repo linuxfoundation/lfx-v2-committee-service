@@ -92,6 +92,64 @@ func TestCreateInvite_OrganizationOptionalWhenNotRequired(t *testing.T) {
 	assert.Nil(t, result.Organization)
 }
 
+func TestCreateInvite_ReinstatePreservesOrganization(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+
+	revoked := &model.CommitteeInvite{
+		UID:          "revoked-with-org",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "reinvite@example.com",
+		Status:       "revoked",
+		Organization: &model.CommitteeMemberOrganization{
+			Name:    "Stored Org",
+			Website: "https://stored.org",
+		},
+		CreatedAt: time.Now(),
+	}
+	repo.AddCommitteeInvite(revoked)
+
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "reinvite@example.com",
+		Role:         stringPtr("chair"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.Organization)
+	require.NotNil(t, result.Organization.Name)
+	assert.Equal(t, "Stored Org", *result.Organization.Name)
+	require.NotNil(t, result.Organization.Website)
+	assert.Equal(t, "https://stored.org", *result.Organization.Website)
+}
+
+func TestAcceptInvite_EmptyBodyAllowed(t *testing.T) {
+	svc, mockOrch, repo := setupServiceTestWithRepo()
+	svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+	invite := &model.CommitteeInvite{
+		UID:          "invite-empty-body",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "accept@example.com",
+		Status:       "pending",
+		CreatedAt:    time.Now(),
+	}
+	repo.AddCommitteeInvite(invite)
+
+	mockOrch.createMember = &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-1",
+			CommitteeUID: "committee-1",
+			Email:        "accept@example.com",
+			Status:       "Active",
+		},
+	}
+
+	_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+		UID:       "committee-1",
+		InviteUID: "invite-empty-body",
+	})
+	require.NoError(t, err)
+}
+
 func TestAcceptInvite_OrganizationMerge(t *testing.T) {
 	svc, mockOrch, repo := setupServiceTestWithRepo()
 	svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
@@ -101,7 +159,7 @@ func TestAcceptInvite_OrganizationMerge(t *testing.T) {
 		CommitteeUID: "committee-1",
 		InviteeEmail: "accept@example.com",
 		Status:       "pending",
-		Organization: model.CommitteeMemberOrganization{
+		Organization: &model.CommitteeMemberOrganization{
 			Name:    "Invite Org",
 			Website: "https://invite.org",
 		},
@@ -122,12 +180,14 @@ func TestAcceptInvite_OrganizationMerge(t *testing.T) {
 	_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
 		InviteUID: "invite-org-merge",
-		Organization: &struct {
-			ID      *string
-			Name    *string
-			Website *string
-		}{
-			Name: &overrideName,
+		Body: &committeeservice.AcceptInviteOptionalBody{
+			Organization: &struct {
+				ID      *string
+				Name    *string
+				Website *string
+			}{
+				Name: &overrideName,
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -146,7 +206,7 @@ func TestAcceptInvite_OrganizationFromInviteWhenPayloadUnset(t *testing.T) {
 		CommitteeUID: "committee-1",
 		InviteeEmail: "accept@example.com",
 		Status:       "pending",
-		Organization: model.CommitteeMemberOrganization{
+		Organization: &model.CommitteeMemberOrganization{
 			Name:    "Invite Org",
 			Website: "https://invite.org",
 		},

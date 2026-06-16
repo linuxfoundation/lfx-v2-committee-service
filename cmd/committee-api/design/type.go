@@ -542,6 +542,13 @@ func CommitteeMemberUpdateAttributes() {
 	CommitteeMemberBaseAttributes()
 }
 
+// AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).
+// Mapped via dsl.Body so clients may omit the body entirely for backward compatibility.
+var AcceptInviteOptionalBody = dsl.Type("accept-invite-optional-body", func() {
+	dsl.Description("Optional accept-invite request body.")
+	OrganizationInfoAttributes()
+})
+
 // Organization Information Attributes
 func OrganizationInfoAttributes() {
 	dsl.Attribute("organization", func() {

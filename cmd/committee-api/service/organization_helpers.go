@@ -10,6 +10,25 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
+func organizationHasData(org model.CommitteeMemberOrganization) bool {
+	return org.ID != "" || org.Name != "" || org.Website != ""
+}
+
+func organizationPtrFromFields(id, name, website *string) *model.CommitteeMemberOrganization {
+	org := organizationFromOptionalFields(id, name, website)
+	if !organizationHasData(org) {
+		return nil
+	}
+	return &org
+}
+
+func inviteOrganizationValue(invite *model.CommitteeInvite) model.CommitteeMemberOrganization {
+	if invite == nil || invite.Organization == nil {
+		return model.CommitteeMemberOrganization{}
+	}
+	return *invite.Organization
+}
+
 func organizationFromOptionalFields(id, name, website *string) model.CommitteeMemberOrganization {
 	var org model.CommitteeMemberOrganization
 	if id != nil {

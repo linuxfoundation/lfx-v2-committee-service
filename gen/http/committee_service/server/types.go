@@ -6391,7 +6391,7 @@ func NewRevokeInvitePayload(uid string, inviteUID string, version string, bearer
 // NewAcceptInvitePayload builds a committee-service service accept-invite
 // endpoint payload.
 func NewAcceptInvitePayload(body *AcceptInviteRequestBody, uid string, inviteUID string, version string, bearerToken *string) *committeeservice.AcceptInvitePayload {
-	v := &committeeservice.AcceptInvitePayload{}
+	v := &committeeservice.AcceptInviteOptionalBody{}
 	if body.Organization != nil {
 		v.Organization = &struct {
 			// Organization ID
@@ -6406,12 +6406,15 @@ func NewAcceptInvitePayload(body *AcceptInviteRequestBody, uid string, inviteUID
 			Website: body.Organization.Website,
 		}
 	}
-	v.UID = uid
-	v.InviteUID = inviteUID
-	v.Version = version
-	v.BearerToken = bearerToken
+	res := &committeeservice.AcceptInvitePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.InviteUID = inviteUID
+	res.Version = version
+	res.BearerToken = bearerToken
 
-	return v
+	return res
 }
 
 // NewDeclineInvitePayload builds a committee-service service decline-invite

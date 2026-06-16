@@ -2017,11 +2017,12 @@ paths:
                     format: uuid
                   example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
             requestBody:
-                required: true
+                description: Optional JSON body
+                required: false
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/AcceptInviteRequestBody'
+                            $ref: '#/components/schemas/AcceptInviteOptionalBody'
                         example:
                             organization:
                                 id: org-123456
@@ -4248,7 +4249,7 @@ paths:
                 - jwt_header_Authorization: []
 components:
     schemas:
-        AcceptInviteRequestBody:
+        AcceptInviteOptionalBody:
             type: object
             properties:
                 organization:
@@ -4273,6 +4274,7 @@ components:
                         id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
+            description: Optional accept-invite request body.
             example:
                 organization:
                     id: org-123456

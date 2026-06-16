@@ -2293,13 +2293,14 @@ func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) go
 		err = decoder(r).Decode(&body)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil, goa.MissingPayloadError()
+				err = nil
+			} else {
+				var gerr *goa.ServiceError
+				if errors.As(err, &gerr) {
+					return nil, gerr
+				}
+				return nil, goa.DecodePayloadError(err.Error())
 			}
-			var gerr *goa.ServiceError
-			if errors.As(err, &gerr) {
-				return nil, gerr
-			}
-			return nil, goa.DecodePayloadError(err.Error())
 		}
 		err = ValidateAcceptInviteRequestBody(&body)
 		if err != nil {

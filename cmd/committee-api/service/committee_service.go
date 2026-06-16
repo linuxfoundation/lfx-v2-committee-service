@@ -661,7 +661,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		inviteOrgName = p.Organization.Name
 		inviteOrgWebsite = p.Organization.Website
 	}
-	inviteOrganization := organizationFromOptionalFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
 	invite := &model.CommitteeInvite{
 		UID:          uuid.New().String(),
@@ -708,7 +708,9 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}
-		revokedInvite.Organization = inviteOrganization
+		if p.Organization != nil {
+			revokedInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+		}
 		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
@@ -838,13 +840,13 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	// and the invitee can retry without being stuck in an inconsistent state.
 	// PrincipalContextID is the invitee's LFX username (Heimdall principal claim).
 	var acceptOrgID, acceptOrgName, acceptOrgWebsite *string
-	if p.Organization != nil {
-		acceptOrgID = p.Organization.ID
-		acceptOrgName = p.Organization.Name
-		acceptOrgWebsite = p.Organization.Website
+	if p.Body != nil && p.Body.Organization != nil {
+		acceptOrgID = p.Body.Organization.ID
+		acceptOrgName = p.Body.Organization.Name
+		acceptOrgWebsite = p.Body.Organization.Website
 	}
 	acceptOrganization := organizationFromOptionalFields(acceptOrgID, acceptOrgName, acceptOrgWebsite)
-	memberOrganization := mergeInviteOrganization(invite.Organization, acceptOrganization)
+	memberOrganization := mergeInviteOrganization(inviteOrganizationValue(invite), acceptOrganization)
 
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
