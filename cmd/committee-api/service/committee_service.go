@@ -1196,18 +1196,18 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 }
 
 // resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their LFX username (PrincipalContextID) to the auth-service via NATS.
+// their bearer token to the auth-service via NATS (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
-		return "", errors.NewValidation("unable to determine user identity from token")
+	authToken, err := bearerTokenFromContext(ctx)
+	if err != nil {
+		return "", err
 	}
 
-	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
+	userEmails, err := s.userReader.EmailsByPrincipal(ctx, authToken)
 	if err != nil {
 		return "", err
 	}
@@ -1217,6 +1217,26 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	return userEmails.PrimaryEmail, nil
+}
+
+// bearerTokenFromContext extracts the raw JWT from the Authorization header stored by middleware.
+func bearerTokenFromContext(ctx context.Context) (string, error) {
+	authorization, _ := ctx.Value(constants.AuthorizationContextID).(string)
+	authorization = strings.TrimSpace(authorization)
+	if authorization == "" {
+		return "", errors.NewValidation("authorization header is required")
+	}
+
+	const bearerPrefix = "Bearer "
+	if len(authorization) > len(bearerPrefix) && strings.EqualFold(authorization[:len(bearerPrefix)], bearerPrefix) {
+		authorization = strings.TrimSpace(authorization[len(bearerPrefix):])
+	}
+
+	if authorization == "" {
+		return "", errors.NewValidation("authorization token is empty")
+	}
+
+	return authorization, nil
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.

@@ -137,7 +137,7 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (subject identifier), the service resolves the email at request time via a NATS request/reply call to the auth-service:
 
 - **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** the caller's principal (raw bytes, no JSON wrapping)
+- **Request payload:** JSON `{"user":{"auth_token":"<caller JWT>"}}` (token without the `Bearer ` prefix)
 - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
 The service uses `primary_email` from the response. If the lookup fails (auth-service unavailable, principal unknown), the request is rejected with `400 Bad Request`.
@@ -211,7 +211,7 @@ Required fields for committee-service: `uid`, `accepted_by`, and `recipient.emai
 2. List all committee UIDs (full scan today; see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for planned email-index lookup).
 3. For each committee, enrich email-only records matching that email:
    - **Settings:** Writers and Auditors — set `username` from `accepted_by` (revision-conflict retries on `UpdateSettings`).
-   - **Members:** email-only roster rows — set `username` via `UpdateMember` (revision-conflict retries). Member updates resolve `username` through `lfx.auth-service.email_to_username` for the member's email, so the auth lookup must return the LFID for member enrichment to persist.
+   - **Members:** email-only roster rows — set `username` from `accepted_by` via `UpdateMember` (revision-conflict retries), same as Writers/Auditors. No auth email lookup on this path.
 
 Invite metadata is **not** read or written on committee resource rows during enrichment.
 
@@ -227,37 +227,20 @@ Use this to exercise `HandleInviteAccepted` without the UI or invite-service acc
 - `NATS_URL` points at the same NATS instance as the running service.
 - Test data exists for an email you control: at least one **email-only** Writer, Auditor, or Member (`username` empty) on some committee. Use that same email in the event payload.
 
-**1. Mock auth-service email lookup (required for member enrichment)**
+**1. Publish invite accepted**
 
-`UpdateMember` resolves `username` from the member's email via NATS request/reply on `lfx.auth-service.email_to_username` (request body = email; success reply = plain-text username).
-
-Run a responder that returns your test LFID for your test email:
+Member enrichment uses `accepted_by` from the event directly (no auth email lookup), same as Writers and Auditors.
 
 ```bash
 export NATS_URL="${NATS_URL:-nats://localhost:4222}"
 export TEST_EMAIL="you+invite-test@example.com"
 export TEST_USERNAME="your-lfid-username"
 
-# Responds with TEST_USERNAME for every request (fine when only you are testing).
-nats reply --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_USERNAME"
-```
-
-Verify the lookup before publishing the acceptance event:
-
-```bash
-nats request --server "$NATS_URL" lfx.auth-service.email_to_username "$TEST_EMAIL"
-```
-
-On shared dev NATS, another auth-service consumer may answer instead of your mock; prefer isolated local NATS or ensure only your `nats reply` process is subscribed.
-
-**2. Publish invite accepted**
-
-```bash
 nats pub --server "$NATS_URL" lfx.invite-service.invite_accepted \
   "{\"uid\":\"local-test-invite-001\",\"accepted_by\":\"$TEST_USERNAME\",\"role\":\"Member\",\"recipient\":{\"email\":\"$TEST_EMAIL\"}}"
 ```
 
-**3. Verify**
+**2. Verify**
 
 - **Settings (Writers / Auditors):** `GET /committees/{uid}/settings?v=1` — matching entries should have `username` set.
 - **Members:** `GET /committees/{uid}/members/{member_uid}?v=1` or NATS KV:

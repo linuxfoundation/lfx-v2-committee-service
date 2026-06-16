@@ -21,9 +21,11 @@ import (
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
-// testCtx builds a request context with the given principal, as resolveCallerEmail requires.
+// testCtx builds a request context with the given principal and a matching bearer token,
+// as resolveCallerEmail reads the JWT from AuthorizationContextID.
 func testCtx(principal string) context.Context {
-	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	return context.WithValue(ctx, constants.AuthorizationContextID, "Bearer "+principal)
 }
 
 // mockUserReader is a simple in-memory UserReader for tests.

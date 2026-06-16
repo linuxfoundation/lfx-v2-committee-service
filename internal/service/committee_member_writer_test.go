@@ -1629,7 +1629,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		assert.Equal(t, "new", result.Username)
 	})
 
-	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
+	t.Run("stored username kept when email present but lookup fails", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
 		addCommitteeAndMember(mockRepo, memberWriter)
@@ -1643,6 +1643,41 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		}, 1, false)
 
 		require.NoError(t, err)
-		assert.Empty(t, result.Username)
+		assert.Equal(t, "old", result.Username)
+	})
+
+	t.Run("stored username kept when email present but lookup returns empty", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{}}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "plain-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "old", result.Username)
+	})
+
+	t.Run("invite acceptance context persists accepted_by without email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		ctx := contextWithSkipMemberUsernameEmailResolution(context.Background())
+		result, err := orchestrator.UpdateMember(ctx, &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "accepted-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "accepted-lfid", result.Username)
 	})
 }
