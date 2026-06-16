@@ -505,20 +505,21 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			"stored_username", redaction.Redact(existing.Username),
 		)
 		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
-		if errLookup != nil {
+		switch {
+		case errLookup != nil:
 			slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
 				"error", errLookup,
 				"email", redaction.RedactEmail(member.Email),
 				"stored_username", redaction.Redact(existing.Username),
 			)
 			member.Username = existing.Username
-		} else if username != "" {
+		case username != "":
 			member.Username = username
 			slog.DebugContext(ctx, "username resolved from email during update",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
-		} else {
+		default:
 			member.Username = existing.Username
 		}
 	}
