@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -216,24 +217,173 @@ func TestMessageRequest_UsernameByEmail_NotFoundType(t *testing.T) {
 	assert.True(t, errors.As(err, &notFound))
 }
 
-func TestMessageRequest_EmailsByAuthToken_TransportError(t *testing.T) {
+type emailsByAuthTokenTestEnv struct {
+	reader       *messageRequest
+	respondErrCh <-chan error
+}
+
+func setupEmailsByAuthTokenTest(t *testing.T, responder func(payload []byte) []byte) emailsByAuthTokenTestEnv {
+	t.Helper()
+
 	_, url := startTestNATSServer(t)
 
 	nc, err := nats.Connect(url)
 	require.NoError(t, err)
 	t.Cleanup(nc.Close)
 
-	reader := &messageRequest{
-		client: &NATSClient{
-			conn:    nc,
-			timeout: 50 * time.Millisecond,
+	respondErrCh := make(chan error, 1)
+	_, err = nc.Subscribe(constants.AuthUserEmailsReadSubject, func(msg *nats.Msg) {
+		if respondErr := msg.Respond(responder(msg.Data)); respondErr != nil {
+			select {
+			case respondErrCh <- respondErr:
+			default:
+			}
+		}
+	})
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+
+	return emailsByAuthTokenTestEnv{
+		reader: &messageRequest{
+			client: &NATSClient{
+				conn:    nc,
+				timeout: 2 * time.Second,
+			},
+		},
+		respondErrCh: respondErrCh,
+	}
+}
+
+func TestMessageRequest_EmailsByAuthToken(t *testing.T) {
+	tests := []struct {
+		name       string
+		authToken  string
+		responder  func(payload []byte) []byte
+		setup      func(t *testing.T) *messageRequest
+		wantEmails *struct {
+			primary   string
+			alternate string
+			verified  bool
+		}
+		wantErrStr string
+	}{
+		{
+			name:      "success returns primary and alternate emails",
+			authToken: "auth0|alice",
+			responder: func(payload []byte) []byte {
+				var req UserEmailsNATSRequest
+				if err := json.Unmarshal(payload, &req); err != nil || req.User.AuthToken != "auth0|alice" {
+					return []byte(`{"success":false,"error":"unexpected request"}`)
+				}
+				return []byte(`{"success":true,"data":{"primary_email":"alice@example.com","alternate_emails":[{"email":"alice.alt@example.com","verified":true}]}}`)
+			},
+			wantEmails: &struct {
+				primary   string
+				alternate string
+				verified  bool
+			}{
+				primary:   "alice@example.com",
+				alternate: "alice.alt@example.com",
+				verified:  true,
+			},
+		},
+		{
+			name:       "empty auth token returns validation error",
+			authToken:  "",
+			wantErrStr: "auth token must not be empty",
+		},
+		{
+			name:      "auth-service error envelope returns NotFound",
+			authToken: "auth0|missing",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":false,"error":"user_id is required to get user"}`)
+			},
+			wantErrStr: "user emails not found",
+		},
+		{
+			name:      "success with nil data returns NotFound",
+			authToken: "auth0|alice",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":true}`)
+			},
+			wantErrStr: "no email data returned for user",
+		},
+		{
+			name:      "malformed JSON response returns parse error",
+			authToken: "auth0|alice",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":`)
+			},
+			wantErrStr: "failed to parse user_emails response",
+		},
+		{
+			name:      "transport error is wrapped as ServiceUnavailable",
+			authToken: "auth0|alice",
+			setup: func(t *testing.T) *messageRequest {
+				_, url := startTestNATSServer(t)
+				nc, err := nats.Connect(url)
+				require.NoError(t, err)
+				t.Cleanup(nc.Close)
+
+				return &messageRequest{
+					client: &NATSClient{
+						conn:    nc,
+						timeout: 50 * time.Millisecond,
+					},
+				}
+			},
+			wantErrStr: "auth service unavailable",
 		},
 	}
 
-	_, err = reader.EmailsByAuthToken(context.Background(), "test-jwt")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "auth service unavailable")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reader *messageRequest
+			var respondErrCh <-chan error
+			if tt.setup != nil {
+				reader = tt.setup(t)
+			} else {
+				env := setupEmailsByAuthTokenTest(t, tt.responder)
+				reader = env.reader
+				respondErrCh = env.respondErrCh
+			}
 
-	var unavailable pkgerrors.ServiceUnavailable
-	assert.True(t, errors.As(err, &unavailable))
+			got, err := reader.EmailsByAuthToken(context.Background(), tt.authToken)
+			if respondErrCh != nil {
+				assertNoRespondError(t, respondErrCh)
+			}
+
+			if tt.wantErrStr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrStr)
+				assert.Nil(t, got)
+				if tt.wantErrStr == "auth service unavailable" {
+					var unavailable pkgerrors.ServiceUnavailable
+					assert.True(t, errors.As(err, &unavailable))
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			require.NotNil(t, tt.wantEmails)
+			assert.Equal(t, tt.wantEmails.primary, got.PrimaryEmail)
+			require.Len(t, got.AlternateEmails, 1)
+			assert.Equal(t, tt.wantEmails.alternate, got.AlternateEmails[0].Email)
+			assert.Equal(t, tt.wantEmails.verified, got.AlternateEmails[0].Verified)
+		})
+	}
+}
+
+func TestMessageRequest_EmailsByAuthToken_NotFoundType(t *testing.T) {
+	env := setupEmailsByAuthTokenTest(t, func(payload []byte) []byte {
+		return []byte(`{"success":false,"error":"user not found"}`)
+	})
+
+	_, err := env.reader.EmailsByAuthToken(context.Background(), "auth0|missing")
+	assertNoRespondError(t, env.respondErrCh)
+	require.Error(t, err)
+
+	var notFound pkgerrors.NotFound
+	assert.True(t, errors.As(err, &notFound))
 }
