@@ -1562,58 +1562,30 @@ func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...s
 	return nil
 }
 
-// enrichMemberOrganization fills organization name and website when missing so self-service
-// member creation (invite accept, join, application approve) satisfies committees that require
-// org info when business_email_required or voting is enabled.
+// enrichMemberOrganization fills organization name from auth-service profile metadata when
+// missing so self-service member creation can satisfy committees that require org info.
 func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
 	if member.Organization.ID != "" {
 		return
 	}
-	if member.Organization.Name != "" && member.Organization.Website != "" {
+	if member.Organization.Name != "" {
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(member.Email))
-	if email == "" {
-		return
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	metadataKeys := make([]string, 0, 3)
+	if member.Username != "" {
+		metadataKeys = append(metadataKeys, member.Username)
 	}
-
-	if member.Organization.Website == "" {
-		if domain, ok := emailDomain(email); ok {
-			member.Organization.Website = "https://" + domain
+	if principal != "" {
+		metadataKeys = append(metadataKeys, principal)
+		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
+			metadataKeys = append(metadataKeys, authSub)
 		}
 	}
-
-	if member.Organization.Name == "" {
-		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-		metadataKeys := make([]string, 0, 3)
-		if member.Username != "" {
-			metadataKeys = append(metadataKeys, member.Username)
-		}
-		if principal != "" {
-			metadataKeys = append(metadataKeys, principal)
-			if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
-				metadataKeys = append(metadataKeys, authSub)
-			}
-		}
-		if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
-			member.Organization.Name = strings.TrimSpace(meta.Organization)
-		}
+	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
+		member.Organization.Name = strings.TrimSpace(meta.Organization)
 	}
-
-	if member.Organization.Name == "" {
-		if domain, ok := emailDomain(email); ok {
-			member.Organization.Name = domain
-		}
-	}
-}
-
-func emailDomain(email string) (string, bool) {
-	at := strings.LastIndex(email, "@")
-	if at < 1 || at >= len(email)-1 {
-		return "", false
-	}
-	return email[at+1:], true
 }
 
 // NewCommitteeService returns the committee-service service implementation with dependencies.

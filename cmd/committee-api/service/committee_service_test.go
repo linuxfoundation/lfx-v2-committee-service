@@ -747,6 +747,76 @@ func TestCreateInvite(t *testing.T) {
 	}
 }
 
+func TestCreateInvite_Organization(t *testing.T) {
+	t.Run("optional without organization on org-gated committee", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "no-org@example.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Organization)
+	})
+
+	t.Run("stores organization from payload", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "with-org@example.com",
+			Organization: sampleInviteOrganizationPayload(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.Organization)
+		require.NotNil(t, result.Organization.Name)
+		assert.Equal(t, "The Linux Foundation", *result.Organization.Name)
+		require.NotNil(t, result.Organization.Website)
+		assert.Equal(t, "https://linuxfoundation.org", *result.Organization.Website)
+	})
+
+	t.Run("optional on open committee", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-2",
+			InviteeEmail: "open@example.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Organization)
+	})
+
+	t.Run("reinstate preserves stored organization", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "revoked-with-org",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "reinvite@example.com",
+			Status:       "revoked",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Stored Org",
+				Website: "https://stored.org",
+			},
+			CreatedAt: time.Now(),
+		})
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "reinvite@example.com",
+			Role:         stringPtr("chair"),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.Organization)
+		require.NotNil(t, result.Organization.Name)
+		assert.Equal(t, "Stored Org", *result.Organization.Name)
+		require.NotNil(t, result.Organization.Website)
+		assert.Equal(t, "https://stored.org", *result.Organization.Website)
+	})
+}
+
 func TestCreateInvite_DuplicateRejected(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 
@@ -1062,6 +1132,132 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 	var forbiddenErr *committeeservice.ForbiddenError
 	require.ErrorAs(t, err, &forbiddenErr)
 	assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+}
+
+func TestAcceptInvite_Organization(t *testing.T) {
+	t.Run("empty payload allowed", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-empty-body",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-empty-body",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("merges payload organization over invite", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-merge",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		overrideName := "Payload Org"
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-merge",
+			Body: &committeeservice.AcceptInviteOptionalBody{
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					Name: &overrideName,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://invite.org", member.Organization.Website)
+	})
+
+	t.Run("falls back to invite organization", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-fallback",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-fallback",
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "Invite Org", member.Organization.Name)
+		assert.Equal(t, "https://invite.org", member.Organization.Website)
+	})
+}
+
+func sampleInviteOrganizationPayload() *struct {
+	ID      *string
+	Name    *string
+	Website *string
+} {
+	name := "The Linux Foundation"
+	website := "https://linuxfoundation.org"
+	return &struct {
+		ID      *string
+		Name    *string
+		Website *string
+	}{
+		Name:    &name,
+		Website: &website,
+	}
 }
 
 func TestDeclineInvite(t *testing.T) {
@@ -2170,6 +2366,46 @@ func TestEnrichMember(t *testing.T) {
 			tt.validate(t, m)
 		})
 	}
+}
+
+func TestEnrichMemberOrganization_AuthServiceMetadata(t *testing.T) {
+	principal := "user@corp.com"
+	authSub := authpkg.MapUsernameToAuthSub(principal)
+	reader := &metadataByKeyReader{
+		metadata: map[string]*model.UserMetadata{
+			authSub: {Organization: "Example Corp"},
+		},
+	}
+	svc := &committeeServicesrvc{userReader: reader}
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			Email: "user@corp.com",
+		},
+	}
+
+	svc.enrichMemberOrganization(ctx, member)
+	assert.Equal(t, "Example Corp", member.Organization.Name)
+	assert.Empty(t, member.Organization.Website)
+}
+
+type metadataByKeyReader struct {
+	metadata map[string]*model.UserMetadata
+}
+
+func (r *metadataByKeyReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (r *metadataByKeyReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+
+func (r *metadataByKeyReader) UserMetadataByPrincipal(_ context.Context, key string) (*model.UserMetadata, error) {
+	if meta, ok := r.metadata[key]; ok {
+		return meta, nil
+	}
+	return nil, nil
 }
 
 func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
