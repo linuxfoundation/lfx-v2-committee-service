@@ -6112,7 +6112,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 
 // NewCreateCommitteeMemberPayload builds a committee-service service
 // create-committee-member endpoint payload.
-func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteeMemberPayload {
+func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool) *committeeservice.CreateCommitteeMemberPayload {
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           *body.Email,
@@ -6189,6 +6189,7 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v
 }

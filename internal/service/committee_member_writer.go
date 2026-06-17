@@ -314,7 +314,8 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 10: Publish indexer and access control messages
 	eventData := &model.CommitteeMemberMessageData{
-		Member: member,
+		Member:           member,
+		SkipNotification: member.SkipNotification,
 	}
 	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, eventData, sync); errPublish != nil {
 		// Log the error but don't fail the member creation
@@ -1056,8 +1057,14 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			OldMember: data.OldMember,
 			Member:    data.Member,
 		}
-	case model.ActionCreated, model.ActionDeleted:
-		// For create/delete, use the member directly
+	case model.ActionCreated:
+		// For create, carry the request-scoped skip-notification flag alongside the member.
+		eventInput = &model.CommitteeMemberCreatedEventData{
+			CommitteeMember:  data.Member,
+			SkipNotification: data.SkipNotification,
+		}
+	case model.ActionDeleted:
+		// For delete, use the member directly
 		eventInput = data.Member
 	}
 

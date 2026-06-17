@@ -364,6 +364,7 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
 		},
+		SkipNotification: p.SkipNotification,
 	}
 
 	// Handle Username with nil check

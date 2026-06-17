@@ -1112,10 +1112,15 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*
 	return m.meta, m.err
 }
 
-func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember) []byte {
+func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember, skipNotification ...bool) []byte {
 	t.Helper()
+	skip := false
+	if len(skipNotification) > 0 {
+		skip = skipNotification[0]
+	}
 	event := model.CommitteeEvent{}
-	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionCreated, member)
+	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionCreated,
+		&model.CommitteeMemberCreatedEventData{CommitteeMember: member, SkipNotification: skip})
 	require.NoError(t, err)
 	data, err := json.Marshal(built)
 	require.NoError(t, err)
@@ -1283,6 +1288,22 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			omitInviteSender: true,
 			wantEmailCount:   0,
 			wantInviteCount:  0,
+		},
+		{
+			name:            "LFID member with skip_notification — no email sent",
+			msgData:         buildMemberCreatedPayload(t, lfidMember, true),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
+		},
+		{
+			name:            "non-LFID member with skip_notification — no invite sent",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember, true),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 0,
 		},
 	}
 

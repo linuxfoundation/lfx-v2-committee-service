@@ -2875,6 +2875,16 @@ paths:
                     default: false
                     example: true
                   example: true
+                - name: X-Skip-Notification
+                  in: header
+                  description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:

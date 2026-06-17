@@ -1182,6 +1182,11 @@ func EncodeCreateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			headStr := strconv.FormatBool(head)
 			req.Header.Set("X-Sync", headStr)
 		}
+		{
+			head := p.SkipNotification
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Skip-Notification", headStr)
+		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()

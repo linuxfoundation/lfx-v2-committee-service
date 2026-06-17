@@ -537,6 +537,18 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
+	// Request-scoped opt-out: when the member was added with skip_notification set,
+	// suppress both the invite and the direct notification email.
+	var notif struct {
+		SkipNotification bool `json:"skip_notification"`
+	}
+	_ = json.Unmarshal(raw, &notif)
+	if notif.SkipNotification {
+		slog.DebugContext(ctx, "skipping member notification — skip_notification flag set",
+			"committee_uid", member.CommitteeUID)
+		return nil, nil
+	}
+
 	if member.Email == "" {
 		slog.WarnContext(ctx, "skipping member notification — no email address",
 			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
