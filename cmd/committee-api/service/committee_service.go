@@ -30,6 +30,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -716,6 +718,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		}
 
 		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
+		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
 		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
@@ -726,6 +729,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
+	s.publishInviteAccessControlMessage(ctx, model.ActionCreated, invite, p.XSync)
 	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
@@ -803,6 +807,7 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
 
 	return nil
 }
@@ -870,6 +875,10 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+	// Re-publish the access control message on accept: the invitee may now have an LFID
+	// account (e.g. they registered via the LFID invite flow), so this resolves and writes
+	// the invitee tuple if it wasn't written at invite creation time.
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }
@@ -909,6 +918,7 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
 
 	return s.convertInviteDomainToResponse(invite), nil
 }
@@ -1255,7 +1265,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 	tags := invite.Tags()
 	indexingConfig := &indexerTypes.IndexingConfig{
 		ObjectID:             invite.UID,
-		AccessCheckObject:    fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		AccessCheckObject:    fmt.Sprintf("committee_invite:%s", invite.UID),
 		AccessCheckRelation:  "viewer",
 		HistoryCheckObject:   fmt.Sprintf("committee:%s", invite.CommitteeUID),
 		HistoryCheckRelation: "auditor",
@@ -1293,6 +1303,69 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 
 	if pubErr := s.publisher.Indexer(ctx, constants.IndexCommitteeInviteSubject, built, sync); pubErr != nil {
 		slog.WarnContext(ctx, "failed to publish invite indexer message",
+			"error", pubErr,
+			"action", string(action),
+			"invite_uid", invite.UID,
+		)
+	}
+}
+
+// publishInviteAccessControlMessage publishes an FGA access control message for a committee invite.
+// For create/update it writes update_access tuples so that:
+//   - the parent committee relation is set (enables auditor from committee visibility), and
+//   - the invitee relation is set when the email resolves to an LFID username.
+//
+// For delete it writes a delete_access message to clean up all tuples for the invite object.
+// Publishing is best-effort: failures are logged but do not fail the request.
+func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
+	var msg fgatypes.GenericFGAMessage
+
+	if action == model.ActionDeleted {
+		msg = fgatypes.GenericFGAMessage{
+			ObjectType: "committee_invite",
+			Operation:  "delete_access",
+			Data:       fgatypes.GenericDeleteData{UID: invite.UID},
+		}
+	} else {
+		data := fgatypes.GenericAccessData{
+			UID: invite.UID,
+			// References the parent committee so that auditor from committee resolves.
+			References: map[string][]string{
+				constants.RelationCommittee: {invite.CommitteeUID},
+			},
+		}
+
+		// Resolve the invitee email to an LFID username and, if found, include the
+		// invitee relation tuple. Mirrors the committee member path: unresolved emails
+		// (no LFID account yet) skip the tuple; it will be written on invite acceptance.
+		if s.userReader != nil {
+			if username, err := s.userReader.UsernameByEmail(ctx, invite.InviteeEmail); err == nil && username != "" {
+				data.Relations = map[string][]string{
+					constants.RelationInvitee: {username},
+				}
+			} else if err != nil {
+				slog.DebugContext(ctx, "invite access control: username lookup failed, invitee tuple skipped",
+					"error", err,
+					"invite_uid", invite.UID,
+					"email", redaction.RedactEmail(invite.InviteeEmail),
+				)
+			}
+		}
+
+		msg = fgatypes.GenericFGAMessage{
+			ObjectType: "committee_invite",
+			Operation:  "update_access",
+			Data:       data,
+		}
+	}
+
+	subject := fgaconstants.GenericUpdateAccessSubject
+	if action == model.ActionDeleted {
+		subject = fgaconstants.GenericDeleteAccessSubject
+	}
+
+	if pubErr := s.publisher.Access(ctx, subject, msg, sync); pubErr != nil {
+		slog.WarnContext(ctx, "failed to publish invite access control message",
 			"error", pubErr,
 			"action", string(action),
 			"invite_uid", invite.UID,

@@ -14,4 +14,8 @@ const (
 	RelationAuditor = "auditor"
 	// RelationMember is the relation name for a member of an object.
 	RelationMember = "member"
+	// RelationCommittee is the relation name linking a child object to its parent committee.
+	RelationCommittee = "committee"
+	// RelationInvitee is the relation name for the invitee of a committee_invite.
+	RelationInvitee = "invitee"
 )
