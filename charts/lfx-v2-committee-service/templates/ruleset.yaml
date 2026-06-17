@@ -497,7 +497,7 @@ spec:
           config:
             values:
               relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+              object: "committee_invite:{{ "{{- .Request.URL.Captures.invite_uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
         {{- end }}
