@@ -6,6 +6,8 @@ This directory contains the Committee API service. The service provides comprehe
 - Manages committee base information (name, category, description, settings, etc.)
 - Handles committee settings including voting configurations, member management, and access controls
 - Manages committee members including their roles, voting status, organization details, and appointment information
+- Handles invite, application, open-join, and self-leave membership flows
+- Stores committee links, link folders, and document metadata/files
 - Integrates with project services to ensure committee-project relationships
 
 Applications with a BFF should use the REST API with HTTP requests to perform the needed operations on committees, while other resource API services can communicate with this service as needed.
@@ -27,6 +29,43 @@ This service contains the following API endpoints:
   - `GET /{member_uid}`: retrieve a specific committee member by member UID
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee
+
+- `/committees/{uid}/invites`
+  - `POST`: create an invite, or reinstate a revoked invite for the same email
+  - `GET /{invite_uid}`: retrieve an invite
+  - `POST /{invite_uid}/accept`: accept a pending or declined invite
+  - `POST /{invite_uid}/decline`: decline a pending invite
+  - `DELETE /{invite_uid}`: revoke a pending or declined invite
+
+- `/committees/{uid}/applications`
+  - `POST`: submit an application, or reinstate a rejected application
+  - `GET /{application_uid}`: retrieve an application
+  - `POST /{application_uid}/approve`: approve a pending application and create the member
+  - `POST /{application_uid}/reject`: reject a pending application
+
+- `/committees/{uid}/links`
+  - `GET`: list committee links
+  - `POST`: create a committee link
+  - `GET /{link_uid}`: retrieve a committee link
+  - `DELETE /{link_uid}`: delete a committee link
+
+- `/committees/{uid}/folders`
+  - `GET`: list committee link folders
+  - `POST`: create a committee link folder
+  - `GET /{folder_uid}`: retrieve a committee link folder
+  - `DELETE /{folder_uid}`: delete a committee link folder
+
+- `/committees/{uid}/documents`
+  - `POST`: upload a committee document using multipart form data
+  - `GET /{document_uid}`: retrieve committee document metadata
+  - `GET /{document_uid}/download`: download the stored document file
+  - `DELETE /{document_uid}`: delete committee document metadata and file data
+
+- `/committees/{uid}/join`
+  - `POST`: join an open committee as the authenticated user
+
+- `/committees/{uid}/leave`
+  - `DELETE`: leave a committee as the authenticated user
 
 ## NATS Messaging Interface
 
@@ -73,7 +112,7 @@ Common error scenarios:
 │   ├── committee.go                # Goa committee service specification
 │   └── type.go                     # Goa data types and models
 ├── service/                        # Service implementation (presentation layer)
-│   ├── committee_service.go        # Committee and member service implementation
+│   ├── committee_service.go        # Committee, member, invite/application, link, and document service implementation
 │   ├── error.go                    # Error handling utilities
 │   └── providers.go                # Dependency injection providers
 ├── main.go                         # Application startup and dependency injection
@@ -81,8 +120,8 @@ Common error scenarios:
 └── README.md                       # This documentation
 
 # Dependencies from internal/ packages:
-# - internal/service/              # Business logic and use case orchestration (committee & member operations)
-# - internal/domain/               # Domain models, ports, and business rules (committee & member entities)
+# - internal/service/              # Business logic and use case orchestration (committee, member, link, and document operations)
+# - internal/domain/               # Domain models, ports, and business rules
 # - internal/infrastructure/       # Infrastructure implementations (NATS storage, Auth, Messaging)
 # - internal/middleware/           # HTTP middleware components
 ```
@@ -103,17 +142,19 @@ This service follows clean architecture principles with clear separation of conc
    - `CommitteeWriter` orchestrates committee creation, updates, and deletion
    - `CommitteeReader` orchestrates committee data retrieval operations
    - `CommitteeMemberWriter` orchestrates committee member creation, updates, and deletion
+   - `LinkWriter` / `LinkReader` orchestrate committee links and link folders
+   - `DocumentWriter` / `DocumentReader` orchestrate committee document metadata and file storage
    - `MessageHandler` processes committee-related events and notifications
-   - Contains business logic for committee and member operations
+   - Contains business logic for committee, member, invite/application, link, and document operations
    - Validates business rules and coordinates between domain and infrastructure
 
 3. **Domain Layer** (`internal/domain/`)
-   - Domain models (`model/`) - committee base, settings, and member entities
-   - Port interfaces (`port/`) - committee and member reader/writer interfaces
-   - Business rules and domain-specific validation for committees and members
+   - Domain models (`model/`) - committee base, settings, member, invite/application, link, and document entities
+   - Port interfaces (`port/`) - committee, member, link, document, publisher, auth, and peer-service interfaces
+   - Business rules and domain-specific validation for committee resources
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
-   - NATS storage implementation (`nats/`)
+   - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
    - JWT authentication implementation (`auth/`)
    - Mock implementations for testing (`mock/`)
    - Messaging infrastructure
@@ -227,7 +268,7 @@ The service relies on some resources and external services being spun up prior t
    make run
 
    # or run with debug logs enabled
-   make debug
+   LOG_LEVEL=debug make run
 
    # or run with the go command to set custom flags
    # -bind string   interface to bind on (default "*")
@@ -296,7 +337,7 @@ The service relies on some resources and external services being spun up prior t
     ```bash
     # Check that the REST API is accessible by hitting the `/livez` endpoint (you should get a response of OK if it is working):
     #
-    # Note: replace the hostname with the host from ./charts/lfx-v2-committee-service/ingressroute.yaml
+    # Note: replace the hostname with the host from ./charts/lfx-v2-committee-service/templates/httproute.yaml
     curl http://lfx-api.k8s.orb.local/livez
     ```
 
