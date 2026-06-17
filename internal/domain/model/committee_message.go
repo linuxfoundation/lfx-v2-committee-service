@@ -34,6 +34,17 @@ const (
 type CommitteeMemberMessageData struct {
 	Member    *CommitteeMember
 	OldMember *CommitteeMember // Only used for ActionUpdated
+	// SkipNotification carries request-scoped intent to suppress the member
+	// notification into the committee_member.created event payload.
+	SkipNotification bool
+}
+
+// CommitteeMemberCreatedEventData is the payload for committee_member.created events.
+// It embeds the member (flattened in JSON, so consumers that decode a plain
+// CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
+type CommitteeMemberCreatedEventData struct {
+	*CommitteeMember
+	SkipNotification bool `json:"skip_notification,omitempty"`
 }
 
 // CommitteeIndexerMessage is a NATS message schema for sending messages related to committees CRUD operations.
@@ -216,8 +227,21 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 
 	// Handle different input types based on action
 	switch action {
-	case ActionCreated, ActionDeleted:
-		// For create/delete, expect CommitteeMember
+	case ActionCreated:
+		// For create, expect CommitteeMemberCreatedEventData (member plus skip flag)
+		createData, ok := input.(*CommitteeMemberCreatedEventData)
+		if !ok || createData == nil || createData.CommitteeMember == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMemberCreatedEventData",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type, got %T", input)
+		}
+		e.Data = createData
+	case ActionDeleted:
+		// For delete, expect CommitteeMember
 		member, ok := input.(*CommitteeMember)
 		if !ok || member == nil {
 			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",

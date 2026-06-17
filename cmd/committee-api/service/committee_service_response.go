@@ -364,6 +364,7 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
 		},
+		SkipNotification: p.SkipNotification,
 	}
 
 	// Handle Username with nil check
@@ -635,6 +636,26 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 	}
 	if invite.Role != "" {
 		result.Role = &invite.Role
+	}
+	if invite.Organization != nil {
+		org := invite.Organization
+		if org.ID != "" || org.Name != "" || org.Website != "" {
+			orgResp := &struct {
+				ID      *string
+				Name    *string
+				Website *string
+			}{}
+			if org.ID != "" {
+				orgResp.ID = &org.ID
+			}
+			if org.Name != "" {
+				orgResp.Name = &org.Name
+			}
+			if org.Website != "" {
+				orgResp.Website = &org.Website
+			}
+			result.Organization = orgResp
+		}
 	}
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")

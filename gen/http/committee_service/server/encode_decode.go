@@ -991,10 +991,11 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		}
 
 		var (
-			uid         string
-			version     string
-			bearerToken *string
-			xSync       bool
+			uid              string
+			version          string
+			bearerToken      *string
+			xSync            bool
+			skipNotification bool
 
 			params = mux.Vars(r)
 		)
@@ -1021,10 +1022,20 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipNotificationRaw := r.Header.Get("X-Skip-Notification")
+			if skipNotificationRaw != "" {
+				v, err2 := strconv.ParseBool(skipNotificationRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_notification", skipNotificationRaw, "boolean"))
+				}
+				skipNotification = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync)
+		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -2287,11 +2298,31 @@ func EncodeAcceptInviteResponse(encoder func(context.Context, http.ResponseWrite
 func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.AcceptInvitePayload, error) {
 	return func(r *http.Request) (*committeeservice.AcceptInvitePayload, error) {
 		var (
+			body AcceptInviteRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				err = nil
+			} else {
+				var gerr *goa.ServiceError
+				if errors.As(err, &gerr) {
+					return nil, gerr
+				}
+				return nil, goa.DecodePayloadError(err.Error())
+			}
+		}
+		err = ValidateAcceptInviteRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
 			uid         string
 			inviteUID   string
 			version     string
 			bearerToken *string
-			err         error
 
 			params = mux.Vars(r)
 		)
@@ -2313,7 +2344,7 @@ func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) go
 		if err != nil {
 			return nil, err
 		}
-		payload := NewAcceptInvitePayload(uid, inviteUID, version, bearerToken)
+		payload := NewAcceptInvitePayload(&body, uid, inviteUID, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

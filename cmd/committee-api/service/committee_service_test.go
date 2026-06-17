@@ -16,20 +16,26 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
-// testCtx builds a request context with the given principal, as resolveCallerEmail requires.
+// testCtx builds a request context with the given principal (LFX username).
 func testCtx(principal string) context.Context {
 	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
 }
 
+// mockReaderForPrincipalEmail maps the principal's Auth0 sub to the caller's email for EmailsByAuthToken.
+func mockReaderForPrincipalEmail(principal, email string) *mockUserReader {
+	return newMockUserReader(authpkg.MapUsernameToAuthSub(principal), email)
+}
+
 // mockUserReader is a simple in-memory UserReader for tests.
-// EmailsByPrincipal maps principal → primary email.
+// EmailsByAuthToken maps auth token → primary email.
 type mockUserReader struct {
-	emails      map[string]string              // principal → primary email (for EmailsByPrincipal)
+	emails      map[string]string              // auth token → primary email (for EmailsByAuthToken)
 	usernames   map[string]string              // email → username (for UsernameByEmail)
 	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
@@ -74,13 +80,13 @@ func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (str
 	return "", errs.NewNotFound("mock: username not found for email: " + email)
 }
 
-func (m *mockUserReader) EmailsByPrincipal(_ context.Context, principal string) (*model.UserEmails, error) {
-	if principal == "" {
-		return nil, errs.NewValidation("mock: principal is empty")
+func (m *mockUserReader) EmailsByAuthToken(_ context.Context, authToken string) (*model.UserEmails, error) {
+	if authToken == "" {
+		return nil, errs.NewValidation("mock: auth token is empty")
 	}
-	email, ok := m.emails[principal]
+	email, ok := m.emails[authToken]
 	if !ok {
-		return nil, errs.NewNotFound("mock: principal not found: " + principal)
+		return nil, errs.NewNotFound("mock: auth token not found: " + authToken)
 	}
 	return &model.UserEmails{PrimaryEmail: email}, nil
 }
@@ -741,6 +747,76 @@ func TestCreateInvite(t *testing.T) {
 	}
 }
 
+func TestCreateInvite_Organization(t *testing.T) {
+	t.Run("optional without organization on org-gated committee", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "no-org@example.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Organization)
+	})
+
+	t.Run("stores organization from payload", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "with-org@example.com",
+			Organization: sampleInviteOrganizationPayload(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.Organization)
+		require.NotNil(t, result.Organization.Name)
+		assert.Equal(t, "The Linux Foundation", *result.Organization.Name)
+		require.NotNil(t, result.Organization.Website)
+		assert.Equal(t, "https://linuxfoundation.org", *result.Organization.Website)
+	})
+
+	t.Run("optional on open committee", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-2",
+			InviteeEmail: "open@example.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Organization)
+	})
+
+	t.Run("reinstate preserves stored organization", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "revoked-with-org",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "reinvite@example.com",
+			Status:       "revoked",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Stored Org",
+				Website: "https://stored.org",
+			},
+			CreatedAt: time.Now(),
+		})
+
+		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "reinvite@example.com",
+			Role:         stringPtr("chair"),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.Organization)
+		require.NotNil(t, result.Organization.Name)
+		assert.Equal(t, "Stored Org", *result.Organization.Name)
+		require.NotNil(t, result.Organization.Website)
+		assert.Equal(t, "https://stored.org", *result.Organization.Website)
+	})
+}
+
 func TestCreateInvite_DuplicateRejected(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 
@@ -993,7 +1069,7 @@ func TestAcceptInvite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
-			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+			svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 
 			invite := &model.CommitteeInvite{
 				UID:          "invite-accept-test",
@@ -1044,7 +1120,7 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to accept someone else's invite
-	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	svc.userReader = mockReaderForPrincipalEmail("attacker@example.com", "attacker@example.com")
 	ctx := testCtx("attacker@example.com")
 	result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
 		UID:       "committee-1",
@@ -1056,6 +1132,182 @@ func TestAcceptInvite_OwnershipCheck(t *testing.T) {
 	var forbiddenErr *committeeservice.ForbiddenError
 	require.ErrorAs(t, err, &forbiddenErr)
 	assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+}
+
+func TestAcceptInvite_Organization(t *testing.T) {
+	t.Run("empty payload allowed", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-empty-body",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-empty-body",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("uses payload organization when ID present", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-payload",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		orgID := "org-123456"
+		payloadName := "Payload Org"
+		payloadWebsite := "https://payload.org"
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-payload",
+			Body: &committeeservice.AcceptInviteOptionalBody{
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      &orgID,
+					Name:    &payloadName,
+					Website: &payloadWebsite,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "org-123456", member.Organization.ID)
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://payload.org", member.Organization.Website)
+	})
+
+	t.Run("ignores partial payload without organization ID", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-merge",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		overrideName := "Payload Org"
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-merge",
+			Body: &committeeservice.AcceptInviteOptionalBody{
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					Name: &overrideName,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "Invite Org", member.Organization.Name)
+		assert.Equal(t, "https://invite.org", member.Organization.Website)
+	})
+
+	t.Run("falls back to invite organization", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-org-fallback",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "accept@example.com",
+			Status:       "pending",
+			Organization: &model.CommitteeMemberOrganization{
+				Name:    "Invite Org",
+				Website: "https://invite.org",
+			},
+			CreatedAt: time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-1",
+				CommitteeUID: "committee-1",
+				Email:        "accept@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-org-fallback",
+		})
+		require.NoError(t, err)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "Invite Org", member.Organization.Name)
+		assert.Equal(t, "https://invite.org", member.Organization.Website)
+	})
+}
+
+func sampleInviteOrganizationPayload() *struct {
+	ID      *string
+	Name    *string
+	Website *string
+} {
+	name := "The Linux Foundation"
+	website := "https://linuxfoundation.org"
+	return &struct {
+		ID      *string
+		Name    *string
+		Website *string
+	}{
+		Name:    &name,
+		Website: &website,
+	}
 }
 
 func TestDeclineInvite(t *testing.T) {
@@ -1094,7 +1346,7 @@ func TestDeclineInvite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
-			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+			svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 
 			invite := &model.CommitteeInvite{
 				UID:          "invite-decline-test",
@@ -1136,7 +1388,7 @@ func TestDeclineInvite_OwnershipCheck(t *testing.T) {
 	repo.AddCommitteeInvite(invite)
 
 	// Different user tries to decline someone else's invite
-	svc.userReader = newMockUserReader("attacker@example.com", "attacker@example.com")
+	svc.userReader = mockReaderForPrincipalEmail("attacker@example.com", "attacker@example.com")
 	ctx := testCtx("attacker@example.com")
 	result, err := svc.DeclineInvite(ctx, &committeeservice.DeclineInvitePayload{
 		UID:       "committee-1",
@@ -1278,7 +1530,7 @@ func TestSubmitApplication(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
-			svc.userReader = newMockUserReader(tt.principal, tt.principal)
+			svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 
 			// Update committee-1 settings with the desired join_mode
 			repo.SetJoinMode("committee-1", tt.joinMode)
@@ -1320,7 +1572,7 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 	}
 	repo.AddCommitteeApplication(rejected)
 
-	svc.userReader = newMockUserReader("reapplicant@example.com", "reapplicant@example.com")
+	svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
 	newMsg := "I've improved since last time"
 	ctx := testCtx("reapplicant@example.com")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -1352,7 +1604,7 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 			}
 			repo.AddCommitteeApplication(existing)
 
-			svc.userReader = newMockUserReader("applicant@example.com", "applicant@example.com")
+			svc.userReader = mockReaderForPrincipalEmail("applicant@example.com", "applicant@example.com")
 			ctx := testCtx("applicant@example.com")
 			_, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 				UID: "committee-1",
@@ -1552,7 +1804,7 @@ func TestJoinCommittee(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 			if tt.email != "" {
-				svc.userReader = newMockUserReader(tt.username, tt.email)
+				svc.userReader = mockReaderForPrincipalEmail(tt.username, tt.email)
 			}
 
 			// Update committee-1 settings with the desired join_mode
@@ -1622,7 +1874,7 @@ func TestLeaveCommittee(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 			if tt.principal != "" {
-				svc.userReader = newMockUserReader(tt.principal, tt.principal)
+				svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 			}
 
 			if tt.seedMember {
@@ -1980,7 +2232,7 @@ func (e *errUserReader) UsernameByEmail(_ context.Context, _ string) (string, er
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
-func (e *errUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (e *errUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, errs.NewUnexpected("nats: connection timeout")
 }
 
@@ -2164,6 +2416,46 @@ func TestEnrichMember(t *testing.T) {
 			tt.validate(t, m)
 		})
 	}
+}
+
+func TestEnrichMemberOrganization_AuthServiceMetadata(t *testing.T) {
+	principal := "user@corp.com"
+	authSub := authpkg.MapUsernameToAuthSub(principal)
+	reader := &metadataByKeyReader{
+		metadata: map[string]*model.UserMetadata{
+			authSub: {Organization: "Example Corp"},
+		},
+	}
+	svc := &committeeServicesrvc{userReader: reader}
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			Email: "user@corp.com",
+		},
+	}
+
+	svc.enrichMemberOrganization(ctx, member)
+	assert.Equal(t, "Example Corp", member.Organization.Name)
+	assert.Empty(t, member.Organization.Website)
+}
+
+type metadataByKeyReader struct {
+	metadata map[string]*model.UserMetadata
+}
+
+func (r *metadataByKeyReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (r *metadataByKeyReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+
+func (r *metadataByKeyReader) UserMetadataByPrincipal(_ context.Context, key string) (*model.UserMetadata, error) {
+	if meta, ok := r.metadata[key]; ok {
+		return meta, nil
+	}
+	return nil, nil
 }
 
 func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {

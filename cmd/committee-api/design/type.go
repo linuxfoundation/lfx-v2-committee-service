@@ -381,6 +381,14 @@ func XSyncAttribute() {
 	})
 }
 
+// SkipNotificationAttribute is the DSL attribute for suppressing the member notification.
+func SkipNotificationAttribute() {
+	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
 	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {
@@ -541,6 +549,13 @@ func CommitteeMemberCreateAttributes() {
 func CommitteeMemberUpdateAttributes() {
 	CommitteeMemberBaseAttributes()
 }
+
+// AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).
+// Mapped via dsl.Body so clients may omit the body entirely for backward compatibility.
+var AcceptInviteOptionalBody = dsl.Type("accept-invite-optional-body", func() {
+	dsl.Description("Optional accept-invite request body.")
+	OrganizationInfoAttributes()
+})
 
 // Organization Information Attributes
 func OrganizationInfoAttributes() {
@@ -884,6 +899,7 @@ var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-read
 	dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
 		dsl.Example("None")
 	})
+	OrganizationInfoAttributes()
 	dsl.Attribute("status", dsl.String, "Invite status", func() {
 		dsl.Enum("pending", "accepted", "declined", "revoked")
 		dsl.Default("pending")

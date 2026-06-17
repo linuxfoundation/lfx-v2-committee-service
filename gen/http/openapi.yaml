@@ -1374,6 +1374,12 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
+                - name: Accept-InviteRequestBody
+                  in: body
+                  description: Optional JSON body
+                  required: false
+                  schema:
+                    $ref: '#/definitions/AcceptInviteOptionalBody'
             responses:
                 "200":
                     description: OK response.
@@ -1934,6 +1940,12 @@ paths:
                 - name: X-Sync
                   in: header
                   description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  required: false
+                  type: boolean
+                  default: false
+                - name: X-Skip-Notification
+                  in: header
+                  description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
                   required: false
                   type: boolean
                   default: false
@@ -2766,6 +2778,38 @@ paths:
             security:
                 - jwt_header_Authorization: []
 definitions:
+    AcceptInviteOptionalBody:
+        title: AcceptInviteOptionalBody
+        type: object
+        properties:
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+        description: Optional accept-invite request body.
+        example:
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
     BadRequestError:
         title: BadRequestError
         type: object
@@ -3305,6 +3349,28 @@ definitions:
                 description: Email of the invited person
                 example: invitee@example.com
                 format: email
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
             role:
                 type: string
                 description: Suggested role for the invitee
@@ -3328,6 +3394,10 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             invitee_email: invitee@example.com
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
             role: None
             status: pending
             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -4072,12 +4142,38 @@ definitions:
                 description: Email of the person to invite
                 example: invitee@example.com
                 format: email
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
             role:
                 type: string
                 description: Suggested role for the invitee
                 example: None
         example:
             invitee_email: invitee@example.com
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
             role: None
         required:
             - invitee_email

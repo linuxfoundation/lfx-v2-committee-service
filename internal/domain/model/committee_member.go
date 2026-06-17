@@ -23,6 +23,11 @@ const votingStatusNone = "None"
 // CommitteeMember represents the complete committee member business entity
 type CommitteeMember struct {
 	CommitteeMemberBase
+	// SkipNotification is request-scoped intent to suppress the invite/notification
+	// email when the member is created. It is tagged json:"-" so it is never
+	// persisted to the member KV record nor included in the default event marshal;
+	// it is carried into the create event via CommitteeMemberCreatedEventData.
+	SkipNotification bool `json:"-"`
 }
 
 // CommitteeMemberBase represents the base committee member attributes
@@ -249,6 +254,13 @@ func (cm *CommitteeMember) validateVotingStatus(committee *Committee, existingSt
 		return errs.NewValidation(`voting_status "None" is not allowed on voting-enabled committees`)
 	}
 	return nil
+}
+
+// ValidateOrganizationForCommittee checks whether organization info satisfies committee requirements.
+// When business_email_required or voting is enabled, either organization ID or both name and website
+// must be present. Used for invite creation as well as member create/update validation.
+func ValidateOrganizationForCommittee(org CommitteeMemberOrganization, committee *Committee) error {
+	return (&CommitteeMember{CommitteeMemberBase: CommitteeMemberBase{Organization: org}}).validateOrganizationFields(committee)
 }
 
 // validateOrganizationFields validates that organization information is provided when required.

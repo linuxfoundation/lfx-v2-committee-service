@@ -25,6 +25,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -648,16 +649,25 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		"invitee_email", redaction.RedactEmail(p.InviteeEmail),
 	)
 
-	// Verify committee exists
-	committee, _, err := s.storage.GetBase(ctx, p.UID)
+	// Verify committee exists.
+	committeeBase, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	var inviteOrgID, inviteOrgName, inviteOrgWebsite *string
+	if p.Organization != nil {
+		inviteOrgID = p.Organization.ID
+		inviteOrgName = p.Organization.Name
+		inviteOrgWebsite = p.Organization.Website
+	}
+	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
 	invite := &model.CommitteeInvite{
 		UID:          uuid.New().String(),
 		CommitteeUID: p.UID,
 		InviteeEmail: p.InviteeEmail,
+		Organization: inviteOrganization,
 		Status:       "pending",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -698,12 +708,15 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}
+		if p.Organization != nil {
+			revokedInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+		}
 		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
 		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
-		s.dispatchInviteEmail(ctx, committee, revokedInvite)
+		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
 	}
@@ -713,7 +726,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
-	s.dispatchInviteEmail(ctx, committee, invite)
+	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
 }
@@ -826,16 +839,24 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	// Create the committee member first — if this fails the invite remains pending/declined
 	// and the invitee can retry without being stuck in an inconsistent state.
 	// PrincipalContextID is the invitee's LFX username (Heimdall principal claim).
-	username, _ := ctx.Value(constants.PrincipalContextID).(string)
+	var acceptOrgID, acceptOrgName, acceptOrgWebsite *string
+	if p.Body != nil && p.Body.Organization != nil {
+		acceptOrgID = p.Body.Organization.ID
+		acceptOrgName = p.Body.Organization.Name
+		acceptOrgWebsite = p.Body.Organization.Website
+	}
+	memberOrganization := acceptInviteOrganization(invite, acceptOrgID, acceptOrgName, acceptOrgWebsite)
+
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: invite.CommitteeUID,
-			Username:     username,
 			Email:        invite.InviteeEmail,
 			Role:         model.CommitteeMemberRole{Name: invite.Role},
 			Status:       "Active",
+			Organization: memberOrganization,
 		},
 	}
+	s.enrichMember(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
@@ -1033,6 +1054,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 
 	// Resolve username and profile fields from the applicant's email.
 	s.enrichMember(ctx, member)
+	s.enrichMemberOrganization(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
@@ -1119,11 +1141,12 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
-			Username:     username,
 			Email:        email,
 			Status:       "Active",
 		},
 	}
+	s.enrichMember(ctx, member)
+	s.enrichMemberOrganization(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync)
 	if err != nil {
@@ -1195,8 +1218,9 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their LFX username (PrincipalContextID) to the auth-service via NATS.
+// resolveCallerEmail looks up the primary email for the authenticated caller by converting
+// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1207,7 +1231,12 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
+	authSub := authpkg.MapUsernameToAuthSub(principal)
+	if authSub == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
+	}
+
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
 	if err != nil {
 		return "", err
 	}
@@ -1510,6 +1539,52 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	}
 	if member.LastName == "" && meta.FamilyName != "" {
 		member.LastName = meta.FamilyName
+	}
+}
+
+// lookupUserMetadata fetches profile metadata from auth-service, trying each lookup key until one succeeds.
+// Keys may be an LFID username, JWT principal, or auth0| sub — auth-service user_metadata.read accepts all of these.
+func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...string) *model.UserMetadata {
+	if s.userReader == nil {
+		return nil
+	}
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		meta, err := s.userReader.UserMetadataByPrincipal(ctx, key)
+		if err == nil && meta != nil {
+			return meta
+		}
+	}
+	return nil
+}
+
+// enrichMemberOrganization fills organization.Name from auth-service profile metadata when
+// missing. It does not set ID or website; org-gated committees still require a complete
+// organization from the invite record or accept payload before member validation runs.
+func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
+	if member.Organization.ID != "" {
+		return
+	}
+	if member.Organization.Name != "" {
+		return
+	}
+
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	metadataKeys := make([]string, 0, 3)
+	if member.Username != "" {
+		metadataKeys = append(metadataKeys, member.Username)
+	}
+	if principal != "" {
+		metadataKeys = append(metadataKeys, principal)
+		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
+			metadataKeys = append(metadataKeys, authSub)
+		}
+	}
+	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
+		member.Organization.Name = strings.TrimSpace(meta.Organization)
 	}
 }
 

@@ -303,6 +303,7 @@ var _ = dsl.Service("committee-service", func() {
 			BearerTokenAttribute()
 			VersionAttribute()
 			XSyncAttribute()
+			SkipNotificationAttribute()
 			CommitteeUIDAttribute()
 
 			CommitteeMemberCreateAttributes()
@@ -324,6 +325,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -613,6 +615,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
 				dsl.Example("None")
 			})
+			OrganizationInfoAttributes()
 
 			dsl.Required("version", "uid", "invitee_email")
 		})
@@ -683,6 +686,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			CommitteeUIDAttribute()
 			InviteUIDAttribute()
+			dsl.Attribute("body", AcceptInviteOptionalBody, "Optional JSON body")
 
 			dsl.Required("version", "uid", "invite_uid")
 		})
@@ -702,6 +706,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Param("invite_uid")
 			dsl.Header("bearer_token:Authorization")
+			dsl.Body("body")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Forbidden", dsl.StatusForbidden)

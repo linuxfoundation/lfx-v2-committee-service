@@ -23,6 +23,24 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
+// updateMemberContextKey marks UpdateMember options on a context.
+type updateMemberContextKey struct{}
+
+type updateMemberContext struct {
+	skipUsernameEmailResolution bool
+}
+
+// contextWithSkipMemberUsernameEmailResolution skips auth email→username lookup in UpdateMember.
+// Used when invite acceptance sets username from accepted_by, matching Writers/Auditors enrichment.
+func contextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
+	return context.WithValue(ctx, updateMemberContextKey{}, updateMemberContext{skipUsernameEmailResolution: true})
+}
+
+func skipMemberUsernameEmailResolution(ctx context.Context) bool {
+	opts, ok := ctx.Value(updateMemberContextKey{}).(updateMemberContext)
+	return ok && opts.skipUsernameEmailResolution
+}
+
 // type committeeWriterOrchestrator from committee_writer.go
 
 func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, keys []string, isRollback bool) {
@@ -296,7 +314,8 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 10: Publish indexer and access control messages
 	eventData := &model.CommitteeMemberMessageData{
-		Member: member,
+		Member:           member,
+		SkipNotification: member.SkipNotification,
 	}
 	if errPublish := uc.publishMemberMessages(ctx, model.ActionCreated, eventData, sync); errPublish != nil {
 		// Log the error but don't fail the member creation
@@ -478,26 +497,49 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		staleKeys = append(staleKeys, oldLookupKey)
 	}
 
-	// Resolve username from email, overriding any caller-supplied plain LFID.
-	// Clear first so a failed lookup never leaves an unverified value at rest.
-	if member.Email != "" {
-		member.Username = ""
+	// Resolve username from email when auth can map the email to an LFID.
+	// When lookup fails or returns empty, keep the stored username only if the email did not change.
+	// If the email changed, clear username to avoid persisting a username/email mismatch.
+	// Invite acceptance skips this block and persists accepted_by directly (see contextWithSkipMemberUsernameEmailResolution).
+	if member.Email != "" && !skipMemberUsernameEmailResolution(ctx) {
 		slog.DebugContext(ctx, "resolving username from email during update",
 			"email", redaction.RedactEmail(member.Email),
+			"stored_username", redaction.Redact(existing.Username),
 		)
 		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
-		if errLookup != nil {
-			slog.WarnContext(ctx, "failed to lookup username by email during update",
-				"error", errLookup,
-				"email", redaction.RedactEmail(member.Email),
-			)
-			// Continue without username - it's an optional field
-		} else if username != "" {
+		switch {
+		case errLookup != nil:
+			if emailChanged {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; clearing username after email change",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = existing.Username
+			}
+		case username != "":
 			member.Username = username
 			slog.DebugContext(ctx, "username resolved from email during update",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
+		default:
+			if emailChanged {
+				slog.WarnContext(ctx, "username lookup returned empty during update; clearing username after email change",
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				member.Username = existing.Username
+			}
 		}
 	}
 
@@ -1015,8 +1057,14 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			OldMember: data.OldMember,
 			Member:    data.Member,
 		}
-	case model.ActionCreated, model.ActionDeleted:
-		// For create/delete, use the member directly
+	case model.ActionCreated:
+		// For create, carry the request-scoped skip-notification flag alongside the member.
+		eventInput = &model.CommitteeMemberCreatedEventData{
+			CommitteeMember:  data.Member,
+			SkipNotification: data.SkipNotification,
+		}
+	case model.ActionDeleted:
+		// For delete, use the member directly
 		eventInput = data.Member
 	}
 

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
@@ -599,7 +600,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 
 // BuildCreateCommitteeMemberPayload builds the payload for the
 // committee-service create-committee-member endpoint from CLI flags.
-func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string) (*committeeservice.CreateCommitteeMemberPayload, error) {
 	var err error
 	var body CreateCommitteeMemberRequestBody
 	{
@@ -709,6 +710,15 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			}
 		}
 	}
+	var skipNotification bool
+	{
+		if committeeServiceCreateCommitteeMemberSkipNotification != "" {
+			skipNotification, err = strconv.ParseBool(committeeServiceCreateCommitteeMemberSkipNotification)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipNotification, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -789,6 +799,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v, nil
 }
@@ -1308,9 +1319,19 @@ func BuildCreateInvitePayload(committeeServiceCreateInviteBody string, committee
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateInviteBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"invitee_email\": \"invitee@example.com\",\n      \"role\": \"None\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"invitee_email\": \"invitee@example.com\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": \"None\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.invitee_email", body.InviteeEmail, goa.FormatEmail))
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1351,6 +1372,20 @@ func BuildCreateInvitePayload(committeeServiceCreateInviteBody string, committee
 	v := &committeeservice.CreateInvitePayload{
 		InviteeEmail: body.InviteeEmail,
 		Role:         body.Role,
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 	v.UID = uid
 	v.Version = version
@@ -1407,8 +1442,19 @@ func BuildRevokeInvitePayload(committeeServiceRevokeInviteUID string, committeeS
 
 // BuildAcceptInvitePayload builds the payload for the committee-service
 // accept-invite endpoint from CLI flags.
-func BuildAcceptInvitePayload(committeeServiceAcceptInviteUID string, committeeServiceAcceptInviteInviteUID string, committeeServiceAcceptInviteVersion string, committeeServiceAcceptInviteBearerToken string) (*committeeservice.AcceptInvitePayload, error) {
+func BuildAcceptInvitePayload(committeeServiceAcceptInviteBody string, committeeServiceAcceptInviteUID string, committeeServiceAcceptInviteInviteUID string, committeeServiceAcceptInviteVersion string, committeeServiceAcceptInviteBearerToken string) (*committeeservice.AcceptInvitePayload, error) {
 	var err error
+	var body AcceptInviteRequestBody
+	{
+		bodyJSON := strings.TrimSpace(committeeServiceAcceptInviteBody)
+		if bodyJSON == "" || bodyJSON == "REQUIRED" {
+			bodyJSON = "{}"
+		}
+		err = json.Unmarshal([]byte(bodyJSON), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
+		}
+	}
 	var uid string
 	{
 		uid = committeeServiceAcceptInviteUID
@@ -1441,13 +1487,30 @@ func BuildAcceptInvitePayload(committeeServiceAcceptInviteUID string, committeeS
 			bearerToken = &committeeServiceAcceptInviteBearerToken
 		}
 	}
-	v := &committeeservice.AcceptInvitePayload{}
-	v.UID = uid
-	v.InviteUID = inviteUID
-	v.Version = version
-	v.BearerToken = bearerToken
+	v := &committeeservice.AcceptInviteOptionalBody{}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	res := &committeeservice.AcceptInvitePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.InviteUID = inviteUID
+	res.Version = version
+	res.BearerToken = bearerToken
 
-	return v, nil
+	return res, nil
 }
 
 // BuildDeclineInvitePayload builds the payload for the committee-service

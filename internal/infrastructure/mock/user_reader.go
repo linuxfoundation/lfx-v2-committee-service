@@ -22,9 +22,9 @@ func (m *MockUserReader) UsernameByEmail(_ context.Context, _ string) (string, e
 	return "", nil
 }
 
-// EmailsByPrincipal returns a UserEmails populated from the
+// EmailsByAuthToken returns a UserEmails populated from the
 // JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL environment variable.
-func (m *MockUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (m *MockUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	email := os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL")
 	if email == "" {
 		return nil, errors.NewValidation("mock email not configured in JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL")
