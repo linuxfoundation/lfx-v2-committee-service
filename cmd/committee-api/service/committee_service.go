@@ -1352,6 +1352,13 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 			}
 		}
 
+		// ExcludeRelations prevents fga-sync from deleting a previously-written invitee
+		// tuple when we have no resolved username (e.g. transient user-service outage or
+		// unregistered email). Mirrors the committee member ExcludeRelations pattern.
+		if data.Relations == nil {
+			data.ExcludeRelations = []string{constants.RelationInvitee}
+		}
+
 		msg = fgatypes.GenericFGAMessage{
 			ObjectType: "committee_invite",
 			Operation:  "update_access",

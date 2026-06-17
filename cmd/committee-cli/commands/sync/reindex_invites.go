@@ -5,6 +5,7 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
@@ -50,17 +52,23 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	rc.DryRun = *dryRun
 
 	if rc.CommitteeReader == nil {
-		return fmt.Errorf("CommitteeReader is not wired in RunContext")
+		return errs.NewUnexpected("CommitteeReader is not wired in RunContext")
 	}
 	if rc.Publisher == nil {
-		return fmt.Errorf("publisher is not wired in RunContext")
+		return errs.NewUnexpected("publisher is not wired in RunContext")
 	}
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	invites, err := rc.CommitteeReader.ListAllInvites(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list all invites: %w", err)
+	var invites []*model.CommitteeInvite
+	var listErr error
+	if *committeeUID != "" {
+		invites, listErr = rc.CommitteeReader.ListInvites(ctx, *committeeUID)
+	} else {
+		invites, listErr = rc.CommitteeReader.ListAllInvites(ctx)
+	}
+	if listErr != nil {
+		return errs.NewUnexpected("failed to list invites", listErr)
 	}
 
 	stats := commands.NewStats()
@@ -68,10 +76,6 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	stats.DryRun = rc.DryRun
 
 	for _, invite := range invites {
-		if *committeeUID != "" && invite.CommitteeUID != *committeeUID {
-			stats.Skipped++
-			continue
-		}
 
 		if rc.DryRun {
 			slog.InfoContext(ctx, "dry-run: would reindex invite",
@@ -122,7 +126,7 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	stats.Log(ctx, "sync reindex-invites")
 
 	if stats.Failed > 0 {
-		return fmt.Errorf("%d invite(s) failed to reindex", stats.Failed)
+		return errs.NewUnexpected(fmt.Sprintf("%d invite(s) failed to reindex", stats.Failed))
 	}
 	return nil
 }
@@ -171,19 +175,32 @@ func publishAccessControlMessage(ctx context.Context, rc commands.RunContext, in
 		},
 	}
 
-	// Resolve email → LFID username; skip the invitee tuple for unregistered emails.
-	// Mirrors the committee member and API-layer invite paths.
+	// Resolve email → LFID username. An errs.NotFound response means the invitee has no
+	// LFID yet — skip the tuple silently (auditor visibility still works). Any other error
+	// is a transient infrastructure failure: propagate it so the caller counts this invite
+	// as failed rather than silently omitting the invitee tuple.
 	if rc.UserReader != nil {
-		if username, err := rc.UserReader.UsernameByEmail(ctx, invite.InviteeEmail); err == nil && username != "" {
+		username, lookupErr := rc.UserReader.UsernameByEmail(ctx, invite.InviteeEmail)
+		if lookupErr != nil {
+			var notFound errs.NotFound
+			if errors.As(lookupErr, &notFound) {
+				slog.DebugContext(ctx, "invitee has no LFID yet, tuple skipped",
+					"invite_uid", invite.UID,
+				)
+			} else {
+				return fmt.Errorf("username lookup failed for invite %s: %w", invite.UID, lookupErr)
+			}
+		} else if username != "" {
 			data.Relations = map[string][]string{
 				constants.RelationInvitee: {username},
 			}
-		} else if err != nil {
-			slog.DebugContext(ctx, "username lookup failed, invitee tuple skipped",
-				"error", err,
-				"invite_uid", invite.UID,
-			)
 		}
+	}
+
+	// ExcludeRelations tells fga-sync not to touch the invitee relation when we have no
+	// username to write, preventing it from deleting an already-resolved invitee tuple.
+	if data.Relations == nil {
+		data.ExcludeRelations = []string{constants.RelationInvitee}
 	}
 
 	msg := fgatypes.GenericFGAMessage{

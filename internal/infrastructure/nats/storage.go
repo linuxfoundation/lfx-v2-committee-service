@@ -428,6 +428,7 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 	}
 
 	var invites []*model.CommitteeInvite
+	failedReads := 0
 
 	for key := range keys.Keys() {
 		// Skip all secondary-index keys.
@@ -442,6 +443,7 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 				"key", key,
 				"error", errGet,
 			)
+			failedReads++
 			continue
 		}
 
@@ -450,8 +452,15 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 
 	slog.DebugContext(ctx, "retrieved all committee invites from NATS storage",
 		"invite_count", len(invites),
+		"failed_reads", failedReads,
 	)
 
+	if failedReads > 0 {
+		return invites, errs.NewUnexpected(
+			"failed to load one or more invites while listing all",
+			fmt.Errorf("failed_reads=%d", failedReads),
+		)
+	}
 	return invites, nil
 }
 
