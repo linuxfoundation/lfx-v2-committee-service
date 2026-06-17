@@ -381,6 +381,14 @@ func XSyncAttribute() {
 	})
 }
 
+// SkipNotificationAttribute is the DSL attribute for suppressing the member notification.
+func SkipNotificationAttribute() {
+	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
 	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {

@@ -828,6 +828,25 @@ func TestConvertMemberPayloadToDomain(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "member payload with skip_notification set",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:              "committee-skip",
+				Email:            "skip@example.com",
+				AppointedBy:      "chair",
+				Status:           "active",
+				SkipNotification: true,
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-skip",
+					Email:        "skip@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+				},
+				SkipNotification: true,
+			},
+		},
 	}
 
 	for _, tt := range tests {

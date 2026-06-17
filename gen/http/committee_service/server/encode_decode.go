@@ -991,10 +991,11 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		}
 
 		var (
-			uid         string
-			version     string
-			bearerToken *string
-			xSync       bool
+			uid              string
+			version          string
+			bearerToken      *string
+			xSync            bool
+			skipNotification bool
 
 			params = mux.Vars(r)
 		)
@@ -1021,10 +1022,20 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipNotificationRaw := r.Header.Get("X-Skip-Notification")
+			if skipNotificationRaw != "" {
+				v, err2 := strconv.ParseBool(skipNotificationRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_notification", skipNotificationRaw, "boolean"))
+				}
+				skipNotification = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync)
+		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

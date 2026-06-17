@@ -567,6 +567,9 @@ type CreateCommitteeMemberPayload struct {
 	// Determines if the operation should be synchronous (true) or asynchronous
 	// (false, default)
 	XSync bool
+	// When true, suppress the invite/notification email sent to the new member
+	// (used for silent bulk imports)
+	SkipNotification bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// User's LF ID

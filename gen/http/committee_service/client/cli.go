@@ -600,7 +600,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 
 // BuildCreateCommitteeMemberPayload builds the payload for the
 // committee-service create-committee-member endpoint from CLI flags.
-func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string) (*committeeservice.CreateCommitteeMemberPayload, error) {
 	var err error
 	var body CreateCommitteeMemberRequestBody
 	{
@@ -710,6 +710,15 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			}
 		}
 	}
+	var skipNotification bool
+	{
+		if committeeServiceCreateCommitteeMemberSkipNotification != "" {
+			skipNotification, err = strconv.ParseBool(committeeServiceCreateCommitteeMemberSkipNotification)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipNotification, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -790,6 +799,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v, nil
 }

@@ -531,9 +531,26 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
-	var member model.CommitteeMember
-	if err := json.Unmarshal(raw, &member); err != nil {
-		slog.WarnContext(ctx, "cannot decode CommitteeMember from event data", "error", err)
+	// Decode the created-event payload once into the typed wrapper so the
+	// request-scoped skip_notification flag is parsed alongside the member. On a
+	// malformed payload we fail safe by suppressing the notification rather than
+	// defaulting to send.
+	var created model.CommitteeMemberCreatedEventData
+	if err := json.Unmarshal(raw, &created); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMemberCreatedEventData from event data — suppressing notification", "error", err)
+		return nil, nil
+	}
+	if created.CommitteeMember == nil {
+		slog.WarnContext(ctx, "committee_member.created event missing member payload — suppressing notification")
+		return nil, nil
+	}
+	member := *created.CommitteeMember
+
+	// Request-scoped opt-out: when the member was added with skip_notification set,
+	// suppress both the invite and the direct notification email.
+	if created.SkipNotification {
+		slog.DebugContext(ctx, "skipping member notification — skip_notification flag set",
+			"committee_uid", member.CommitteeUID)
 		return nil, nil
 	}
 
