@@ -416,6 +416,54 @@ func (s *storage) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember,
 	return members, nil
 }
 
+// ListAllInvites retrieves every invite across all committees via a full bucket scan.
+// It is intended only for backfill/repair operations (e.g. the reindex-invites CLI subcommand)
+// that need to read all invites without relying on a secondary index.
+func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite, error) {
+	slog.DebugContext(ctx, "listing all committee invites from NATS storage")
+
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeInvites].ListKeys(ctx)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee invites bucket", errKeys)
+	}
+
+	var invites []*model.CommitteeInvite
+	failedReads := 0
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		invite := &model.CommitteeInvite{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeInvites, key, invite, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get invite while listing all",
+				"key", key,
+				"error", errGet,
+			)
+			failedReads++
+			continue
+		}
+
+		invites = append(invites, invite)
+	}
+
+	slog.DebugContext(ctx, "retrieved all committee invites from NATS storage",
+		"invite_count", len(invites),
+		"failed_reads", failedReads,
+	)
+
+	if failedReads > 0 {
+		return invites, errs.NewUnexpected(
+			"failed to load one or more invites while listing all",
+			fmt.Errorf("failed_reads=%d", failedReads),
+		)
+	}
+	return invites, nil
+}
+
 // EachMember streams every committee member via a full bucket scan, invoking fn per member without
 // accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
 // per-member read error is logged and skipped; the first error fn returns stops iteration.

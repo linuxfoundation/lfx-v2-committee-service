@@ -334,6 +334,10 @@ func (r *TestMockCommitteeReader) ListInvites(ctx context.Context, committeeUID 
 	return []*model.CommitteeInvite{}, nil
 }
 
+func (r *TestMockCommitteeReader) ListAllInvites(_ context.Context) ([]*model.CommitteeInvite, error) {
+	return []*model.CommitteeInvite{}, nil
+}
+
 // Implement CommitteeApplicationReader interface
 func (r *TestMockCommitteeReader) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")

@@ -72,6 +72,9 @@ func (r *mockReader) GetInvite(_ context.Context, _ string) (*model.CommitteeInv
 func (r *mockReader) ListInvites(_ context.Context, _ string) ([]*model.CommitteeInvite, error) {
 	return nil, nil
 }
+func (r *mockReader) ListAllInvites(_ context.Context) ([]*model.CommitteeInvite, error) {
+	return nil, nil
+}
 func (r *mockReader) GetApplication(_ context.Context, _ string) (*model.CommitteeApplication, uint64, error) {
 	return nil, 0, nil
 }

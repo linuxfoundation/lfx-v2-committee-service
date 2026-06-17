@@ -15,4 +15,7 @@ type CommitteeInviteReader interface {
 	GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error)
 	// ListInvites retrieves all invites for a given committee UID
 	ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error)
+	// ListAllInvites retrieves every invite across all committees via a full bucket scan.
+	// Intended only for backfill/repair operations (e.g. the reindex-invites CLI subcommand).
+	ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite, error)
 }
