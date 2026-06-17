@@ -24,9 +24,9 @@ const (
 	// The subject is of the form: lfx.projects-api.get_slug
 	ProjectGetSlugSubject = "lfx.projects-api.get_slug"
 
-	// AuthEmailToSubLookupSubject is the subject for the email to sub lookup.
-	// The subject is of the form: lfx.auth-service.email_to_sub
-	AuthEmailToSubLookupSubject = "lfx.auth-service.email_to_sub"
+	// AuthEmailToUsernameLookupSubject resolves a registered LFID username by primary email.
+	// Request: plain-text email. Reply: plain-text username on success, JSON error envelope on miss.
+	AuthEmailToUsernameLookupSubject = "lfx.auth-service.email_to_username"
 
 	// AuthUserEmailsReadSubject is the subject for looking up a user's email addresses by principal.
 	// The subject is of the form: lfx.auth-service.user_emails.read

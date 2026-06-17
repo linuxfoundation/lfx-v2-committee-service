@@ -119,8 +119,8 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `member_visibility` | string | Who can see members |
 | `last_reviewed_at` | string (optional) | RFC3339 timestamp of the last membership review |
 | `last_reviewed_by` | string (optional) | UID of who performed the last review |
-| `writers` | []object | Users with write access. Each object has `avatar` (string), `email` (string), `name` (string), `username` (string — holds the user ID / sub value), and optionally `invite` (object — see [Invite Object](#invite-object)) when the user has no LFID yet |
-| `auditors` | []object | Users with audit access. Each object has `avatar` (string), `email` (string), `name` (string), `username` (string — holds the user ID / sub value), and optionally `invite` (object — see [Invite Object](#invite-object)) when the user has no LFID yet |
+| `writers` | []object | Users with write access. Each object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username), and optionally `invite` (object — see [Invite Object](#invite-object)) when the user has no LFID yet |
+| `auditors` | []object | Users with audit access. Each object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username), and optionally `invite` (object — see [Invite Object](#invite-object)) when the user has no LFID yet |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -331,6 +331,7 @@ _(none)_
 | `committee_uid` | string | UID of the committee this invite belongs to |
 | `invitee_email` | string | Email address of the invitee |
 | `role` | string | Role the invitee is being invited to |
+| `organization` | object | Organization for the invitee (`id`, `name`, `website`) when provided on create |
 | `status` | string | Invite status (e.g., `pending`, `accepted`, `declined`, `revoked`) |
 | `created_at` | timestamp | Creation time (RFC3339) |
 

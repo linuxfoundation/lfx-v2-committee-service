@@ -5,7 +5,6 @@ package service
 
 import (
 	"strings"
-	"time"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -147,8 +146,8 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 }
 
 // convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model.
-// existing, when non-nil, is used to seed each writer/auditor entry so that read-only fields
-// (e.g. Invite) are preserved across PUT requests without the client having to send them.
+// existing, when non-nil, is used to seed each writer/auditor entry so stored identity fields
+// are preserved across PUT requests without the client having to send them.
 func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservice.UpdateCommitteeSettingsPayload, existing *model.CommitteeSettings) *model.CommitteeSettings {
 	// Check for nil payload to avoid panic
 	if p == nil {
@@ -637,6 +636,26 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 	if invite.Role != "" {
 		result.Role = &invite.Role
 	}
+	if invite.Organization != nil {
+		org := invite.Organization
+		if org.ID != "" || org.Name != "" || org.Website != "" {
+			orgResp := &struct {
+				ID      *string
+				Name    *string
+				Website *string
+			}{}
+			if org.ID != "" {
+				orgResp.ID = &org.ID
+			}
+			if org.Name != "" {
+				orgResp.Name = &org.Name
+			}
+			if org.Website != "" {
+				orgResp.Website = &org.Website
+			}
+			result.Organization = orgResp
+		}
+	}
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
@@ -649,8 +668,7 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 // is an explicit empty array, preserving the caller's intent to clear the list.
 //
 // existing, when provided, seeds each incoming user with the stored record matched by normalized
-// identity key (username for LFID users, lowercased-trimmed email for non-LFID users) so that
-// read-only fields (e.g. Invite) survive a PUT request without the client having to send them.
+// identity key (username for LFID users, lowercased-trimmed email for non-LFID users).
 // Incoming API fields are overlaid on top of the seeded values.
 func convertPayloadUsersToModel(users []*committeeservice.CommitteeUser, existing []model.CommitteeUser) []model.CommitteeUser {
 	if users == nil {
@@ -740,17 +758,6 @@ func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservic
 		}
 		if u.Username != "" {
 			cu.Username = &u.Username
-		}
-		if u.Invite != nil {
-			inv := &committeeservice.CommitteeUserInvite{
-				UID:   &u.Invite.UID,
-				Email: &u.Invite.Email,
-			}
-			if u.Invite.ExpiresAt != nil {
-				t := u.Invite.ExpiresAt.Format(time.RFC3339)
-				inv.ExpiresAt = &t
-			}
-			cu.Invite = inv
 		}
 		result = append(result, cu)
 	}

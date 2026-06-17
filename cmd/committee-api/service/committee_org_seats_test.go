@@ -96,7 +96,8 @@ func entitlementSeat() *model.CommitteeMember {
 		AppointedBy:       "Membership Entitlement",
 		Voting:            model.CommitteeMemberVotingInfo{Status: "Voting Rep"},
 		Organization:      model.CommitteeMemberOrganization{ID: testOrgSFID, Name: "Acme"},
-		Invite:            &model.InviteInfo{},
+		ProjectUID:        "11111111-1111-1111-1111-111111111111",
+		ProjectSlug:       "test-project",
 		CreatedAt:         time.Now().Add(-72 * time.Hour),
 		UpdatedAt:         time.Now().Add(-48 * time.Hour),
 	}}
@@ -137,6 +138,15 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		assert.Equal(t, "Voting Rep", res.Seats[0].VotingStatus)
 		assert.Equal(t, "Director", res.Seats[0].RoleName)
 		assert.Equal(t, testOrgSFID, res.Seats[0].OrganizationID)
+		// Foundation (project) tags are surfaced per seat.
+		require.NotNil(t, res.Seats[0].ProjectUID)
+		assert.Equal(t, "11111111-1111-1111-1111-111111111111", *res.Seats[0].ProjectUID)
+		require.NotNil(t, res.Seats[0].ProjectSlug)
+		assert.Equal(t, "test-project", *res.Seats[0].ProjectSlug)
+
+		// Non-entitlement seat carries no project tags (fixture leaves them empty) → nil pointers.
+		assert.Nil(t, res.Seats[1].ProjectUID)
+		assert.Nil(t, res.Seats[1].ProjectSlug)
 
 		// Non-entitlement seat is not editable and carries a reason.
 		assert.False(t, res.Seats[1].IsOrgEditable)
@@ -350,7 +360,6 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		// Holder-specific fields cleared (regression guard for the carry-over fix).
 		assert.Empty(t, nm.JobTitle)
 		assert.Empty(t, nm.LinkedInProfile)
-		assert.Nil(t, nm.Invite)
 		assert.True(t, nm.CreatedAt.IsZero())
 		assert.True(t, nm.UpdatedAt.IsZero())
 		// Seat-defining fields preserved.
@@ -358,6 +367,9 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		assert.Equal(t, "Voting Rep", nm.Voting.Status)
 		assert.Equal(t, "Membership Entitlement", nm.AppointedBy)
 		assert.Equal(t, testOrgSFID, nm.Organization.ID)
+		// The seat's foundation (project) tags must survive the reassign allowlist copy.
+		assert.Equal(t, "11111111-1111-1111-1111-111111111111", nm.ProjectUID)
+		assert.Equal(t, "test-project", nm.ProjectSlug)
 
 		// Old member deleted exactly once at the read revision.
 		require.Len(t, writer.deleteCalls, 1)

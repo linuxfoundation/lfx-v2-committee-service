@@ -204,6 +204,33 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
+    - id: "rule:lfx:lfx-v2-committee-service:weekly_briefs:update_current"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - PUT
+        routes:
+          - path: /committees/:uid/weekly-briefs/current
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        {{- if .Values.openfga.enabled }}
+        - authorizer: openfga_check
+          config:
+            values:
+              relation: writer
+              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+        {{- else }}
+        - authorizer: allow_all
+        {{- end }}
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
     - id: "rule:lfx:lfx-v2-committee-service:committee_settings:get"
       allow_encoded_slashes: 'off'
       match:

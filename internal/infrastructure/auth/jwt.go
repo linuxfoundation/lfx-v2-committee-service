@@ -66,19 +66,12 @@ type JWTAuth struct {
 
 // ParsePrincipal extracts the principal from the JWT claims.
 func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, error) {
-
 	if j.validator == nil {
 		return "", errors.New("JWT validator is not set up")
 	}
 
 	parsedJWT, err := j.validator.ValidateToken(ctx, token)
 	if err != nil {
-		// Drop tertiary (and deeper) nested errors for security reasons. This is
-		// using colons as an approximation for error nesting, which may not
-		// exactly match to error boundaries. Unwrapping the error twice, then
-		// dropping the suffix of the 3rd error's String() method could be more
-		// accurate to error boundaries, but could also expose tertiary errors if
-		// errors are not wrapped with Go 1.13 `%w` semantics.
 		logger.With("default_audience", defaultAudience).With("default_issuer", defaultIssuer).With("error", err).WarnContext(ctx, "authorization failed")
 		errString := err.Error()
 		firstColon := strings.Index(errString, ":")
@@ -86,8 +79,6 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 			errString = strings.Replace(errString, ": go-jose/go-jose/jwt", "", 1)
 			secondColon := strings.Index(errString[firstColon+1:], ":")
 			if secondColon != -1 {
-				// Error has two colons (which may be 3 or more errors), so drop the
-				// second colon and everything after it.
 				errString = errString[:firstColon+secondColon+1]
 			}
 		}
@@ -96,13 +87,11 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 
 	claims, ok := parsedJWT.(*validator.ValidatedClaims)
 	if !ok {
-		// This should never happen.
 		return "", errors.New("failed to get validated authorization claims")
 	}
 
 	customClaims, ok := claims.CustomClaims.(*HeimdallClaims)
 	if !ok {
-		// This should never happen.
 		return "", errors.New("failed to get custom authorization claims")
 	}
 

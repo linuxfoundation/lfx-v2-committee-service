@@ -48,7 +48,7 @@ type UserEmailsNATSRequestUser struct {
 }
 
 // UserEmailsNATSRequest is the payload sent to lfx.auth-service.user_emails.read.
-// The auth-service expects a JSON body with the caller's bearer token (without the "Bearer " prefix).
+// The auth-service expects JSON with auth_token set to the caller's Auth0 subject (auth0|{userID}).
 type UserEmailsNATSRequest struct {
 	User UserEmailsNATSRequestUser `json:"user"`
 }
@@ -99,13 +99,14 @@ type UserMetadataNATSDataBody struct {
 
 // CheckError parses a JSON message and returns an error if the operation was unsuccessful.
 func (e ErrorMessageNATSResponse) CheckError(message string) error {
-	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal == nil {
-		if !e.Success {
-			if strings.Contains(e.Error, "not found") {
-				return errors.NewNotFound(e.Error)
-			}
-			return errors.NewUnexpected(e.Error)
+	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal != nil {
+		return errors.NewUnexpected("failed to parse NATS error response", errUnmarshal)
+	}
+	if !e.Success {
+		if strings.Contains(e.Error, "not found") {
+			return errors.NewNotFound(e.Error)
 		}
+		return errors.NewUnexpected(e.Error)
 	}
 	return nil
 }

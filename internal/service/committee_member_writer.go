@@ -23,6 +23,24 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
+// updateMemberContextKey marks UpdateMember options on a context.
+type updateMemberContextKey struct{}
+
+type updateMemberContext struct {
+	skipUsernameEmailResolution bool
+}
+
+// contextWithSkipMemberUsernameEmailResolution skips auth email→username lookup in UpdateMember.
+// Used when invite acceptance sets username from accepted_by, matching Writers/Auditors enrichment.
+func contextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
+	return context.WithValue(ctx, updateMemberContextKey{}, updateMemberContext{skipUsernameEmailResolution: true})
+}
+
+func skipMemberUsernameEmailResolution(ctx context.Context) bool {
+	opts, ok := ctx.Value(updateMemberContextKey{}).(updateMemberContext)
+	return ok && opts.skipUsernameEmailResolution
+}
+
 // type committeeWriterOrchestrator from committee_writer.go
 
 func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, keys []string, isRollback bool) {
@@ -174,23 +192,23 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		}
 	}
 
-	// Step 4: Resolve subject identifier from email, overriding any caller-supplied plain LFID.
+	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
 	// Clear first so a failed lookup never leaves an unverified value at rest.
 	if member.Email != "" {
 		member.Username = ""
-		slog.DebugContext(ctx, "resolving subject identifier from email",
+		slog.DebugContext(ctx, "resolving username from email",
 			"email", redaction.RedactEmail(member.Email),
 		)
-		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
+		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
 		if errLookup != nil {
 			slog.WarnContext(ctx, "failed to lookup username by email",
 				"error", errLookup,
 				"email", redaction.RedactEmail(member.Email),
 			)
 			// Continue without username - it's an optional field
-		} else if sub != "" {
-			member.Username = sub
-			slog.DebugContext(ctx, "username resolved to subject identifier",
+		} else if username != "" {
+			member.Username = username
+			slog.DebugContext(ctx, "username resolved from email",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
@@ -478,26 +496,49 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		staleKeys = append(staleKeys, oldLookupKey)
 	}
 
-	// Resolve subject identifier from email, overriding any caller-supplied plain LFID.
-	// Clear first so a failed lookup never leaves an unverified value at rest.
-	if member.Email != "" {
-		member.Username = ""
-		slog.DebugContext(ctx, "resolving subject identifier from email during update",
+	// Resolve username from email when auth can map the email to an LFID.
+	// When lookup fails or returns empty, keep the stored username only if the email did not change.
+	// If the email changed, clear username to avoid persisting a username/email mismatch.
+	// Invite acceptance skips this block and persists accepted_by directly (see contextWithSkipMemberUsernameEmailResolution).
+	if member.Email != "" && !skipMemberUsernameEmailResolution(ctx) {
+		slog.DebugContext(ctx, "resolving username from email during update",
 			"email", redaction.RedactEmail(member.Email),
+			"stored_username", redaction.Redact(existing.Username),
 		)
-		sub, errLookup := uc.lookupSubByEmail(ctx, member.Email)
-		if errLookup != nil {
-			slog.WarnContext(ctx, "failed to lookup username by email during update",
-				"error", errLookup,
-				"email", redaction.RedactEmail(member.Email),
-			)
-			// Continue without username - it's an optional field
-		} else if sub != "" {
-			member.Username = sub
-			slog.DebugContext(ctx, "username resolved to subject identifier during update",
+		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
+		switch {
+		case errLookup != nil:
+			if emailChanged {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; clearing username after email change",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
+					"error", errLookup,
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = existing.Username
+			}
+		case username != "":
+			member.Username = username
+			slog.DebugContext(ctx, "username resolved from email during update",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
+		default:
+			if emailChanged {
+				slog.WarnContext(ctx, "username lookup returned empty during update; clearing username after email change",
+					"email", redaction.RedactEmail(member.Email),
+					"stored_username", redaction.Redact(existing.Username),
+				)
+				member.Username = ""
+			} else {
+				member.Username = existing.Username
+			}
 		}
 	}
 
@@ -887,35 +928,43 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	return nil
 }
 
-// lookupSubByEmail looks up a user's sub (username) by their email address
-func (uc *committeeWriterOrchestrator) lookupSubByEmail(ctx context.Context, email string) (string, error) {
+// lookupUsernameByEmail looks up a user's LFID username by their email address.
+func (uc *committeeWriterOrchestrator) lookupUsernameByEmail(ctx context.Context, email string) (string, error) {
 	if uc.userReader == nil {
-		slog.DebugContext(ctx, "user reader not configured, skipping sub lookup",
+		slog.DebugContext(ctx, "user reader not configured, skipping username lookup",
 			"email", redaction.RedactEmail(email),
 		)
 		return "", nil
 	}
 
-	slog.DebugContext(ctx, "looking up user sub by email",
+	slog.DebugContext(ctx, "looking up username by email",
 		"email", redaction.RedactEmail(email),
 	)
 
-	sub, err := uc.userReader.SubByEmail(ctx, email)
+	username, err := uc.userReader.UsernameByEmail(ctx, email)
 	if err != nil {
 		return "", err
 	}
 
-	slog.DebugContext(ctx, "successfully looked up user sub by email",
+	if username == "" {
+		slog.DebugContext(ctx, "username lookup returned empty",
+			"email", redaction.RedactEmail(email),
+		)
+		return "", nil
+	}
+
+	slog.DebugContext(ctx, "successfully looked up username by email",
 		"email", redaction.RedactEmail(email),
-		"sub", redaction.Redact(sub),
+		"username", redaction.Redact(username),
 	)
 
-	return sub, nil
+	return username, nil
 }
 
 // buildMemberAccessControlMessage builds a GenericFGAMessage for a committee member operation.
 // For create/update, it sends member_put to add the user to the "member" relation.
 // For delete, it sends member_remove with empty relations to remove all tuples for the user.
+// FGA subjects use LFX usernames (not Auth0 subs).
 func (uc *committeeWriterOrchestrator) buildMemberAccessControlMessage(ctx context.Context, member *model.CommitteeMember, action model.MessageAction) fgatypes.GenericFGAMessage {
 	slog.DebugContext(ctx, "building member access control message",
 		"username", redaction.Redact(member.Username),

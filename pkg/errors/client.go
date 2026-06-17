@@ -140,3 +140,28 @@ func NewEditedBriefExists(revision uint64) EditedBriefExists {
 		Revision: revision,
 	}
 }
+
+// RevisionMismatch is a 409 specific to the weekly-brief edit/save flow —
+// returned when the caller's optimistic-concurrency token does not match the
+// brief's current revision (someone else edited in the meantime). Distinguished
+// from generic Conflict so the handler can attach the current revision to the
+// response body, letting the client refetch and retry.
+type RevisionMismatch struct {
+	base
+	// Revision is the brief's current (server-side) revision.
+	Revision uint64
+}
+
+// Error returns the error message for RevisionMismatch.
+func (e RevisionMismatch) Error() string {
+	return e.error()
+}
+
+// NewRevisionMismatch creates a RevisionMismatch conflict error carrying the
+// brief's current revision.
+func NewRevisionMismatch(revision uint64) RevisionMismatch {
+	return RevisionMismatch{
+		base:     base{message: "brief was modified by someone else; refresh and retry"},
+		Revision: revision,
+	}
+}

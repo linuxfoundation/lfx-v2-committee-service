@@ -25,6 +25,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -52,6 +53,7 @@ type committeeServicesrvc struct {
 	docWriter                   service.CommitteeDocumentDataWriter
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
+	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
 	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
@@ -247,7 +249,7 @@ func (s *committeeServicesrvc) UpdateCommitteeSettings(ctx context.Context, p *c
 		return nil, wrapError(ctx, err)
 	}
 
-	// Fetch existing settings so read-only fields (e.g. Invite) can be preserved during conversion.
+	// Fetch existing settings so stored writer/auditor identity can be preserved during conversion.
 	existingSettings, _, errGet := s.committeeReaderOrchestrator.GetSettings(ctx, *p.UID)
 	if errGet != nil {
 		return nil, wrapError(ctx, errGet)
@@ -468,6 +470,16 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		jt := m.JobTitle
 		seat.JobTitle = &jt
 	}
+	// project_uid / project_slug are optional foundation tags on the model; only set them when present
+	// so empty values aren't serialized as empty strings.
+	if m.ProjectUID != "" {
+		pu := m.ProjectUID
+		seat.ProjectUID = &pu
+	}
+	if m.ProjectSlug != "" {
+		ps := m.ProjectSlug
+		seat.ProjectSlug = &ps
+	}
 	if !editable {
 		reason := "This seat is held by foundation election or appointment, not by your organization's membership entitlement."
 		seat.Reason = &reason
@@ -512,7 +524,7 @@ func (s *committeeServicesrvc) ReassignOrgCommitteeSeat(ctx context.Context, p *
 	// voting status, appointment type, and holding organization — and swaps only the person holding
 	// it. Construct a FRESH base and copy ONLY those seat-defining fields (an allowlist), so future
 	// additions to CommitteeMemberBase don't silently leak the previous holder's identity/profile/
-	// invite/timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
+	// timestamps onto the new seat. UID/Username are left empty (assigned by CreateMember;
 	// username is resolved from the new holder's email).
 	newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		Role:              member.Role,
@@ -637,16 +649,25 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		"invitee_email", redaction.RedactEmail(p.InviteeEmail),
 	)
 
-	// Verify committee exists
-	committee, _, err := s.storage.GetBase(ctx, p.UID)
+	// Verify committee exists.
+	committeeBase, _, err := s.storage.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	var inviteOrgID, inviteOrgName, inviteOrgWebsite *string
+	if p.Organization != nil {
+		inviteOrgID = p.Organization.ID
+		inviteOrgName = p.Organization.Name
+		inviteOrgWebsite = p.Organization.Website
+	}
+	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
 	invite := &model.CommitteeInvite{
 		UID:          uuid.New().String(),
 		CommitteeUID: p.UID,
 		InviteeEmail: p.InviteeEmail,
+		Organization: inviteOrganization,
 		Status:       "pending",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -687,12 +708,15 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}
+		if p.Organization != nil {
+			revokedInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+		}
 		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
 		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
-		s.dispatchInviteEmail(ctx, committee, revokedInvite)
+		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
 	}
@@ -702,7 +726,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
-	s.dispatchInviteEmail(ctx, committee, invite)
+	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
 }
@@ -814,16 +838,25 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 
 	// Create the committee member first — if this fails the invite remains pending/declined
 	// and the invitee can retry without being stuck in an inconsistent state.
-	username, _ := ctx.Value(constants.PrincipalContextID).(string)
+	// PrincipalContextID is the invitee's LFX username (Heimdall principal claim).
+	var acceptOrgID, acceptOrgName, acceptOrgWebsite *string
+	if p.Body != nil && p.Body.Organization != nil {
+		acceptOrgID = p.Body.Organization.ID
+		acceptOrgName = p.Body.Organization.Name
+		acceptOrgWebsite = p.Body.Organization.Website
+	}
+	memberOrganization := acceptInviteOrganization(invite, acceptOrgID, acceptOrgName, acceptOrgWebsite)
+
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: invite.CommitteeUID,
-			Username:     username,
 			Email:        invite.InviteeEmail,
 			Role:         model.CommitteeMemberRole{Name: invite.Role},
 			Status:       "Active",
+			Organization: memberOrganization,
 		},
 	}
+	s.enrichMember(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
@@ -1021,6 +1054,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 
 	// Resolve username and profile fields from the applicant's email.
 	s.enrichMember(ctx, member)
+	s.enrichMemberOrganization(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
@@ -1090,7 +1124,8 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		return nil, wrapError(ctx, errors.NewForbidden("committee join_mode is not open"))
 	}
 
-	// Get username from context — Heimdall injects the user's username as a JWT claim.
+	// PrincipalContextID is the caller's LFX username (Heimdall principal claim).
+	// Coordinated with the LFXV2-1964 migration so FGA tuple subjects match authorization checks.
 	username, _ := ctx.Value(constants.PrincipalContextID).(string)
 	if username == "" {
 		return nil, wrapError(ctx, errors.NewValidation("unable to determine user username from identity"))
@@ -1106,11 +1141,12 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
-			Username:     username,
 			Email:        email,
 			Status:       "Active",
 		},
 	}
+	s.enrichMember(ctx, member)
+	s.enrichMemberOrganization(ctx, member)
 
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync)
 	if err != nil {
@@ -1182,8 +1218,9 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by sending
-// their principal (Auth0 sub) to the auth-service via NATS.
+// resolveCallerEmail looks up the primary email for the authenticated caller by converting
+// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
 		return "", errors.NewServiceUnavailable("user reader is not configured")
@@ -1194,7 +1231,12 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	userEmails, err := s.userReader.EmailsByPrincipal(ctx, principal)
+	authSub := authpkg.MapUsernameToAuthSub(principal)
+	if authSub == "" {
+		return "", errors.NewValidation("unable to determine user identity from token")
+	}
+
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
 	if err != nil {
 		return "", err
 	}
@@ -1370,7 +1412,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 
 	// enrichResult holds the resolved identity and profile for one email address.
 	type enrichResult struct {
-		sub      string
+		username string
 		metadata *model.UserMetadata
 	}
 
@@ -1382,7 +1424,7 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 
 	for email := range byEmail {
 		g.Go(func() error {
-			sub, err := s.userReader.SubByEmail(gCtx, email)
+			username, err := s.userReader.UsernameByEmail(gCtx, email)
 			if err != nil {
 				var notFound errors.NotFound
 				if stderrors.As(err, &notFound) {
@@ -1393,27 +1435,27 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 				}
 				return err
 			}
-			if sub == "" {
-				// Empty sub with no error is treated as not found — no valid LFID to persist.
+			if username == "" {
+				// Empty username with no error is treated as not found — no valid LFID to persist.
 				mu.Lock()
 				results[email] = enrichResult{}
 				mu.Unlock()
 				return nil
 			}
 
-			// Sub resolved — now fetch authoritative profile data.
+			// Username resolved — now fetch authoritative profile data.
 			// Metadata failures are non-fatal: display fields must not block the write.
 			var meta *model.UserMetadata
-			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, sub)
+			m, metaErr := s.userReader.UserMetadataByPrincipal(gCtx, username)
 			if metaErr != nil {
 				slog.WarnContext(gCtx, "user metadata lookup failed; name/avatar will not be enriched",
-					"email", redaction.RedactEmail(email), "sub", redaction.Redact(sub), "error", metaErr)
+					"email", redaction.RedactEmail(email), "username", redaction.Redact(username), "error", metaErr)
 			} else {
 				meta = m
 			}
 
 			mu.Lock()
-			results[email] = enrichResult{sub: sub, metadata: meta}
+			results[email] = enrichResult{username: username, metadata: meta}
 			mu.Unlock()
 			return nil
 		})
@@ -1423,15 +1465,15 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 		return errors.NewUnexpected("enriching committee user role fields failed", err)
 	}
 
-	// Apply resolved sub, name, and avatar. Only overwrite name/avatar when the auth service
+	// Apply resolved username, name, and avatar. Only overwrite name/avatar when the auth service
 	// returned a non-empty value so a partial metadata response cannot erase stored display fields.
 	// UserMetadata carries additional fields (JobTitle, Organization, etc.) that CommitteeUser does
 	// not currently model; they are fetched now so the domain struct is complete for future callers.
 	for email, users := range byEmail {
 		r := results[email]
 		for _, u := range users {
-			sub := r.sub
-			u.Username = &sub
+			username := r.username
+			u.Username = &username
 			if r.metadata != nil {
 				if r.metadata.Name != "" {
 					name := r.metadata.Name
@@ -1447,9 +1489,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 	return nil
 }
 
-// enrichMember resolves the subject identifier (username) and profile metadata for a member from
-// their email address. When email is present the auth-service lookup always runs, overriding any
-// caller-supplied plain LFID so only subject identifiers are persisted.
+// enrichMember resolves the LFID username and profile metadata for a member from their email
+// address. When email is present the auth-service lookup always runs, overriding any
+// caller-supplied plain LFID so only registered usernames are persisted.
 // All lookups are best-effort: failures log a warning and leave the field unchanged so the
 // caller's write is never blocked by an enrichment error.
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
@@ -1469,7 +1511,7 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
 	// failing the request. Individual member writes (create/update/approve) should not be blocked
 	// by a transient auth-service outage — the member is stored without an enriched LFID.
-	sub, err := s.userReader.SubByEmail(ctx, email)
+	username, err := s.userReader.UsernameByEmail(ctx, email)
 	if err != nil {
 		var notFound errors.NotFound
 		if !stderrors.As(err, &notFound) {
@@ -1478,15 +1520,15 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 		}
 		return
 	}
-	if sub == "" {
+	if username == "" {
 		return
 	}
-	member.Username = sub
+	member.Username = username
 
-	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, sub)
+	meta, metaErr := s.userReader.UserMetadataByPrincipal(ctx, username)
 	if metaErr != nil {
 		slog.WarnContext(ctx, "user metadata lookup failed; member profile will not be enriched",
-			"sub", redaction.Redact(sub), "error", metaErr)
+			"username", redaction.Redact(username), "error", metaErr)
 		return
 	}
 	if meta == nil {
@@ -1497,6 +1539,52 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	}
 	if member.LastName == "" && meta.FamilyName != "" {
 		member.LastName = meta.FamilyName
+	}
+}
+
+// lookupUserMetadata fetches profile metadata from auth-service, trying each lookup key until one succeeds.
+// Keys may be an LFID username, JWT principal, or auth0| sub — auth-service user_metadata.read accepts all of these.
+func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...string) *model.UserMetadata {
+	if s.userReader == nil {
+		return nil
+	}
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		meta, err := s.userReader.UserMetadataByPrincipal(ctx, key)
+		if err == nil && meta != nil {
+			return meta
+		}
+	}
+	return nil
+}
+
+// enrichMemberOrganization fills organization.Name from auth-service profile metadata when
+// missing. It does not set ID or website; org-gated committees still require a complete
+// organization from the invite record or accept payload before member validation runs.
+func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
+	if member.Organization.ID != "" {
+		return
+	}
+	if member.Organization.Name != "" {
+		return
+	}
+
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	metadataKeys := make([]string, 0, 3)
+	if member.Username != "" {
+		metadataKeys = append(metadataKeys, member.Username)
+	}
+	if principal != "" {
+		metadataKeys = append(metadataKeys, principal)
+		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
+			metadataKeys = append(metadataKeys, authSub)
+		}
+	}
+	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
+		member.Organization.Name = strings.TrimSpace(meta.Organization)
 	}
 }
 
@@ -1516,6 +1604,7 @@ func NewCommitteeService(
 	docWriter service.CommitteeDocumentDataWriter,
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
+	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
 	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
@@ -1533,6 +1622,7 @@ func NewCommitteeService(
 		docWriter:                   docWriter,
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
+		weeklyBriefWriter:           weeklyBriefWriter,
 		orgSeatReader:               orgSeatReader,
 	}
 }
@@ -1642,6 +1732,20 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		}
 		out.SourceRefs = append(out.SourceRefs, ref)
 	}
+	// Edit-audit fields are only present once a chair has saved an edit; mirror
+	// the CreatedAt/UpdatedAt zero-time handling above.
+	if !b.LastEditedAt.IsZero() {
+		v := b.LastEditedAt.UTC().Format(time.RFC3339)
+		out.LastEditedAt = &v
+	}
+	if b.LastEditedBy != "" {
+		v := b.LastEditedBy
+		out.LastEditedBy = &v
+	}
+	// Always surface the revision: clients echo it back as the edit/save
+	// optimistic-concurrency token (PUT /current).
+	rev := b.Revision
+	out.Revision = &rev
 	return out
 }
 
@@ -1739,6 +1843,59 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
 	}
 	return res, nil
+}
+
+// UpdateCurrentWeeklyBrief is the PUT /committees/{uid}/weekly-briefs/current
+// handler. It saves chair-edited brief text for the current UTC Sun→Sat window,
+// transitioning the brief to "edited" and preserving source_refs. Optimistic
+// concurrency is enforced on the revision token the caller read from
+// GET /current: a stale token yields 409 with the current revision so the
+// client can refetch and retry; a missing brief yields 404; empty text 400.
+func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *committeeservice.UpdateCurrentWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.update-current-weekly-brief",
+		"committee_uid", p.UID,
+		"revision", p.Revision,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Fail fast on misconfiguration before any storage I/O.
+	if s.weeklyBriefWriter == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief writer is not configured"))
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404 for the committee
+	// rather than 404 for a missing brief.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	// PrincipalContextID is the caller's LFX username (Heimdall principal claim),
+	// recorded as last_edited_by. Reject a missing principal rather than persist
+	// an empty editor — this endpoint's audit trail depends on it, and it mirrors
+	// the guard the sibling write handlers use (CreateCommitteeLink, etc.).
+	editedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	if editedBy == "" {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	updated, err := s.weeklyBriefWriter.Update(ctx, service.GroupWeeklyBriefUpdateInput{
+		CommitteeUID: p.UID,
+		BriefText:    p.BriefText,
+		Revision:     p.Revision,
+		EditedBy:     editedBy,
+		Now:          time.Now().UTC(),
+	})
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return domainGroupWeeklyBriefToGoa(updated), nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

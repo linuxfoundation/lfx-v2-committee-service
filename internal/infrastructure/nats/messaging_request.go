@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -46,37 +47,39 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
-// SubByEmail retrieves a user's sub (subject identifier) for the given email address via a NATS request.
-func (m *messageRequest) SubByEmail(ctx context.Context, email string) (string, error) {
-
-	data := []byte(email)
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToSubLookupSubject, data)
+// UsernameByEmail resolves the registered LFID username for the given primary email address.
+// The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
+func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {
+	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToUsernameLookupSubject, []byte(email))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("email_to_username request failed: %w", err)
 	}
 
-	response := string(msg.Data)
-	if response == "" {
-		return "", errors.NewNotFound(fmt.Sprintf("user sub not found for email: %s", redaction.RedactEmail(email)))
+	body := strings.TrimSpace(string(msg.Data))
+	if body == "" {
+		return "", errors.NewNotFound(fmt.Sprintf("user not found for email: %s", redaction.RedactEmail(email)))
 	}
 
-	// handling errors if exists
-	var errorMessage ErrorMessageNATSResponse
-	if err := errorMessage.CheckError(response); err != nil {
-		return "", err
+	// Auth-service error responses are JSON objects; success replies are plain-text usernames.
+	if body[0] == '{' {
+		var errorMessage ErrorMessageNATSResponse
+		if err := errorMessage.CheckError(body); err != nil {
+			return "", err
+		}
+		return "", errors.NewUnexpected("unexpected email_to_username success envelope")
 	}
 
-	return response, nil
+	return body, nil
 }
 
-// EmailsByPrincipal retrieves all email addresses for a user by sending their Auth0 sub
-// as the auth_token to the NATS subject lfx.auth-service.user_emails.read.
-func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string) (*model.UserEmails, error) {
-	if principal == "" {
-		return nil, errors.NewValidation("principal must not be empty")
+// EmailsByAuthToken retrieves all email addresses for a user by sending their Auth0 subject
+// (auth0|{userID}) as auth_token to the NATS subject lfx.auth-service.user_emails.read.
+func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
+	if authToken == "" {
+		return nil, errors.NewValidation("auth token must not be empty")
 	}
 	req := UserEmailsNATSRequest{
-		User: UserEmailsNATSRequestUser{AuthToken: principal},
+		User: UserEmailsNATSRequestUser{AuthToken: authToken},
 	}
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -85,7 +88,7 @@ func (m *messageRequest) EmailsByPrincipal(ctx context.Context, principal string
 
 	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewServiceUnavailable("auth service unavailable", err)
 	}
 
 	var response UserEmailsNATSResponse

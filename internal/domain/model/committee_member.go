@@ -44,7 +44,6 @@ type CommitteeMemberBase struct {
 	CommitteeCategory string                      `json:"committee_category"`
 	ProjectUID        string                      `json:"project_uid,omitempty"`
 	ProjectSlug       string                      `json:"project_slug,omitempty"`
-	Invite            *InviteInfo                 `json:"invite,omitempty"`
 	CreatedAt         time.Time                   `json:"created_at"`
 	UpdatedAt         time.Time                   `json:"updated_at"`
 }
@@ -250,6 +249,13 @@ func (cm *CommitteeMember) validateVotingStatus(committee *Committee, existingSt
 		return errs.NewValidation(`voting_status "None" is not allowed on voting-enabled committees`)
 	}
 	return nil
+}
+
+// ValidateOrganizationForCommittee checks whether organization info satisfies committee requirements.
+// When business_email_required or voting is enabled, either organization ID or both name and website
+// must be present. Used for invite creation as well as member create/update validation.
+func ValidateOrganizationForCommittee(org CommitteeMemberOrganization, committee *Committee) error {
+	return (&CommitteeMember{CommitteeMemberBase: CommitteeMemberBase{Organization: org}}).validateOrganizationFields(committee)
 }
 
 // validateOrganizationFields validates that organization information is provided when required.

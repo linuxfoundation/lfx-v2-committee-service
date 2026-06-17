@@ -17,9 +17,7 @@ type MockAuthService struct{}
 
 // ParsePrincipal returns a mock principal from environment variables (ignores token parameter)
 func (m *MockAuthService) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, error) {
-
 	principal := os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL")
-
 	if principal == "" {
 		return "", errors.NewValidation("mock principal not configured in JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL")
 	}

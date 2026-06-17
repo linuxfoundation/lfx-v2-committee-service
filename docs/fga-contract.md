@@ -62,7 +62,7 @@ These fields are carried inside the message `data` object.
 | `writer` | Usernames from `CommitteeSettings.Writers` | Only when `Writers` is non-empty |
 | `auditor` | Usernames from `CommitteeSettings.Auditors` | Only when `Auditors` is non-empty |
 
-> Usernames are the `Username` field of each `CommitteeUser` entry (Auth0 `sub` values). Users with an empty `Username` are skipped.
+> Usernames are the `Username` field of each `CommitteeUser` entry (LFX usernames). When only an email is provided, the service resolves the username via `lfx.auth-service.email_to_username` before publishing. Users with an empty `Username` are skipped.
 
 #### References
 
@@ -92,7 +92,7 @@ The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UI
 | Field | Value | Condition |
 |---|---|---|
 | `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
-| `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
+| `username` | `CommitteeMember.Username` (LFX username) | Always (skipped if `Username` is empty) |
 | `relations` | `["member"]` | Always |
 
 ### member_remove (Committee Member Delete)
@@ -111,7 +111,7 @@ Published to `lfx.fga-sync.member_remove` when a committee member is deleted and
 | Field | Value | Condition |
 |---|---|---|
 | `uid` | `CommitteeMember.CommitteeUID` (parent committee) | Always |
-| `username` | `CommitteeMember.Username` (Auth0 `sub`) | Always (skipped if `Username` is empty) |
+| `username` | `CommitteeMember.Username` (LFX username) | Always (skipped if `Username` is empty) |
 | `relations` | `[]` (empty — remove all) | Always |
 
 ### Delete

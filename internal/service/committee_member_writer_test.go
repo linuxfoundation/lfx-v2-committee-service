@@ -249,18 +249,18 @@ func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository
 
 // writerTestUserReader is a configurable UserReader mock for committee_member_writer tests.
 type writerTestUserReader struct {
-	subs map[string]string // email → sub
-	err  error             // returned by SubByEmail when non-nil
+	usernames map[string]string // email → username
+	err       error             // returned by UsernameByEmail when non-nil
 }
 
-func (r *writerTestUserReader) SubByEmail(_ context.Context, email string) (string, error) {
+func (r *writerTestUserReader) UsernameByEmail(_ context.Context, email string) (string, error) {
 	if r.err != nil {
 		return "", r.err
 	}
-	return r.subs[email], nil
+	return r.usernames[email], nil
 }
 
-func (r *writerTestUserReader) EmailsByPrincipal(_ context.Context, _ string) (*model.UserEmails, error) {
+func (r *writerTestUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, nil
 }
 
@@ -392,6 +392,50 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 				assert.NotZero(t, member.UpdatedAt, "UpdatedAt should be set")
 				assert.Equal(t, "committee-123", member.CommitteeUID)
 				assert.Equal(t, "test@example.com", member.Email)
+			},
+		},
+		{
+			// Regression guard (LFXV2-1442 / Org Lens board-committee tab): CreateMember MUST denormalize
+			// project_uid/project_slug from the parent committee, and MUST override any caller-supplied
+			// value with the committee's authoritative one. Members created without this (pre-LFXV2-1442)
+			// carried an empty project_uid in KV truth and were silently dropped by the org-seat project
+			// family filter. A trusted-but-wrong caller value must not be able to reintroduce the drift.
+			name: "denormalizes project_uid/project_slug from committee, overriding caller input",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				committee := &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:         "committee-123",
+						Name:        "Test Committee",
+						Category:    "Technical",
+						ProjectUID:  "project-authoritative",
+						ProjectSlug: "authoritative-foundation",
+						CreatedAt:   time.Now(),
+						UpdatedAt:   time.Now(),
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID:                   "committee-123",
+						BusinessEmailRequired: false,
+					},
+				}
+				mockRepo.AddCommittee(committee)
+			},
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-123",
+					Email:        "test@example.com",
+					Username:     "testuser",
+					Organization: model.CommitteeMemberOrganization{Name: "Test Org"},
+					// Caller-supplied values that must be ignored in favor of the committee's.
+					ProjectUID:  "project-wrong",
+					ProjectSlug: "wrong-foundation",
+				},
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, member *model.CommitteeMember) {
+				assert.Equal(t, "project-authoritative", member.ProjectUID,
+					"project_uid must be denormalized from the committee, not the caller")
+				assert.Equal(t, "authoritative-foundation", member.ProjectSlug,
+					"project_slug must be denormalized from the committee, not the caller")
 			},
 		},
 		{
@@ -874,7 +918,7 @@ func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
 // entry is cleaned up by the background goroutine.
 func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|newuser"}}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
 	// Route reads through the writer so the background stale-key cleanup goroutine's
 	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
 	orchestrator.committeeReader = memberWriter
@@ -924,7 +968,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.
 // (newOrgSFID == ""): no new organization index is written, and the old entry is cleaned up.
 func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|newuser"}}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
 	// Route reads through the writer so the background stale-key cleanup goroutine's
 	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
 	orchestrator.committeeReader = memberWriter
@@ -1218,7 +1262,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 
 func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|newuser"}}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
 
 	// Setup committee with settings
 	committee := &model.Committee{
@@ -1239,7 +1283,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 			UID:          "member-123",
 			CommitteeUID: "committee-123",
 			Email:        "old@example.com",
-			Username:     "auth0|olduser",
+			Username:     "olduser",
 			FirstName:    "Old",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
@@ -1279,10 +1323,10 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Verify the member was updated and the subject identifier was resolved from email.
+	// Verify the member was updated and the username was resolved from email.
 	assert.Equal(t, "member-123", result.UID)
 	assert.Equal(t, "new@example.com", result.Email)
-	assert.Equal(t, "auth0|newuser", result.Username)
+	assert.Equal(t, "newuser", result.Username)
 	assert.Equal(t, "New Org", result.Organization.Name)
 
 	// Verify timestamps were preserved/updated correctly
@@ -1510,9 +1554,9 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		})
 	}
 
-	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, _ := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"alice@example.com": "auth0|alice"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "alice"}}
 		addCommittee(mockRepo)
 
 		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
@@ -1526,7 +1570,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		}, false)
 
 		require.NoError(t, err)
-		assert.Equal(t, "auth0|alice", result.Username)
+		assert.Equal(t, "alice", result.Username)
 	})
 
 	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
@@ -1558,7 +1602,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		existing := &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				UID: "m-1", CommitteeUID: "c-1", Email: "old@example.com",
-				Username: "auth0|old", FirstName: "Old",
+				Username: "old", FirstName: "Old",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 				CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
 			},
@@ -1568,9 +1612,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		memberWriter.customRevisions["m-1"] = 1
 	}
 
-	t.Run("plain LFID overridden by subject identifier from email lookup", func(t *testing.T) {
+	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{subs: map[string]string{"new@example.com": "auth0|new"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "new"}}
 		addCommitteeAndMember(mockRepo, memberWriter)
 
 		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
@@ -1582,10 +1626,10 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		}, 1, false)
 
 		require.NoError(t, err)
-		assert.Equal(t, "auth0|new", result.Username)
+		assert.Equal(t, "new", result.Username)
 	})
 
-	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
+	t.Run("username cleared when email changes and lookup fails", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
 		addCommitteeAndMember(mockRepo, memberWriter)
@@ -1600,5 +1644,57 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
+	})
+
+	t.Run("username cleared when email changes and lookup returns empty", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{}}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "plain-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Empty(t, result.Username)
+	})
+
+	t.Run("stored username kept when email unchanged and lookup fails", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "old@example.com",
+				Username: "plain-lfid", FirstName: "Old",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "old", result.Username)
+	})
+
+	t.Run("invite acceptance context persists accepted_by without email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
+		addCommitteeAndMember(mockRepo, memberWriter)
+
+		ctx := contextWithSkipMemberUsernameEmailResolution(context.Background())
+		result, err := orchestrator.UpdateMember(ctx, &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
+				Username: "accepted-lfid", FirstName: "New",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, 1, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "accepted-lfid", result.Username)
 	})
 }

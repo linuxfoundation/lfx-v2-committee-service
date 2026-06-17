@@ -459,17 +459,20 @@ func InviteSenderImpl(ctx context.Context) port.InviteSender {
 
 // LFXSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
+// When LFX_ENVIRONMENT is unset, prod is assumed (safe default for deployed environments).
 func LFXSelfServeBaseURL() string {
 	if url := os.Getenv("LFX_SELF_SERVE_BASE_URL"); url != "" {
 		return url
 	}
 	switch os.Getenv("LFX_ENVIRONMENT") {
-	case "prod":
+	case "prod", "production":
 		return "https://app.lfx.dev"
-	case "staging", "stg":
+	case "staging", "stg", "stage":
 		return "https://app.staging.lfx.dev"
-	default:
+	case "dev", "development":
 		return "https://app.dev.lfx.dev"
+	default:
+		return "https://app.lfx.dev"
 	}
 }
 
@@ -690,7 +693,11 @@ func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader
 		if !ok {
 			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
 		}
-		return nats.NewNATSOrgCommitteeSeatReader(memberReader)
+		baseReader, ok := natsStorage.(port.CommitteeBaseReader)
+		if !ok {
+			log.Fatalf("NATS storage does not implement CommitteeBaseReader")
+		}
+		return nats.NewNATSOrgCommitteeSeatReader(memberReader, baseReader)
 	default:
 		log.Fatalf("unsupported org committee seat reader implementation: %s", repoSource)
 	}

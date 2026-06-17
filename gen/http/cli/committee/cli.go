@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|get-committee-member|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|update-current-weekly-brief)",
 	}
 }
 
@@ -155,6 +155,7 @@ func ParseEndpoint(
 		committeeServiceRevokeInviteBearerTokenFlag = committeeServiceRevokeInviteFlags.String("bearer-token", "", "")
 
 		committeeServiceAcceptInviteFlags           = flag.NewFlagSet("accept-invite", flag.ExitOnError)
+		committeeServiceAcceptInviteBodyFlag        = committeeServiceAcceptInviteFlags.String("body", "{}", "")
 		committeeServiceAcceptInviteUIDFlag         = committeeServiceAcceptInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceAcceptInviteInviteUIDFlag   = committeeServiceAcceptInviteFlags.String("invite-uid", "REQUIRED", "Committee invite UID")
 		committeeServiceAcceptInviteVersionFlag     = committeeServiceAcceptInviteFlags.String("version", "REQUIRED", "")
@@ -295,6 +296,12 @@ func ParseEndpoint(
 		committeeServiceGenerateWeeklyBriefUIDFlag         = committeeServiceGenerateWeeklyBriefFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceGenerateWeeklyBriefVersionFlag     = committeeServiceGenerateWeeklyBriefFlags.String("version", "", "")
 		committeeServiceGenerateWeeklyBriefBearerTokenFlag = committeeServiceGenerateWeeklyBriefFlags.String("bearer-token", "", "")
+
+		committeeServiceUpdateCurrentWeeklyBriefFlags           = flag.NewFlagSet("update-current-weekly-brief", flag.ExitOnError)
+		committeeServiceUpdateCurrentWeeklyBriefBodyFlag        = committeeServiceUpdateCurrentWeeklyBriefFlags.String("body", "REQUIRED", "")
+		committeeServiceUpdateCurrentWeeklyBriefUIDFlag         = committeeServiceUpdateCurrentWeeklyBriefFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceUpdateCurrentWeeklyBriefVersionFlag     = committeeServiceUpdateCurrentWeeklyBriefFlags.String("version", "", "")
+		committeeServiceUpdateCurrentWeeklyBriefBearerTokenFlag = committeeServiceUpdateCurrentWeeklyBriefFlags.String("bearer-token", "", "")
 	)
 	committeeServiceFlags.Usage = committeeServiceUsage
 	committeeServiceCreateCommitteeFlags.Usage = committeeServiceCreateCommitteeUsage
@@ -336,6 +343,7 @@ func ParseEndpoint(
 	committeeServiceDeleteCommitteeDocumentFlags.Usage = committeeServiceDeleteCommitteeDocumentUsage
 	committeeServiceGetCurrentWeeklyBriefFlags.Usage = committeeServiceGetCurrentWeeklyBriefUsage
 	committeeServiceGenerateWeeklyBriefFlags.Usage = committeeServiceGenerateWeeklyBriefUsage
+	committeeServiceUpdateCurrentWeeklyBriefFlags.Usage = committeeServiceUpdateCurrentWeeklyBriefUsage
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return nil, nil, err
@@ -488,6 +496,9 @@ func ParseEndpoint(
 			case "generate-weekly-brief":
 				epf = committeeServiceGenerateWeeklyBriefFlags
 
+			case "update-current-weekly-brief":
+				epf = committeeServiceUpdateCurrentWeeklyBriefFlags
+
 			}
 
 		}
@@ -564,7 +575,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildRevokeInvitePayload(*committeeServiceRevokeInviteUIDFlag, *committeeServiceRevokeInviteInviteUIDFlag, *committeeServiceRevokeInviteVersionFlag, *committeeServiceRevokeInviteBearerTokenFlag)
 			case "accept-invite":
 				endpoint = c.AcceptInvite()
-				data, err = committeeservicec.BuildAcceptInvitePayload(*committeeServiceAcceptInviteUIDFlag, *committeeServiceAcceptInviteInviteUIDFlag, *committeeServiceAcceptInviteVersionFlag, *committeeServiceAcceptInviteBearerTokenFlag)
+				data, err = committeeservicec.BuildAcceptInvitePayload(*committeeServiceAcceptInviteBodyFlag, *committeeServiceAcceptInviteUIDFlag, *committeeServiceAcceptInviteInviteUIDFlag, *committeeServiceAcceptInviteVersionFlag, *committeeServiceAcceptInviteBearerTokenFlag)
 			case "decline-invite":
 				endpoint = c.DeclineInvite()
 				data, err = committeeservicec.BuildDeclineInvitePayload(*committeeServiceDeclineInviteUIDFlag, *committeeServiceDeclineInviteInviteUIDFlag, *committeeServiceDeclineInviteVersionFlag, *committeeServiceDeclineInviteBearerTokenFlag)
@@ -628,6 +639,9 @@ func ParseEndpoint(
 			case "generate-weekly-brief":
 				endpoint = c.GenerateWeeklyBrief()
 				data, err = committeeservicec.BuildGenerateWeeklyBriefPayload(*committeeServiceGenerateWeeklyBriefBodyFlag, *committeeServiceGenerateWeeklyBriefUIDFlag, *committeeServiceGenerateWeeklyBriefVersionFlag, *committeeServiceGenerateWeeklyBriefBearerTokenFlag)
+			case "update-current-weekly-brief":
+				endpoint = c.UpdateCurrentWeeklyBrief()
+				data, err = committeeservicec.BuildUpdateCurrentWeeklyBriefPayload(*committeeServiceUpdateCurrentWeeklyBriefBodyFlag, *committeeServiceUpdateCurrentWeeklyBriefUIDFlag, *committeeServiceUpdateCurrentWeeklyBriefVersionFlag, *committeeServiceUpdateCurrentWeeklyBriefBearerTokenFlag)
 			}
 		}
 	}
@@ -683,6 +697,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    delete-committee-document: Delete a document from a committee`)
 	fmt.Fprintln(os.Stderr, `    get-current-weekly-brief: Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).`)
 	fmt.Fprintln(os.Stderr, `    generate-weekly-brief: Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Responds 202 with the brief in the "generating" state; the source gather + LLM call run out-of-band via a durable consumer. Clients poll GET /current to observe the terminal "generated" or "error" state — a window with no activity or an AI failure finalizes the brief as "error" rather than a synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the throttle is exhausted.`)
+	fmt.Fprintln(os.Stderr, `    update-current-weekly-brief: Save chair-edited brief text for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Overwrites brief_text and transitions the brief to the "edited" state, preserving source_refs. Optimistic concurrency: the caller echoes the revision from GET /current; a stale revision returns 409 with the current revision so the client can refetch and retry. Returns 404 when no brief exists for the window (generate one first), 400 when brief_text is empty.`)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Additional help:")
 	fmt.Fprintf(os.Stderr, "    %s committee-service COMMAND --help\n", os.Args[0])
@@ -1078,7 +1093,7 @@ func committeeServiceCreateInviteUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-invite --body '{\n      \"invitee_email\": \"invitee@example.com\",\n      \"role\": \"None\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-invite --body '{\n      \"invitee_email\": \"invitee@example.com\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": \"None\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceRevokeInviteUsage() {
@@ -1108,6 +1123,7 @@ func committeeServiceRevokeInviteUsage() {
 func committeeServiceAcceptInviteUsage() {
 	// Header with flags
 	fmt.Fprintf(os.Stderr, "%s [flags] committee-service accept-invite", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
 	fmt.Fprint(os.Stderr, " -uid STRING")
 	fmt.Fprint(os.Stderr, " -invite-uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
@@ -1119,6 +1135,7 @@ func committeeServiceAcceptInviteUsage() {
 	fmt.Fprintln(os.Stderr, `Accept a pending invite`)
 
 	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
 	fmt.Fprintln(os.Stderr, `    -invite-uid STRING: Committee invite UID`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
@@ -1126,7 +1143,7 @@ func committeeServiceAcceptInviteUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service accept-invite --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service accept-invite --body '{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --invite-uid \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceDeclineInviteUsage() {
@@ -1651,4 +1668,28 @@ func committeeServiceGenerateWeeklyBriefUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service generate-weekly-brief --body '{\n      \"force\": false\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceUpdateCurrentWeeklyBriefUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service update-current-weekly-brief", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Save chair-edited brief text for the UTC Sun→Sat window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). Overwrites brief_text and transitions the brief to the "edited" state, preserving source_refs. Optimistic concurrency: the caller echoes the revision from GET /current; a stale revision returns 409 with the current revision so the client can refetch and retry. Returns 404 when no brief exists for the window (generate one first), 400 when brief_text is empty.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-current-weekly-brief --body '{\n      \"brief_text\": \"## This week\\n\\n- Shipped the thing.\",\n      \"revision\": 7\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }

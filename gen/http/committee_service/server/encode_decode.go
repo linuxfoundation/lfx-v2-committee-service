@@ -2287,11 +2287,31 @@ func EncodeAcceptInviteResponse(encoder func(context.Context, http.ResponseWrite
 func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.AcceptInvitePayload, error) {
 	return func(r *http.Request) (*committeeservice.AcceptInvitePayload, error) {
 		var (
+			body AcceptInviteRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				err = nil
+			} else {
+				var gerr *goa.ServiceError
+				if errors.As(err, &gerr) {
+					return nil, gerr
+				}
+				return nil, goa.DecodePayloadError(err.Error())
+			}
+		}
+		err = ValidateAcceptInviteRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
 			uid         string
 			inviteUID   string
 			version     string
 			bearerToken *string
-			err         error
 
 			params = mux.Vars(r)
 		)
@@ -2313,7 +2333,7 @@ func DecodeAcceptInviteRequest(mux goahttp.Muxer, decoder func(*http.Request) go
 		if err != nil {
 			return nil, err
 		}
-		payload := NewAcceptInvitePayload(uid, inviteUID, version, bearerToken)
+		payload := NewAcceptInvitePayload(&body, uid, inviteUID, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -5383,6 +5403,174 @@ func EncodeGenerateWeeklyBriefError(encoder func(context.Context, http.ResponseW
 	}
 }
 
+// EncodeUpdateCurrentWeeklyBriefResponse returns an encoder for responses
+// returned by the committee-service update-current-weekly-brief endpoint.
+func EncodeUpdateCurrentWeeklyBriefResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.GroupWeeklyBriefWithReadonlyAttributes)
+		enc := encoder(ctx, w)
+		body := NewUpdateCurrentWeeklyBriefResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeUpdateCurrentWeeklyBriefRequest returns a decoder for requests sent to
+// the committee-service update-current-weekly-brief endpoint.
+func DecodeUpdateCurrentWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.UpdateCurrentWeeklyBriefPayload, error) {
+	return func(r *http.Request) (*committeeservice.UpdateCurrentWeeklyBriefPayload, error) {
+		var (
+			body UpdateCurrentWeeklyBriefRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateUpdateCurrentWeeklyBriefRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid         string
+			version     *string
+			bearerToken *string
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewUpdateCurrentWeeklyBriefPayload(&body, uid, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeUpdateCurrentWeeklyBriefError returns an encoder for errors returned
+// by the update-current-weekly-brief committee-service endpoint.
+func EncodeUpdateCurrentWeeklyBriefError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
+			return enc.Encode(body)
+		case "RevisionConflict":
+			var res *committeeservice.GroupWeeklyBriefRevisionConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefRevisionConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCurrentWeeklyBriefServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -5395,25 +5583,6 @@ func unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *Committ
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
-	}
-	if v.Invite != nil {
-		res.Invite = unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite(v.Invite)
-	}
-
-	return res
-}
-
-// unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite
-// builds a value of type *committeeservice.CommitteeUserInvite from a value of
-// type *CommitteeUserInviteRequestBody.
-func unmarshalCommitteeUserInviteRequestBodyToCommitteeserviceCommitteeUserInvite(v *CommitteeUserInviteRequestBody) *committeeservice.CommitteeUserInvite {
-	if v == nil {
-		return nil
-	}
-	res := &committeeservice.CommitteeUserInvite{
-		UID:       v.UID,
-		Email:     v.Email,
-		ExpiresAt: v.ExpiresAt,
 	}
 
 	return res
@@ -5432,25 +5601,6 @@ func marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(v *committe
 		Name:     v.Name,
 		Username: v.Username,
 	}
-	if v.Invite != nil {
-		res.Invite = marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody(v.Invite)
-	}
-
-	return res
-}
-
-// marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody
-// builds a value of type *CommitteeUserInviteResponseBody from a value of type
-// *committeeservice.CommitteeUserInvite.
-func marshalCommitteeserviceCommitteeUserInviteToCommitteeUserInviteResponseBody(v *committeeservice.CommitteeUserInvite) *CommitteeUserInviteResponseBody {
-	if v == nil {
-		return nil
-	}
-	res := &CommitteeUserInviteResponseBody{
-		UID:       v.UID,
-		Email:     v.Email,
-		ExpiresAt: v.ExpiresAt,
-	}
 
 	return res
 }
@@ -5464,6 +5614,8 @@ func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *co
 		CommitteeUID:      v.CommitteeUID,
 		CommitteeName:     v.CommitteeName,
 		CommitteeCategory: v.CommitteeCategory,
+		ProjectUID:        v.ProjectUID,
+		ProjectSlug:       v.ProjectSlug,
 		FirstName:         v.FirstName,
 		LastName:          v.LastName,
 		Email:             v.Email,
@@ -5536,6 +5688,9 @@ func marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyB
 		PrivateSourcePresent: v.PrivateSourcePresent,
 		CreatedAt:            v.CreatedAt,
 		UpdatedAt:            v.UpdatedAt,
+		LastEditedAt:         v.LastEditedAt,
+		LastEditedBy:         v.LastEditedBy,
+		Revision:             v.Revision,
 	}
 	if v.SourceRefs != nil {
 		res.SourceRefs = make([]*GroupWeeklyBriefSourceRefResponseBody, len(v.SourceRefs))
