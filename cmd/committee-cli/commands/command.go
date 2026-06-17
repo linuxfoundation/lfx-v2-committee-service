@@ -34,8 +34,12 @@ type RunContext struct {
 	// (e.g. IndexMemberByCommittee). This is used by data-repair subcommands that bypass the
 	// business-logic orchestrator and write to the storage layer directly.
 	CommitteeMemberWriter port.CommitteeMemberWriter
-	DryRun                bool
-	Args                  []string // remaining args after command + subcommand, for subcommand flag parsing
+	// Publisher provides direct access to indexer and access-control messaging (e.g. reindex
+	// subcommands that need to publish without going through the writer orchestrator).
+	Publisher  port.CommitteePublisher
+	UserReader port.UserReader
+	DryRun     bool
+	Args       []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

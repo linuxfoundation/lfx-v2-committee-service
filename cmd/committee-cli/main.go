@@ -96,19 +96,23 @@ func run() error {
 	defer func() { _ = client.Close() }()
 
 	storage := nats.NewStorage(client)
+	publisher := nats.NewMessagePublisher(client)
+	userReader := nats.NewUserRequest(client)
 
 	writerOrchestrator := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(storage),
 		usecaseSvc.WithCommitteeWriter(storage),
 		usecaseSvc.WithProjectRetriever(nats.NewMessageRequest(client)),
-		usecaseSvc.WithUserReader(nats.NewUserRequest(client)),
-		usecaseSvc.WithCommitteePublisher(nats.NewMessagePublisher(client)),
+		usecaseSvc.WithUserReader(userReader),
+		usecaseSvc.WithCommitteePublisher(publisher),
 	)
 
 	rc := commands.RunContext{
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       storage,
+		Publisher:                   publisher,
+		UserReader:                  userReader,
 		Args:                        parsed.SubArgs,
 	}
 
