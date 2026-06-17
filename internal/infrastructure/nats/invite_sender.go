@@ -12,7 +12,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
-	"github.com/nats-io/nats.go"
 )
 
 type inviteSender struct {
@@ -36,10 +35,7 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 		return port.InviteResult{}, errors.NewUnexpected("failed to marshal invite request", err)
 	}
 
-	reply, err := s.client.conn.RequestMsgWithContext(ctx, &nats.Msg{
-		Subject: inviteapi.SendInviteSubject,
-		Data:    data,
-	})
+	ctx, reply, err := s.client.requestWithSpan(ctx, inviteapi.SendInviteSubject, data)
 	if err != nil {
 		slog.ErrorContext(ctx, "invite service request failed", "error", err)
 		return port.InviteResult{}, errors.NewServiceUnavailable("invite service unavailable", err)

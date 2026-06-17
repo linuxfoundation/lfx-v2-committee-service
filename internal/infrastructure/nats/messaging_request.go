@@ -23,7 +23,7 @@ type messageRequest struct {
 func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, error) {
 
 	data := []byte(uid)
-	msg, err := m.client.conn.RequestWithContext(ctx, subject, data)
+	_, msg, err := m.client.requestWithSpan(ctx, subject, data)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +50,8 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 // UsernameByEmail resolves the registered LFID username for the given primary email address.
 // The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
 func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthEmailToUsernameLookupSubject, []byte(email))
+	data := []byte(email)
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthEmailToUsernameLookupSubject, data)
 	if err != nil {
 		return "", fmt.Errorf("email_to_username request failed: %w", err)
 	}
@@ -86,7 +87,7 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 		return nil, errors.NewUnexpected("failed to marshal user_emails request", err)
 	}
 
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserEmailsReadSubject, payload)
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserEmailsReadSubject, payload)
 	if err != nil {
 		return nil, errors.NewServiceUnavailable("auth service unavailable", err)
 	}
@@ -123,7 +124,7 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 
 // UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
 func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
-	msg, err := m.client.conn.RequestWithContext(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
 	if err != nil {
 		return nil, err
 	}

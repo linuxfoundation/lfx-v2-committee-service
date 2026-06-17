@@ -19,9 +19,10 @@ type messagePublisher struct {
 	client *NATSClient
 }
 
-// publishMessage handles asynchronous NATS message publishing
+// publishMessage handles asynchronous NATS message publishing with an OTel producer span.
 func (m *messagePublisher) publishMessage(ctx context.Context, subject string, data []byte, messageType string) error {
-	if err := m.client.conn.Publish(subject, data); err != nil {
+	ctx, err := m.client.publishWithSpan(ctx, subject, data)
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to publish message to NATS",
 			"error", err,
 			"subject", subject,
@@ -39,9 +40,12 @@ func (m *messagePublisher) publishMessage(ctx context.Context, subject string, d
 	return nil
 }
 
-// requestMessage handles synchronous NATS request/reply pattern
+// requestMessage handles synchronous NATS request/reply pattern with an OTel client span.
 func (m *messagePublisher) requestMessage(ctx context.Context, subject string, data []byte, messageType string) error {
-	msg, err := m.client.conn.Request(subject, data, defaultRequestTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+	defer cancel()
+
+	ctx, msg, err := m.client.requestWithSpan(ctx, subject, data)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to send synchronous request to NATS",
 			"error", err,
