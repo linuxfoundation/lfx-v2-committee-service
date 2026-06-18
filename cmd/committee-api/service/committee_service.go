@@ -641,6 +641,13 @@ func (s *committeeServicesrvc) GetInvite(ctx context.Context, p *committeeservic
 		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
+	// Lazy backfill for invites created before committee_name was added to the model.
+	if invite.CommitteeName == "" {
+		if cb, _, cbErr := s.storage.GetBase(ctx, p.UID); cbErr == nil {
+			invite.CommitteeName = cb.Name
+		}
+	}
+
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
@@ -857,6 +864,12 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	}
 
 	invite.Status = "revoked"
+	// Lazy backfill for invites created before committee_name was added to the model.
+	if invite.CommitteeName == "" {
+		if cb, _, cbErr := s.storage.GetBase(ctx, p.UID); cbErr == nil {
+			invite.CommitteeName = cb.Name
+		}
+	}
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return wrapError(ctx, err)
 	}
@@ -925,6 +938,12 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 
 	// Member created successfully — now mark the invite accepted.
 	invite.Status = "accepted"
+	// Lazy backfill for invites created before committee_name was added to the model.
+	if invite.CommitteeName == "" {
+		if cb, _, cbErr := s.storage.GetBase(ctx, p.UID); cbErr == nil {
+			invite.CommitteeName = cb.Name
+		}
+	}
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -968,6 +987,12 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	invite.Status = "declined"
+	// Lazy backfill for invites created before committee_name was added to the model.
+	if invite.CommitteeName == "" {
+		if cb, _, cbErr := s.storage.GetBase(ctx, p.UID); cbErr == nil {
+			invite.CommitteeName = cb.Name
+		}
+	}
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return nil, wrapError(ctx, err)
 	}
