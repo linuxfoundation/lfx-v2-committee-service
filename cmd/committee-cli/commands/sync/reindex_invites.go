@@ -57,6 +57,9 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	if rc.Publisher == nil {
 		return errs.NewUnexpected("publisher is not wired in RunContext")
 	}
+	if rc.CommitteeInviteWriter == nil {
+		return errs.NewUnexpected("CommitteeInviteWriter is not wired in RunContext")
+	}
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
@@ -75,12 +78,49 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	stats.Total = len(invites)
 	stats.DryRun = rc.DryRun
 
+	// Cache per-committee derived fields to avoid redundant NATS KV reads during batch reindex.
+	type committeeSnapshot struct {
+		name                 string
+		organizationRequired bool
+	}
+	committeeCache := make(map[string]committeeSnapshot)
+
+	lookupCommittee := func(committeeUID string) committeeSnapshot {
+		if snap, ok := committeeCache[committeeUID]; ok {
+			return snap
+		}
+		snap := committeeSnapshot{}
+		base, _, err := rc.CommitteeReader.GetBase(ctx, committeeUID)
+		if err != nil {
+			slog.WarnContext(ctx, "reindex-invites: failed to fetch committee base",
+				"committee_uid", committeeUID, "error", err)
+			committeeCache[committeeUID] = snap
+			return snap
+		}
+		snap.name = base.Name
+		settings, _, _ := rc.CommitteeReader.GetSettings(ctx, committeeUID)
+		snap.organizationRequired = base.EnableVoting || (settings != nil && settings.BusinessEmailRequired)
+		committeeCache[committeeUID] = snap
+		return snap
+	}
+
 	for _, invite := range invites {
+		snap := lookupCommittee(invite.CommitteeUID)
+
+		needsKVUpdate := (invite.CommitteeName == "" && snap.name != "") ||
+			invite.OrganizationRequired != snap.organizationRequired
+		if invite.CommitteeName == "" {
+			invite.CommitteeName = snap.name
+		}
+		invite.OrganizationRequired = snap.organizationRequired
 
 		if rc.DryRun {
 			slog.InfoContext(ctx, "dry-run: would reindex invite",
 				"invite_uid", invite.UID,
 				"committee_uid", invite.CommitteeUID,
+				"committee_name", invite.CommitteeName,
+				"organization_required", invite.OrganizationRequired,
+				"kv_update_needed", needsKVUpdate,
 				"status", invite.Status,
 			)
 			stats.Updated++
@@ -89,22 +129,43 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 
 		failed := false
 
-		if err := publishIndexerMessage(ctx, rc, invite); err != nil {
-			slog.WarnContext(ctx, "failed to publish indexer message",
-				"error", err,
-				"invite_uid", invite.UID,
-				"committee_uid", invite.CommitteeUID,
-			)
-			failed = true
+		if needsKVUpdate {
+			_, rev, getErr := rc.CommitteeReader.GetInvite(ctx, invite.UID)
+			if getErr != nil {
+				slog.WarnContext(ctx, "failed to fetch invite revision for KV update",
+					"error", getErr,
+					"invite_uid", invite.UID,
+				)
+				failed = true
+			} else if updateErr := rc.CommitteeInviteWriter.UpdateInvite(ctx, invite, rev); updateErr != nil {
+				slog.WarnContext(ctx, "failed to update invite in NATS KV",
+					"error", updateErr,
+					"invite_uid", invite.UID,
+				)
+				failed = true
+			}
 		}
 
-		if err := publishAccessControlMessage(ctx, rc, invite); err != nil {
-			slog.WarnContext(ctx, "failed to publish access control message",
-				"error", err,
-				"invite_uid", invite.UID,
-				"committee_uid", invite.CommitteeUID,
-			)
-			failed = true
+		if !failed {
+			if err := publishIndexerMessage(ctx, rc, invite); err != nil {
+				slog.WarnContext(ctx, "failed to publish indexer message",
+					"error", err,
+					"invite_uid", invite.UID,
+					"committee_uid", invite.CommitteeUID,
+				)
+				failed = true
+			}
+		}
+
+		if !failed {
+			if err := publishAccessControlMessage(ctx, rc, invite); err != nil {
+				slog.WarnContext(ctx, "failed to publish access control message",
+					"error", err,
+					"invite_uid", invite.UID,
+					"committee_uid", invite.CommitteeUID,
+				)
+				failed = true
+			}
 		}
 
 		if failed {
