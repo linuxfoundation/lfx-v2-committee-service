@@ -1772,6 +1772,7 @@ paths:
                                     id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
+                                organization_required: false
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -1949,6 +1950,7 @@ paths:
                                     id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
+                                organization_required: false
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -2170,6 +2172,7 @@ paths:
                                     id: org-123456
                                     name: The Linux Foundation
                                     website: https://linuxfoundation.org
+                                organization_required: false
                                 role: None
                                 status: pending
                                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -5182,6 +5185,10 @@ components:
                         id: org-123456
                         name: The Linux Foundation
                         website: https://linuxfoundation.org
+                organization_required:
+                    type: boolean
+                    description: Whether the invitee must supply an organization when accepting. True when the committee has voting enabled or requires a business email.
+                    example: false
                 role:
                     type: string
                     description: Suggested role for the invitee
@@ -5211,6 +5218,7 @@ components:
                     id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
+                organization_required: false
                 role: None
                 status: pending
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890

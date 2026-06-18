@@ -363,6 +363,9 @@ type CommitteeInviteWithReadonlyAttributes struct {
 	CommitteeUID *string
 	// Name of the committee at the time the invite was created
 	CommitteeName *string
+	// Whether the invitee must supply an organization when accepting. True when
+	// the committee has voting enabled or requires a business email.
+	OrganizationRequired *bool
 	// Email of the invited person
 	InviteeEmail *string
 	// Suggested role for the invitee

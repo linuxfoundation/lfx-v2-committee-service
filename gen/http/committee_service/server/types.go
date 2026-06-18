@@ -681,6 +681,9 @@ type GetInviteResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Name of the committee at the time the invite was created
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// Whether the invitee must supply an organization when accepting. True when
+	// the committee has voting enabled or requires a business email.
+	OrganizationRequired *bool `form:"organization_required,omitempty" json:"organization_required,omitempty" xml:"organization_required,omitempty"`
 	// Email of the invited person
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
@@ -709,6 +712,9 @@ type CreateInviteResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Name of the committee at the time the invite was created
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// Whether the invitee must supply an organization when accepting. True when
+	// the committee has voting enabled or requires a business email.
+	OrganizationRequired *bool `form:"organization_required,omitempty" json:"organization_required,omitempty" xml:"organization_required,omitempty"`
 	// Email of the invited person
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
@@ -797,6 +803,9 @@ type DeclineInviteResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Name of the committee at the time the invite was created
 	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// Whether the invitee must supply an organization when accepting. True when
+	// the committee has voting enabled or requires a business email.
+	OrganizationRequired *bool `form:"organization_required,omitempty" json:"organization_required,omitempty" xml:"organization_required,omitempty"`
 	// Email of the invited person
 	InviteeEmail *string `form:"invitee_email,omitempty" json:"invitee_email,omitempty" xml:"invitee_email,omitempty"`
 	// Suggested role for the invitee
@@ -3568,13 +3577,14 @@ func NewUpdateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 // the "get-invite" endpoint of the "committee-service" service.
 func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *GetInviteResponseBody {
 	body := &GetInviteResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		CommitteeName: res.CommitteeName,
-		InviteeEmail:  res.InviteeEmail,
-		Role:          res.Role,
-		Status:        res.Status,
-		CreatedAt:     res.CreatedAt,
+		UID:                  res.UID,
+		CommitteeUID:         res.CommitteeUID,
+		CommitteeName:        res.CommitteeName,
+		OrganizationRequired: res.OrganizationRequired,
+		InviteeEmail:         res.InviteeEmail,
+		Role:                 res.Role,
+		Status:               res.Status,
+		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
 		body.Organization = &struct {
@@ -3603,13 +3613,14 @@ func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyA
 // the "create-invite" endpoint of the "committee-service" service.
 func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *CreateInviteResponseBody {
 	body := &CreateInviteResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		CommitteeName: res.CommitteeName,
-		InviteeEmail:  res.InviteeEmail,
-		Role:          res.Role,
-		Status:        res.Status,
-		CreatedAt:     res.CreatedAt,
+		UID:                  res.UID,
+		CommitteeUID:         res.CommitteeUID,
+		CommitteeName:        res.CommitteeName,
+		OrganizationRequired: res.OrganizationRequired,
+		InviteeEmail:         res.InviteeEmail,
+		Role:                 res.Role,
+		Status:               res.Status,
+		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
 		body.Organization = &struct {
@@ -3726,13 +3737,14 @@ func NewAcceptInviteResponseBody(res *committeeservice.CommitteeMemberFullWithRe
 // of the "decline-invite" endpoint of the "committee-service" service.
 func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyAttributes) *DeclineInviteResponseBody {
 	body := &DeclineInviteResponseBody{
-		UID:           res.UID,
-		CommitteeUID:  res.CommitteeUID,
-		CommitteeName: res.CommitteeName,
-		InviteeEmail:  res.InviteeEmail,
-		Role:          res.Role,
-		Status:        res.Status,
-		CreatedAt:     res.CreatedAt,
+		UID:                  res.UID,
+		CommitteeUID:         res.CommitteeUID,
+		CommitteeName:        res.CommitteeName,
+		OrganizationRequired: res.OrganizationRequired,
+		InviteeEmail:         res.InviteeEmail,
+		Role:                 res.Role,
+		Status:               res.Status,
+		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
 		body.Organization = &struct {
