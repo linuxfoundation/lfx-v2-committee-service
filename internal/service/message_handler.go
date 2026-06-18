@@ -891,8 +891,12 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		return nil, nil
 	}
 
+	// Resolve the invitee's name once — avoids one round-trip per committee in the full scan.
+	// Precedence: auth-service user_metadata.read (GivenName/FamilyName) → Recipient.Name from payload.
+	firstName, lastName, fullName := m.resolveInvitedName(ctx, event.AcceptedBy, event.Recipient.Name)
+
 	for _, committeeUID := range allUIDs {
-		m.enrichInvitedUserInCommittee(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID)
+		m.enrichInvitedUserInCommittee(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID, firstName, lastName, fullName)
 	}
 
 	return nil, nil
@@ -901,15 +905,15 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for normalizedEmail in the given committee. Invite role is ignored — acceptance always
 // reconciles all resource data for the recipient email.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
-	m.enrichInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID)
-	m.enrichInvitedUserInCommitteeMembers(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID)
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName, fullName string) {
+	m.enrichInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID, fullName)
+	m.enrichInvitedUserInCommitteeMembers(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName)
 }
 
 // enrichInvitedUserInCommitteeSettings enriches all email-only Writers and Auditors matching
-// normalizedEmail in the given committee's settings with the accepted LFID. It retries on
-// revision conflicts.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
+// normalizedEmail in the given committee's settings with the accepted LFID and display name.
+// It retries on revision conflicts.
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, fullName string) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
@@ -921,12 +925,12 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, w
 
 		enriched := false
 		for i := range settings.Writers {
-			if enrichCommitteeUserIfEmailOnly(&settings.Writers[i], normalizedEmail, username) {
+			if enrichCommitteeUserIfEmailOnly(&settings.Writers[i], normalizedEmail, username, fullName) {
 				enriched = true
 			}
 		}
 		for i := range settings.Auditors {
-			if enrichCommitteeUserIfEmailOnly(&settings.Auditors[i], normalizedEmail, username) {
+			if enrichCommitteeUserIfEmailOnly(&settings.Auditors[i], normalizedEmail, username, fullName) {
 				enriched = true
 			}
 		}
@@ -954,8 +958,8 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, w
 }
 
 // enrichInvitedUserInCommitteeMembers enriches all email-only committee members matching
-// normalizedEmail in the given committee with the accepted LFID.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID string) {
+// normalizedEmail in the given committee with the accepted LFID and name.
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName string) {
 	members, err := m.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to list members for invite enrichment",
@@ -967,13 +971,13 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, wr
 		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
 			continue
 		}
-		m.enrichInvitedCommitteeMember(ctx, writeCtx, committeeUID, member.UID, normalizedEmail, username, inviteUID)
+		m.enrichInvitedCommitteeMember(ctx, writeCtx, committeeUID, member.UID, normalizedEmail, username, inviteUID, firstName, lastName)
 	}
 }
 
-// enrichInvitedCommitteeMember enriches a single email-only member with the accepted LFID.
+// enrichInvitedCommitteeMember enriches a single email-only member with the accepted LFID and name.
 // Revision-conflict retries are handled here, not in enrichInvitedUserInCommitteeMembers.
-func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID string) {
+func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID, firstName, lastName string) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		member, revision, err := m.committeeReader.GetMember(ctx, committeeUID, memberUID)
@@ -988,6 +992,13 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx 
 		}
 
 		member.Username = username
+		// Only fill name fields that are not already set — preserves any name stored at invite creation.
+		if member.FirstName == "" && firstName != "" {
+			member.FirstName = firstName
+		}
+		if member.LastName == "" && lastName != "" {
+			member.LastName = lastName
+		}
 
 		inviteCtx := contextWithSkipMemberUsernameEmailResolution(writeCtx)
 		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
@@ -1014,14 +1025,67 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx 
 	}
 }
 
-// enrichCommitteeUserIfEmailOnly sets username on a settings user when the entry is email-only
-// and matches normalizedEmail. Returns true when the user was enriched.
-func enrichCommitteeUserIfEmailOnly(user *model.CommitteeUser, normalizedEmail, username string) bool {
+// enrichCommitteeUserIfEmailOnly sets username (and name when not already set) on a settings
+// user when the entry is email-only and matches normalizedEmail. Returns true when the user
+// was enriched.
+func enrichCommitteeUserIfEmailOnly(user *model.CommitteeUser, normalizedEmail, username, fullName string) bool {
 	if user.Username != "" || strings.ToLower(strings.TrimSpace(user.Email)) != normalizedEmail {
 		return false
 	}
 	user.Username = username
+	// Only fill the name when the record has none — preserves any name stored at invite creation.
+	if user.Name == "" && fullName != "" {
+		user.Name = fullName
+	}
 	return true
+}
+
+// resolveInvitedName returns (firstName, lastName, fullName) for the accepted invitee.
+// It first looks up the accepting principal via the auth-service user_metadata.read NATS
+// subject (UserMetadataByPrincipal). If the lookup succeeds and supplies a name, those values
+// are used. Otherwise it falls back to payloadName (Recipient.Name from the invite-accepted
+// event), splitting it on the first space into first/last.
+// All lookups are best-effort: a transport error logs a warning and triggers the fallback
+// so the caller is never blocked.
+func (m *messageHandlerOrchestrator) resolveInvitedName(ctx context.Context, principal, payloadName string) (firstName, lastName, fullName string) {
+	if m.userReader != nil && principal != "" {
+		meta, err := m.userReader.UserMetadataByPrincipal(ctx, principal)
+		if err != nil {
+			slog.WarnContext(ctx, "user metadata lookup failed during invite acceptance — falling back to payload name",
+				"principal", redaction.Redact(principal), "error", err)
+		} else if meta != nil {
+			firstName = meta.GivenName
+			lastName = meta.FamilyName
+			fullName = meta.Name
+			if fullName == "" {
+				fullName = strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
+			}
+		}
+	}
+
+	// Fall back to the payload name only when the metadata supplied nothing.
+	if firstName == "" && lastName == "" {
+		firstName, lastName = splitName(payloadName)
+	}
+	if fullName == "" {
+		fullName = strings.TrimSpace(payloadName)
+	}
+	return firstName, lastName, fullName
+}
+
+// splitName splits a combined display name on the first space, returning (first, rest).
+// Leading/trailing whitespace is trimmed from both parts.
+func splitName(name string) (first, last string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(name, " ", 2)
+	first = strings.TrimSpace(parts[0])
+	if len(parts) == 2 {
+		last = strings.TrimSpace(parts[1])
+	}
+	return first, last
 }
 
 // mapRoleToInviteRole converts a committee settings role string to the invite

@@ -740,6 +740,37 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 // (see internal/service/message_handler.go committeeNotificationTimeout).
 const inviteDispatchTimeout = 5 * time.Second
 
+// resolveInviteeDisplayName looks up a combined display name for the invitee via the
+// auth service when the invitee already has an LFID. Returns an empty string when the
+// invitee has no LFID yet or any lookup step fails — callers should treat an empty
+// return as "name unknown" and proceed without it.
+func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, email string) string {
+	if s.userReader == nil {
+		return ""
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
+	}
+	username, err := s.userReader.UsernameByEmail(ctx, email)
+	if err != nil || username == "" {
+		return ""
+	}
+	meta, err := s.userReader.UserMetadataByPrincipal(ctx, username)
+	if err != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed for invite recipient — sending without name",
+			"username", redaction.Redact(username), "error", err)
+		return ""
+	}
+	if meta == nil {
+		return ""
+	}
+	if name := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(meta.Name)
+}
+
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
 // invitee receives an email. Best-effort: failures are logged and do not fail the
 // caller, since the invite record has already been persisted.
@@ -749,6 +780,10 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 			"committee_uid", committee.UID, "invite_uid", invite.UID)
 		return
 	}
+
+	// Resolve the invitee's display name via the auth service when they already have
+	// an LFID. Best-effort: lookup failures are logged and the invite still sends.
+	recipientName := s.resolveInviteeDisplayName(ctx, invite.InviteeEmail)
 
 	sendCtx, cancel := context.WithTimeout(ctx, inviteDispatchTimeout)
 	defer cancel()
@@ -760,6 +795,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
+			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
 			Name: "A committee administrator",

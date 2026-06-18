@@ -1935,6 +1935,17 @@ func TestHandleInviteAccepted(t *testing.T) {
 		return b
 	}
 
+	makeEventWithName := func(invUID, acceptedBy, recipientEmail, recipientName, role string) []byte {
+		event := inviteapi.InviteServiceAcceptedEvent{Invite: inviteapi.Invite{
+			UID:        invUID,
+			AcceptedBy: acceptedBy,
+			Role:       role,
+			Recipient:  inviteapi.Recipient{Email: recipientEmail, Name: recipientName},
+		}}
+		b, _ := json.Marshal(event)
+		return b
+	}
+
 	makeCommitteeWithSettings := func(uid string, settings *model.CommitteeSettings) *model.Committee {
 		return &model.Committee{
 			CommitteeBase:     model.CommitteeBase{UID: uid, ProjectUID: "proj-1", Name: "Test Committee"},
@@ -1955,6 +1966,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 	tests := []struct {
 		name                  string
 		setupRepo             func(*mock.MockRepository)
+		userReader            *mockUserReader // optional; wired into handler when non-nil
 		spyErr                error
 		spyErrs               []error // per-call error queue; takes precedence over spyErr when non-nil
 		spyMemberErr          error
@@ -2198,6 +2210,145 @@ func TestHandleInviteAccepted(t *testing.T) {
 				assert.Equal(t, username, captured[len(captured)-1].Username)
 			},
 		},
+		// ---- Name resolution tests ----
+		{
+			name: "name from user_metadata.read — member and settings user get metadata name",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-meta",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata supplies structured names; payload name should be ignored.
+			userReader: &mockUserReader{meta: &model.UserMetadata{
+				Name:       "Jane Smith",
+				GivenName:  "Jane",
+				FamilyName: "Smith",
+			}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Name Ignored", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, username, captured[0].Writers[0].Username)
+				assert.Equal(t, "Jane Smith", captured[0].Writers[0].Name, "settings user name should come from metadata")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username)
+				assert.Equal(t, "Jane", captured[0].FirstName, "member first name should come from metadata GivenName")
+				assert.Equal(t, "Smith", captured[0].LastName, "member last name should come from metadata FamilyName")
+			},
+		},
+		{
+			name: "name fallback to payload — member and settings user get payload name when metadata unavailable",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-payload",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata lookup returns nil (no metadata) — must fall back to Recipient.Name.
+			userReader:            &mockUserReader{meta: nil},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Alice Wonderland", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Alice Wonderland", captured[0].Writers[0].Name, "settings user name should come from payload fallback")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Alice", captured[0].FirstName, "first name should be split from payload Recipient.Name")
+				assert.Equal(t, "Wonderland", captured[0].LastName, "last name should be split from payload Recipient.Name")
+			},
+		},
+		{
+			name: "no name from either source — username enriched but name fields left blank",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-none",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// No metadata, no payload name — only LFID should be enriched.
+			userReader:            &mockUserReader{meta: nil},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, username, captured[0].Writers[0].Username, "username should still be enriched")
+				assert.Empty(t, captured[0].Writers[0].Name, "name should be blank when no source supplies it")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username, "username should still be enriched")
+				assert.Empty(t, captured[0].FirstName, "first name should be blank when no source supplies it")
+				assert.Empty(t, captured[0].LastName, "last name should be blank when no source supplies it")
+			},
+		},
+		{
+			name: "existing name on record preserved — not overwritten by metadata",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail, Name: "Already Set"}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-existing",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+						FirstName:    "Already",
+						LastName:     "Set",
+					},
+				})
+			},
+			// Metadata would supply a different name — existing values must be preserved.
+			userReader: &mockUserReader{meta: &model.UserMetadata{
+				Name:       "New Name",
+				GivenName:  "New",
+				FamilyName: "Name",
+			}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Name", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Already Set", captured[0].Writers[0].Name, "existing settings user name must not be overwritten")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Already", captured[0].FirstName, "existing first name must not be overwritten")
+				assert.Equal(t, "Set", captured[0].LastName, "existing last name must not be overwritten")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2213,6 +2364,9 @@ func TestHandleInviteAccepted(t *testing.T) {
 				updateMemberErrs:   tt.spyMemberErrs,
 			}
 			handler := makeHandler(mockRepo, spy)
+			if tt.userReader != nil {
+				handler.userReader = tt.userReader
+			}
 
 			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
 			_, err := handler.HandleInviteAccepted(ctx, msg)
