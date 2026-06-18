@@ -121,8 +121,6 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 ---
 
----
-
 ## Committee Invite
 
 **Source struct:** `internal/domain/model/CommitteeInvite`

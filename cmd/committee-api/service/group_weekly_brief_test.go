@@ -71,6 +71,10 @@ func (r *stubCommitteeReader) ListInvites(_ context.Context, _ string) ([]*model
 	panic("not used")
 }
 
+func (r *stubCommitteeReader) ListAllInvites(_ context.Context) ([]*model.CommitteeInvite, error) {
+	panic("not used")
+}
+
 // ensure the stub satisfies the interface at compile time
 var _ internalsvc.CommitteeReader = (*stubCommitteeReader)(nil)
 
