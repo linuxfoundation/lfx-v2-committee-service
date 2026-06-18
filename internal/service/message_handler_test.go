@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -505,6 +506,10 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
+	// capturedAccessSubjects records the NATS subject for each Access call.
+	capturedAccessSubjects []string
+	// capturedAccessMsgs records the raw message value for each Access call.
+	capturedAccessMsgs []any
 }
 
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
@@ -512,7 +517,9 @@ func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any
 	s.lastSubject = subject
 	return nil
 }
-func (s *spyCommitteePublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
+func (s *spyCommitteePublisher) Access(_ context.Context, subject string, msg any, _ bool) error {
+	s.capturedAccessSubjects = append(s.capturedAccessSubjects, subject)
+	s.capturedAccessMsgs = append(s.capturedAccessMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
@@ -1935,6 +1942,17 @@ func TestHandleInviteAccepted(t *testing.T) {
 		return b
 	}
 
+	makeEventWithName := func(invUID, acceptedBy, recipientEmail, recipientName, role string) []byte {
+		event := inviteapi.InviteServiceAcceptedEvent{Invite: inviteapi.Invite{
+			UID:        invUID,
+			AcceptedBy: acceptedBy,
+			Role:       role,
+			Recipient:  inviteapi.Recipient{Email: recipientEmail, Name: recipientName},
+		}}
+		b, _ := json.Marshal(event)
+		return b
+	}
+
 	makeCommitteeWithSettings := func(uid string, settings *model.CommitteeSettings) *model.Committee {
 		return &model.Committee{
 			CommitteeBase:     model.CommitteeBase{UID: uid, ProjectUID: "proj-1", Name: "Test Committee"},
@@ -1942,19 +1960,24 @@ func TestHandleInviteAccepted(t *testing.T) {
 		}
 	}
 
-	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
-		h := NewMessageHandlerOrchestrator(
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator, pub *spyCommitteePublisher) *messageHandlerOrchestrator {
+		opts := []messageHandlerOrchestratorOption{
 			WithCommitteeReaderForMessageHandler(
 				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
 			),
 			WithCommitteeWriterOrchestratorForMessageHandler(spy),
-		)
+		}
+		if pub != nil {
+			opts = append(opts, WithCommitteePublisherForMessageHandler(pub))
+		}
+		h := NewMessageHandlerOrchestrator(opts...)
 		return h.(*messageHandlerOrchestrator)
 	}
 
 	tests := []struct {
 		name                  string
 		setupRepo             func(*mock.MockRepository)
+		userReader            *mockUserReader // optional; wired into handler when non-nil
 		spyErr                error
 		spyErrs               []error // per-call error queue; takes precedence over spyErr when non-nil
 		spyMemberErr          error
@@ -1964,6 +1987,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 		wantUpdateMemberCalls int
 		validateSettings      func(*testing.T, []*model.CommitteeSettings)
 		validateMembers       func(*testing.T, []*model.CommitteeMember)
+		validatePublisher     func(*testing.T, *spyCommitteePublisher)
 	}{
 		{
 			name: "malformed payload — no update called",
@@ -2198,6 +2222,260 @@ func TestHandleInviteAccepted(t *testing.T) {
 				assert.Equal(t, username, captured[len(captured)-1].Username)
 			},
 		},
+		// ---- Name resolution tests ----
+		{
+			name: "name from user_metadata.read — member and settings user get metadata name",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-meta",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata supplies structured names; payload name should be ignored.
+			userReader: &mockUserReader{meta: &model.UserMetadata{
+				Name:       "Jane Smith",
+				GivenName:  "Jane",
+				FamilyName: "Smith",
+			}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Name Ignored", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, username, captured[0].Writers[0].Username)
+				assert.Equal(t, "Jane Smith", captured[0].Writers[0].Name, "settings user name should come from metadata")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username)
+				assert.Equal(t, "Jane", captured[0].FirstName, "member first name should come from metadata GivenName")
+				assert.Equal(t, "Smith", captured[0].LastName, "member last name should come from metadata FamilyName")
+			},
+		},
+		{
+			name: "name from metadata combined Name only — first/last split from meta.Name, payload ignored",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-meta-only",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata has only a combined Name (no GivenName/FamilyName); first/last must be
+			// derived from meta.Name — payload must not bleed through.
+			userReader:            &mockUserReader{meta: &model.UserMetadata{Name: "Meta Only"}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Ignored", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Meta Only", captured[0].Writers[0].Name, "settings name must come from metadata, not payload")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Meta", captured[0].FirstName, "first name must be split from meta.Name, not payload")
+				assert.Equal(t, "Only", captured[0].LastName, "last name must be split from meta.Name, not payload")
+			},
+		},
+		{
+			name: "name fallback to payload — member and settings user get payload name when metadata unavailable",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-payload",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata lookup returns nil (no metadata) — must fall back to Recipient.Name.
+			userReader:            &mockUserReader{meta: nil},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Alice Wonderland", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Alice Wonderland", captured[0].Writers[0].Name, "settings user name should come from payload fallback")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Alice", captured[0].FirstName, "first name should be split from payload Recipient.Name")
+				assert.Equal(t, "Wonderland", captured[0].LastName, "last name should be split from payload Recipient.Name")
+			},
+		},
+		{
+			name: "no name from either source — username enriched but name fields left blank",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-none",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// No metadata, no payload name — only LFID should be enriched.
+			userReader:            &mockUserReader{meta: nil},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, username, captured[0].Writers[0].Username, "username should still be enriched")
+				assert.Empty(t, captured[0].Writers[0].Name, "name should be blank when no source supplies it")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, username, captured[0].Username, "username should still be enriched")
+				assert.Empty(t, captured[0].FirstName, "first name should be blank when no source supplies it")
+				assert.Empty(t, captured[0].LastName, "last name should be blank when no source supplies it")
+			},
+		},
+		{
+			name: "existing name on record preserved — not overwritten by metadata",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail, Name: "Already Set"}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-existing",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+						FirstName:    "Already",
+						LastName:     "Set",
+					},
+				})
+			},
+			// Metadata would supply a different name — existing values must be preserved.
+			userReader: &mockUserReader{meta: &model.UserMetadata{
+				Name:       "New Name",
+				GivenName:  "New",
+				FamilyName: "Name",
+			}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Name", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Already Set", captured[0].Writers[0].Name, "existing settings user name must not be overwritten")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Already", captured[0].FirstName, "existing first name must not be overwritten")
+				assert.Equal(t, "Set", captured[0].LastName, "existing last name must not be overwritten")
+			},
+		},
+		// ---- FGA invitee grant tests ----
+		{
+			name: "pending invite for matching email — FGA invitee relation published",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				require.Len(t, pub.capturedAccessSubjects, 1, "expected one FGA access publish for the pending invite")
+				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
+			},
+		},
+		{
+			name: "two pending invites across two committees — FGA published for both",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommittee(makeCommitteeWithSettings(committee2UID,
+					&model.CommitteeSettings{UID: committee2UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-c1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-c2",
+					CommitteeUID: committee2UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				assert.Len(t, pub.capturedAccessSubjects, 2, "expected one FGA publish per pending invite")
+			},
+		},
+		{
+			name: "accepted invite — FGA still published so user can see their own invite history",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "accepted-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusAccepted),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				require.Len(t, pub.capturedAccessSubjects, 1, "accepted invite should still get FGA invitee grant")
+				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
+			},
+		},
+		{
+			name: "invite for different email — FGA not published",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "other-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: "other@example.com",
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				assert.Empty(t, pub.capturedAccessSubjects, "invite for different email must not trigger FGA publish")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2212,7 +2490,11 @@ func TestHandleInviteAccepted(t *testing.T) {
 				updateMemberErr:    tt.spyMemberErr,
 				updateMemberErrs:   tt.spyMemberErrs,
 			}
-			handler := makeHandler(mockRepo, spy)
+			pub := &spyCommitteePublisher{}
+			handler := makeHandler(mockRepo, spy, pub)
+			if tt.userReader != nil {
+				handler.userReader = tt.userReader
+			}
 
 			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
 			_, err := handler.HandleInviteAccepted(ctx, msg)
@@ -2226,6 +2508,9 @@ func TestHandleInviteAccepted(t *testing.T) {
 			}
 			if tt.validateMembers != nil && len(spy.updatedMembers) > 0 {
 				tt.validateMembers(t, spy.updatedMembers)
+			}
+			if tt.validatePublisher != nil {
+				tt.validatePublisher(t, pub)
 			}
 		})
 	}

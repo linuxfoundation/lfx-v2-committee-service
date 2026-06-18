@@ -735,10 +735,53 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
-// inviteDispatchTimeout bounds the best-effort send-invite request to the
-// invite service. Matches the timeout used by the message-handler invite path
-// (see internal/service/message_handler.go committeeNotificationTimeout).
+// inviteDispatchTimeout is the total budget for a single invite dispatch (name
+// lookup + send). The name-resolve sub-timeout below consumes a portion of this
+// budget, leaving the remainder for the actual SendInvite call.
 const inviteDispatchTimeout = 5 * time.Second
+
+// inviteNameResolveTimeout is the slice of the dispatch budget reserved for the
+// best-effort auth-service name lookup. Must be less than inviteDispatchTimeout.
+const inviteNameResolveTimeout = 2 * time.Second
+
+// resolveInviteeDisplayName looks up a combined display name for the invitee via the
+// auth service when the invitee already has an LFID. Returns an empty string when the
+// invitee has no LFID yet or any lookup step fails — callers should treat an empty
+// return as "name unknown" and proceed without it.
+func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, email string) string {
+	if s.userReader == nil {
+		return ""
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
+	}
+	username, err := s.userReader.UsernameByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed for invite recipient — sending without name",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return ""
+	}
+	if username == "" {
+		return ""
+	}
+	meta, err := s.userReader.UserMetadataByPrincipal(ctx, username)
+	if err != nil {
+		slog.WarnContext(ctx, "user metadata lookup failed for invite recipient — sending without name",
+			"username", redaction.Redact(username), "error", err)
+		return ""
+	}
+	if meta == nil {
+		return ""
+	}
+	if name := strings.TrimSpace(meta.Name); name != "" {
+		return name
+	}
+	return strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
+}
 
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
 // invitee receives an email. Best-effort: failures are logged and do not fail the
@@ -750,16 +793,26 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		return
 	}
 
-	sendCtx, cancel := context.WithTimeout(ctx, inviteDispatchTimeout)
-	defer cancel()
+	// Single budget for the whole dispatch: name lookup (sub-timeout) + SendInvite.
+	// Both operations share the same parent context so the total cannot exceed
+	// inviteDispatchTimeout even when both are slow.
+	dispatchCtx, dispatchCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
+	defer dispatchCancel()
+
+	// Resolve the invitee's display name via the auth service when they already have
+	// an LFID. Best-effort: lookup failures are logged and the invite still sends.
+	resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
+	recipientName := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
+	resolveCancel()
 	// Role on the invite record is the committee role applied after acceptance.
 	// The Role field on SendInviteRequest is the invite-service permission grant
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
-	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
+	_, err := s.inviteSender.SendInvite(dispatchCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
+			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
 			Name: "A committee administrator",

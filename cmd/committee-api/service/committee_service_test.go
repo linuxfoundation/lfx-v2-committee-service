@@ -913,6 +913,107 @@ func TestCreateInvite_NilInviteSenderSkipsDispatch(t *testing.T) {
 	assert.Equal(t, "pending", result.Status)
 }
 
+func TestCreateInvite_RecipientNameResolution(t *testing.T) {
+	// Each subtest uses a unique email to avoid uniqueness conflicts in the global mock repo.
+	const username = "knownuser"
+
+	t.Run("invitee has LFID — name from metadata GivenName+FamilyName", func(t *testing.T) {
+		const email = "name-givenname@example.com"
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().
+			withUsernames(email, username).
+			withMetadata(username, &model.UserMetadata{GivenName: "Jane", FamilyName: "Smith"})
+
+		_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: email,
+		})
+		require.NoError(t, err)
+
+		sender := svc.inviteSender.(*mockInviteSender)
+		require.Len(t, sender.calls, 1)
+		require.NotNil(t, sender.calls[0].Recipient)
+		assert.Equal(t, "Jane Smith", sender.calls[0].Recipient.Name)
+	})
+
+	t.Run("invitee has LFID with only combined Name — falls back to meta.Name", func(t *testing.T) {
+		const email = "name-combined@example.com"
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().
+			withUsernames(email, username).
+			withMetadata(username, &model.UserMetadata{Name: "Jane Smith"})
+
+		_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: email,
+		})
+		require.NoError(t, err)
+
+		sender := svc.inviteSender.(*mockInviteSender)
+		require.Len(t, sender.calls, 1)
+		assert.Equal(t, "Jane Smith", sender.calls[0].Recipient.Name)
+	})
+
+	t.Run("invitee has no LFID — Recipient.Name is empty, invite still sends", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		// Default mockUserReader returns NotFound for any UsernameByEmail call.
+		svc.userReader = newMockUserReader()
+
+		_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: "name-nolfid@example.com",
+		})
+		require.NoError(t, err)
+
+		sender := svc.inviteSender.(*mockInviteSender)
+		require.Len(t, sender.calls, 1)
+		assert.Empty(t, sender.calls[0].Recipient.Name, "name should be blank when invitee has no LFID")
+	})
+
+	t.Run("metadata lookup error — Recipient.Name is empty, invite still sends", func(t *testing.T) {
+		const email = "name-metaerr@example.com"
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().
+			withUsernames(email, username).
+			withMetadataErr(assert.AnError)
+
+		_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: email,
+		})
+		require.NoError(t, err)
+
+		sender := svc.inviteSender.(*mockInviteSender)
+		require.Len(t, sender.calls, 1)
+		assert.Empty(t, sender.calls[0].Recipient.Name, "name should be blank when metadata lookup errors")
+	})
+
+	t.Run("reinstated revoked invite also carries resolved name", func(t *testing.T) {
+		const email = "name-reinstate@example.com"
+		svc, _, repo := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().
+			withUsernames(email, username).
+			withMetadata(username, &model.UserMetadata{GivenName: "Jane", FamilyName: "Smith"})
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "revoked-invite-name",
+			CommitteeUID: "committee-1",
+			InviteeEmail: email,
+			Status:       "revoked",
+			CreatedAt:    time.Now(),
+		})
+
+		_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+			UID:          "committee-1",
+			InviteeEmail: email,
+		})
+		require.NoError(t, err)
+
+		sender := svc.inviteSender.(*mockInviteSender)
+		require.Len(t, sender.calls, 1)
+		assert.Equal(t, "Jane Smith", sender.calls[0].Recipient.Name)
+	})
+}
+
 func TestCreateInvite_NonRevokedDuplicateRejected(t *testing.T) {
 	for _, status := range []string{"pending", "declined", "accepted"} {
 		t.Run(status, func(t *testing.T) {
