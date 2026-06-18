@@ -666,12 +666,13 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
 	invite := &model.CommitteeInvite{
-		UID:          uuid.New().String(),
-		CommitteeUID: p.UID,
-		InviteeEmail: p.InviteeEmail,
-		Organization: inviteOrganization,
-		Status:       "pending",
-		CreatedAt:    time.Now().UTC(),
+		UID:           uuid.New().String(),
+		CommitteeUID:  p.UID,
+		CommitteeName: committeeBase.Name,
+		InviteeEmail:  p.InviteeEmail,
+		Organization:  inviteOrganization,
+		Status:        "pending",
+		CreatedAt:     time.Now().UTC(),
 	}
 	if p.Role != nil {
 		invite.Role = *p.Role
@@ -707,6 +708,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 			return nil, wrapError(ctx, errGet)
 		}
 		revokedInvite.Status = "pending"
+		revokedInvite.CommitteeName = committeeBase.Name
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}

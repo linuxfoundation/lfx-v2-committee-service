@@ -329,6 +329,7 @@ _(none)_
 |---|---|---|
 | `uid` | string | Invite unique identifier |
 | `committee_uid` | string | UID of the committee this invite belongs to |
+| `committee_name` | string | Name of the committee at the time the invite was created |
 | `invitee_email` | string | Email address of the invitee |
 | `role` | string | Role the invitee is being invited to |
 | `organization` | object | Organization for the invitee (`id`, `name`, `website`) when provided on create |

@@ -892,6 +892,9 @@ var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-read
 		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
 		dsl.Format(dsl.FormatUUID)
 	})
+	dsl.Attribute("committee_name", dsl.String, "Name of the committee at the time the invite was created", func() {
+		dsl.Example("Technical Steering Committee")
+	})
 	dsl.Attribute("invitee_email", dsl.String, "Email of the invited person", func() {
 		dsl.Format(dsl.FormatEmail)
 		dsl.Example("invitee@example.com")

@@ -361,6 +361,8 @@ type CommitteeInviteWithReadonlyAttributes struct {
 	UID *string
 	// Committee UID
 	CommitteeUID *string
+	// Name of the committee at the time the invite was created
+	CommitteeName *string
 	// Email of the invited person
 	InviteeEmail *string
 	// Suggested role for the invitee
