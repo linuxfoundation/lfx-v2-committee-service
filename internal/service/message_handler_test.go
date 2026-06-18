@@ -2249,6 +2249,38 @@ func TestHandleInviteAccepted(t *testing.T) {
 			},
 		},
 		{
+			name: "name from metadata combined Name only — first/last split from meta.Name, payload ignored",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{
+					UID:     committee1UID,
+					Writers: []model.CommitteeUser{{Email: writerEmail}},
+				}))
+				r.AddCommitteeMember(committee1UID, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-name-meta-only",
+						CommitteeUID: committee1UID,
+						Email:        writerEmail,
+					},
+				})
+			},
+			// Metadata has only a combined Name (no GivenName/FamilyName); first/last must be
+			// derived from meta.Name — payload must not bleed through.
+			userReader:            &mockUserReader{meta: &model.UserMetadata{Name: "Meta Only"}},
+			msgData:               makeEventWithName(inviteUID, username, writerEmail, "Payload Ignored", string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls:       1,
+			wantUpdateMemberCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "Meta Only", captured[0].Writers[0].Name, "settings name must come from metadata, not payload")
+			},
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "Meta", captured[0].FirstName, "first name must be split from meta.Name, not payload")
+				assert.Equal(t, "Only", captured[0].LastName, "last name must be split from meta.Name, not payload")
+			},
+		},
+		{
 			name: "name fallback to payload — member and settings user get payload name when metadata unavailable",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID, &model.CommitteeSettings{

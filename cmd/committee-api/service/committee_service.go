@@ -753,7 +753,15 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 		return ""
 	}
 	username, err := s.userReader.UsernameByEmail(ctx, email)
-	if err != nil || username == "" {
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "username lookup failed for invite recipient — sending without name",
+				"email", redaction.RedactEmail(email), "error", err)
+		}
+		return ""
+	}
+	if username == "" {
 		return ""
 	}
 	meta, err := s.userReader.UserMetadataByPrincipal(ctx, username)
