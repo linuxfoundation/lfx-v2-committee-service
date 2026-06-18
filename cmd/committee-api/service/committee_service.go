@@ -791,7 +791,9 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 
 	// Resolve the invitee's display name via the auth service when they already have
 	// an LFID. Best-effort: lookup failures are logged and the invite still sends.
-	recipientName := s.resolveInviteeDisplayName(ctx, invite.InviteeEmail)
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
+	recipientName := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
+	resolveCancel()
 
 	sendCtx, cancel := context.WithTimeout(ctx, inviteDispatchTimeout)
 	defer cancel()

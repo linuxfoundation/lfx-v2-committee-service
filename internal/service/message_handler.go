@@ -893,7 +893,9 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	// Resolve the invitee's name once — avoids one round-trip per committee in the full scan.
 	// Precedence: auth-service user_metadata.read (GivenName/FamilyName) → Recipient.Name from payload.
-	firstName, lastName, fullName := m.resolveInvitedName(ctx, event.AcceptedBy, event.Recipient.Name)
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	firstName, lastName, fullName := m.resolveInvitedName(resolveCtx, event.AcceptedBy, event.Recipient.Name)
+	resolveCancel()
 
 	for _, committeeUID := range allUIDs {
 		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
