@@ -660,7 +660,11 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	// Best-effort: settings drive organization_required; missing settings means false.
-	committeeSettings, _, _ := s.storage.GetSettings(ctx, p.UID)
+	committeeSettings, _, settingsErr := s.storage.GetSettings(ctx, p.UID)
+	if settingsErr != nil {
+		slog.WarnContext(ctx, "CreateInvite: failed to get committee settings for organization_required",
+			"committee_uid", p.UID, "error", settingsErr)
+	}
 	orgRequired := committeeBase.EnableVoting || (committeeSettings != nil && committeeSettings.BusinessEmailRequired)
 
 	var inviteOrgID, inviteOrgName, inviteOrgWebsite *string
@@ -1338,7 +1342,11 @@ func (s *committeeServicesrvc) enrichInviteFromCommittee(ctx context.Context, in
 	if invite.CommitteeName == "" {
 		invite.CommitteeName = cb.Name
 	}
-	settings, _, _ := s.storage.GetSettings(ctx, committeeUID)
+	settings, _, settingsErr := s.storage.GetSettings(ctx, committeeUID)
+	if settingsErr != nil {
+		slog.WarnContext(ctx, "enrichInviteFromCommittee: failed to get committee settings",
+			"committee_uid", committeeUID, "error", settingsErr)
+	}
 	invite.OrganizationRequired = cb.EnableVoting || (settings != nil && settings.BusinessEmailRequired)
 }
 

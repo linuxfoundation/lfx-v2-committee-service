@@ -140,19 +140,27 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 		failed := false
 
 		if needsKVUpdate {
-			_, rev, getErr := rc.CommitteeReader.GetInvite(ctx, invite.UID)
+			freshInvite, rev, getErr := rc.CommitteeReader.GetInvite(ctx, invite.UID)
 			if getErr != nil {
 				slog.WarnContext(ctx, "failed to fetch invite revision for KV update",
 					"error", getErr,
 					"invite_uid", invite.UID,
 				)
 				failed = true
-			} else if updateErr := rc.CommitteeInviteWriter.UpdateInvite(ctx, invite, rev); updateErr != nil {
-				slog.WarnContext(ctx, "failed to update invite in NATS KV",
-					"error", updateErr,
-					"invite_uid", invite.UID,
-				)
-				failed = true
+			} else {
+				if freshInvite.CommitteeName == "" && snap.name != "" {
+					freshInvite.CommitteeName = snap.name
+				}
+				freshInvite.OrganizationRequired = snap.organizationRequired
+				if updateErr := rc.CommitteeInviteWriter.UpdateInvite(ctx, freshInvite, rev); updateErr != nil {
+					slog.WarnContext(ctx, "failed to update invite in NATS KV",
+						"error", updateErr,
+						"invite_uid", invite.UID,
+					)
+					failed = true
+				} else {
+					invite = freshInvite
+				}
 			}
 		}
 

@@ -27,10 +27,11 @@ type mockReader struct {
 	settings    map[string]*model.CommitteeSettings
 	settingsErr map[string]error
 
-	invites           []*model.CommitteeInvite
-	invitesByCommitte map[string][]*model.CommitteeInvite
-	inviteRevision    map[string]uint64
-	inviteGetErr      map[string]error
+	invites            []*model.CommitteeInvite
+	invitesByCommittee map[string][]*model.CommitteeInvite
+	inviteRevision     map[string]uint64
+	inviteGetErr       map[string]error
+	getBaseCalls       int
 }
 
 func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error) {
@@ -38,6 +39,7 @@ func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error) {
 }
 
 func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	r.getBaseCalls++
 	if err, ok := r.baseErr[uid]; ok {
 		return nil, 0, err
 	}
@@ -87,8 +89,8 @@ func (r *mockReader) GetInvite(_ context.Context, uid string) (*model.CommitteeI
 	return nil, rev, nil
 }
 func (r *mockReader) ListInvites(_ context.Context, committeeUID string) ([]*model.CommitteeInvite, error) {
-	if r.invitesByCommitte != nil {
-		return r.invitesByCommitte[committeeUID], nil
+	if r.invitesByCommittee != nil {
+		return r.invitesByCommittee[committeeUID], nil
 	}
 	var out []*model.CommitteeInvite
 	for _, inv := range r.invites {

@@ -152,6 +152,7 @@ func TestReindexInvites_NewInvite_NoKVUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, iw.updated, "no KV write expected when fields already match")
 	assert.Equal(t, 1, pub.indexerCalls)
+	assert.Equal(t, 1, pub.accessCalls)
 }
 
 func TestReindexInvites_OrgRequiredMismatch_UpdatesKV(t *testing.T) {
@@ -236,11 +237,6 @@ func TestReindexInvites_FilterByCommitteeUID(t *testing.T) {
 }
 
 func TestReindexInvites_CommitteeCache_FetchedOncePerCommittee(t *testing.T) {
-	fetchCount := 0
-	// Use a custom reader that counts GetBase calls by piggy-backing on baseErr.
-	// We use a regular mockReader but verify via the committee cache: two invites for
-	// the same committee should result in only one publish pair each, and the bases
-	// map having one entry verifies the cache lookup path via the existing mock.
 	r := &mockReader{
 		bases: map[string]*model.CommitteeBase{
 			"c1": {Name: "TSC"},
@@ -250,12 +246,12 @@ func TestReindexInvites_CommitteeCache_FetchedOncePerCommittee(t *testing.T) {
 			{UID: "i2", CommitteeUID: "c1", CommitteeName: "TSC", Status: "pending"},
 		},
 	}
-	_ = fetchCount
 	iw := &mockInviteWriter{}
 	pub := &mockPublisher{}
 
 	err := (&reindexInvitesSubcommand{}).Run(context.Background(), newReindexRC(r, iw, pub))
 	require.NoError(t, err)
+	assert.Equal(t, 1, r.getBaseCalls, "committee base should be fetched once per unique committee")
 	assert.Equal(t, 2, pub.indexerCalls, "both invites published")
 }
 

@@ -681,6 +681,8 @@ func TestGetInvite(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, tt.payload.InviteUID, *result.UID)
+				assert.Equal(t, "Technical Advisory Committee", *result.CommitteeName)
+				assert.True(t, *result.OrganizationRequired)
 			}
 		})
 	}
@@ -732,6 +734,8 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, tt.payload.UID, *result.CommitteeUID)
 				assert.Equal(t, tt.payload.InviteeEmail, *result.InviteeEmail)
 				assert.Equal(t, "pending", result.Status)
+				assert.Equal(t, "Technical Advisory Committee", *result.CommitteeName)
+				assert.True(t, *result.OrganizationRequired)
 
 				require.Len(t, sender.calls, 1)
 				call := sender.calls[0]

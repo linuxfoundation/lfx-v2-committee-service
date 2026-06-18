@@ -3312,7 +3312,7 @@ func NewCreateInviteRequestBody(p *committeeservice.CreateInvitePayload) *Create
 // the "accept-invite" endpoint of the "committee-service" service.
 func NewAcceptInviteRequestBody(p *committeeservice.AcceptInvitePayload) *AcceptInviteRequestBody {
 	body := &AcceptInviteRequestBody{}
-	if p.Body.Organization != nil {
+	if p.Body != nil && p.Body.Organization != nil {
 		body.Organization = &struct {
 			// Organization ID
 			ID *string `form:"id" json:"id" xml:"id"`
