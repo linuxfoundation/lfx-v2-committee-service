@@ -150,7 +150,7 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 |---|---|---|
 | `invitee` | LFID username resolved from `CommitteeInvite.InviteeEmail` | Only when email resolves to an LFID username |
 
-> When the invite is created and the invitee has no LFID yet, the `invitee` relation is omitted. `ExcludeRelations: ["invitee"]` is set so fga-sync does not delete a previously-written tuple on a transient auth-service outage. The tuple is written retroactively on `lfx.invite-service.invite_accepted` once the invitee creates an LFID — covering all invites for that email regardless of status, so the user can see their full invite history.
+> When the invite is created and the invitee has no LFID yet, the `invitee` relation is omitted. `exclude_relations: ["invitee"]` is set so fga-sync does not delete a previously-written tuple on a transient auth-service outage. The tuple is written retroactively on `lfx.invite-service.invite_accepted` once the invitee creates an LFID — covering all invites for that email regardless of status, so the user can see their full invite history.
 
 #### References
 

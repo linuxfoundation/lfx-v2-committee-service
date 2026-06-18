@@ -902,7 +902,11 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	// Pre-fetch all invites once and filter to the accepting email. This avoids an O(committees × invites)
 	// full-bucket scan that would result from calling ListInvites per committee inside the loop.
 	// The result is partitioned per committee inside publishInviteeFGAForCommittee.
-	invitesByCommittee := m.fetchInvitesByEmail(ctx, normalizedEmail)
+	// Guard: skip the scan entirely when FGA publishing is disabled (committeePublisher == nil).
+	var invitesByCommittee map[string][]*model.CommitteeInvite
+	if m.committeePublisher != nil {
+		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
+	}
 
 	for _, committeeUID := range allUIDs {
 		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
@@ -940,8 +944,8 @@ type inviteAcceptedEnrichment struct {
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
 // reconciles all resource data for the recipient email. It also publishes the FGA invitee
-// relation for every pending committee invite that matches the recipient email, so the newly
-// created LFID user can see their outstanding invites.
+// relation for every committee invite (any status) that matches the recipient email, so the
+// newly created LFID user can see their full invite history.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	m.enrichInvitedUserInCommitteeSettings(ctx, e)
 	m.enrichInvitedUserInCommitteeMembers(ctx, e)
@@ -949,13 +953,17 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Co
 }
 
 // fetchInvitesByEmail calls ListAllInvites once and returns a map of committeeUID → invites
-// for invites whose InviteeEmail matches normalizedEmail. Returns nil on error (already logged).
+// for invites whose InviteeEmail matches normalizedEmail. When the storage layer returns a
+// partial result alongside a non-nil error (e.g. some individual reads failed), the successfully
+// loaded invites are still used — only a total failure (nil slice) causes an early return.
 func (m *messageHandlerOrchestrator) fetchInvitesByEmail(ctx context.Context, normalizedEmail string) map[string][]*model.CommitteeInvite {
 	all, err := m.committeeReader.ListAllInvites(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to list all committee invites for FGA invitee grant — skipping FGA publish",
+		slog.WarnContext(ctx, "partial or total failure listing committee invites for FGA invitee grant",
 			"error", err)
-		return nil
+		if len(all) == 0 {
+			return nil
+		}
 	}
 	result := make(map[string][]*model.CommitteeInvite)
 	for _, invite := range all {
