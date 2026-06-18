@@ -896,41 +896,63 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	firstName, lastName, fullName := m.resolveInvitedName(ctx, event.AcceptedBy, event.Recipient.Name)
 
 	for _, committeeUID := range allUIDs {
-		m.enrichInvitedUserInCommittee(ctx, writeCtx, committeeUID, normalizedEmail, event.AcceptedBy, event.UID, firstName, lastName, fullName)
+		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
+			writeCtx:        writeCtx,
+			committeeUID:    committeeUID,
+			normalizedEmail: normalizedEmail,
+			username:        event.AcceptedBy,
+			inviteUID:       event.UID,
+			firstName:       firstName,
+			lastName:        lastName,
+			fullName:        fullName,
+		})
 	}
 
 	return nil, nil
 }
 
+// inviteAcceptedEnrichment holds the per-event context threaded through the invite-accepted
+// enrichment chain. committeeUID is set per-iteration of the full-committee scan.
+type inviteAcceptedEnrichment struct {
+	writeCtx        context.Context
+	committeeUID    string
+	normalizedEmail string
+	username        string
+	inviteUID       string
+	firstName       string
+	lastName        string
+	fullName        string
+}
+
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
-// for normalizedEmail in the given committee. Invite role is ignored — acceptance always
+// for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
 // reconciles all resource data for the recipient email.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName, fullName string) {
-	m.enrichInvitedUserInCommitteeSettings(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID, fullName)
-	m.enrichInvitedUserInCommitteeMembers(ctx, writeCtx, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName)
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
+	m.enrichInvitedUserInCommitteeSettings(ctx, e)
+	m.enrichInvitedUserInCommitteeMembers(ctx, e)
 }
 
 // enrichInvitedUserInCommitteeSettings enriches all email-only Writers and Auditors matching
-// normalizedEmail in the given committee's settings with the accepted LFID and display name.
+// e.normalizedEmail in the given committee's settings with the accepted LFID and display name.
 // It retries on revision conflicts.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, fullName string) {
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx context.Context, e inviteAcceptedEnrichment) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
+		settings, revision, err := m.committeeReader.GetSettings(ctx, e.committeeUID)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to get settings for invite enrichment",
-				"error", err, "committee_uid", committeeUID, "invite_uid", inviteUID)
+				"error", err, "committee_uid", e.committeeUID, "invite_uid", e.inviteUID)
 			return
 		}
 
 		enriched := false
 		for i := range settings.Writers {
-			if enrichCommitteeUserIfEmailOnly(&settings.Writers[i], normalizedEmail, username, fullName) {
+			if enrichCommitteeUserIfEmailOnly(&settings.Writers[i], e.normalizedEmail, e.username, e.fullName) {
 				enriched = true
 			}
 		}
 		for i := range settings.Auditors {
-			if enrichCommitteeUserIfEmailOnly(&settings.Auditors[i], normalizedEmail, username, fullName) {
+			if enrichCommitteeUserIfEmailOnly(&settings.Auditors[i], e.normalizedEmail, e.username, e.fullName) {
 				enriched = true
 			}
 		}
@@ -939,87 +961,88 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeSettings(ctx, w
 			return
 		}
 
-		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(writeCtx, settings, revision, false); writeErr != nil {
+		if _, writeErr := m.committeeWriterOrchestrator.UpdateSettings(e.writeCtx, settings, revision, false); writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict enriching invite — retrying",
-					"attempt", attempt+1, "committee_uid", committeeUID, "invite_uid", inviteUID)
+					"attempt", attempt+1, "committee_uid", e.committeeUID, "invite_uid", e.inviteUID)
 				continue
 			}
 			slog.ErrorContext(ctx, "failed to update settings after invite acceptance",
-				"error", writeErr, "committee_uid", committeeUID, "invite_uid", inviteUID)
+				"error", writeErr, "committee_uid", e.committeeUID, "invite_uid", e.inviteUID)
 			return
 		}
 
 		slog.DebugContext(ctx, "invite accepted — enriched email-only Writers/Auditors with LFID",
-			"committee_uid", committeeUID, "invite_uid", inviteUID, "username", redaction.Redact(username))
+			"committee_uid", e.committeeUID, "invite_uid", e.inviteUID, "username", redaction.Redact(e.username))
 		return
 	}
 }
 
 // enrichInvitedUserInCommitteeMembers enriches all email-only committee members matching
-// normalizedEmail in the given committee with the accepted LFID and name.
-func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx, writeCtx context.Context, committeeUID, normalizedEmail, username, inviteUID, firstName, lastName string) {
-	members, err := m.committeeReader.ListMembersByCommittee(ctx, committeeUID)
+// e.normalizedEmail in the given committee with the accepted LFID and name.
+func (m *messageHandlerOrchestrator) enrichInvitedUserInCommitteeMembers(ctx context.Context, e inviteAcceptedEnrichment) {
+	members, err := m.committeeReader.ListMembersByCommittee(ctx, e.committeeUID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to list members for invite enrichment",
-			"error", err, "committee_uid", committeeUID, "invite_uid", inviteUID)
+			"error", err, "committee_uid", e.committeeUID, "invite_uid", e.inviteUID)
 		return
 	}
 
 	for _, member := range members {
-		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
+		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != e.normalizedEmail {
 			continue
 		}
-		m.enrichInvitedCommitteeMember(ctx, writeCtx, committeeUID, member.UID, normalizedEmail, username, inviteUID, firstName, lastName)
+		m.enrichInvitedCommitteeMember(ctx, e, member.UID)
 	}
 }
 
 // enrichInvitedCommitteeMember enriches a single email-only member with the accepted LFID and name.
 // Revision-conflict retries are handled here, not in enrichInvitedUserInCommitteeMembers.
-func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx, writeCtx context.Context, committeeUID, memberUID, normalizedEmail, username, inviteUID, firstName, lastName string) {
+// memberUID identifies the specific member within e.committeeUID.
+func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx context.Context, e inviteAcceptedEnrichment, memberUID string) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		member, revision, err := m.committeeReader.GetMember(ctx, committeeUID, memberUID)
+		member, revision, err := m.committeeReader.GetMember(ctx, e.committeeUID, memberUID)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to get member for invite enrichment",
-				"error", err, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+				"error", err, "committee_uid", e.committeeUID, "member_uid", memberUID, "invite_uid", e.inviteUID)
 			return
 		}
 
-		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
+		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != e.normalizedEmail {
 			return
 		}
 
-		member.Username = username
+		member.Username = e.username
 		// Only fill name fields that are not already set — preserves any name stored at invite creation.
-		if member.FirstName == "" && firstName != "" {
-			member.FirstName = firstName
+		if member.FirstName == "" && e.firstName != "" {
+			member.FirstName = e.firstName
 		}
-		if member.LastName == "" && lastName != "" {
-			member.LastName = lastName
+		if member.LastName == "" && e.lastName != "" {
+			member.LastName = e.lastName
 		}
 
-		inviteCtx := contextWithSkipMemberUsernameEmailResolution(writeCtx)
+		inviteCtx := contextWithSkipMemberUsernameEmailResolution(e.writeCtx)
 		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
 		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
 				slog.DebugContext(ctx, "revision conflict enriching member — retrying",
-					"attempt", attempt+1, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+					"attempt", attempt+1, "committee_uid", e.committeeUID, "member_uid", memberUID, "invite_uid", e.inviteUID)
 				continue
 			}
 			slog.ErrorContext(ctx, "failed to update member after invite acceptance",
-				"error", writeErr, "committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID)
+				"error", writeErr, "committee_uid", e.committeeUID, "member_uid", memberUID, "invite_uid", e.inviteUID)
 			return
 		}
 
-		persistedUsername := username
+		persistedUsername := e.username
 		if updated != nil {
 			persistedUsername = updated.Username
 		}
 		slog.DebugContext(ctx, "invite accepted — enriched email-only member with LFID",
-			"committee_uid", committeeUID, "member_uid", memberUID, "invite_uid", inviteUID,
+			"committee_uid", e.committeeUID, "member_uid", memberUID, "invite_uid", e.inviteUID,
 			"username", redaction.Redact(persistedUsername))
 		return
 	}
