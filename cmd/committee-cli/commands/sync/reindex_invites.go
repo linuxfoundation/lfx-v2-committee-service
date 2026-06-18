@@ -79,9 +79,11 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	stats.DryRun = rc.DryRun
 
 	// Cache per-committee derived fields to avoid redundant NATS KV reads during batch reindex.
+	// fetched=false means GetBase failed; in that case no fields on the invite are modified.
 	type committeeSnapshot struct {
 		name                 string
 		organizationRequired bool
+		fetched              bool
 	}
 	committeeCache := make(map[string]committeeSnapshot)
 
@@ -97,6 +99,7 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 			committeeCache[committeeUID] = snap
 			return snap
 		}
+		snap.fetched = true
 		snap.name = base.Name
 		settings, _, _ := rc.CommitteeReader.GetSettings(ctx, committeeUID)
 		snap.organizationRequired = base.EnableVoting || (settings != nil && settings.BusinessEmailRequired)
@@ -107,12 +110,19 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 	for _, invite := range invites {
 		snap := lookupCommittee(invite.CommitteeUID)
 
-		needsKVUpdate := (invite.CommitteeName == "" && snap.name != "") ||
-			invite.OrganizationRequired != snap.organizationRequired
-		if invite.CommitteeName == "" {
-			invite.CommitteeName = snap.name
+		// Only modify invite fields when the committee lookup succeeded, to avoid
+		// corrupting correctly-set values on invites whose committee is temporarily unreachable.
+		needsKVUpdate := false
+		if snap.fetched {
+			if invite.CommitteeName == "" && snap.name != "" {
+				invite.CommitteeName = snap.name
+				needsKVUpdate = true
+			}
+			if invite.OrganizationRequired != snap.organizationRequired {
+				invite.OrganizationRequired = snap.organizationRequired
+				needsKVUpdate = true
+			}
 		}
-		invite.OrganizationRequired = snap.organizationRequired
 
 		if rc.DryRun {
 			slog.InfoContext(ctx, "dry-run: would reindex invite",
