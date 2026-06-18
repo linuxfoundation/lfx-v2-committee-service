@@ -939,11 +939,11 @@ func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Co
 	m.publishInviteeFGAForCommittee(ctx, e)
 }
 
-// publishInviteeFGAForCommittee lists all pending committee invites for the committee and
+// publishInviteeFGAForCommittee lists all committee invites for the committee and
 // publishes an FGA update_access message for every invite whose invitee email matches the
-// accepting user. This grants the newly registered LFID user the invitee relation on any
-// committee_invite object that was created before they had an LFID, making those invites
-// visible to them in the access-check layer.
+// accepting user, regardless of invite status. This grants the newly registered LFID user
+// the invitee relation on every committee_invite object for their email — including already-
+// accepted invites — so the user can always see their own invite history.
 func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	if m.committeePublisher == nil {
 		return
@@ -959,9 +959,6 @@ func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.C
 			continue
 		}
 		if strings.ToLower(strings.TrimSpace(invite.InviteeEmail)) != e.normalizedEmail {
-			continue
-		}
-		if invite.Status != string(inviteapi.InviteStatusPending) {
 			continue
 		}
 		msg := fgatypes.GenericFGAMessage{

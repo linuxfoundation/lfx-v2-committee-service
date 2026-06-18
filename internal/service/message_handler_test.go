@@ -2440,7 +2440,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 			},
 		},
 		{
-			name: "accepted invite — FGA not re-published",
+			name: "accepted invite — FGA still published so user can see their own invite history",
 			setupRepo: func(r *mock.MockRepository) {
 				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
 					&model.CommitteeSettings{UID: committee1UID}))
@@ -2454,7 +2454,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
-				assert.Empty(t, pub.capturedAccessSubjects, "accepted invite must not trigger FGA re-publish")
+				require.Len(t, pub.capturedAccessSubjects, 1, "accepted invite should still get FGA invitee grant")
+				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
 			},
 		},
 		{
