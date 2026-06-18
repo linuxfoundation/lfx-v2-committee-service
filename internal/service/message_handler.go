@@ -1066,13 +1066,10 @@ func enrichCommitteeUserIfEmailOnly(user *model.CommitteeUser, normalizedEmail, 
 }
 
 // resolveInvitedName returns (firstName, lastName, fullName) for the accepted invitee.
-// It first looks up the accepting principal via the auth-service user_metadata.read NATS
-// subject (UserMetadataByPrincipal). If the lookup succeeds and supplies any name, those
-// values are returned exclusively — the payload is never mixed in. When only a combined
-// Name is present (no GivenName/FamilyName), first/last are derived by splitting it.
-// The payload (Recipient.Name) is used only when metadata is unavailable or nil.
-// All lookups are best-effort: a transport error logs a warning and triggers the fallback
-// so the caller is never blocked.
+// Precedence: auth-service UserMetadataByPrincipal result (when it supplies any name) →
+// payload Recipient.Name fallback. The payload is also used when metadata is non-nil but
+// carries no name fields. All lookups are best-effort: a transport error logs a warning
+// and triggers the fallback so the caller is never blocked.
 func (m *messageHandlerOrchestrator) resolveInvitedName(ctx context.Context, principal, payloadName string) (firstName, lastName, fullName string) {
 	if m.userReader != nil && principal != "" {
 		meta, err := m.userReader.UserMetadataByPrincipal(ctx, principal)
@@ -1080,19 +1077,21 @@ func (m *messageHandlerOrchestrator) resolveInvitedName(ctx context.Context, pri
 			slog.WarnContext(ctx, "user metadata lookup failed during invite acceptance — falling back to payload name",
 				"principal", redaction.Redact(principal), "error", err)
 		} else if meta != nil {
-			// Metadata available — use it exclusively; never mix with payload names.
 			firstName = meta.GivenName
 			lastName = meta.FamilyName
 			fullName = meta.Name
 			if fullName == "" {
 				fullName = strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
 			}
-			// When only a combined name is present, derive first/last from it
-			// rather than falling through to the payload.
 			if firstName == "" && lastName == "" && fullName != "" {
 				firstName, lastName = splitName(fullName)
 			}
-			return firstName, lastName, fullName
+			// Only return metadata-derived names when metadata actually supplied
+			// at least one — a non-nil record with all empty fields falls through
+			// to the payload fallback below.
+			if firstName != "" || lastName != "" || fullName != "" {
+				return firstName, lastName, fullName
+			}
 		}
 	}
 

@@ -773,10 +773,10 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 	if meta == nil {
 		return ""
 	}
-	if name := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); name != "" {
+	if name := strings.TrimSpace(meta.Name); name != "" {
 		return name
 	}
-	return strings.TrimSpace(meta.Name)
+	return strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
 }
 
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
