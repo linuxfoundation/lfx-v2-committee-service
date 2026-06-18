@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -505,6 +506,10 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
+	// capturedAccessSubjects records the NATS subject for each Access call.
+	capturedAccessSubjects []string
+	// capturedAccessMsgs records the raw message value for each Access call.
+	capturedAccessMsgs []any
 }
 
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
@@ -512,7 +517,9 @@ func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any
 	s.lastSubject = subject
 	return nil
 }
-func (s *spyCommitteePublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
+func (s *spyCommitteePublisher) Access(_ context.Context, subject string, msg any, _ bool) error {
+	s.capturedAccessSubjects = append(s.capturedAccessSubjects, subject)
+	s.capturedAccessMsgs = append(s.capturedAccessMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
@@ -1953,13 +1960,17 @@ func TestHandleInviteAccepted(t *testing.T) {
 		}
 	}
 
-	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
-		h := NewMessageHandlerOrchestrator(
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator, pub *spyCommitteePublisher) *messageHandlerOrchestrator {
+		opts := []messageHandlerOrchestratorOption{
 			WithCommitteeReaderForMessageHandler(
 				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
 			),
 			WithCommitteeWriterOrchestratorForMessageHandler(spy),
-		)
+		}
+		if pub != nil {
+			opts = append(opts, WithCommitteePublisherForMessageHandler(pub))
+		}
+		h := NewMessageHandlerOrchestrator(opts...)
 		return h.(*messageHandlerOrchestrator)
 	}
 
@@ -1976,6 +1987,7 @@ func TestHandleInviteAccepted(t *testing.T) {
 		wantUpdateMemberCalls int
 		validateSettings      func(*testing.T, []*model.CommitteeSettings)
 		validateMembers       func(*testing.T, []*model.CommitteeMember)
+		validatePublisher     func(*testing.T, *spyCommitteePublisher)
 	}{
 		{
 			name: "malformed payload — no update called",
@@ -2381,6 +2393,88 @@ func TestHandleInviteAccepted(t *testing.T) {
 				assert.Equal(t, "Set", captured[0].LastName, "existing last name must not be overwritten")
 			},
 		},
+		// ---- FGA invitee grant tests ----
+		{
+			name: "pending invite for matching email — FGA invitee relation published",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				require.Len(t, pub.capturedAccessSubjects, 1, "expected one FGA access publish for the pending invite")
+				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
+			},
+		},
+		{
+			name: "two pending invites across two committees — FGA published for both",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommittee(makeCommitteeWithSettings(committee2UID,
+					&model.CommitteeSettings{UID: committee2UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-c1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "pending-invite-c2",
+					CommitteeUID: committee2UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				assert.Len(t, pub.capturedAccessSubjects, 2, "expected one FGA publish per pending invite")
+			},
+		},
+		{
+			name: "accepted invite — FGA not re-published",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "accepted-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: writerEmail,
+					Status:       string(inviteapi.InviteStatusAccepted),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				assert.Empty(t, pub.capturedAccessSubjects, "accepted invite must not trigger FGA re-publish")
+			},
+		},
+		{
+			name: "invite for different email — FGA not published",
+			setupRepo: func(r *mock.MockRepository) {
+				r.AddCommittee(makeCommitteeWithSettings(committee1UID,
+					&model.CommitteeSettings{UID: committee1UID}))
+				r.AddCommitteeInvite(&model.CommitteeInvite{
+					UID:          "other-invite-1",
+					CommitteeUID: committee1UID,
+					InviteeEmail: "other@example.com",
+					Status:       string(inviteapi.InviteStatusPending),
+				})
+			},
+			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
+			wantUpdateCalls: 0,
+			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
+				assert.Empty(t, pub.capturedAccessSubjects, "invite for different email must not trigger FGA publish")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2395,7 +2489,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 				updateMemberErr:    tt.spyMemberErr,
 				updateMemberErrs:   tt.spyMemberErrs,
 			}
-			handler := makeHandler(mockRepo, spy)
+			pub := &spyCommitteePublisher{}
+			handler := makeHandler(mockRepo, spy, pub)
 			if tt.userReader != nil {
 				handler.userReader = tt.userReader
 			}
@@ -2412,6 +2507,9 @@ func TestHandleInviteAccepted(t *testing.T) {
 			}
 			if tt.validateMembers != nil && len(spy.updatedMembers) > 0 {
 				tt.validateMembers(t, spy.updatedMembers)
+			}
+			if tt.validatePublisher != nil {
+				tt.validatePublisher(t, pub)
 			}
 		})
 	}

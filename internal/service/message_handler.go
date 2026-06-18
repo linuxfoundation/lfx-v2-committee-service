@@ -22,6 +22,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
 )
@@ -928,10 +930,63 @@ type inviteAcceptedEnrichment struct {
 
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
-// reconciles all resource data for the recipient email.
+// reconciles all resource data for the recipient email. It also publishes the FGA invitee
+// relation for every pending committee invite that matches the recipient email, so the newly
+// created LFID user can see their outstanding invites.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	m.enrichInvitedUserInCommitteeSettings(ctx, e)
 	m.enrichInvitedUserInCommitteeMembers(ctx, e)
+	m.publishInviteeFGAForCommittee(ctx, e)
+}
+
+// publishInviteeFGAForCommittee lists all pending committee invites for the committee and
+// publishes an FGA update_access message for every invite whose invitee email matches the
+// accepting user. This grants the newly registered LFID user the invitee relation on any
+// committee_invite object that was created before they had an LFID, making those invites
+// visible to them in the access-check layer.
+func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
+	if m.committeePublisher == nil {
+		return
+	}
+	invites, err := m.committeeReader.ListInvites(ctx, e.committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to list committee invites for FGA invitee grant",
+			"committee_uid", e.committeeUID, "error", err)
+		return
+	}
+	for _, invite := range invites {
+		if invite == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(invite.InviteeEmail)) != e.normalizedEmail {
+			continue
+		}
+		if invite.Status != string(inviteapi.InviteStatusPending) {
+			continue
+		}
+		msg := fgatypes.GenericFGAMessage{
+			ObjectType: "committee_invite",
+			Operation:  "update_access",
+			Data: fgatypes.GenericAccessData{
+				UID: invite.UID,
+				References: map[string][]string{
+					constants.RelationCommittee: {invite.CommitteeUID},
+				},
+				Relations: map[string][]string{
+					constants.RelationInvitee: {e.username},
+				},
+			},
+		}
+		if pubErr := m.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, msg, false); pubErr != nil {
+			slog.WarnContext(ctx, "failed to publish FGA invitee grant for committee invite",
+				"invite_uid", invite.UID, "committee_uid", e.committeeUID,
+				"username", redaction.Redact(e.username), "error", pubErr)
+		} else {
+			slog.DebugContext(ctx, "published FGA invitee grant for committee invite",
+				"invite_uid", invite.UID, "committee_uid", e.committeeUID,
+				"username", redaction.Redact(e.username))
+		}
+	}
 }
 
 // enrichInvitedUserInCommitteeSettings enriches all email-only Writers and Auditors matching

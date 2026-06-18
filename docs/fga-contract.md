@@ -11,6 +11,7 @@ The full OpenFGA type definitions (relations, schema) for all object types are d
 ## Object Types
 
 - [Committee](#committee)
+- [Committee Invite](#committee-invite)
 
 ---
 
@@ -120,6 +121,51 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 ---
 
+---
+
+## Committee Invite
+
+**Source struct:** `internal/domain/model/CommitteeInvite`
+
+**Synced on:** create/update of a committee invite (HTTP path), acceptance of a committee invite (HTTP path), and NATS `lfx.invite-service.invite_accepted` event (grants `invitee` relation to newly registered LFID users).
+
+### update_access (Create / Accept / LFID Registration)
+
+Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object is created, updated, or when a previously-invited email address registers an LFID (via `HandleInviteAccepted`).
+
+#### Message Envelope
+
+| Field | Value |
+|---|---|
+| `object_type` | `committee_invite` |
+| `operation` | `update_access` |
+
+#### Data Fields
+
+| Field | Value |
+|---|---|
+| `uid` | `CommitteeInvite.UID` |
+
+#### Relations
+
+| Relation | Value | Condition |
+|---|---|---|
+| `invitee` | LFID username resolved from `CommitteeInvite.InviteeEmail` | Only when email resolves to an LFID username |
+
+> When the invite is created and the invitee has no LFID yet, the `invitee` relation is omitted. `ExcludeRelations: ["invitee"]` is set so fga-sync does not delete a previously-written tuple on a transient auth-service outage. The tuple is written retroactively on `lfx.invite-service.invite_accepted` once the invitee creates an LFID — covering all pending invites for that email, not only the one the user clicked.
+
+#### References
+
+| Reference | Value | Condition |
+|---|---|---|
+| `committee` | `CommitteeInvite.CommitteeUID` | Always |
+
+### delete_access (Delete)
+
+Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Removes all FGA tuples for the `committee_invite:{uid}` object.
+
+---
+
 ## Triggers
 
 | Operation | Object Type | Subject | Notes |
@@ -131,3 +177,8 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 | Create committee member (with username) | `committee` | `lfx.fga-sync.member_put` | Skipped if `Username` is empty |
 | Update committee member (with username) | `committee` | `lfx.fga-sync.member_put` | Skipped if `Username` is empty |
 | Delete committee member (with username) | `committee` | `lfx.fga-sync.member_remove` | Skipped if `Username` is empty; empty relations removes all tuples for the user |
+| Create committee invite | `committee_invite` | `lfx.fga-sync.update_access` | `invitee` relation omitted when invitee has no LFID yet |
+| Update committee invite | `committee_invite` | `lfx.fga-sync.update_access` | Same invitee-resolution logic as create |
+| Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
+| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Removes all tuples for the invite object |
+| LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every pending `committee_invite` whose `InviteeEmail` matches the accepted email — grants visibility to invites created before the user had an LFID |
