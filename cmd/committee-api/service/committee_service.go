@@ -735,10 +735,14 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
-// inviteDispatchTimeout bounds the best-effort send-invite request to the
-// invite service. Matches the timeout used by the message-handler invite path
-// (see internal/service/message_handler.go committeeNotificationTimeout).
+// inviteDispatchTimeout is the total budget for a single invite dispatch (name
+// lookup + send). The name-resolve sub-timeout below consumes a portion of this
+// budget, leaving the remainder for the actual SendInvite call.
 const inviteDispatchTimeout = 5 * time.Second
+
+// inviteNameResolveTimeout is the slice of the dispatch budget reserved for the
+// best-effort auth-service name lookup. Must be less than inviteDispatchTimeout.
+const inviteNameResolveTimeout = 2 * time.Second
 
 // resolveInviteeDisplayName looks up a combined display name for the invitee via the
 // auth service when the invitee already has an LFID. Returns an empty string when the
@@ -789,20 +793,23 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		return
 	}
 
+	// Single budget for the whole dispatch: name lookup (sub-timeout) + SendInvite.
+	// Both operations share the same parent context so the total cannot exceed
+	// inviteDispatchTimeout even when both are slow.
+	dispatchCtx, dispatchCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
+	defer dispatchCancel()
+
 	// Resolve the invitee's display name via the auth service when they already have
 	// an LFID. Best-effort: lookup failures are logged and the invite still sends.
-	resolveCtx, resolveCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
+	resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
 	recipientName := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
 	resolveCancel()
-
-	sendCtx, cancel := context.WithTimeout(ctx, inviteDispatchTimeout)
-	defer cancel()
 	// Role on the invite record is the committee role applied after acceptance.
 	// The Role field on SendInviteRequest is the invite-service permission grant
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
-	_, err := s.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
+	_, err := s.inviteSender.SendInvite(dispatchCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
 			Name:  recipientName,
