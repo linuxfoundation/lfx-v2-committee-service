@@ -23,6 +23,15 @@ type mockReader struct {
 
 	members    map[string][]*model.CommitteeMember
 	membersErr map[string]error
+
+	settings    map[string]*model.CommitteeSettings
+	settingsErr map[string]error
+
+	invites            []*model.CommitteeInvite
+	invitesByCommittee map[string][]*model.CommitteeInvite
+	inviteRevision     map[string]uint64
+	inviteGetErr       map[string]error
+	getBaseCalls       int
 }
 
 func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error) {
@@ -30,6 +39,7 @@ func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error) {
 }
 
 func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	r.getBaseCalls++
 	if err, ok := r.baseErr[uid]; ok {
 		return nil, 0, err
 	}
@@ -66,14 +76,32 @@ func (r *mockReader) GetMember(_ context.Context, uid string) (*model.CommitteeM
 func (r *mockReader) GetMemberRevision(_ context.Context, _ string) (uint64, error) {
 	return 0, nil
 }
-func (r *mockReader) GetInvite(_ context.Context, _ string) (*model.CommitteeInvite, uint64, error) {
-	return nil, 0, nil
+func (r *mockReader) GetInvite(_ context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
+	if err, ok := r.inviteGetErr[uid]; ok {
+		return nil, 0, err
+	}
+	rev := r.inviteRevision[uid]
+	for _, inv := range r.invites {
+		if inv.UID == uid {
+			return inv, rev, nil
+		}
+	}
+	return nil, rev, nil
 }
-func (r *mockReader) ListInvites(_ context.Context, _ string) ([]*model.CommitteeInvite, error) {
-	return nil, nil
+func (r *mockReader) ListInvites(_ context.Context, committeeUID string) ([]*model.CommitteeInvite, error) {
+	if r.invitesByCommittee != nil {
+		return r.invitesByCommittee[committeeUID], nil
+	}
+	var out []*model.CommitteeInvite
+	for _, inv := range r.invites {
+		if inv.CommitteeUID == committeeUID {
+			out = append(out, inv)
+		}
+	}
+	return out, nil
 }
 func (r *mockReader) ListAllInvites(_ context.Context) ([]*model.CommitteeInvite, error) {
-	return nil, nil
+	return r.invites, nil
 }
 func (r *mockReader) GetApplication(_ context.Context, _ string) (*model.CommitteeApplication, uint64, error) {
 	return nil, 0, nil
@@ -81,7 +109,13 @@ func (r *mockReader) GetApplication(_ context.Context, _ string) (*model.Committ
 func (r *mockReader) ListApplications(_ context.Context, _ string) ([]*model.CommitteeApplication, error) {
 	return nil, nil
 }
-func (r *mockReader) GetSettings(_ context.Context, _ string) (*model.CommitteeSettings, uint64, error) {
+func (r *mockReader) GetSettings(_ context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	if err, ok := r.settingsErr[uid]; ok {
+		return nil, 0, err
+	}
+	if r.settings != nil {
+		return r.settings[uid], 0, nil
+	}
 	return nil, 0, nil
 }
 

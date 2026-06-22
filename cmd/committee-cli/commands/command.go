@@ -34,6 +34,9 @@ type RunContext struct {
 	// (e.g. IndexMemberByCommittee). This is used by data-repair subcommands that bypass the
 	// business-logic orchestrator and write to the storage layer directly.
 	CommitteeMemberWriter port.CommitteeMemberWriter
+	// CommitteeInviteWriter provides direct storage-layer access to invite write operations
+	// (e.g. backfilling fields during reindex). Bypasses the business-logic orchestrator.
+	CommitteeInviteWriter port.CommitteeInviteWriter
 	// Publisher provides direct access to indexer and access-control messaging (e.g. reindex
 	// subcommands that need to publish without going through the writer orchestrator).
 	Publisher  port.CommitteePublisher

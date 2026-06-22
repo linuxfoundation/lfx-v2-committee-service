@@ -111,6 +111,7 @@ func run() error {
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       storage,
+		CommitteeInviteWriter:       storage,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
 		Args:                        parsed.SubArgs,

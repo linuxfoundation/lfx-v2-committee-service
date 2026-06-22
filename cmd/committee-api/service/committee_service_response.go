@@ -634,6 +634,10 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 		InviteeEmail: &invite.InviteeEmail,
 		Status:       invite.Status,
 	}
+	if invite.CommitteeName != "" {
+		result.CommitteeName = &invite.CommitteeName
+	}
+	result.OrganizationRequired = &invite.OrganizationRequired
 	if invite.Role != "" {
 		result.Role = &invite.Role
 	}

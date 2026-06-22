@@ -641,6 +641,8 @@ func (s *committeeServicesrvc) GetInvite(ctx context.Context, p *committeeservic
 		return nil, wrapError(ctx, errors.NewNotFound("invite not found in this committee"))
 	}
 
+	s.enrichInviteFromCommittee(ctx, invite, p.UID)
+
 	return s.convertInviteDomainToResponse(invite), nil
 }
 
@@ -657,6 +659,14 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, err)
 	}
 
+	// Best-effort: settings drive organization_required; missing settings means false.
+	committeeSettings, _, settingsErr := s.storage.GetSettings(ctx, p.UID)
+	if settingsErr != nil {
+		slog.WarnContext(ctx, "CreateInvite: failed to get committee settings for organization_required",
+			"committee_uid", p.UID, "error", settingsErr)
+	}
+	orgRequired := committeeBase.EnableVoting || (committeeSettings != nil && committeeSettings.BusinessEmailRequired)
+
 	var inviteOrgID, inviteOrgName, inviteOrgWebsite *string
 	if p.Organization != nil {
 		inviteOrgID = p.Organization.ID
@@ -666,12 +676,14 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
 	invite := &model.CommitteeInvite{
-		UID:          uuid.New().String(),
-		CommitteeUID: p.UID,
-		InviteeEmail: p.InviteeEmail,
-		Organization: inviteOrganization,
-		Status:       "pending",
-		CreatedAt:    time.Now().UTC(),
+		UID:                  uuid.New().String(),
+		CommitteeUID:         p.UID,
+		CommitteeName:        committeeBase.Name,
+		OrganizationRequired: orgRequired,
+		InviteeEmail:         p.InviteeEmail,
+		Organization:         inviteOrganization,
+		Status:               "pending",
+		CreatedAt:            time.Now().UTC(),
 	}
 	if p.Role != nil {
 		invite.Role = *p.Role
@@ -707,6 +719,8 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 			return nil, wrapError(ctx, errGet)
 		}
 		revokedInvite.Status = "pending"
+		revokedInvite.CommitteeName = committeeBase.Name
+		revokedInvite.OrganizationRequired = orgRequired
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}
@@ -855,6 +869,7 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	}
 
 	invite.Status = "revoked"
+	s.enrichInviteFromCommittee(ctx, invite, p.UID)
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return wrapError(ctx, err)
 	}
@@ -923,6 +938,7 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 
 	// Member created successfully — now mark the invite accepted.
 	invite.Status = "accepted"
+	s.enrichInviteFromCommittee(ctx, invite, p.UID)
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -966,6 +982,7 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	invite.Status = "declined"
+	s.enrichInviteFromCommittee(ctx, invite, p.UID)
 	if err := s.storage.UpdateInvite(ctx, invite, rev); err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1309,6 +1326,33 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	return userEmails.PrimaryEmail, nil
+}
+
+// enrichInviteFromCommittee populates invite fields derived from the committee.
+// It sets CommitteeName when missing and refreshes OrganizationRequired from the
+// committee's current settings (voting enabled or business email required).
+// Best-effort: a GetBase failure leaves the invite fully unchanged. A GetSettings
+// failure leaves OrganizationRequired unchanged (CommitteeName may already have
+// been backfilled). All errors are logged.
+func (s *committeeServicesrvc) enrichInviteFromCommittee(ctx context.Context, invite *model.CommitteeInvite, committeeUID string) {
+	cb, _, err := s.storage.GetBase(ctx, committeeUID)
+	if err != nil {
+		slog.WarnContext(ctx, "enrichInviteFromCommittee: failed to get committee base",
+			"committee_uid", committeeUID, "error", err)
+		return
+	}
+	if invite.CommitteeName == "" {
+		invite.CommitteeName = cb.Name
+	}
+	settings, _, settingsErr := s.storage.GetSettings(ctx, committeeUID)
+	if settingsErr != nil {
+		// Leave OrganizationRequired unchanged on a transient settings failure rather than
+		// clobbering a correctly-stored value with one derived from nil settings.
+		slog.WarnContext(ctx, "enrichInviteFromCommittee: failed to get committee settings",
+			"committee_uid", committeeUID, "error", settingsErr)
+		return
+	}
+	invite.OrganizationRequired = cb.EnableVoting || settings.BusinessEmailRequired
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.

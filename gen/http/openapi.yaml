@@ -3334,6 +3334,10 @@ definitions:
         title: CommitteeInviteWithReadonlyAttributes
         type: object
         properties:
+            committee_name:
+                type: string
+                description: Name of the committee at the time the invite was created
+                example: Technical Steering Committee
             committee_uid:
                 type: string
                 description: Committee UID
@@ -3371,6 +3375,10 @@ definitions:
                     id: org-123456
                     name: The Linux Foundation
                     website: https://linuxfoundation.org
+            organization_required:
+                type: boolean
+                description: Whether the invitee must supply an organization when accepting. True when the committee has voting enabled or requires a business email.
+                example: false
             role:
                 type: string
                 description: Suggested role for the invitee
@@ -3391,6 +3399,7 @@ definitions:
                 example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 format: uuid
         example:
+            committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             invitee_email: invitee@example.com
@@ -3398,6 +3407,7 @@ definitions:
                 id: org-123456
                 name: The Linux Foundation
                 website: https://linuxfoundation.org
+            organization_required: false
             role: None
             status: pending
             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890

@@ -681,9 +681,48 @@ func TestGetInvite(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, tt.payload.InviteUID, *result.UID)
+				assert.Equal(t, "Technical Advisory Committee", *result.CommitteeName)
+				assert.True(t, *result.OrganizationRequired)
 			}
 		})
 	}
+}
+
+func TestGetInvite_SettingsFailurePreservesOrganizationRequired(t *testing.T) {
+	// When GetSettings fails (committee has no settings), enrichInviteFromCommittee must
+	// leave the existing OrganizationRequired value intact rather than clobbering it with
+	// a value derived from nil settings (which would incorrectly evaluate to false).
+	svc, _, repo := setupServiceTestWithRepo()
+
+	// Add a committee with no settings — GetSettings will return NotFound.
+	repo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          "no-settings-committee",
+			ProjectUID:   "proj-1",
+			Name:         "No Settings Committee",
+			EnableVoting: false,
+		},
+		CommitteeSettings: nil,
+	})
+	// Seed an invite with OrganizationRequired already set to true.
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID:                  "invite-no-settings",
+		CommitteeUID:         "no-settings-committee",
+		InviteeEmail:         "test@example.com",
+		Status:               "pending",
+		OrganizationRequired: true,
+	})
+
+	result, err := svc.GetInvite(context.Background(), &committeeservice.GetInvitePayload{
+		UID:       "no-settings-committee",
+		InviteUID: "invite-no-settings",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	// OrganizationRequired must be preserved despite the settings failure.
+	require.NotNil(t, result.OrganizationRequired)
+	assert.True(t, *result.OrganizationRequired, "settings failure must not clobber a correctly-stored OrganizationRequired=true")
 }
 
 func TestCreateInvite(t *testing.T) {
@@ -732,6 +771,8 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, tt.payload.UID, *result.CommitteeUID)
 				assert.Equal(t, tt.payload.InviteeEmail, *result.InviteeEmail)
 				assert.Equal(t, "pending", result.Status)
+				assert.Equal(t, "Technical Advisory Committee", *result.CommitteeName)
+				assert.True(t, *result.OrganizationRequired)
 
 				require.Len(t, sender.calls, 1)
 				call := sender.calls[0]
