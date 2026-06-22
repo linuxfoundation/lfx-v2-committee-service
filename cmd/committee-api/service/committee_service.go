@@ -1331,7 +1331,9 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 // enrichInviteFromCommittee populates invite fields derived from the committee.
 // It sets CommitteeName when missing and refreshes OrganizationRequired from the
 // committee's current settings (voting enabled or business email required).
-// Best-effort: on any error the invite is left unchanged and the error is logged.
+// Best-effort: a GetBase failure leaves the invite fully unchanged. A GetSettings
+// failure leaves OrganizationRequired unchanged (CommitteeName may already have
+// been backfilled). All errors are logged.
 func (s *committeeServicesrvc) enrichInviteFromCommittee(ctx context.Context, invite *model.CommitteeInvite, committeeUID string) {
 	cb, _, err := s.storage.GetBase(ctx, committeeUID)
 	if err != nil {

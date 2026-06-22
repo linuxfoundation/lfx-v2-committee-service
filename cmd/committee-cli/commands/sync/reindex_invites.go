@@ -84,6 +84,7 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 		name                 string
 		organizationRequired bool
 		fetched              bool
+		settingsFetched      bool
 	}
 	committeeCache := make(map[string]committeeSnapshot)
 
@@ -101,8 +102,17 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 		}
 		snap.fetched = true
 		snap.name = base.Name
-		settings, _, _ := rc.CommitteeReader.GetSettings(ctx, committeeUID)
-		snap.organizationRequired = base.EnableVoting || (settings != nil && settings.BusinessEmailRequired)
+		settings, _, settingsErr := rc.CommitteeReader.GetSettings(ctx, committeeUID)
+		if settingsErr != nil {
+			// Leave OrganizationRequired unchanged rather than clobbering a correctly-stored
+			// value with one derived from a transient settings failure.
+			slog.WarnContext(ctx, "reindex-invites: failed to fetch committee settings — OrganizationRequired will not be updated",
+				"committee_uid", committeeUID, "error", settingsErr)
+		} else {
+			snap.settingsFetched = true
+			businessEmailRequired := settings != nil && settings.BusinessEmailRequired
+			snap.organizationRequired = base.EnableVoting || businessEmailRequired
+		}
 		committeeCache[committeeUID] = snap
 		return snap
 	}
@@ -118,7 +128,7 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 				invite.CommitteeName = snap.name
 				needsKVUpdate = true
 			}
-			if invite.OrganizationRequired != snap.organizationRequired {
+			if snap.settingsFetched && invite.OrganizationRequired != snap.organizationRequired {
 				invite.OrganizationRequired = snap.organizationRequired
 				needsKVUpdate = true
 			}
@@ -151,7 +161,9 @@ func (s *reindexInvitesSubcommand) Run(ctx context.Context, rc commands.RunConte
 				if freshInvite.CommitteeName == "" && snap.name != "" {
 					freshInvite.CommitteeName = snap.name
 				}
-				freshInvite.OrganizationRequired = snap.organizationRequired
+				if snap.settingsFetched {
+					freshInvite.OrganizationRequired = snap.organizationRequired
+				}
 				if updateErr := rc.CommitteeInviteWriter.UpdateInvite(ctx, freshInvite, rev); updateErr != nil {
 					slog.WarnContext(ctx, "failed to update invite in NATS KV",
 						"error", updateErr,
