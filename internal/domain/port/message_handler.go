@@ -10,6 +10,11 @@ import "context"
 type CommitteeAttributeHandler interface {
 	// HandleCommitteeGetAttribute handles committee get attribute messages
 	HandleCommitteeGetAttribute(ctx context.Context, msg TransportMessenger, attribute string) ([]byte, error)
+	// HandleCommitteeGetProject resolves a committee UID to its owning project UID.
+	// Request payload: JSON-encoded GetCommitteeProjectRequest (pkg/api).
+	// Success reply: JSON-encoded GetCommitteeProjectResponse with ProjectUID set.
+	// Not-found reply: JSON-encoded GetCommitteeProjectResponse with Error set to "not found".
+	HandleCommitteeGetProject(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // CommitteeMemberHandler handles member-related messages: responding to external

@@ -16,6 +16,11 @@ const (
 	// The subject is of the form: lfx.committee-api.list_members
 	CommitteeListMembersSubject = "lfx.committee-api.list_members"
 
+	// CommitteeGetProjectSubject is the subject for resolving a committee UID to its owning project UID.
+	// The subject is of the form: lfx.committee-api.get_project
+	// Request/response types: pkg/api.GetCommitteeProjectRequest / pkg/api.GetCommitteeProjectResponse
+	CommitteeGetProjectSubject = "lfx.committee-api.get_project"
+
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"

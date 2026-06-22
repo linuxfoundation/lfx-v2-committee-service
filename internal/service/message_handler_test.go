@@ -18,6 +18,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	committeeapi "github.com/linuxfoundation/lfx-v2-committee-service/pkg/api"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
@@ -2514,4 +2515,115 @@ func TestHandleInviteAccepted(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMessageHandlerOrchestratorHandleCommitteeGetProject(t *testing.T) {
+	ctx := context.Background()
+
+	testCommitteeUID := uuid.New().String()
+	testProjectUID := "test-project-uid"
+	testCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        testCommitteeUID,
+			ProjectUID: testProjectUID,
+			Name:       "Test Committee",
+		},
+	}
+
+	tests := []struct {
+		name             string
+		setupMock        func(mockRepo *mock.MockRepository)
+		messageData      []byte
+		expectedError    bool
+		errorType        interface{}
+		validateResponse func(*testing.T, []byte)
+	}{
+		{
+			name: "success - returns project UID",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			messageData:   mustMarshalGetProjectJSON(t, committeeapi.GetCommitteeProjectRequest{CommitteeUID: testCommitteeUID}),
+			expectedError: false,
+			validateResponse: func(t *testing.T, response []byte) {
+				var resp committeeapi.GetCommitteeProjectResponse
+				require.NoError(t, json.Unmarshal(response, &resp))
+				assert.Equal(t, testProjectUID, resp.ProjectUID)
+				assert.Empty(t, resp.Error)
+			},
+		},
+		{
+			name: "not found - returns error envelope",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				mockRepo.ClearAll()
+			},
+			messageData:   mustMarshalGetProjectJSON(t, committeeapi.GetCommitteeProjectRequest{CommitteeUID: uuid.New().String()}),
+			expectedError: false,
+			validateResponse: func(t *testing.T, response []byte) {
+				var resp committeeapi.GetCommitteeProjectResponse
+				require.NoError(t, json.Unmarshal(response, &resp))
+				assert.Equal(t, "not found", resp.Error)
+				assert.Empty(t, resp.ProjectUID)
+			},
+		},
+		{
+			name:          "malformed JSON payload - returns validation error",
+			setupMock:     func(mockRepo *mock.MockRepository) {},
+			messageData:   []byte(`not-json`),
+			expectedError: true,
+			errorType:     errs.Validation{},
+			validateResponse: func(t *testing.T, response []byte) {
+				assert.Nil(t, response)
+			},
+		},
+		{
+			name:          "invalid UUID in payload - returns validation error",
+			setupMock:     func(mockRepo *mock.MockRepository) {},
+			messageData:   mustMarshalGetProjectJSON(t, committeeapi.GetCommitteeProjectRequest{CommitteeUID: "not-a-uuid"}),
+			expectedError: true,
+			errorType:     errs.Validation{},
+			validateResponse: func(t *testing.T, response []byte) {
+				assert.Nil(t, response)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			tt.setupMock(mockRepo)
+
+			handler := NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(
+					NewCommitteeReaderOrchestrator(
+						WithCommitteeReader(mockRepo),
+					),
+				),
+			)
+
+			mockMsg := newMockTransportMessenger(constants.CommitteeGetProjectSubject, tt.messageData)
+
+			response, err := handler.HandleCommitteeGetProject(ctx, mockMsg)
+
+			if tt.expectedError {
+				require.Error(t, err)
+				if tt.errorType != nil {
+					assert.IsType(t, tt.errorType, err)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateResponse(t, response)
+		})
+	}
+}
+
+// mustMarshalGetProjectJSON marshals v to JSON and fails the test on error.
+func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
 }

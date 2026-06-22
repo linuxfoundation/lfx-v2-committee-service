@@ -17,6 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	emailsvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service/email"
+	committeeapi "github.com/linuxfoundation/lfx-v2-committee-service/pkg/api"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
@@ -207,6 +208,48 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 	}
 
 	return []byte(strValue), nil
+}
+
+// HandleCommitteeGetProject resolves a committee UID to its owning project UID.
+// The request payload must be a JSON-encoded GetCommitteeProjectRequest.
+// On success it returns a JSON-encoded GetCommitteeProjectResponse with ProjectUID set.
+// When the committee does not exist it returns a JSON-encoded GetCommitteeProjectResponse
+// with Error set to "not found" (successful reply, not a Go error) so the NATS router
+// sends the structured payload back to the caller rather than the generic error envelope.
+func (m *messageHandlerOrchestrator) HandleCommitteeGetProject(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var req committeeapi.GetCommitteeProjectRequest
+	if err := json.Unmarshal(msg.Data(), &req); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal get_project request", "error", err)
+		return nil, errors.NewValidation("invalid get_project request payload")
+	}
+
+	slog.DebugContext(ctx, "committee get project request", "committee_uid", req.CommitteeUID)
+
+	if _, err := uuid.Parse(req.CommitteeUID); err != nil {
+		slog.ErrorContext(ctx, "invalid committee UID in get_project request", "error", err, "committee_uid", req.CommitteeUID)
+		return nil, errors.NewValidation("invalid committee UID", err)
+	}
+
+	committee, _, err := m.committeeReader.GetBase(ctx, req.CommitteeUID)
+	if err != nil {
+		var nf errors.NotFound
+		if stderrors.As(err, &nf) {
+			slog.DebugContext(ctx, "committee not found for get_project request", "committee_uid", req.CommitteeUID)
+			return json.Marshal(committeeapi.GetCommitteeProjectResponse{Error: "not found"})
+		}
+		slog.ErrorContext(ctx, "failed to get committee base for get_project request",
+			"error", err,
+			"committee_uid", req.CommitteeUID,
+		)
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "committee get project response",
+		"committee_uid", req.CommitteeUID,
+		"project_uid", committee.ProjectUID,
+	)
+
+	return json.Marshal(committeeapi.GetCommitteeProjectResponse{ProjectUID: committee.ProjectUID})
 }
 
 // HandleCommitteeListMembers handles the retrieval of all members for a committee
