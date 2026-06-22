@@ -1329,9 +1329,9 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 }
 
 // enrichInviteFromCommittee populates invite fields derived from the committee.
-// It sets CommitteeName when missing and always refreshes OrganizationRequired from
-// the committee's current settings (voting enabled or business email required).
-// Best-effort: errors are logged and the invite is left unchanged on failure.
+// It sets CommitteeName when missing and refreshes OrganizationRequired from the
+// committee's current settings (voting enabled or business email required).
+// Best-effort: on any error the invite is left unchanged and the error is logged.
 func (s *committeeServicesrvc) enrichInviteFromCommittee(ctx context.Context, invite *model.CommitteeInvite, committeeUID string) {
 	cb, _, err := s.storage.GetBase(ctx, committeeUID)
 	if err != nil {
@@ -1344,10 +1344,13 @@ func (s *committeeServicesrvc) enrichInviteFromCommittee(ctx context.Context, in
 	}
 	settings, _, settingsErr := s.storage.GetSettings(ctx, committeeUID)
 	if settingsErr != nil {
+		// Leave OrganizationRequired unchanged on a transient settings failure rather than
+		// clobbering a correctly-stored value with one derived from nil settings.
 		slog.WarnContext(ctx, "enrichInviteFromCommittee: failed to get committee settings",
 			"committee_uid", committeeUID, "error", settingsErr)
+		return
 	}
-	invite.OrganizationRequired = cb.EnableVoting || (settings != nil && settings.BusinessEmailRequired)
+	invite.OrganizationRequired = cb.EnableVoting || settings.BusinessEmailRequired
 }
 
 // publishInviteIndexerMessage publishes an indexer message for invite operations.
