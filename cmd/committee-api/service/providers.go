@@ -874,6 +874,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	subjects := map[string]func(context.Context, port.TransportMessenger){
 		constants.CommitteeGetNameSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeGetProjectSubject:         messageHandlerService.HandleMessage,
 		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
 		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
 		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,

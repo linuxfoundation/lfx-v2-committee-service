@@ -56,6 +56,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - [Invite & Application Flows](docs/invite-application-flows.md) — membership modes, invite/application lifecycle, state transitions, and edge cases
 - [Indexer Contract](docs/indexer-contract.md) — authoritative reference for all messages sent to the indexer service
 - [FGA Contract](docs/fga-contract.md) — authoritative reference for all messages sent to the fga-sync service
+- [NATS Request-Reply Subjects](docs/nats-request-reply.md) — synchronous request/reply subjects served by this service for inter-service queries
 - [Committee CLI](cmd/committee-cli/README.md) — operational tool for running data repair and sync tasks against the service
 
 ## Releases
