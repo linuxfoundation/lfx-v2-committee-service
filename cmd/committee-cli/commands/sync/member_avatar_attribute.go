@@ -46,13 +46,13 @@ func (s *memberAvatarAttributeSubcommand) Run(ctx context.Context, rc commands.R
 	}
 
 	if rc.CommitteeReader == nil {
-		return fmt.Errorf("CommitteeReader is not wired in RunContext")
+		return errors.NewUnexpected("CommitteeReader is not wired in RunContext")
 	}
 	if rc.CommitteeMemberWriter == nil {
-		return fmt.Errorf("CommitteeMemberWriter is not wired in RunContext")
+		return errors.NewUnexpected("CommitteeMemberWriter is not wired in RunContext")
 	}
 	if rc.UserReader == nil {
-		return fmt.Errorf("UserReader is not wired in RunContext")
+		return errors.NewUnexpected("UserReader is not wired in RunContext")
 	}
 
 	rc.DryRun = *dryRun
@@ -128,13 +128,13 @@ func (s *memberAvatarAttributeSubcommand) Run(ctx context.Context, rc commands.R
 		return nil
 	})
 	if errEach != nil {
-		return fmt.Errorf("failed to stream members: %w", errEach)
+		return errors.NewUnexpected("failed to stream members", errEach)
 	}
 
 	stats.Log(ctx, "sync member-avatar-attribute")
 
 	if stats.Failed > 0 {
-		return fmt.Errorf("%d member(s) failed to backfill", stats.Failed)
+		return errors.NewUnexpected(fmt.Sprintf("%d member(s) failed to backfill", stats.Failed))
 	}
 	return nil
 }
