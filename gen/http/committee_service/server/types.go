@@ -610,6 +610,10 @@ type ReassignOrgCommitteeSeatResponseBody struct {
 	IsOrgEditable bool `form:"is_org_editable" json:"is_org_editable" xml:"is_org_editable"`
 	// Why the seat is not editable (empty when editable)
 	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+	// URL to the user's avatar image; empty when none.
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 }
 
 // UpdateCommitteeMemberResponseBody is the type of the "committee-service"
@@ -2525,7 +2529,7 @@ type UpdateCurrentWeeklyBriefServiceUnavailableResponseBody struct {
 
 // CommitteeUserResponseBody is used to define fields on response body types.
 type CommitteeUserResponseBody struct {
-	// URL to the user's avatar image
+	// URL to the user's avatar image; empty when none.
 	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
 	// The user's email address
 	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
@@ -2710,6 +2714,10 @@ type OrgCommitteeSeatResponseBody struct {
 	IsOrgEditable bool `form:"is_org_editable" json:"is_org_editable" xml:"is_org_editable"`
 	// Why the seat is not editable (empty when editable)
 	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+	// URL to the user's avatar image; empty when none.
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 }
 
 // CommitteeLinkWithReadonlyAttributesResponseBody is used to define fields on
@@ -2889,7 +2897,7 @@ type GroupWeeklyBriefThrottleResponseBody struct {
 
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
-	// URL to the user's avatar image
+	// URL to the user's avatar image; empty when none.
 	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
 	// The user's email address
 	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
@@ -3480,6 +3488,8 @@ func NewReassignOrgCommitteeSeatResponseBody(res *committeeservice.OrgCommitteeS
 		OrganizationID:    res.OrganizationID,
 		IsOrgEditable:     res.IsOrgEditable,
 		Reason:            res.Reason,
+		Avatar:            res.Avatar,
+		Username:          res.Username,
 	}
 	return body
 }
@@ -6799,6 +6809,20 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -6874,6 +6898,20 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	for _, e := range body.Writers {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Auditors {
+		if e != nil {
+			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	return
@@ -7245,6 +7283,15 @@ func ValidateUpdateCurrentWeeklyBriefRequestBody(body *UpdateCurrentWeeklyBriefR
 		if *body.Revision < 1 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", *body.Revision, 1, true))
 		}
+	}
+	return
+}
+
+// ValidateCommitteeUserRequestBody runs the validations defined on
+// committee-userRequestBody
+func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
+	if body.Avatar != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.avatar", *body.Avatar, goa.FormatURI))
 	}
 	return
 }

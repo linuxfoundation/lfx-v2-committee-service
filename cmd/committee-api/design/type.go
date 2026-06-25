@@ -320,9 +320,7 @@ func TotalVotingReposAttribute() {
 // Pending invite state is owned by the invite service (committee invite endpoints), not embedded here.
 var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
-	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image", func() {
-		dsl.Example("https://example.com/avatar.jpg")
-	})
+	AvatarAttribute()
 	dsl.Attribute("email", dsl.String, "The user's email address", func() {
 		dsl.Example("alice.johnson@example.com")
 	})
@@ -338,7 +336,7 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 func WritersAttribute() {
 	dsl.Attribute("writers", dsl.ArrayOf(CommitteeUserType), "Users who can edit/modify this committee", func() {
 		dsl.Example([]map[string]interface{}{
-			{"avatar": "https://example.com/avatar.jpg", "email": "alice@example.com", "name": "Alice Johnson", "username": "manager_user_id1"},
+			{"avatar": "https://example.com/avatar.png", "email": "alice@example.com", "name": "Alice Johnson", "username": "manager_user_id1"},
 		})
 	})
 }
@@ -424,7 +422,7 @@ func LastAuditedTimeAttribute() {
 func AuditorsAttribute() {
 	dsl.Attribute("auditors", dsl.ArrayOf(CommitteeUserType), "Users who can audit this committee", func() {
 		dsl.Example([]map[string]interface{}{
-			{"avatar": "https://example.com/avatar.jpg", "email": "john@example.com", "name": "John Doe", "username": "auditor_user_id1"},
+			{"avatar": "https://example.com/avatar.png", "email": "john@example.com", "name": "John Doe", "username": "auditor_user_id1"},
 		})
 	})
 }
@@ -526,6 +524,9 @@ var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
 	dsl.Attribute("reason", dsl.String, "Why the seat is not editable (empty when editable)", func() {
 		dsl.Example("This seat is foundation-controlled.")
 	})
+	// Optional/additive — intentionally not in Required (avatar enriched at write-time; username powers the derived-avatar render).
+	AvatarAttribute()
+	UsernameAttribute()
 	dsl.Required("uid", "committee_uid", "committee_name", "committee_category", "first_name", "last_name", "email", "role_name", "voting_status", "appointed_by", "organization_id", "is_org_editable")
 })
 
@@ -634,6 +635,15 @@ func UsernameAttribute() {
 	dsl.Attribute("username", dsl.String, "User's LF ID", func() {
 		dsl.MaxLength(100)
 		dsl.Example("user123")
+	})
+}
+
+// AvatarAttribute is the DSL attribute for a user's avatar image URL.
+// Value is enriched at write-time from the auth-service profile picture; empty when the user has none.
+func AvatarAttribute() {
+	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image; empty when none.", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Example("https://example.com/avatar.png")
 	})
 }
 

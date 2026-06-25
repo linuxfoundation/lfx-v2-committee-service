@@ -1377,7 +1377,7 @@ paths:
                 - name: Accept-InviteRequestBody
                   in: body
                   description: Optional JSON body
-                  required: false
+                  required: true
                   schema:
                     $ref: '#/definitions/AcceptInviteOptionalBody'
             responses:
@@ -3119,7 +3119,7 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can audit this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: john@example.com
                       name: John Doe
                       username: auditor_user_id1
@@ -3289,13 +3289,13 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can edit/modify this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: alice@example.com
                       name: Alice Johnson
                       username: manager_user_id1
         example:
             auditors:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: john@example.com
                   name: John Doe
                   username: auditor_user_id1
@@ -3326,7 +3326,7 @@ definitions:
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             website: https://committee.example.org
             writers:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: alice@example.com
                   name: Alice Johnson
                   username: manager_user_id1
@@ -3959,7 +3959,7 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can audit this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: john@example.com
                       name: John Doe
                       username: auditor_user_id1
@@ -4103,13 +4103,13 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can edit/modify this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: alice@example.com
                       name: Alice Johnson
                       username: manager_user_id1
         example:
             auditors:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: john@example.com
                   name: John Doe
                   username: auditor_user_id1
@@ -4135,7 +4135,7 @@ definitions:
             sso_group_enabled: true
             website: https://committee.example.org
             writers:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: alice@example.com
                   name: Alice Johnson
                   username: manager_user_id1
@@ -4588,7 +4588,7 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can audit this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: john@example.com
                       name: John Doe
                       username: auditor_user_id1
@@ -4625,13 +4625,13 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can edit/modify this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: alice@example.com
                       name: Alice Johnson
                       username: manager_user_id1
         example:
             auditors:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: john@example.com
                   name: John Doe
                   username: auditor_user_id1
@@ -4641,7 +4641,7 @@ definitions:
             member_visibility: hidden
             show_meeting_attendees: false
             writers:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: alice@example.com
                   name: Alice Johnson
                   username: manager_user_id1
@@ -4809,7 +4809,7 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can audit this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: john@example.com
                       name: John Doe
                       username: auditor_user_id1
@@ -4861,14 +4861,14 @@ definitions:
                     $ref: '#/definitions/CommitteeUser'
                 description: Users who can edit/modify this committee
                 example:
-                    - avatar: https://example.com/avatar.jpg
+                    - avatar: https://example.com/avatar.png
                       email: alice@example.com
                       name: Alice Johnson
                       username: manager_user_id1
         description: A representation of LF Committee settings with readonly attributes.
         example:
             auditors:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: john@example.com
                   name: John Doe
                   username: auditor_user_id1
@@ -4881,7 +4881,7 @@ definitions:
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"
             writers:
-                - avatar: https://example.com/avatar.jpg
+                - avatar: https://example.com/avatar.png
                   email: alice@example.com
                   name: Alice Johnson
                   username: manager_user_id1
@@ -4891,8 +4891,9 @@ definitions:
         properties:
             avatar:
                 type: string
-                description: URL to the user's avatar image
-                example: https://example.com/avatar.jpg
+                description: URL to the user's avatar image; empty when none.
+                example: https://example.com/avatar.png
+                format: uri
             email:
                 type: string
                 description: The user's email address
@@ -4907,7 +4908,7 @@ definitions:
                 example: alicejohnson789
         description: A user object stored in writers or auditors lists.
         example:
-            avatar: https://example.com/avatar.jpg
+            avatar: https://example.com/avatar.png
             email: alice.johnson@example.com
             name: Alice Johnson
             username: alicejohnson789
@@ -5372,6 +5373,11 @@ definitions:
                     - Vote of Silver Member Class
                     - Vote of Strategic Membership Class
                     - None
+            avatar:
+                type: string
+                description: URL to the user's avatar image; empty when none.
+                example: https://example.com/avatar.png
+                format: uri
             committee_category:
                 type: string
                 description: The category of the committee this member belongs to
@@ -5450,6 +5456,11 @@ definitions:
                 description: Committee member UID -- v2 uid, not related to v1 id directly
                 example: 2200b646-fbb2-4de7-ad80-fd195a874baf
                 format: uuid
+            username:
+                type: string
+                description: User's LF ID
+                example: user123
+                maxLength: 100
             voting_status:
                 type: string
                 description: Voting status
@@ -5464,6 +5475,7 @@ definitions:
         description: An organization's committee seat for the Org Lens Board & Committee tab.
         example:
             appointed_by: Community
+            avatar: https://example.com/avatar.png
             committee_category: Board
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5478,6 +5490,7 @@ definitions:
             reason: This seat is foundation-controlled.
             role_name: Chair
             uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+            username: user123
             voting_status: Voting Rep
         required:
             - uid
@@ -5507,6 +5520,7 @@ definitions:
                 description: The committee seats in this page
                 example:
                     - appointed_by: Community
+                      avatar: https://example.com/avatar.png
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5521,8 +5535,10 @@ definitions:
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
                       voting_status: Voting Rep
                     - appointed_by: Community
+                      avatar: https://example.com/avatar.png
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5537,8 +5553,10 @@ definitions:
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
                       voting_status: Voting Rep
                     - appointed_by: Community
+                      avatar: https://example.com/avatar.png
                       committee_category: Board
                       committee_name: Technical Steering Committee
                       committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5553,11 +5571,13 @@ definitions:
                       reason: This seat is foundation-controlled.
                       role_name: Chair
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
                       voting_status: Voting Rep
         example:
             page_token: eyJvIjoxMDB9
             seats:
                 - appointed_by: Community
+                  avatar: https://example.com/avatar.png
                   committee_category: Board
                   committee_name: Technical Steering Committee
                   committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5572,8 +5592,10 @@ definitions:
                   reason: This seat is foundation-controlled.
                   role_name: Chair
                   uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
                   voting_status: Voting Rep
                 - appointed_by: Community
+                  avatar: https://example.com/avatar.png
                   committee_category: Board
                   committee_name: Technical Steering Committee
                   committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5588,6 +5610,7 @@ definitions:
                   reason: This seat is foundation-controlled.
                   role_name: Chair
                   uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
                   voting_status: Voting Rep
         required:
             - seats
