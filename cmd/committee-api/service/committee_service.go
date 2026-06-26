@@ -482,6 +482,14 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		ps := m.ProjectSlug
 		seat.ProjectSlug = &ps
 	}
+	if m.Avatar != "" {
+		av := m.Avatar
+		seat.Avatar = &av
+	}
+	if m.Username != "" {
+		un := m.Username
+		seat.Username = &un
+	}
 	if !editable {
 		reason := "This seat is held by foundation election or appointment, not by your organization's membership entitlement."
 		seat.Reason = &reason
@@ -1717,6 +1725,8 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	if member.LastName == "" && meta.FamilyName != "" {
 		member.LastName = meta.FamilyName
 	}
+	// Empty picture clears a removed photo; a failed lookup returned early above (fail-soft).
+	member.Avatar = meta.Picture
 }
 
 // lookupUserMetadata fetches profile metadata from auth-service, trying each lookup key until one succeeds.

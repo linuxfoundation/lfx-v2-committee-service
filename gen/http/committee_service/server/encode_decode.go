@@ -5637,6 +5637,8 @@ func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *co
 		OrganizationID:    v.OrganizationID,
 		IsOrgEditable:     v.IsOrgEditable,
 		Reason:            v.Reason,
+		Avatar:            v.Avatar,
+		Username:          v.Username,
 	}
 
 	return res

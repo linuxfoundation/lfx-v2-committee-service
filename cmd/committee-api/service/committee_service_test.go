@@ -2452,12 +2452,14 @@ func TestEnrichMember(t *testing.T) {
 				r.withMetadata("alice-lfid", &model.UserMetadata{
 					GivenName:  "Alice",
 					FamilyName: "Smith",
+					Picture:    "https://example.com/alice.png",
 				})
 			},
 			validate: func(t *testing.T, m *model.CommitteeMember) {
 				assert.Equal(t, "alice-lfid", m.Username)
 				assert.Equal(t, "Alice", m.FirstName)
 				assert.Equal(t, "Smith", m.LastName)
+				assert.Equal(t, "https://example.com/alice.png", m.Avatar)
 			},
 		},
 		{
@@ -2535,6 +2537,44 @@ func TestEnrichMember(t *testing.T) {
 			},
 		},
 		{
+			name: "metadata lookup fails — pre-existing avatar left untouched (fail-soft)",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email:  "dave@example.com",
+						Avatar: "https://example.com/old-dave.png",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withUsernames("dave@example.com", "dave-lfid")
+				r.withMetadataErr(errs.NewUnexpected("nats: metadata timeout"))
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "dave-lfid", m.Username)
+				assert.Equal(t, "https://example.com/old-dave.png", m.Avatar)
+			},
+		},
+		{
+			name: "metadata returns no picture — stale avatar cleared",
+			member: func() *model.CommitteeMember {
+				return &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						Email:  "erin@example.com",
+						Avatar: "https://example.com/old-erin.png",
+					},
+				}
+			},
+			setupReader: func(r *mockUserReader) {
+				r.withUsernames("erin@example.com", "erin-lfid")
+				r.withMetadata("erin-lfid", &model.UserMetadata{GivenName: "Erin"})
+			},
+			validate: func(t *testing.T, m *model.CommitteeMember) {
+				assert.Equal(t, "erin-lfid", m.Username)
+				assert.Empty(t, m.Avatar)
+			},
+		},
+		{
 			name: "empty email — nothing happens",
 			member: func() *model.CommitteeMember {
 				return &model.CommitteeMember{}
@@ -2558,6 +2598,33 @@ func TestEnrichMember(t *testing.T) {
 			tt.validate(t, m)
 		})
 	}
+}
+
+func TestOrgSeatFromMember_AvatarUsername(t *testing.T) {
+	t.Run("avatar and username mapped when present", func(t *testing.T) {
+		seat := orgSeatFromMember(&model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:      "m-1",
+				Username: "alice-lfid",
+				Avatar:   "https://example.com/alice.png",
+				Email:    "alice@example.com",
+			},
+		})
+		if assert.NotNil(t, seat.Avatar) {
+			assert.Equal(t, "https://example.com/alice.png", *seat.Avatar)
+		}
+		if assert.NotNil(t, seat.Username) {
+			assert.Equal(t, "alice-lfid", *seat.Username)
+		}
+	})
+
+	t.Run("avatar and username omitted when empty", func(t *testing.T) {
+		seat := orgSeatFromMember(&model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{UID: "m-2", Email: "bob@example.com"},
+		})
+		assert.Nil(t, seat.Avatar)
+		assert.Nil(t, seat.Username)
+	})
 }
 
 func TestEnrichMemberOrganization_AuthServiceMetadata(t *testing.T) {

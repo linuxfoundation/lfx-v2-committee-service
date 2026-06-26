@@ -18,6 +18,7 @@ func (c *command) Subcommands() map[string]commands.Subcommand {
 	return map[string]commands.Subcommand{
 		"total-members-attribute":       &totalMembersAttributeSubcommand{},
 		"member-project-attribute":      &memberProjectAttributeSubcommand{},
+		"member-avatar-attribute":       &memberAvatarAttributeSubcommand{},
 		"members-by-committee-index":    &membersByCommitteeIndexSubcommand{},
 		"members-by-organization-index": &membersByOrganizationIndexSubcommand{},
 		"reindex-invites":               &reindexInvitesSubcommand{},

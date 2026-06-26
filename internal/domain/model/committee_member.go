@@ -34,6 +34,7 @@ type CommitteeMember struct {
 type CommitteeMemberBase struct {
 	UID               string                      `json:"uid"`
 	Username          string                      `json:"username"`
+	Avatar            string                      `json:"avatar,omitempty"`
 	Email             string                      `json:"email"`
 	FirstName         string                      `json:"first_name"`
 	LastName          string                      `json:"last_name"`

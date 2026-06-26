@@ -514,7 +514,7 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 
 // A user object stored in writers or auditors lists.
 type CommitteeUser struct {
-	// URL to the user's avatar image
+	// URL to the user's avatar image; empty when none.
 	Avatar *string
 	// The user's email address
 	Email *string
@@ -1190,6 +1190,10 @@ type OrgCommitteeSeat struct {
 	IsOrgEditable bool
 	// Why the seat is not editable (empty when editable)
 	Reason *string
+	// URL to the user's avatar image; empty when none.
+	Avatar *string
+	// User's LF ID
+	Username *string
 }
 
 // OrgCommitteeSeatPage is the result type of the committee-service service
