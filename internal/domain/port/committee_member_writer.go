@@ -34,4 +34,11 @@ type CommitteeMemberWriter interface {
 	// Returns the written key (for rollback tracking), or an empty key (no-op) when the member has
 	// no organization.id. Treats ErrKeyExists as idempotent success.
 	IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error)
+
+	// IndexMemberByEmail writes the secondary index entry mapping the member's normalized email
+	// (SHA-256 hex of strings.TrimSpace+strings.ToLower) → member_uid into the committee-members
+	// bucket, so ListMembersByEmail can use a server-side filtered scan rather than a full bucket
+	// scan. Returns the written key (for rollback tracking), or an empty key (no-op) when the member
+	// has no email. Treats ErrKeyExists as idempotent success.
+	IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error)
 }

@@ -101,6 +101,23 @@ func (cm *CommitteeMember) BuildIndexKey(ctx context.Context) string {
 	return key
 }
 
+// BuildEmailIndexKey returns the SHA-256 hex digest of the member's normalized email, used as the
+// dot-free email segment of the lookup/committee-members-by-email/<hash>.<member_uid> secondary
+// index. Returns "" when the member has no email (callers treat that as a no-op).
+func (cm *CommitteeMember) BuildEmailIndexKey(ctx context.Context) string {
+	email := strings.TrimSpace(strings.ToLower(cm.Email))
+	if email == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(email))
+	key := hex.EncodeToString(hash[:])
+	slog.DebugContext(ctx, "member email index key built",
+		"email", redaction.RedactEmail(cm.Email),
+		"key", key,
+	)
+	return key
+}
+
 // Tags generates a consistent set of tags for the committee member.
 // IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
 // to ensure consumers understand how to use these tags for searching.

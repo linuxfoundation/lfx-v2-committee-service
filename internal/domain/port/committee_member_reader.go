@@ -28,4 +28,8 @@ type CommitteeMemberReader interface {
 	// materializing the whole set in memory — for backfill/repair over large buckets. Per-member read
 	// errors are skipped (logged); iteration stops and returns the first error fn returns.
 	EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error
+	// ListMembersByEmail retrieves all committee members whose normalized email matches the given
+	// address, using the by-email secondary index. The email is normalized (TrimSpace+ToLower) and
+	// SHA-256-hashed before the scan.
+	ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error)
 }
