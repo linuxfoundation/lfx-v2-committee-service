@@ -9,7 +9,7 @@ Applicant: {{.ApplicantEmail}}
 Message from applicant:
 {{.Message}}
 {{end}}
-Review the application in the committee applications page:
+Review the application in the committee page:
 {{.CommitteeURL}}
 
 ---
