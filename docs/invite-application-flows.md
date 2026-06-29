@@ -123,6 +123,13 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
 
+**Email notifications:**
+- **Submitted / reinstated** — after `SubmitApplication` succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call.
+- **Approved** — after `ApproveApplication` succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address.
+- **Rejected** — after `RejectApplication` succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
+- Writers without an LFID (no `Username`) are skipped — they cannot receive direct emails.
+- All sends are best-effort: failures are logged with `"committee_uid"` and (for submitted) `"username"` (redacted) and never propagate to callers.
+
 ---
 
 ## Open Mode

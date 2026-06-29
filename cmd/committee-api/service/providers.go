@@ -872,17 +872,19 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 
 	// Start subscriptions for each subject
 	subjects := map[string]func(context.Context, port.TransportMessenger){
-		constants.CommitteeGetNameSubject:            messageHandlerService.HandleMessage,
-		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
-		constants.CommitteeGetProjectSubject:         messageHandlerService.HandleMessage,
-		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
-		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
-		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
-		constants.CommitteeMemberDeletedSubject:      messageHandlerService.HandleMessage,
-		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
-		inviteapi.InviteServiceAcceptedSubject:       messageHandlerService.HandleMessage,
-		constants.CommitteeDocumentCreatedSubject:    messageHandlerService.HandleMessage,
-		constants.CommitteeLinkCreatedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeGetNameSubject:              messageHandlerService.HandleMessage,
+		constants.CommitteeListMembersSubject:          messageHandlerService.HandleMessage,
+		constants.CommitteeGetProjectSubject:           messageHandlerService.HandleMessage,
+		constants.MailingListCommitteeChangedSubject:   messageHandlerService.HandleMessage,
+		constants.CommitteeUpdatedSubject:              messageHandlerService.HandleMessage,
+		constants.CommitteeMemberCreatedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeMemberDeletedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeSettingsUpdatedSubject:      messageHandlerService.HandleMessage,
+		inviteapi.InviteServiceAcceptedSubject:         messageHandlerService.HandleMessage,
+		constants.CommitteeDocumentCreatedSubject:      messageHandlerService.HandleMessage,
+		constants.CommitteeLinkCreatedSubject:          messageHandlerService.HandleMessage,
+		constants.CommitteeApplicationSubmittedSubject: messageHandlerService.HandleMessage,
+		constants.CommitteeApplicationUpdatedSubject:   messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

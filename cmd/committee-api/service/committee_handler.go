@@ -27,17 +27,19 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 	slog.DebugContext(ctx, "handling NATS message")
 
 	handlers := map[string]func(ctx context.Context, msg port.TransportMessenger) ([]byte, error){
-		constants.CommitteeGetNameSubject:            mhs.handleCommitteeGetName,
-		constants.CommitteeListMembersSubject:        mhs.handleCommitteeListMembers,
-		constants.CommitteeGetProjectSubject:         mhs.handleCommitteeGetProject,
-		constants.MailingListCommitteeChangedSubject: mhs.handleMailingListChanged,
-		constants.CommitteeUpdatedSubject:            mhs.handleCommitteeUpdated,
-		constants.CommitteeMemberCreatedSubject:      mhs.handleCommitteeMemberCreated,
-		constants.CommitteeMemberDeletedSubject:      mhs.handleCommitteeMemberDeleted,
-		constants.CommitteeSettingsUpdatedSubject:    mhs.handleCommitteeSettingsUpdated,
-		inviteapi.InviteServiceAcceptedSubject:       mhs.handleInviteAccepted,
-		constants.CommitteeDocumentCreatedSubject:    mhs.handleCommitteeDocumentCreated,
-		constants.CommitteeLinkCreatedSubject:        mhs.handleCommitteeLinkCreated,
+		constants.CommitteeGetNameSubject:              mhs.handleCommitteeGetName,
+		constants.CommitteeListMembersSubject:          mhs.handleCommitteeListMembers,
+		constants.CommitteeGetProjectSubject:           mhs.handleCommitteeGetProject,
+		constants.MailingListCommitteeChangedSubject:   mhs.handleMailingListChanged,
+		constants.CommitteeUpdatedSubject:              mhs.handleCommitteeUpdated,
+		constants.CommitteeMemberCreatedSubject:        mhs.handleCommitteeMemberCreated,
+		constants.CommitteeMemberDeletedSubject:        mhs.handleCommitteeMemberDeleted,
+		constants.CommitteeSettingsUpdatedSubject:      mhs.handleCommitteeSettingsUpdated,
+		inviteapi.InviteServiceAcceptedSubject:         mhs.handleInviteAccepted,
+		constants.CommitteeDocumentCreatedSubject:      mhs.handleCommitteeDocumentCreated,
+		constants.CommitteeLinkCreatedSubject:          mhs.handleCommitteeLinkCreated,
+		constants.CommitteeApplicationSubmittedSubject: mhs.handleCommitteeApplicationSubmitted,
+		constants.CommitteeApplicationUpdatedSubject:   mhs.handleCommitteeApplicationUpdated,
 	}
 
 	handler, ok := handlers[subject]
@@ -109,6 +111,14 @@ func (mhs *MessageHandlerService) handleCommitteeDocumentCreated(ctx context.Con
 
 func (mhs *MessageHandlerService) handleCommitteeLinkCreated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeLinkCreated(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeApplicationSubmitted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeApplicationSubmitted(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeApplicationUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeApplicationUpdated(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) handleCommitteeGetProject(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
