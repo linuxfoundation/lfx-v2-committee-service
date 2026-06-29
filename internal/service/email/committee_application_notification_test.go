@@ -44,6 +44,8 @@ func TestRenderCommitteeApplicationSubmitted_NoMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, html)
 	assert.NotEmpty(t, text)
+	assert.NotContains(t, html, "Message from applicant:")
+	assert.NotContains(t, text, "Message from applicant:")
 }
 
 func TestRenderCommitteeApplicationSubmitted_HeaderSanitization(t *testing.T) {
@@ -111,6 +113,8 @@ func TestRenderCommitteeApplicationRejected_NoReviewerNotes(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, html)
 	assert.NotEmpty(t, text)
+	assert.NotContains(t, html, "Note from the reviewer:")
+	assert.NotContains(t, text, "Note from the reviewer:")
 }
 
 func TestRenderCommitteeApplicationRejected_HeaderSanitization(t *testing.T) {
