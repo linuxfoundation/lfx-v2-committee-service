@@ -1634,7 +1634,7 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceSubmitApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false\n   }'")
 		}
 		if body.Message != nil {
 			if utf8.RuneCountInString(*body.Message) > 2000 {
@@ -1680,6 +1680,13 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	}
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
+		Notify:  body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.Version = version
@@ -1697,7 +1704,7 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	{
 		err = json.Unmarshal([]byte(committeeServiceApproveApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1742,6 +1749,13 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	}
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -1759,7 +1773,7 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceRejectApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1804,6 +1818,13 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	}
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID

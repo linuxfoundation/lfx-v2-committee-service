@@ -38,6 +38,7 @@ func NewMockRepository() *MockRepository {
 			committeeMembers:      make(map[string]map[string]*model.CommitteeMember),
 			projectSlugs:          make(map[string]string),
 			projectNames:          make(map[string]string),
+			projectWriters:        make(map[string][]model.CommitteeUser),
 			committeeIndexKeys:    make(map[string]*model.Committee),
 			memberIndexKeys:       make(map[string]map[string]*model.CommitteeMember),
 			committeeInvites:      make(map[string]*model.CommitteeInvite),
@@ -223,6 +224,7 @@ type MockRepository struct {
 	committeeMembers   map[string]map[string]*model.CommitteeMember // committeeUID -> memberUID -> member
 	projectSlugs       map[string]string                            // projectUID -> slug
 	projectNames       map[string]string                            // projectUID -> name
+	projectWriters     map[string][]model.CommitteeUser             // projectUID -> writers
 	committeeIndexKeys map[string]*model.Committee                  // indexKey -> committee
 	memberIndexKeys    map[string]map[string]*model.CommitteeMember // committeeUID -> indexKey -> member
 	// Invite and application storage
@@ -1040,6 +1042,21 @@ func (r *MockProjectRetriever) Slug(ctx context.Context, uid string) (string, er
 	return slug, nil
 }
 
+// Writers returns the writers list for a given project UID.
+func (r *MockProjectRetriever) Writers(ctx context.Context, uid string) ([]model.CommitteeUser, error) {
+	slog.DebugContext(ctx, "mock project retriever: getting writers", "uid", uid)
+
+	r.mock.mu.RLock()
+	defer r.mock.mu.RUnlock()
+
+	writers, exists := r.mock.projectWriters[uid]
+	if !exists {
+		return []model.CommitteeUser{}, nil
+	}
+
+	return writers, nil
+}
+
 // Helper functions
 
 // NewMockCommitteeReader creates a mock committee reader
@@ -1105,6 +1122,14 @@ func (m *MockRepository) AddProjectName(uid, name string) {
 	defer m.mu.Unlock()
 
 	m.projectNames[uid] = name
+}
+
+// AddProjectWriters sets the writers list for a project UID (useful for testing).
+func (m *MockRepository) AddProjectWriters(uid string, writers []model.CommitteeUser) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.projectWriters[uid] = writers
 }
 
 // AddProject adds both project slug and name mappings (useful for testing)

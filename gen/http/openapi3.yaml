@@ -534,6 +534,7 @@ paths:
                             $ref: '#/components/schemas/SubmitApplicationRequestBody'
                         example:
                             message: I would like to join the TSC to contribute my expertise.
+                            notify: false
             responses:
                 "201":
                     description: Created response.
@@ -727,6 +728,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/ApproveApplicationRequestBody'
                         example:
+                            notify: false
                             reviewer_notes: Approved based on contribution history.
             responses:
                 "200":
@@ -851,6 +853,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/ApproveApplicationRequestBody'
                         example:
+                            notify: false
                             reviewer_notes: Does not meet current requirements.
             responses:
                 "200":
@@ -4307,12 +4310,18 @@ components:
         ApproveApplicationRequestBody:
             type: object
             properties:
+                notify:
+                    type: boolean
+                    description: When true, send an acceptance email to the applicant. Defaults to false.
+                    default: false
+                    example: false
                 reviewer_notes:
                     type: string
                     description: Notes from the reviewer
                     example: Approved based on contribution history.
                     maxLength: 2000
             example:
+                notify: false
                 reviewer_notes: Approved based on contribution history.
         BadRequestError:
             type: object
@@ -7282,8 +7291,14 @@ components:
                     description: Application message
                     example: I would like to join the TSC to contribute my expertise.
                     maxLength: 2000
+                notify:
+                    type: boolean
+                    description: When true, send email notifications to committee writers about the new application. Defaults to false.
+                    default: false
+                    example: false
             example:
                 message: I would like to join the TSC to contribute my expertise.
+                notify: false
         UpdateCommitteeBaseRequestBody:
             type: object
             properties:
