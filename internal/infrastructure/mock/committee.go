@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -442,6 +443,31 @@ func (m *MockRepository) EachMember(ctx context.Context, fn func(*model.Committe
 	return nil
 }
 
+// ListMembersByEmail retrieves all committee members whose normalized email matches the given
+// address, scanning all committees. Mirrors the real storage index behavior for tests.
+func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by email")
+
+	normalized := strings.TrimSpace(strings.ToLower(email))
+	if normalized == "" {
+		return nil, errors.NewValidation("email cannot be empty")
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if strings.TrimSpace(strings.ToLower(member.Email)) != normalized {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
 // MockCommitteeWriter implements CommitteeWriter interface
 type MockCommitteeWriter struct {
 	mock *MockRepository
@@ -760,6 +786,21 @@ func (w *MockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, mem
 		return "", nil
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
+	return key, nil
+}
+
+// IndexMemberByEmail records the by-email secondary index entry. In the mock this is a no-op; it
+// returns the key the real storage would write (empty when the member has no email) so callers can
+// track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by email",
+		"member_uid", member.UID,
+	)
+	hash := member.BuildEmailIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
 	return key, nil
 }
 
