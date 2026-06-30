@@ -387,3 +387,226 @@ func TestMessageRequest_EmailsByAuthToken_NotFoundType(t *testing.T) {
 	var notFound pkgerrors.NotFound
 	assert.True(t, errors.As(err, &notFound))
 }
+
+type userMetadataByPrincipalTestEnv struct {
+	reader       *messageRequest
+	respondErrCh <-chan error
+	gotKeyCh     <-chan string
+}
+
+func setupUserMetadataByPrincipalTest(t *testing.T, responder func(key string) []byte) userMetadataByPrincipalTestEnv {
+	t.Helper()
+
+	_, url := startTestNATSServer(t)
+
+	nc, err := nats.Connect(url)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	respondErrCh := make(chan error, 1)
+	gotKeyCh := make(chan string, 1)
+	_, err = nc.Subscribe(constants.AuthUserMetadataReadSubject, func(msg *nats.Msg) {
+		key := string(msg.Data)
+		select {
+		case gotKeyCh <- key:
+		default:
+		}
+		if respondErr := msg.Respond(responder(key)); respondErr != nil {
+			select {
+			case respondErrCh <- respondErr:
+			default:
+			}
+		}
+	})
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+
+	return userMetadataByPrincipalTestEnv{
+		reader: &messageRequest{
+			client: &NATSClient{
+				conn:    nc,
+				timeout: 2 * time.Second,
+			},
+		},
+		respondErrCh: respondErrCh,
+		gotKeyCh:     gotKeyCh,
+	}
+}
+
+// Asserts what lands on the wire (the derived sub), so reverting the request payload to the raw
+// principal is caught — the response-handling branches are covered separately below.
+func TestMessageRequest_UserMetadataByPrincipal_SendsDerivedSub(t *testing.T) {
+	tests := []struct {
+		name      string
+		principal string
+		wantKey   string
+	}{
+		{name: "bare LFID is mapped to its deterministic auth0| sub", principal: "alice", wantKey: "auth0|alice"},
+		{name: "already-qualified auth0 principal passes through unchanged", principal: "auth0|abc123", wantKey: "auth0|abc123"},
+		{name: "non-auth0 provider principal passes through unchanged", principal: "oidc|okta|xyz", wantKey: "oidc|okta|xyz"},
+		{name: "principal is trimmed before lookup", principal: "  alice  ", wantKey: "auth0|alice"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := setupUserMetadataByPrincipalTest(t, func(key string) []byte {
+				return []byte(`{"success":true,"data":{"name":"Alice"}}`)
+			})
+
+			_, err := env.reader.UserMetadataByPrincipal(context.Background(), tt.principal)
+			require.NoError(t, err)
+			assertNoRespondError(t, env.respondErrCh)
+
+			select {
+			case gotKey := <-env.gotKeyCh:
+				assert.Equal(t, tt.wantKey, gotKey)
+			case <-time.After(2 * time.Second):
+				t.Fatal("responder did not receive a request")
+			}
+		})
+	}
+}
+
+func TestMessageRequest_UserMetadataByPrincipal(t *testing.T) {
+	const (
+		errNone       = ""
+		errNotFound   = "NotFound"
+		errUnexpected = "Unexpected"
+		errAny        = "any"
+	)
+
+	tests := []struct {
+		name        string
+		responder   func(key string) []byte
+		setup       func(t *testing.T) *messageRequest
+		wantPicture string
+		wantName    string
+		wantErrStr  string
+		wantErrType string
+	}{
+		{
+			name: "success populates metadata",
+			responder: func(key string) []byte {
+				return []byte(`{"success":true,"data":{"picture":"https://example.com/a.png","name":"Alice"}}`)
+			},
+			wantPicture: "https://example.com/a.png",
+			wantName:    "Alice",
+			wantErrType: errNone,
+		},
+		{
+			name:        "empty reply returns NotFound",
+			responder:   func(key string) []byte { return []byte("") },
+			wantErrStr:  "user metadata not found for principal",
+			wantErrType: errNotFound,
+		},
+		{
+			name:        "whitespace-only reply returns NotFound",
+			responder:   func(key string) []byte { return []byte("  \n\t") },
+			wantErrStr:  "user metadata not found for principal",
+			wantErrType: errNotFound,
+		},
+		{
+			name: "search miss envelope returns NotFound",
+			responder: func(key string) []byte {
+				return []byte(`{"success":false,"error":"user not found"}`)
+			},
+			wantErrType: errNotFound,
+		},
+		{
+			name: "get-by-id miss envelope returns NotFound",
+			responder: func(key string) []byte {
+				return []byte(`{"success":false,"error":"The user does not exist."}`)
+			},
+			wantErrType: errNotFound,
+		},
+		{
+			name: "success envelope with nil data returns NotFound",
+			responder: func(key string) []byte {
+				return []byte(`{"success":true}`)
+			},
+			wantErrStr:  "user metadata not found for principal",
+			wantErrType: errNotFound,
+		},
+		{
+			name: "non-miss error envelope returns Unexpected",
+			responder: func(key string) []byte {
+				return []byte(`{"success":false,"error":"internal server error"}`)
+			},
+			wantErrStr:  "user metadata lookup failed for principal",
+			wantErrType: errUnexpected,
+		},
+		{
+			name: "rate-limit envelope returns Unexpected (transient, not a miss)",
+			responder: func(key string) []byte {
+				return []byte(`{"success":false,"error":"too_many_requests: Global limit has been reached"}`)
+			},
+			wantErrType: errUnexpected,
+		},
+		{
+			name: "malformed JSON returns Unexpected parse error",
+			responder: func(key string) []byte {
+				return []byte(`{"success":`)
+			},
+			wantErrStr:  "failed to parse user_metadata response",
+			wantErrType: errUnexpected,
+		},
+		{
+			name: "transport error is returned",
+			setup: func(t *testing.T) *messageRequest {
+				_, url := startTestNATSServer(t)
+				nc, err := nats.Connect(url)
+				require.NoError(t, err)
+				t.Cleanup(nc.Close)
+
+				return &messageRequest{
+					client: &NATSClient{
+						conn:    nc,
+						timeout: 50 * time.Millisecond,
+					},
+				}
+			},
+			wantErrType: errAny,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reader *messageRequest
+			var respondErrCh <-chan error
+			if tt.setup != nil {
+				reader = tt.setup(t)
+			} else {
+				env := setupUserMetadataByPrincipalTest(t, tt.responder)
+				reader = env.reader
+				respondErrCh = env.respondErrCh
+			}
+
+			got, err := reader.UserMetadataByPrincipal(context.Background(), "alice")
+			if respondErrCh != nil {
+				assertNoRespondError(t, respondErrCh)
+			}
+
+			if tt.wantErrType != errNone {
+				require.Error(t, err)
+				assert.Nil(t, got)
+				if tt.wantErrStr != "" {
+					assert.Contains(t, err.Error(), tt.wantErrStr)
+				}
+				switch tt.wantErrType {
+				case errNotFound:
+					var notFound pkgerrors.NotFound
+					assert.True(t, errors.As(err, &notFound), "want NotFound, got %T: %v", err, err)
+				case errUnexpected:
+					var unexpected pkgerrors.Unexpected
+					assert.True(t, errors.As(err, &unexpected), "want Unexpected, got %T: %v", err, err)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, tt.wantPicture, got.Picture)
+			assert.Equal(t, tt.wantName, got.Name)
+		})
+	}
+}
