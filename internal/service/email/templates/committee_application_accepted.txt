@@ -2,7 +2,7 @@
 {{- /* SPDX-License-Identifier: MIT */ -}}
 Hi {{.RecipientName}},
 
-Great news! Your application to join the {{.CommitteeName}} committee in LFX Self-Serve has been accepted.
+Great news! Your application to join the {{.CommitteeName}} committee{{if .ProjectName}} in the {{.ProjectName}} project{{end}} in LFX Self-Serve has been accepted.
 
 You are now a member of the committee. Visit the link below to get started:
 {{.CommitteeURL}}

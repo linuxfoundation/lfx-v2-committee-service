@@ -37,7 +37,7 @@
 
     <p class="greeting">Hi {{.RecipientName}},</p>
 
-    <p>Thank you for your interest in the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve. After review, your application has not been approved at this time.</p>
+    <p>Thank you for your interest in the <strong>{{.CommitteeName}}</strong> committee{{if .ProjectName}} in the <strong>{{.ProjectName}}</strong> project{{end}} in LFX Self-Serve. After review, your application has not been approved at this time.</p>
 
     {{if .ReviewerNotes}}<p class="detail-label">Note from the reviewer:</p>
     <div class="message-block">{{.ReviewerNotes}}</div>{{end}}

@@ -62,7 +62,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationSubmitted(ctx con
 		return nil, nil
 	}
 
-	writers := m.collectCommitteeWriters(ctx, application.CommitteeUID)
+	writers := m.collectCommitteeWriters(ctx, committee)
 	if len(writers) == 0 {
 		slog.DebugContext(ctx, "no LFID writers to notify for application submitted",
 			"committee_uid", application.CommitteeUID)
@@ -88,6 +88,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationSubmitted(ctx con
 			emailSubject, emailHTML, emailText, renderErr := emailsvc.RenderCommitteeApplicationSubmitted(
 				emailsvc.CommitteeApplicationSubmittedData{
 					RecipientName:  recipientName,
+					ProjectName:    committee.ProjectName,
 					CommitteeName:  committee.Name,
 					CommitteeURL:   committeeURL,
 					ApplicantEmail: application.ApplicantEmail,
@@ -189,6 +190,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 		emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeApplicationAccepted(
 			emailsvc.CommitteeApplicationAcceptedData{
 				RecipientName: recipientName,
+				ProjectName:   committee.ProjectName,
 				CommitteeName: committee.Name,
 				CommitteeURL:  committeeURL,
 			},
@@ -197,6 +199,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 		emailSubject, emailHTML, emailText, renderErr = emailsvc.RenderCommitteeApplicationRejected(
 			emailsvc.CommitteeApplicationRejectedData{
 				RecipientName: recipientName,
+				ProjectName:   committee.ProjectName,
 				CommitteeName: committee.Name,
 				ReviewerNotes: application.ReviewerNotes,
 			},
@@ -227,32 +230,45 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 	return nil, nil
 }
 
-// collectCommitteeWriters returns a deduplicated list of LFID writers (Username and Email both set).
+// collectCommitteeWriters returns a deduplicated list of LFID writers (Username and Email both set)
+// for the given committee. If no eligible writers are found on the committee itself, it falls back
+// to the project-level settings writers (keyed by committee.ProjectUID) so that someone always has
+// visibility into new applications even when the committee has no direct writers configured.
 // Non-LFID writers (Username == "") are excluded — they cannot receive direct emails.
-func (m *messageHandlerOrchestrator) collectCommitteeWriters(ctx context.Context, committeeUID string) []notificationRecipient {
-	settings, _, err := m.committeeReader.GetSettings(ctx, committeeUID)
-	if err != nil {
-		slog.WarnContext(ctx, "failed to load settings for application submitted notification",
-			"error", err, "committee_uid", committeeUID)
-		return nil
-	}
-
+func (m *messageHandlerOrchestrator) collectCommitteeWriters(ctx context.Context, committee *model.CommitteeBase) []notificationRecipient {
 	seen := make(map[string]struct{})
 	var writers []notificationRecipient
 
-	for _, u := range settings.GetWriters() {
-		if u.Username == "" || u.Email == "" {
-			continue
+	addWriters := func(uid string) {
+		settings, _, err := m.committeeReader.GetSettings(ctx, uid)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to load settings for application submitted notification",
+				"error", err, "committee_uid", uid)
+			return
 		}
-		if _, ok := seen[u.Username]; ok {
-			continue
+		for _, u := range settings.GetWriters() {
+			if u.Username == "" || u.Email == "" {
+				continue
+			}
+			if _, ok := seen[u.Username]; ok {
+				continue
+			}
+			seen[u.Username] = struct{}{}
+			writers = append(writers, notificationRecipient{
+				username: u.Username,
+				email:    u.Email,
+				name:     u.Name,
+			})
 		}
-		seen[u.Username] = struct{}{}
-		writers = append(writers, notificationRecipient{
-			username: u.Username,
-			email:    u.Email,
-			name:     u.Name,
-		})
+	}
+
+	addWriters(committee.UID)
+
+	// Fall back to project writers when the committee has no eligible writers of its own.
+	if len(writers) == 0 && committee.ProjectUID != "" && committee.ProjectUID != committee.UID {
+		slog.DebugContext(ctx, "no committee writers found — falling back to project writers",
+			"committee_uid", committee.UID, "project_uid", committee.ProjectUID)
+		addWriters(committee.ProjectUID)
 	}
 
 	return writers

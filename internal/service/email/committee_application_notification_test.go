@@ -14,6 +14,7 @@ import (
 func TestRenderCommitteeApplicationSubmitted(t *testing.T) {
 	data := CommitteeApplicationSubmittedData{
 		RecipientName:  "Writer One",
+		ProjectName:    "Kubernetes",
 		CommitteeName:  "TSC Committee",
 		CommitteeURL:   "https://lfx.linuxfoundation.org/project/groups/committee-1",
 		ApplicantEmail: "applicant@example.com",
@@ -26,9 +27,11 @@ func TestRenderCommitteeApplicationSubmitted(t *testing.T) {
 	assert.NotEmpty(t, html)
 	assert.NotEmpty(t, text)
 	assert.Contains(t, html, "TSC Committee")
+	assert.Contains(t, html, "Kubernetes")
 	assert.Contains(t, html, "applicant@example.com")
 	assert.Contains(t, html, "I would like to contribute.")
 	assert.Contains(t, text, "TSC Committee")
+	assert.Contains(t, text, "Kubernetes")
 	assert.Contains(t, text, "applicant@example.com")
 	assert.Contains(t, text, "I would like to contribute.")
 }
@@ -63,6 +66,7 @@ func TestRenderCommitteeApplicationSubmitted_HeaderSanitization(t *testing.T) {
 func TestRenderCommitteeApplicationAccepted(t *testing.T) {
 	data := CommitteeApplicationAcceptedData{
 		RecipientName: "Applicant",
+		ProjectName:   "Kubernetes",
 		CommitteeName: "TSC Committee",
 		CommitteeURL:  "https://lfx.linuxfoundation.org/project/groups/committee-1",
 	}
@@ -73,7 +77,9 @@ func TestRenderCommitteeApplicationAccepted(t *testing.T) {
 	assert.NotEmpty(t, html)
 	assert.NotEmpty(t, text)
 	assert.Contains(t, html, "TSC Committee")
+	assert.Contains(t, html, "Kubernetes")
 	assert.Contains(t, html, "accepted")
+	assert.Contains(t, text, "Kubernetes")
 	assert.Contains(t, text, "accepted")
 }
 
@@ -91,6 +97,7 @@ func TestRenderCommitteeApplicationAccepted_HeaderSanitization(t *testing.T) {
 func TestRenderCommitteeApplicationRejected(t *testing.T) {
 	data := CommitteeApplicationRejectedData{
 		RecipientName: "Applicant",
+		ProjectName:   "Kubernetes",
 		CommitteeName: "TSC Committee",
 		ReviewerNotes: "Not a fit at this time.",
 	}
@@ -100,7 +107,9 @@ func TestRenderCommitteeApplicationRejected(t *testing.T) {
 	assert.Equal(t, "Update on your application to TSC Committee", subject)
 	assert.NotEmpty(t, html)
 	assert.NotEmpty(t, text)
+	assert.Contains(t, html, "Kubernetes")
 	assert.Contains(t, html, "Not a fit at this time.")
+	assert.Contains(t, text, "Kubernetes")
 	assert.Contains(t, text, "Not a fit at this time.")
 }
 

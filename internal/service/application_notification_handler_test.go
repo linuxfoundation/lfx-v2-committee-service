@@ -41,8 +41,10 @@ func TestHandleCommitteeApplicationSubmitted(t *testing.T) {
 	repo := mock.NewMockRepository()
 	repo.AddCommittee(&model.Committee{
 		CommitteeBase: model.CommitteeBase{
-			UID:  "committee-1",
-			Name: "TSC Committee",
+			UID:         "committee-1",
+			Name:        "TSC Committee",
+			ProjectUID:  "project-1",
+			ProjectName: "Kubernetes",
 		},
 		CommitteeSettings: &model.CommitteeSettings{
 			UID: "committee-1",
@@ -62,7 +64,7 @@ func TestHandleCommitteeApplicationSubmitted(t *testing.T) {
 		Status:         "pending",
 	}
 
-	t.Run("fans out one email per LFID writer with email", func(t *testing.T) {
+	t.Run("fans out one email per LFID writer with email and includes project name", func(t *testing.T) {
 		sender := &mockEmailSender{}
 		h := &messageHandlerOrchestrator{
 			committeeReader:     reader,
@@ -77,10 +79,60 @@ func TestHandleCommitteeApplicationSubmitted(t *testing.T) {
 		for _, c := range sender.calls {
 			tos = append(tos, c.To)
 			assert.Contains(t, c.Subject, "New application to TSC Committee")
+			assert.Contains(t, c.HTML, "Kubernetes")
+			assert.Contains(t, c.Text, "Kubernetes")
 			assert.NotEmpty(t, c.HTML)
 			assert.NotEmpty(t, c.Text)
 		}
 		assert.ElementsMatch(t, []string{"writer1@example.com", "writer2@example.com"}, tos)
+	})
+
+	t.Run("falls back to project writers when no committee writers are eligible", func(t *testing.T) {
+		repoFallback := mock.NewMockRepository()
+		// Committee with no eligible writers
+		repoFallback.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:         "committee-no-writers",
+				Name:        "Empty Writers Committee",
+				ProjectUID:  "project-fallback",
+				ProjectName: "CNCF",
+			},
+			CommitteeSettings: &model.CommitteeSettings{
+				UID:     "committee-no-writers",
+				Writers: []model.CommitteeUser{},
+			},
+		})
+		// Project entry (stored as a committee with UID == project UID) has eligible writers
+		repoFallback.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:  "project-fallback",
+				Name: "CNCF",
+			},
+			CommitteeSettings: &model.CommitteeSettings{
+				UID: "project-fallback",
+				Writers: []model.CommitteeUser{
+					{Username: "projwriter", Email: "projwriter@example.com", Name: "Project Writer"},
+				},
+			},
+		})
+		readerFallback := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repoFallback)))
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     readerFallback,
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://lfx.linuxfoundation.org",
+		}
+		appFallback := &model.CommitteeApplication{
+			UID:            "app-fallback",
+			CommitteeUID:   "committee-no-writers",
+			ApplicantEmail: "applicant@example.com",
+			Status:         "pending",
+		}
+		msg := newMockTransportMessenger(constants.CommitteeApplicationSubmittedSubject, buildApplicationSubmittedPayload(t, appFallback))
+		_, err := h.HandleCommitteeApplicationSubmitted(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1)
+		assert.Equal(t, "projwriter@example.com", sender.calls[0].To)
 	})
 
 	t.Run("skips writer without LFID", func(t *testing.T) {

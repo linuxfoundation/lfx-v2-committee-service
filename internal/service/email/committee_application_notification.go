@@ -48,6 +48,7 @@ var (
 // sent when a new application is submitted to a committee.
 type CommitteeApplicationSubmittedData struct {
 	RecipientName  string
+	ProjectName    string // owning project name; optional
 	CommitteeName  string
 	CommitteeURL   string
 	ApplicantEmail string
@@ -77,6 +78,7 @@ func RenderCommitteeApplicationSubmitted(data CommitteeApplicationSubmittedData)
 // sent when their application is approved.
 type CommitteeApplicationAcceptedData struct {
 	RecipientName string
+	ProjectName   string // owning project name; optional
 	CommitteeName string
 	CommitteeURL  string
 }
@@ -104,6 +106,7 @@ func RenderCommitteeApplicationAccepted(data CommitteeApplicationAcceptedData) (
 // sent when their application is rejected.
 type CommitteeApplicationRejectedData struct {
 	RecipientName string
+	ProjectName   string // owning project name; optional
 	CommitteeName string
 	ReviewerNotes string // optional message from the reviewer
 }

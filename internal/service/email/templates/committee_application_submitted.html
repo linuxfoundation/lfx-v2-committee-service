@@ -42,7 +42,7 @@
 
     <p class="greeting">Hi {{.RecipientName}},</p>
 
-    <p>A new application has been submitted to join the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
+    <p>A new application has been submitted to join the <strong>{{.CommitteeName}}</strong> committee{{if .ProjectName}} in the <strong>{{.ProjectName}}</strong> project{{end}} in LFX Self-Serve.</p>
 
     <p class="detail-item"><span class="detail-label">Applicant:</span> {{.ApplicantEmail}}</p>
     {{if .Message}}<p class="detail-label">Message from applicant:</p>
