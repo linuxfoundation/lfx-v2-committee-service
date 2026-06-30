@@ -278,6 +278,9 @@ type AcceptInviteRequestBody struct {
 type SubmitApplicationRequestBody struct {
 	// Application message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// When true, send email notifications to committee writers about the new
+	// application. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // ApproveApplicationRequestBody is the type of the "committee-service" service
@@ -285,6 +288,8 @@ type SubmitApplicationRequestBody struct {
 type ApproveApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send an acceptance email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // RejectApplicationRequestBody is the type of the "committee-service" service
@@ -292,6 +297,8 @@ type ApproveApplicationRequestBody struct {
 type RejectApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send a rejection email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // CreateCommitteeLinkRequestBody is the type of the "committee-service"
@@ -3343,6 +3350,7 @@ func NewAcceptInviteRequestBody(p *committeeservice.AcceptInvitePayload) *Accept
 func NewSubmitApplicationRequestBody(p *committeeservice.SubmitApplicationPayload) *SubmitApplicationRequestBody {
 	body := &SubmitApplicationRequestBody{
 		Message: p.Message,
+		Notify:  p.Notify,
 	}
 	return body
 }
@@ -3353,6 +3361,7 @@ func NewSubmitApplicationRequestBody(p *committeeservice.SubmitApplicationPayloa
 func NewApproveApplicationRequestBody(p *committeeservice.ApproveApplicationPayload) *ApproveApplicationRequestBody {
 	body := &ApproveApplicationRequestBody{
 		ReviewerNotes: p.ReviewerNotes,
+		Notify:        p.Notify,
 	}
 	return body
 }
@@ -3363,6 +3372,7 @@ func NewApproveApplicationRequestBody(p *committeeservice.ApproveApplicationPayl
 func NewRejectApplicationRequestBody(p *committeeservice.RejectApplicationPayload) *RejectApplicationRequestBody {
 	body := &RejectApplicationRequestBody{
 		ReviewerNotes: p.ReviewerNotes,
+		Notify:        p.Notify,
 	}
 	return body
 }

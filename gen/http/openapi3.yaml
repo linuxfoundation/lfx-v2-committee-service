@@ -534,6 +534,7 @@ paths:
                             $ref: '#/components/schemas/SubmitApplicationRequestBody'
                         example:
                             message: I would like to join the TSC to contribute my expertise.
+                            notify: true
             responses:
                 "201":
                     description: Created response.
@@ -727,6 +728,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/ApproveApplicationRequestBody'
                         example:
+                            notify: false
                             reviewer_notes: Approved based on contribution history.
             responses:
                 "200":
@@ -851,6 +853,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/ApproveApplicationRequestBody'
                         example:
+                            notify: false
                             reviewer_notes: Does not meet current requirements.
             responses:
                 "200":
@@ -955,38 +958,26 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Quae velit voluptate.
-                            description: fi3
+                            content_type: Natus omnis.
+                            description: rqx
                             file:
-                                - 85
-                                - 108
-                                - 108
-                                - 97
+                                - 79
                                 - 109
-                                - 32
-                                - 116
-                                - 111
-                                - 116
-                                - 97
-                                - 109
-                                - 32
-                                - 113
-                                - 117
-                                - 111
-                                - 32
-                                - 99
-                                - 111
                                 - 110
+                                - 105
                                 - 115
-                                - 101
-                                - 113
-                                - 117
+                                - 32
                                 - 97
-                                - 116
+                                - 99
+                                - 99
                                 - 117
-                                - 114
+                                - 115
+                                - 97
+                                - 109
+                                - 117
+                                - 115
                                 - 46
-                            file_name: Error pariatur debitis corrupti numquam consequatur.
+                            file_name: Ut ullam totam quo.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1375,7 +1366,19 @@ paths:
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by_username: alexlee
+                                      name: Meeting Notes
+                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      updated_at: "2023-06-20T14:45:30Z"
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_username: alexlee
@@ -2463,9 +2466,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 2dd27bf5-b711-4dd7-96ad-5cde70af53eb
+                    example: 4b261b4b-fc24-47cd-af13-e7520b0ef8e3
                     format: uuid
-                  example: 760c86c7-66c8-4b77-ac2d-1eb86ba7160f
+                  example: 19896994-18c4-44e1-bd2e-6a84a5353f7e
             responses:
                 "200":
                     description: OK response.
@@ -2476,24 +2479,6 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkWithReadonlyAttributes'
                                 example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by_username: alexlee
-                                      description: Confluence wiki — architecture decisions log
-                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      name: Technical Architecture Decision Records
-                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      url: https://confluence.example.com/architecture-decisions
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by_username: alexlee
-                                      description: Confluence wiki — architecture decisions log
-                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      name: Technical Architecture Decision Records
-                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by_username: alexlee
@@ -2602,8 +2587,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: vao
-                            folder_uid: 26ffc95d-19b3-4264-bd42-f535e0d919c7
+                            description: hhi
+                            folder_uid: dab37e2b-a5c4-497f-89df-3b01d7ce0f5e
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3638,7 +3623,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefCurrentResult'
                             example:
                                 brief:
-                                    brief_text: sub
+                                    brief_text: 0jc
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     last_edited_at: "2026-05-18T14:03:00Z"
@@ -3649,15 +3634,19 @@ paths:
                                     regeneration_count: 0
                                     revision: 7
                                     source_refs:
-                                        - excerpt: 0jc
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: cst
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -3762,7 +3751,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/GroupWeeklyBriefWithReadonlyAttributes'
                             example:
-                                brief_text: xcs
+                                brief_text: i12
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 last_edited_at: "2026-05-18T14:03:00Z"
@@ -3773,19 +3762,19 @@ paths:
                                 regeneration_count: 0
                                 revision: 7
                                 source_refs:
-                                    - excerpt: 0jc
+                                    - excerpt: cst
                                       id: https://meet.example.org/abc123
                                       kind: meeting
                                       title: 2026-05-12 weekly sync
-                                    - excerpt: 0jc
+                                    - excerpt: cst
                                       id: https://meet.example.org/abc123
                                       kind: meeting
                                       title: 2026-05-12 weekly sync
-                                    - excerpt: 0jc
+                                    - excerpt: cst
                                       id: https://meet.example.org/abc123
                                       kind: meeting
                                       title: 2026-05-12 weekly sync
-                                    - excerpt: 0jc
+                                    - excerpt: cst
                                       id: https://meet.example.org/abc123
                                       kind: meeting
                                       title: 2026-05-12 weekly sync
@@ -3891,7 +3880,7 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefGenerateResult'
                             example:
                                 brief:
-                                    brief_text: sub
+                                    brief_text: 0jc
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                     created_at: "2023-01-15T10:30:00Z"
                                     last_edited_at: "2026-05-18T14:03:00Z"
@@ -3902,15 +3891,19 @@ paths:
                                     regeneration_count: 0
                                     revision: 7
                                     source_refs:
-                                        - excerpt: 0jc
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
-                                        - excerpt: 0jc
+                                        - excerpt: cst
+                                          id: https://meet.example.org/abc123
+                                          kind: meeting
+                                          title: 2026-05-12 weekly sync
+                                        - excerpt: cst
                                           id: https://meet.example.org/abc123
                                           kind: meeting
                                           title: 2026-05-12 weekly sync
@@ -4027,7 +4020,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Reprehenderit quas.
+                        example: Exercitationem dolor a qui nihil.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4064,24 +4057,6 @@ paths:
                             example:
                                 page_token: eyJvIjoxMDB9
                                 seats:
-                                    - appointed_by: Community
-                                      avatar: https://example.com/avatar.png
-                                      committee_category: Board
-                                      committee_name: Technical Steering Committee
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      email: user@example.com
-                                      first_name: John
-                                      is_org_editable: true
-                                      job_title: Chief Technology Officer
-                                      last_name: Doe
-                                      organization_id: 001B000000IqhSLIAZ
-                                      project_slug: example-foundation
-                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      reason: This seat is foundation-controlled.
-                                      role_name: Chair
-                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                      username: user123
-                                      voting_status: Voting Rep
                                     - appointed_by: Community
                                       avatar: https://example.com/avatar.png
                                       committee_category: Board
@@ -4307,12 +4282,17 @@ components:
         ApproveApplicationRequestBody:
             type: object
             properties:
+                notify:
+                    type: boolean
+                    description: When true, send an acceptance email to the applicant. Defaults to false.
+                    example: false
                 reviewer_notes:
                     type: string
                     description: Notes from the reviewer
                     example: Approved based on contribution history.
                     maxLength: 2000
             example:
+                notify: false
                 reviewer_notes: Approved based on contribution history.
         BadRequestError:
             type: object
@@ -6057,12 +6037,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: iso
+                    example: skv
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: db7cf23a-c321-4c85-9bf2-38e82505f74c
+                    example: fc84fa32-e15f-40bb-b9aa-98853556b70a
                     format: uuid
                 name:
                     type: string
@@ -6075,8 +6055,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: c2z
-                folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
+                description: zoi
+                folder_uid: a2c3f431-17b1-4a63-8ae0-16edf6b456a6
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -6523,7 +6503,7 @@ components:
             description: Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.
             example:
                 brief:
-                    brief_text: ef5
+                    brief_text: 2ls
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     created_at: "2023-01-15T10:30:00Z"
                     last_edited_at: "2026-05-18T14:03:00Z"
@@ -6534,19 +6514,19 @@ components:
                     regeneration_count: 0
                     revision: 7
                     source_refs:
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -6592,7 +6572,7 @@ components:
             description: Envelope returned by POST /committees/{uid}/weekly-briefs/generate. Both brief and throttle are populated on success.
             example:
                 brief:
-                    brief_text: ef5
+                    brief_text: 2ls
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     created_at: "2023-01-15T10:30:00Z"
                     last_edited_at: "2026-05-18T14:03:00Z"
@@ -6603,19 +6583,19 @@ components:
                     regeneration_count: 0
                     revision: 7
                     source_refs:
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -6657,7 +6637,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: hnl
+                    example: hc0
                     maxLength: 5000
                 id:
                     type: string
@@ -6673,7 +6653,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: 0k4
+                excerpt: rt2
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -6775,7 +6755,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: ibj
+                    example: iso
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6826,19 +6806,11 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: 22l
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: 22l
+                        - excerpt: vz2
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -6874,7 +6846,7 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: 0xr
+                brief_text: 6su
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 last_edited_at: "2026-05-18T14:03:00Z"
@@ -6885,19 +6857,15 @@ components:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 22l
+                    - excerpt: vz2
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 22l
+                    - excerpt: vz2
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 22l
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: 22l
+                    - excerpt: vz2
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -7134,46 +7102,28 @@ components:
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                           username: user123
                           voting_status: Voting Rep
-                        - appointed_by: Community
-                          avatar: https://example.com/avatar.png
-                          committee_category: Board
-                          committee_name: Technical Steering Committee
-                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          email: user@example.com
-                          first_name: John
-                          is_org_editable: true
-                          job_title: Chief Technology Officer
-                          last_name: Doe
-                          organization_id: 001B000000IqhSLIAZ
-                          project_slug: example-foundation
-                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          reason: This seat is foundation-controlled.
-                          role_name: Chair
-                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                          username: user123
-                          voting_status: Voting Rep
-                        - appointed_by: Community
-                          avatar: https://example.com/avatar.png
-                          committee_category: Board
-                          committee_name: Technical Steering Committee
-                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          email: user@example.com
-                          first_name: John
-                          is_org_editable: true
-                          job_title: Chief Technology Officer
-                          last_name: Doe
-                          organization_id: 001B000000IqhSLIAZ
-                          project_slug: example-foundation
-                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          reason: This seat is foundation-controlled.
-                          role_name: Chair
-                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                          username: user123
-                          voting_status: Voting Rep
             description: A page of an organization's committee seats with an optional next-page cursor.
             example:
                 page_token: eyJvIjoxMDB9
                 seats:
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
                     - appointed_by: Community
                       avatar: https://example.com/avatar.png
                       committee_category: Board
@@ -7282,8 +7232,13 @@ components:
                     description: Application message
                     example: I would like to join the TSC to contribute my expertise.
                     maxLength: 2000
+                notify:
+                    type: boolean
+                    description: When true, send email notifications to committee writers about the new application. Defaults to false.
+                    example: true
             example:
                 message: I would like to join the TSC to contribute my expertise.
+                notify: true
         UpdateCommitteeBaseRequestBody:
             type: object
             properties:
@@ -7515,40 +7470,33 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Qui et sint voluptates expedita quod dolor.
+                    example: Qui dolorem.
                 description:
                     type: string
                     description: Optional description
-                    example: rr3
+                    example: e5f
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 86
-                        - 101
-                        - 114
+                        - 68
+                        - 117
+                        - 99
                         - 105
-                        - 116
-                        - 97
-                        - 116
-                        - 105
+                        - 109
+                        - 117
                         - 115
                         - 32
-                        - 100
-                        - 101
-                        - 115
-                        - 101
-                        - 114
-                        - 117
-                        - 110
-                        - 116
+                        - 104
+                        - 105
+                        - 99
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Atque et aut ipsam aut enim dicta.
+                    example: Dolor fugiat veritatis.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -7560,50 +7508,29 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Numquam hic et totam quam autem quaerat.
-                description: n1a
+                content_type: Hic et totam quam.
+                description: utl
                 file:
-                    - 65
-                    - 116
-                    - 32
-                    - 113
+                    - 81
                     - 117
-                    - 105
-                    - 32
-                    - 110
-                    - 105
-                    - 104
-                    - 105
-                    - 108
-                    - 32
-                    - 101
-                    - 120
+                    - 97
                     - 101
                     - 114
-                    - 99
-                    - 105
-                    - 116
                     - 97
                     - 116
-                    - 105
-                    - 111
-                    - 110
+                    - 32
                     - 101
+                    - 117
                     - 109
                     - 32
-                    - 100
-                    - 111
-                    - 108
-                    - 111
-                    - 114
-                    - 32
                     - 97
+                    - 116
                     - 32
                     - 113
                     - 117
                     - 105
                     - 46
-                file_name: Eos provident temporibus quis eos velit facere.
+                file_name: Velit facere tempore.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

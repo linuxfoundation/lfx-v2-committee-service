@@ -1097,7 +1097,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
-		s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
+		if p.Notify != nil && *p.Notify {
+			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
+		}
 
 		return s.convertApplicationDomainToResponse(rejectedApp), nil
 	}
@@ -1107,7 +1109,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
-	s.publishApplicationEvent(ctx, model.ActionCreated, application)
+	if p.Notify != nil && *p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionCreated, application)
+	}
 
 	return s.convertApplicationDomainToResponse(application), nil
 }
@@ -1162,7 +1166,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	if p.Notify != nil && *p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	}
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }
@@ -1197,7 +1203,9 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	if p.Notify != nil && *p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	}
 
 	return s.convertApplicationDomainToResponse(application), nil
 }

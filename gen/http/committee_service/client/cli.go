@@ -1634,7 +1634,7 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceSubmitApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": true\n   }'")
 		}
 		if body.Message != nil {
 			if utf8.RuneCountInString(*body.Message) > 2000 {
@@ -1680,6 +1680,7 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	}
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
+		Notify:  body.Notify,
 	}
 	v.UID = uid
 	v.Version = version
@@ -1697,7 +1698,7 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	{
 		err = json.Unmarshal([]byte(committeeServiceApproveApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1742,6 +1743,7 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	}
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -1759,7 +1761,7 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceRejectApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1804,6 +1806,7 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	}
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -2009,7 +2012,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"hhi\",\n      \"folder_uid\": \"dab37e2b-a5c4-497f-89df-3b01d7ce0f5e\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2362,7 +2365,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Natus omnis.\",\n      \"description\": \"rqx\",\n      \"file\": \"T21uaXMgYWNjdXNhbXVzLg==\",\n      \"file_name\": \"Ut ullam totam quo.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))

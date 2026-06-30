@@ -806,6 +806,8 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("I would like to join the TSC to contribute my expertise.")
 			})
 
+			dsl.Attribute("notify", dsl.Boolean, "When true, send email notifications to committee writers about the new application. Defaults to false.")
+
 			dsl.Required("version", "uid")
 		})
 
@@ -850,6 +852,8 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("Approved based on contribution history.")
 			})
 
+			dsl.Attribute("notify", dsl.Boolean, "When true, send an acceptance email to the applicant. Defaults to false.")
+
 			dsl.Required("version", "uid", "application_uid")
 		})
 
@@ -891,6 +895,8 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(2000)
 				dsl.Example("Does not meet current requirements.")
 			})
+
+			dsl.Attribute("notify", dsl.Boolean, "When true, send a rejection email to the applicant. Defaults to false.")
 
 			dsl.Required("version", "uid", "application_uid")
 		})
