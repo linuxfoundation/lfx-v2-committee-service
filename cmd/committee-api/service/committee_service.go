@@ -1150,6 +1150,15 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	s.enrichMember(ctx, member)
 	s.enrichMemberOrganization(ctx, member)
 
+	// When the caller opts in to the application-accepted email (notify: true)
+	// and the applicant has a resolved LFID, suppress the generic member-added
+	// role notification — the accepted email already covers the approval.
+	// Email-only applicants (no LFID) are excluded from this suppression so the
+	// invite-service path still fires for them.
+	if p.Notify && member.Username != "" {
+		member.SkipNotification = true
+	}
+
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)

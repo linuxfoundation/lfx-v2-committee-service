@@ -808,6 +808,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			dsl.Attribute("notify", dsl.Boolean, "When true, send email notifications to committee writers about the new application. Defaults to false.", func() {
 				dsl.Default(false)
+				dsl.Example(false)
 			})
 
 			dsl.Required("version", "uid")
@@ -856,6 +857,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			dsl.Attribute("notify", dsl.Boolean, "When true, send an acceptance email to the applicant. Defaults to false.", func() {
 				dsl.Default(false)
+				dsl.Example(false)
 			})
 
 			dsl.Required("version", "uid", "application_uid")
@@ -902,6 +904,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			dsl.Attribute("notify", dsl.Boolean, "When true, send a rejection email to the applicant. Defaults to false.", func() {
 				dsl.Default(false)
+				dsl.Example(false)
 			})
 
 			dsl.Required("version", "uid", "application_uid")

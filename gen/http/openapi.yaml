@@ -3727,7 +3727,7 @@ definitions:
                 type: boolean
                 description: When true, send an acceptance email to the applicant. Defaults to false.
                 default: false
-                example: true
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
@@ -3756,12 +3756,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: he2
+                example: "287"
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 79fb0550-e487-41ca-ad2e-0a86b5b5d213
+                example: 74716d5c-f7a8-4527-ae14-7aa23b2af4db
                 format: uuid
             name:
                 type: string
@@ -3774,8 +3774,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: q67
-            folder_uid: 1a77a829-4d06-453f-baed-54cedf39d71c
+            description: 5o7
+            folder_uid: 836400f7-e52b-4e05-922b-5779e5d6bfe9
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4264,7 +4264,7 @@ definitions:
                 type: boolean
                 description: When true, send a rejection email to the applicant. Defaults to false.
                 default: false
-                example: true
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
@@ -4286,7 +4286,7 @@ definitions:
                 type: boolean
                 description: When true, send email notifications to committee writers about the new application. Defaults to false.
                 default: false
-                example: true
+                example: false
         example:
             message: I would like to join the TSC to contribute my expertise.
             notify: false
@@ -4699,52 +4699,55 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Doloremque at aut qui.
+                example: Veniam assumenda.
             description:
                 type: string
                 description: Optional description
-                example: "391"
+                example: svp
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 68
-                    - 111
-                    - 108
-                    - 111
-                    - 114
-                    - 32
-                    - 116
-                    - 101
-                    - 109
-                    - 112
-                    - 111
-                    - 114
-                    - 105
-                    - 98
-                    - 117
-                    - 115
-                    - 32
-                    - 101
-                    - 105
-                    - 117
-                    - 115
-                    - 32
-                    - 118
-                    - 111
-                    - 108
-                    - 117
-                    - 112
-                    - 116
+                    - 70
                     - 97
+                    - 99
+                    - 101
+                    - 114
+                    - 101
+                    - 32
+                    - 97
+                    - 100
+                    - 105
+                    - 112
+                    - 105
                     - 115
+                    - 99
+                    - 105
+                    - 32
+                    - 97
+                    - 114
+                    - 99
+                    - 104
+                    - 105
+                    - 116
+                    - 101
+                    - 99
+                    - 116
+                    - 111
+                    - 32
+                    - 108
+                    - 97
+                    - 98
+                    - 111
+                    - 114
+                    - 101
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Labore consectetur.
+                example: Eligendi adipisci nisi totam.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4756,48 +4759,57 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Culpa neque a.
-            description: foj
+            content_type: Eos aut dolor ea et.
+            description: dnp
             file:
-                - 79
-                - 109
-                - 110
-                - 105
-                - 115
-                - 32
+                - 80
+                - 97
                 - 114
-                - 101
-                - 109
+                - 105
+                - 97
+                - 116
+                - 117
+                - 114
                 - 32
+                - 113
+                - 117
                 - 111
+                - 32
+                - 108
+                - 97
+                - 98
+                - 111
+                - 114
+                - 105
+                - 111
+                - 115
+                - 97
                 - 109
-                - 110
+                - 32
+                - 113
+                - 117
                 - 105
                 - 115
+                - 113
+                - 117
+                - 97
+                - 109
                 - 32
-                - 115
-                - 105
-                - 110
-                - 116
-                - 32
-                - 101
-                - 115
-                - 116
+                - 104
+                - 97
+                - 114
+                - 117
+                - 109
                 - 32
                 - 113
                 - 117
                 - 97
-                - 115
-                - 105
-                - 32
-                - 109
-                - 97
-                - 120
-                - 105
-                - 109
                 - 101
+                - 114
+                - 97
+                - 116
                 - 46
-            file_name: Voluptas pariatur quo laboriosam quisquam harum.
+            file_name: Qui odit dolor temporibus eius.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4954,7 +4966,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: 0jc
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 last_edited_at: "2026-05-18T14:03:00Z"
@@ -4965,19 +4977,15 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: cst
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5024,7 +5032,7 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: 0jc
+                brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 last_edited_at: "2026-05-18T14:03:00Z"
@@ -5035,19 +5043,15 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: cst
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5091,7 +5095,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: ytw
+                example: rj0
                 maxLength: 5000
             id:
                 type: string
@@ -5107,7 +5111,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: shn
+            excerpt: tel
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5212,7 +5216,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: i8v
+                example: zxj
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5263,11 +5267,11 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: cst
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5303,7 +5307,7 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: 0k4
+            brief_text: vuy
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             last_edited_at: "2026-05-18T14:03:00Z"
@@ -5314,19 +5318,19 @@ definitions:
             regeneration_count: 0
             revision: 7
             source_refs:
-                - excerpt: cst
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: cst
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: cst
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: cst
+                - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
@@ -5590,42 +5594,6 @@ definitions:
         example:
             page_token: eyJvIjoxMDB9
             seats:
-                - appointed_by: Community
-                  avatar: https://example.com/avatar.png
-                  committee_category: Board
-                  committee_name: Technical Steering Committee
-                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                  email: user@example.com
-                  first_name: John
-                  is_org_editable: true
-                  job_title: Chief Technology Officer
-                  last_name: Doe
-                  organization_id: 001B000000IqhSLIAZ
-                  project_slug: example-foundation
-                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                  reason: This seat is foundation-controlled.
-                  role_name: Chair
-                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                  username: user123
-                  voting_status: Voting Rep
-                - appointed_by: Community
-                  avatar: https://example.com/avatar.png
-                  committee_category: Board
-                  committee_name: Technical Steering Committee
-                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                  email: user@example.com
-                  first_name: John
-                  is_org_editable: true
-                  job_title: Chief Technology Officer
-                  last_name: Doe
-                  organization_id: 001B000000IqhSLIAZ
-                  project_slug: example-foundation
-                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                  reason: This seat is foundation-controlled.
-                  role_name: Chair
-                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                  username: user123
-                  voting_status: Voting Rep
                 - appointed_by: Community
                   avatar: https://example.com/avatar.png
                   committee_category: Board

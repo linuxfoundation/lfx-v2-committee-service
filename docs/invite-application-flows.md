@@ -123,10 +123,10 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
 
-**Email notifications:**
-- **Submitted / reinstated** — after `SubmitApplication` succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
-- **Approved** — after `ApproveApplication` succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address.
-- **Rejected** — after `RejectApplication` succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
+**Email notifications (opt-in via `notify` request field, default `false`):**
+- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
+- **Approved** — when `ApproveApplication` is called with `notify: true` and succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address. The generic member-added role notification is suppressed for LFID applicants when `notify: true` (the application-accepted email covers the same intent); email-only applicants still receive the invite-service invite.
+- **Rejected** — when `RejectApplication` is called with `notify: true` and succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
 - Writers without an LFID (no `Username`) or without a known email address are skipped — both are required for a direct email.
 - All sends are best-effort: failures are logged with `"committee_uid"` and (for submitted) `"username"` (redacted) and never propagate to callers.
 
