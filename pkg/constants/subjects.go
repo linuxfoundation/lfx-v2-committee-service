@@ -29,6 +29,11 @@ const (
 	// The subject is of the form: lfx.projects-api.get_slug
 	ProjectGetSlugSubject = "lfx.projects-api.get_slug"
 
+	// ProjectGetWritersSubject is the subject for getting the writers list from project settings.
+	// Request: plain-text project UID. Reply: JSON-encoded []model.CommitteeUser (empty array when no writers).
+	// The subject is of the form: lfx.projects-api.get_writers
+	ProjectGetWritersSubject = "lfx.projects-api.get_writers"
+
 	// AuthEmailToUsernameLookupSubject resolves a registered LFID username by primary email.
 	// Request: plain-text email. Reply: plain-text username on success, JSON error envelope on miss.
 	AuthEmailToUsernameLookupSubject = "lfx.auth-service.email_to_username"

@@ -89,7 +89,6 @@ func TestHandleCommitteeApplicationSubmitted(t *testing.T) {
 
 	t.Run("falls back to project writers when no committee writers are eligible", func(t *testing.T) {
 		repoFallback := mock.NewMockRepository()
-		// Committee with no eligible writers
 		repoFallback.AddCommittee(&model.Committee{
 			CommitteeBase: model.CommitteeBase{
 				UID:         "committee-no-writers",
@@ -102,23 +101,16 @@ func TestHandleCommitteeApplicationSubmitted(t *testing.T) {
 				Writers: []model.CommitteeUser{},
 			},
 		})
-		// Project entry (stored as a committee with UID == project UID) has eligible writers
-		repoFallback.AddCommittee(&model.Committee{
-			CommitteeBase: model.CommitteeBase{
-				UID:  "project-fallback",
-				Name: "CNCF",
-			},
-			CommitteeSettings: &model.CommitteeSettings{
-				UID: "project-fallback",
-				Writers: []model.CommitteeUser{
-					{Username: "projwriter", Email: "projwriter@example.com", Name: "Project Writer"},
-				},
-			},
+		repoFallback.AddProjectWriters("project-fallback", []model.CommitteeUser{
+			{Username: "projwriter", Email: "projwriter@example.com", Name: "Project Writer"},
 		})
+
 		readerFallback := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repoFallback)))
+		projectReader := mock.NewMockProjectRetriever(repoFallback)
 		sender := &mockEmailSender{}
 		h := &messageHandlerOrchestrator{
 			committeeReader:     readerFallback,
+			projectReader:       projectReader,
 			emailSender:         sender,
 			lfxSelfServeBaseURL: "https://lfx.linuxfoundation.org",
 		}

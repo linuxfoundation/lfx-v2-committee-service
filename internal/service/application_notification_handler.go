@@ -230,23 +230,16 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 	return nil, nil
 }
 
-// collectCommitteeWriters returns a deduplicated list of LFID writers (Username and Email both set)
-// for the given committee. If no eligible writers are found on the committee itself, it falls back
-// to the project-level settings writers (keyed by committee.ProjectUID) so that someone always has
-// visibility into new applications even when the committee has no direct writers configured.
+// collectCommitteeWriters returns a deduplicated list of LFID writers (Username and Email both set).
 // Non-LFID writers (Username == "") are excluded — they cannot receive direct emails.
+// When the committee has no eligible writers, falls back to the owning project's writers
+// via a NATS request to the project service (lfx.projects-api.get_writers).
 func (m *messageHandlerOrchestrator) collectCommitteeWriters(ctx context.Context, committee *model.CommitteeBase) []notificationRecipient {
 	seen := make(map[string]struct{})
 	var writers []notificationRecipient
 
-	addWriters := func(uid string) {
-		settings, _, err := m.committeeReader.GetSettings(ctx, uid)
-		if err != nil {
-			slog.WarnContext(ctx, "failed to load settings for application submitted notification",
-				"error", err, "committee_uid", uid)
-			return
-		}
-		for _, u := range settings.GetWriters() {
+	addUsers := func(users []model.CommitteeUser) {
+		for _, u := range users {
 			if u.Username == "" || u.Email == "" {
 				continue
 			}
@@ -262,13 +255,24 @@ func (m *messageHandlerOrchestrator) collectCommitteeWriters(ctx context.Context
 		}
 	}
 
-	addWriters(committee.UID)
+	settings, _, err := m.committeeReader.GetSettings(ctx, committee.UID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to load settings for application submitted notification",
+			"error", err, "committee_uid", committee.UID)
+	} else {
+		addUsers(settings.GetWriters())
+	}
 
-	// Fall back to project writers when the committee has no eligible writers of its own.
-	if len(writers) == 0 && committee.ProjectUID != "" && committee.ProjectUID != committee.UID {
+	if len(writers) == 0 && m.projectReader != nil && committee.ProjectUID != "" && committee.ProjectUID != committee.UID {
 		slog.DebugContext(ctx, "no committee writers found — falling back to project writers",
 			"committee_uid", committee.UID, "project_uid", committee.ProjectUID)
-		addWriters(committee.ProjectUID)
+		projectWriters, projErr := m.projectReader.Writers(ctx, committee.ProjectUID)
+		if projErr != nil {
+			slog.WarnContext(ctx, "failed to fetch project writers for fallback",
+				"error", projErr, "committee_uid", committee.UID, "project_uid", committee.ProjectUID)
+		} else {
+			addUsers(projectWriters)
+		}
 	}
 
 	return writers
