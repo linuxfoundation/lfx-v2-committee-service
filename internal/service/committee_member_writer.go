@@ -293,6 +293,22 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errOrgIndex
 	}
 
+	// Step 8d: Write the email→member secondary index so v1-sync-helper can find all committee seats
+	// for a given email via a server-side filtered scan rather than a full bucket scan.
+	// No-op (empty key) for members with no email.
+	emailIndexKey, errEmailIndex := uc.committeeWriter.IndexMemberByEmail(ctx, member)
+	if emailIndexKey != "" {
+		keys = append(keys, emailIndexKey)
+	}
+	if errEmailIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member email index",
+			"error", errEmailIndex,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errEmailIndex
+	}
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -461,7 +477,9 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	}
 
 	// Step 4: Handle email changes - validate corporate domain and manage lookup keys
-	emailChanged := existing.Email != member.Email
+	oldEmailHash := existing.BuildEmailIndexKey(ctx)
+	newEmailHash := member.BuildEmailIndexKey(ctx)
+	emailChanged := oldEmailHash != newEmailHash
 	if emailChanged {
 		slog.DebugContext(ctx, "email change detected",
 			"old_email", redaction.RedactEmail(existing.Email),
@@ -480,7 +498,9 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			}
 		}
 
-		// Check if new email already exists in committee (uniqueness check)
+		// Check if new email already exists in committee (uniqueness check).
+		// emailChanged is hash-based so case-only changes never reach this block,
+		// preventing write+stale-delete of identical uniqueness keys.
 		newLookupKey, errMemberExists := uc.committeeWriter.UniqueMember(ctx, member)
 		if errMemberExists != nil {
 			slog.WarnContext(ctx, "member with new email already exists in committee",
@@ -492,9 +512,24 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		}
 		newKeys = append(newKeys, newLookupKey)
 
-		// Mark old lookup key for cleanup
-		oldLookupKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
-		staleKeys = append(staleKeys, oldLookupKey)
+		// Mark old uniqueness and email-index keys for cleanup.
+		staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx)))
+
+		newEmailIndexKey, errEmailIndex := uc.committeeWriter.IndexMemberByEmail(ctx, member)
+		if newEmailIndexKey != "" {
+			newKeys = append(newKeys, newEmailIndexKey)
+		}
+		if errEmailIndex != nil {
+			slog.ErrorContext(ctx, "failed to write email index during member update",
+				"error", errEmailIndex,
+				"member_uid", member.UID,
+			)
+			rollbackRequired = true
+			return nil, errEmailIndex
+		}
+		if oldEmailHash != "" {
+			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, oldEmailHash, existing.UID))
+		}
 	}
 
 	// Resolve username from email when auth can map the email to an LFID.
@@ -727,6 +762,11 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	// delete. Only present when the member had an organization.id; normalized to match the write side.
 	if orgSFID := utils.NormalizeAccountSFID(existing.Organization.ID); orgSFID != "" {
 		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, existing.UID))
+	}
+
+	// Build email→member secondary index key so it is cleaned up on delete.
+	if emailHash := existing.BuildEmailIndexKey(ctx); emailHash != "" {
+		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, emailHash, existing.UID))
 	}
 
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",

@@ -25,11 +25,12 @@ import (
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
 type TestMockCommitteeMemberWriter struct {
 	*mock.MockRepository
-	members         map[string]*model.CommitteeMember
-	keys            map[string]string // uniqueness keys
-	customRevisions map[string]uint64 // for testing revision conflicts
-	indexedKeys     []string          // keys written by IndexMemberByCommittee
-	orgIndexErr     error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
+	members           map[string]*model.CommitteeMember
+	keys              map[string]string // uniqueness keys
+	customRevisions   map[string]uint64 // for testing revision conflicts
+	indexedKeys       []string          // keys written by IndexMemberByCommittee
+	orgIndexErr       error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
+	uniqueMemberCalls int               // incremented on every UniqueMember call
 
 	mu          sync.Mutex // guards deletedKeys (DeleteMember may run in a background cleanup goroutine)
 	deletedKeys []string   // keys passed to DeleteMember (for asserting rollback / async stale cleanup)
@@ -145,6 +146,7 @@ func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid st
 }
 
 func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	w.uniqueMemberCalls++
 	key := member.BuildIndexKey(ctx)
 
 	// Check if this key already exists
@@ -175,6 +177,16 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByOrganization(_ context.Cont
 		// before checking the error, so this exercises the rollback cleanup of a partial write.
 		return key, w.orgIndexErr
 	}
+	return key, nil
+}
+
+func (w *TestMockCommitteeMemberWriter) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	hash := member.BuildEmailIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
 	return key, nil
 }
 
@@ -305,6 +317,10 @@ func (r *TestMockCommitteeReader) ListMembersByCommittee(ctx context.Context, co
 }
 
 func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
+}
+
+func (r *TestMockCommitteeReader) ListMembersByEmail(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, nil
 }
 
@@ -753,11 +769,12 @@ func TestCreateMember_IndexKeyTracked(t *testing.T) {
 	assert.NotEmpty(t, result.UID)
 	assert.Equal(t, "committee-index-test", result.CommitteeUID)
 
-	// IndexMemberByCommittee must have been called exactly once, and the recorded
-	// key must match the expected committee→member index key format.
-	require.Len(t, memberWriter.indexedKeys, 1)
-	expectedKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", result.CommitteeUID, result.UID)
-	assert.Equal(t, expectedKey, memberWriter.indexedKeys[0])
+	// IndexMemberByCommittee and IndexMemberByEmail must both have been called; the first indexed key
+	// must be the committee→member key (appended before the email key in CreateMember).
+	require.Len(t, memberWriter.indexedKeys, 2)
+	expectedCommitteeKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", result.CommitteeUID, result.UID)
+	assert.Equal(t, expectedCommitteeKey, memberWriter.indexedKeys[0])
+	assert.Contains(t, memberWriter.indexedKeys[1], "lookup/committee-members-by-email/")
 }
 
 // TestDeleteMember_IndexKeyIncluded verifies that DeleteMember enqueues the
@@ -1009,11 +1026,68 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.
 	require.NotNil(t, result)
 
 	// No new organization index entry is written when the member loses its org.
-	assert.Empty(t, memberWriter.indexedKeys, "no organization index entry should be written when the org is removed")
+	// (An email-index entry IS written because the email changed in this scenario — that is correct.)
+	for _, k := range memberWriter.indexedKeys {
+		assert.NotContains(t, k, "lookup/committee-members-by-organization",
+			"no organization index entry should be written when the org is removed")
+	}
 
 	// The old org index entry must still be cleaned up by the background goroutine.
 	assert.Eventually(t, func() bool { return memberWriter.wasDeleted(oldKey) }, 2*time.Second, 10*time.Millisecond,
 		"stale old-organization index entry must be cleaned up after org removal")
+}
+
+// TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange verifies that a case-only
+// email change (same normalized hash) does not write or delete any uniqueness/index keys.
+// Writing a new key identical to the old one and then marking it stale would silently delete the
+// valid entry, breaking the uniqueness invariant.
+func TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"user@example.com": "theuser"}}
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "user@example.com",
+		FirstName: "Test", LastName: "User",
+		CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
+	}}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	// Pre-seed the uniqueness key so that a duplicate write would be detected as a conflict.
+	existingIndexKey := existing.BuildIndexKey(context.Background())
+	memberWriter.keys[existingIndexKey] = existing.UID
+
+	// Update with a case-only email change (same normalized form).
+	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-123", CommitteeUID: "committee-123", Email: "USER@EXAMPLE.COM",
+		FirstName: "Test", LastName: "User",
+	}}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// UniqueMember must not be called at all for a case-only email change.
+	assert.Equal(t, 0, memberWriter.uniqueMemberCalls,
+		"UniqueMember must not be called for a case-only email change")
+
+	// No new index key should have been written, and the pre-seeded uniqueness key must remain.
+	for _, k := range memberWriter.indexedKeys {
+		assert.NotContains(t, k, "lookup/committee-members/",
+			"case-only email change must not write a new uniqueness key")
+		assert.NotContains(t, k, "lookup/committee-members-by-email/",
+			"case-only email change must not write a new email-index key")
+	}
+	assert.Equal(t, existing.UID, memberWriter.keys[existingIndexKey],
+		"pre-existing uniqueness key must not be deleted by a case-only email change")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {

@@ -729,6 +729,97 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 	return members, nil
 }
 
+// IndexMemberByEmail writes the secondary index entry
+// "lookup/committee-members-by-email/<email_hash>.<member_uid>" → <member_uid> into the
+// committee-members bucket, so ListMembersByEmail can use a server-side filtered scan rather than
+// a full bucket scan. The email segment is the SHA-256 hex of the normalized email
+// (strings.TrimSpace + strings.ToLower), matching model.CommitteeMember.BuildEmailIndexKey.
+//
+// Members without an email produce an empty hash and no index entry is written (returns "", nil).
+// jetstream.ErrKeyExists is treated as idempotent success.
+func (s *storage) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.UID == "" {
+		return "", errs.NewValidation("committee member UID must be non-empty")
+	}
+	hash := member.BuildEmailIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by email", err)
+	}
+	return key, nil
+}
+
+// ListMembersByEmail retrieves all committee members whose normalized email matches the given
+// address, using the by-email secondary index. It performs a server-side filtered scan of
+// "lookup/committee-members-by-email/<email_hash>.*" so only members with that email are fetched.
+// A defensive consistency re-check skips stale entries left by in-flight email-change cleanups.
+func (s *storage) ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error) {
+	probe := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{Email: email}}
+	emailHash := probe.BuildEmailIndexKey(ctx)
+	if emailHash == "" {
+		return nil, errs.NewValidation("email cannot be empty")
+	}
+
+	slog.DebugContext(ctx, "listing committee members by email from NATS storage")
+
+	filter := fmt.Sprintf(constants.KVLookupMembersByEmailFilter, emailHash)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for email", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-email/<email_hash>.<member_uid>".
+	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed email member index key", "key", key)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+				// Stale index key: the member was deleted but the index entry lagged behind.
+				slog.WarnContext(ctx, "skipping stale email member index entry; member no longer exists",
+					"member_uid", memberUID)
+				continue
+			}
+			return nil, errs.NewUnexpected("failed to get member while listing by email", errGet)
+		}
+
+		// Defensive consistency check: email-change stale-key cleanup runs in a background goroutine,
+		// so a lagging cleanup can leave an index key pointing at a member whose email has since
+		// changed. Skip such entries.
+		if member.BuildEmailIndexKey(ctx) != emailHash {
+			slog.WarnContext(ctx, "skipping stale email member index entry; member email no longer matches",
+				"member_uid", memberUID, "index_email_hash", emailHash)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members by email from NATS storage",
+		"member_count", len(members))
+
+	return members, nil
+}
+
 // ================== CommitteeInviteReader implementation ==================
 
 // GetInvite retrieves a committee invite by invite UID

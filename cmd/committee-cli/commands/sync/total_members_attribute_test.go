@@ -61,6 +61,10 @@ func (r *mockReader) ListMembersByOrganization(_ context.Context, _ string) ([]*
 	return nil, nil
 }
 
+func (r *mockReader) ListMembersByEmail(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return nil, nil
+}
+
 // Stub methods required to satisfy port.CommitteeReader.
 
 func (r *mockReader) GetMember(_ context.Context, uid string) (*model.CommitteeMember, uint64, error) {

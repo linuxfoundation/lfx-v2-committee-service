@@ -18,16 +18,18 @@ import (
 )
 
 // mockMemberWriter is a full implementation of port.CommitteeMemberWriter shared
-// across the sync backfill tests (members-by-committee, members-by-organization, and
-// member-project-attribute). IndexMemberByCommittee, IndexMemberByOrganization, and
-// UpdateMember are exercised; call recording (indexed, orgIndexed, updated) and error
-// simulation (indexError, updateError) support those tests.
+// across the sync backfill tests (members-by-committee, members-by-organization,
+// members-by-email-index, and member-project-attribute). IndexMemberByCommittee,
+// IndexMemberByOrganization, IndexMemberByEmail, and UpdateMember are exercised; call
+// recording (indexed, orgIndexed, emailIndexed, updated) and error simulation
+// (indexError, updateError) support those tests.
 type mockMemberWriter struct {
-	indexed     []string                 // committee_uid+"."+member_uid keys that were written
-	orgIndexed  []string                 // org_sfid+"."+member_uid keys that were written
-	updated     []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
-	indexError  error
-	updateError error
+	indexed      []string                 // committee_uid+"."+member_uid keys that were written
+	orgIndexed   []string                 // org_sfid+"."+member_uid keys that were written
+	emailIndexed []string                 // email_hash+"."+member_uid keys that were written
+	updated      []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
+	indexError   error
+	updateError  error
 }
 
 func (w *mockMemberWriter) CreateMember(_ context.Context, _ *model.CommitteeMember) error {
@@ -62,6 +64,19 @@ func (w *mockMemberWriter) IndexMemberByOrganization(_ context.Context, m *model
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, m.UID)
 	w.orgIndexed = append(w.orgIndexed, key)
+	return key, nil
+}
+
+func (w *mockMemberWriter) IndexMemberByEmail(ctx context.Context, m *model.CommitteeMember) (string, error) {
+	if w.indexError != nil {
+		return "", w.indexError
+	}
+	hash := m.BuildEmailIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, m.UID)
+	w.emailIndexed = append(w.emailIndexed, key)
 	return key, nil
 }
 
