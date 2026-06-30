@@ -38,8 +38,10 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_settings.updated"    // emitted after settings updates; consumed to drive the LFID settings-invite flow
 "lfx.committee-api.committee_member.created"       // also self-consumed (re-index / role-notification paths)
 "lfx.committee-api.committee_member.deleted"       // also self-consumed
-"lfx.committee-api.committee_document.created"     // also self-consumed (document-upload notification emails to committee members)
-"lfx.committee-api.committee_link.created"         // also self-consumed (link-added notification emails to committee members)
+"lfx.committee-api.committee_document.created"      // also self-consumed (document-upload notification emails to committee members)
+"lfx.committee-api.committee_link.created"          // also self-consumed (link-added notification emails to committee members)
+"lfx.committee-api.committee_application.submitted" // also self-consumed (fan-out notification emails to LFID writers on new application)
+"lfx.committee-api.committee_application.updated"   // also self-consumed (applicant decision email on approve/reject)
 "lfx.committee-api.weekly_brief.generate_requested" // consumed by the durable weekly-brief generate consumer (NOT via the queue subscription)
 ```
 
@@ -63,8 +65,10 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_member.created"
 "lfx.committee-api.committee_member.updated"
 "lfx.committee-api.committee_member.deleted"
-"lfx.committee-api.committee_document.created"     // emitted by internal/service/document_writer.go after a document upload
-"lfx.committee-api.committee_link.created"         // emitted by internal/service/link_writer.go after a link create
+"lfx.committee-api.committee_document.created"      // emitted by internal/service/document_writer.go after a document upload
+"lfx.committee-api.committee_link.created"          // emitted by internal/service/link_writer.go after a link create
+"lfx.committee-api.committee_application.submitted" // emitted after an application is submitted or reinstated; consumed to notify LFID writers
+"lfx.committee-api.committee_application.updated"   // emitted after an application is approved or rejected; consumed to notify the applicant
 "lfx.committee-api.weekly_brief.generate_requested" // emitted by POST /committees/{uid}/weekly-briefs/generate after the brief is claimed
 ```
 

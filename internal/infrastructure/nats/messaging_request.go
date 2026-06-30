@@ -48,6 +48,22 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
+// Writers retrieves the writers list for the given project UID via a NATS request.
+// Returns an empty slice when the project has no writers configured.
+func (m *messageRequest) Writers(ctx context.Context, uid string) ([]model.CommitteeUser, error) {
+	_, msg, err := m.client.requestWithSpan(ctx, constants.ProjectGetWritersSubject, []byte(uid))
+	if err != nil {
+		return nil, fmt.Errorf("get_writers request failed for project %s: %w", uid, err)
+	}
+
+	var writers []model.CommitteeUser
+	if err := json.Unmarshal(msg.Data, &writers); err != nil {
+		return nil, fmt.Errorf("failed to decode get_writers response: %w", err)
+	}
+
+	return writers, nil
+}
+
 // UsernameByEmail resolves the registered LFID username for the given primary email address.
 // The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
 func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {

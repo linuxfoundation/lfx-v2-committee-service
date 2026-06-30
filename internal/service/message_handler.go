@@ -38,6 +38,7 @@ type messageHandlerOrchestrator struct {
 	emailSender                 port.EmailSender
 	inviteSender                port.InviteSender
 	userReader                  port.UserReader
+	projectReader               port.ProjectReader
 	linkReader                  port.CommitteeLinkReader
 	lfxSelfServeBaseURL         string
 	weeklyBriefGenerator        GroupWeeklyBriefGenerator
@@ -99,6 +100,14 @@ func WithLFXSelfServeBaseURLForMessageHandler(baseURL string) messageHandlerOrch
 func WithUserReaderForMessageHandler(reader port.UserReader) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
 		m.userReader = reader
+	}
+}
+
+// WithProjectReaderForMessageHandler sets the project reader used for the project-writers fallback
+// in application submitted notifications.
+func WithProjectReaderForMessageHandler(reader port.ProjectReader) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.projectReader = reader
 	}
 }
 

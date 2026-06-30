@@ -29,6 +29,11 @@ const (
 	// The subject is of the form: lfx.projects-api.get_slug
 	ProjectGetSlugSubject = "lfx.projects-api.get_slug"
 
+	// ProjectGetWritersSubject is the subject for getting the writers list from project settings.
+	// Request: plain-text project UID. Reply: JSON-encoded []model.CommitteeUser (empty array when no writers).
+	// The subject is of the form: lfx.projects-api.get_writers
+	ProjectGetWritersSubject = "lfx.projects-api.get_writers"
+
 	// AuthEmailToUsernameLookupSubject resolves a registered LFID username by primary email.
 	// Request: plain-text email. Reply: plain-text username on success, JSON error envelope on miss.
 	AuthEmailToUsernameLookupSubject = "lfx.auth-service.email_to_username"
@@ -110,6 +115,16 @@ const (
 	// CommitteeLinkCreatedSubject is emitted after a link is successfully added to a committee.
 	// The payload is a CommitteeEvent wrapping *model.CommitteeLink.
 	CommitteeLinkCreatedSubject = "lfx.committee-api.committee_link.created"
+
+	// CommitteeApplicationSubmittedSubject is emitted after an application is submitted (or reinstated).
+	// The payload is a CommitteeEvent wrapping *model.CommitteeApplication.
+	// Consumed by the notification handler to fan-out to LFID committee writers.
+	CommitteeApplicationSubmittedSubject = "lfx.committee-api.committee_application.submitted"
+
+	// CommitteeApplicationUpdatedSubject is emitted after an application is approved or rejected.
+	// The payload is a CommitteeEvent wrapping *model.CommitteeApplication.
+	// Consumed by the notification handler to notify the applicant of the decision.
+	CommitteeApplicationUpdatedSubject = "lfx.committee-api.committee_application.updated"
 	// GenerateWeeklyBriefRequestedSubject is emitted by POST /weekly-briefs/generate
 	// after the brief is claimed (persisted in the "generating" state). The
 	// weekly-brief-events stream captures it and the durable generate consumer runs

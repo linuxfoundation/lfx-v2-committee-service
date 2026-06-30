@@ -584,3 +584,75 @@ func TestCommitteeEvent_Build_Committee(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteeEvent_Build_CommitteeApplication(t *testing.T) {
+	validApp := &CommitteeApplication{
+		UID:            "app-1",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "applicant@example.com",
+		Status:         "pending",
+	}
+
+	tests := []struct {
+		name          string
+		action        MessageAction
+		input         any
+		wantErr       bool
+		wantSubject   string
+		wantEventType string
+	}{
+		{
+			name:          "ActionCreated (submitted) with valid application",
+			action:        ActionCreated,
+			input:         validApp,
+			wantSubject:   constants.CommitteeApplicationSubmittedSubject,
+			wantEventType: "committee_application.created",
+		},
+		{
+			name:          "ActionUpdated (decision) with valid application",
+			action:        ActionUpdated,
+			input:         validApp,
+			wantSubject:   constants.CommitteeApplicationUpdatedSubject,
+			wantEventType: "committee_application.updated",
+		},
+		{
+			name:    "ActionDeleted is unsupported",
+			action:  ActionDeleted,
+			input:   validApp,
+			wantErr: true,
+		},
+		{
+			name:    "nil input returns error",
+			action:  ActionCreated,
+			input:   (*CommitteeApplication)(nil),
+			wantErr: true,
+		},
+		{
+			name:    "wrong input type returns error",
+			action:  ActionCreated,
+			input:   &CommitteeMember{},
+			wantErr: true,
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := &CommitteeEvent{}
+			result, err := event.Build(ctx, ResourceCommitteeApplication, tt.action, tt.input)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantSubject, result.Subject)
+			assert.Equal(t, tt.wantEventType, result.EventType)
+			assert.Equal(t, validApp, result.Data)
+		})
+	}
+}

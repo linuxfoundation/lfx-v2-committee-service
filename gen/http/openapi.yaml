@@ -3723,12 +3723,18 @@ definitions:
         title: CommitteeServiceApproveApplicationRequestBody
         type: object
         properties:
+            notify:
+                type: boolean
+                description: When true, send an acceptance email to the applicant. Defaults to false.
+                default: false
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
                 example: Approved based on contribution history.
                 maxLength: 2000
         example:
+            notify: false
             reviewer_notes: Approved based on contribution history.
     CommitteeServiceCreateCommitteeLinkFolderRequestBody:
         title: CommitteeServiceCreateCommitteeLinkFolderRequestBody
@@ -4254,12 +4260,18 @@ definitions:
         title: CommitteeServiceRejectApplicationRequestBody
         type: object
         properties:
+            notify:
+                type: boolean
+                description: When true, send a rejection email to the applicant. Defaults to false.
+                default: false
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
                 example: Does not meet current requirements.
                 maxLength: 2000
         example:
+            notify: false
             reviewer_notes: Does not meet current requirements.
     CommitteeServiceSubmitApplicationRequestBody:
         title: CommitteeServiceSubmitApplicationRequestBody
@@ -4270,8 +4282,14 @@ definitions:
                 description: Application message
                 example: I would like to join the TSC to contribute my expertise.
                 maxLength: 2000
+            notify:
+                type: boolean
+                description: When true, send email notifications to committee writers about the new application. Defaults to false.
+                default: false
+                example: false
         example:
             message: I would like to join the TSC to contribute my expertise.
+            notify: false
     CommitteeServiceUpdateCommitteeBaseRequestBody:
         title: CommitteeServiceUpdateCommitteeBaseRequestBody
         type: object

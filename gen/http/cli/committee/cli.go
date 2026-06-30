@@ -1220,7 +1220,7 @@ func committeeServiceSubmitApplicationUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service submit-application --body '{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service submit-application --body '{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceApproveApplicationUsage() {
@@ -1246,7 +1246,7 @@ func committeeServiceApproveApplicationUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service approve-application --body '{\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service approve-application --body '{\n      \"notify\": false,\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceRejectApplicationUsage() {
@@ -1272,7 +1272,7 @@ func committeeServiceRejectApplicationUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reject-application --body '{\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reject-application --body '{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceJoinCommitteeUsage() {

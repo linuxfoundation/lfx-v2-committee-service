@@ -278,6 +278,9 @@ type AcceptInviteRequestBody struct {
 type SubmitApplicationRequestBody struct {
 	// Application message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// When true, send email notifications to committee writers about the new
+	// application. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // ApproveApplicationRequestBody is the type of the "committee-service" service
@@ -285,6 +288,8 @@ type SubmitApplicationRequestBody struct {
 type ApproveApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send an acceptance email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // RejectApplicationRequestBody is the type of the "committee-service" service
@@ -292,6 +297,8 @@ type ApproveApplicationRequestBody struct {
 type RejectApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send a rejection email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // CreateCommitteeLinkRequestBody is the type of the "committee-service"
@@ -6479,6 +6486,12 @@ func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string,
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
 	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -6493,6 +6506,12 @@ func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid strin
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
 	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
+	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
 	v.Version = version
@@ -6506,6 +6525,12 @@ func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid strin
 func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.RejectApplicationPayload {
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
