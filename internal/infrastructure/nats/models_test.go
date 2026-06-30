@@ -40,9 +40,25 @@ func TestErrorMessageNATSResponse_CheckError(t *testing.T) {
 			name:        "valid error response with not found uppercase",
 			message:     `{"success":false,"error":"Resource Not Found"}`,
 			wantErr:     true,
-			wantErrType: "Unexpected",
+			wantErrType: "NotFound",
 			wantErrMsg:  "Resource Not Found",
-			description: "should return Unexpected error when 'not found' is not lowercase (case-sensitive)",
+			description: "should return NotFound regardless of case ('not found' match is case-insensitive)",
+		},
+		{
+			name:        "get-by-id miss does not exist",
+			message:     `{"success":false,"error":"The user does not exist."}`,
+			wantErr:     true,
+			wantErrType: "NotFound",
+			wantErrMsg:  "The user does not exist.",
+			description: "should return NotFound when auth0| get-by-id reports the user does not exist",
+		},
+		{
+			name:        "rate limit is not a miss",
+			message:     `{"success":false,"error":"too_many_requests: Global limit has been reached"}`,
+			wantErr:     true,
+			wantErrType: "Unexpected",
+			wantErrMsg:  "too_many_requests: Global limit has been reached",
+			description: "should return Unexpected for a transient rate-limit error, never swallow it as a miss",
 		},
 		{
 			name:        "valid success response",
@@ -268,6 +284,30 @@ func TestErrorMessageNATSResponse_CheckError_ErrorTypes(t *testing.T) {
 
 			if err.Error() != tt.expectedError {
 				t.Errorf("CheckError() error = %q, want %q", err.Error(), tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestIsUserMissError(t *testing.T) {
+	tests := []struct {
+		name   string
+		errMsg string
+		want   bool
+	}{
+		{name: "search miss", errMsg: "user not found", want: true},
+		{name: "get-by-id miss", errMsg: "The user does not exist.", want: true},
+		{name: "miss is case-insensitive", errMsg: "USER NOT FOUND", want: true},
+		{name: "does-not-exist is case-insensitive", errMsg: "The User Does Not Exist.", want: true},
+		{name: "rate limit is not a miss", errMsg: "too_many_requests: Global limit has been reached", want: false},
+		{name: "internal error is not a miss", errMsg: "internal server error", want: false},
+		{name: "empty is not a miss", errMsg: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isUserMissError(tt.errMsg); got != tt.want {
+				t.Errorf("isUserMissError(%q) = %v, want %v", tt.errMsg, got, tt.want)
 			}
 		})
 	}

@@ -6,6 +6,7 @@ package auth
 import (
 	"crypto/sha512"
 	"regexp"
+	"strings"
 
 	"github.com/akamensky/base58"
 )
@@ -44,4 +45,16 @@ func MapUsernameToAuthSub(username string) string {
 	}
 
 	return "auth0|" + userID
+}
+
+// AuthSubLookupKey returns the best key for an auth-service user_metadata lookup: a principal that
+// is already provider-qualified (contains "|", e.g. "auth0|abc", "oidc|…") is returned unchanged,
+// while a bare LFID username is mapped to its deterministic "auth0|" sub. Resolving by sub lets
+// auth-service do a cheap get-by-id instead of a rate-limited Auth0 user search.
+func AuthSubLookupKey(principal string) string {
+	principal = strings.TrimSpace(principal)
+	if principal == "" || strings.Contains(principal, "|") {
+		return principal
+	}
+	return MapUsernameToAuthSub(principal)
 }

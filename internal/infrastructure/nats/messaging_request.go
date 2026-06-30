@@ -11,6 +11,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -139,10 +140,20 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 }
 
 // UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
+//
+// A bare LFID username is mapped to its deterministic "auth0|" sub before the request so auth-service
+// resolves it with a cheap get-by-id rather than a rate-limited Auth0 user search; already-qualified
+// principals pass through unchanged. Returned errors always redact the original principal, never the
+// derived sub. A genuine "no such user" reply (see isUserMissError) is a NotFound miss; other failures
+// surface as Unexpected so callers can tell an auth-service outage apart from an absent user.
 func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
-	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(auth.AuthSubLookupKey(principal)))
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(string(msg.Data)) == "" {
+		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
 	}
 
 	var response UserMetadataNATSResponse
@@ -151,6 +162,9 @@ func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal 
 	}
 
 	if !response.Success || response.Data == nil {
+		if response.Error != "" && !isUserMissError(response.Error) {
+			return nil, errors.NewUnexpected(fmt.Sprintf("user metadata lookup failed for principal %s: %s", redaction.Redact(principal), response.Error))
+		}
 		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
 	}
 
