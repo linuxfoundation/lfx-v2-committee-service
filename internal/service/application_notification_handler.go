@@ -43,6 +43,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationSubmitted(ctx con
 		return nil, nil
 	}
 
+	if application.ApplicantEmail == "" {
+		slog.WarnContext(ctx, "committee_application.submitted event missing applicant_email — discarding",
+			"committee_uid", application.CommitteeUID)
+		return nil, nil
+	}
+
 	if m.committeeReader == nil || m.emailSender == nil {
 		slog.DebugContext(ctx, "committee reader or email sender not configured — skipping application submitted notification",
 			"committee_uid", application.CommitteeUID)

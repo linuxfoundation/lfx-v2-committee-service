@@ -6485,7 +6485,12 @@ func NewGetApplicationPayload(uid string, applicationUID string, version string,
 func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.SubmitApplicationPayload {
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
-		Notify:  body.Notify,
+	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
 	}
 	v.UID = uid
 	v.Version = version
@@ -6500,7 +6505,12 @@ func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string,
 func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.ApproveApplicationPayload {
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
-		Notify:        body.Notify,
+	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -6515,7 +6525,12 @@ func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid strin
 func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.RejectApplicationPayload {
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
-		Notify:        body.Notify,
+	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID

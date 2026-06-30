@@ -1682,6 +1682,12 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 		Message: body.Message,
 		Notify:  body.Notify,
 	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -1745,6 +1751,12 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 		ReviewerNotes: body.ReviewerNotes,
 		Notify:        body.Notify,
 	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
+	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
 	v.Version = version
@@ -1807,6 +1819,12 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
 		Notify:        body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID

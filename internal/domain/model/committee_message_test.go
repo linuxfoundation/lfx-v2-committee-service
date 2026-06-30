@@ -585,7 +585,7 @@ func TestCommitteeEvent_Build_Committee(t *testing.T) {
 	}
 }
 
-func TestCommitteeEventBuild_CommitteeApplication(t *testing.T) {
+func TestCommitteeEvent_Build_CommitteeApplication(t *testing.T) {
 	validApp := &CommitteeApplication{
 		UID:            "app-1",
 		CommitteeUID:   "committee-1",

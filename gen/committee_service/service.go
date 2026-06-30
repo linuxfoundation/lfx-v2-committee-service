@@ -189,7 +189,7 @@ type ApproveApplicationPayload struct {
 	// Notes from the reviewer
 	ReviewerNotes *string
 	// When true, send an acceptance email to the applicant. Defaults to false.
-	Notify *bool
+	Notify bool
 }
 
 // CommitteeApplicationWithReadonlyAttributes is the result type of the
@@ -1243,7 +1243,7 @@ type RejectApplicationPayload struct {
 	// Notes from the reviewer
 	ReviewerNotes *string
 	// When true, send a rejection email to the applicant. Defaults to false.
-	Notify *bool
+	Notify bool
 }
 
 // RevokeInvitePayload is the payload type of the committee-service service
@@ -1275,7 +1275,7 @@ type SubmitApplicationPayload struct {
 	Message *string
 	// When true, send email notifications to committee writers about the new
 	// application. Defaults to false.
-	Notify *bool
+	Notify bool
 }
 
 // UpdateCommitteeBasePayload is the payload type of the committee-service

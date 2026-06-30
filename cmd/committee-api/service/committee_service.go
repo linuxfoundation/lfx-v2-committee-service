@@ -1097,7 +1097,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
-		if p.Notify != nil && *p.Notify {
+		if p.Notify {
 			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
 		}
 
@@ -1109,7 +1109,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
-	if p.Notify != nil && *p.Notify {
+	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionCreated, application)
 	}
 
@@ -1166,7 +1166,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	if p.Notify != nil && *p.Notify {
+	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
 
@@ -1203,7 +1203,7 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	if p.Notify != nil && *p.Notify {
+	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
 

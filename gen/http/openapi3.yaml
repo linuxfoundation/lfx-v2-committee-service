@@ -4285,6 +4285,7 @@ components:
                 notify:
                     type: boolean
                     description: When true, send an acceptance email to the applicant. Defaults to false.
+                    default: false
                     example: false
                 reviewer_notes:
                     type: string
@@ -7235,6 +7236,7 @@ components:
                 notify:
                     type: boolean
                     description: When true, send email notifications to committee writers about the new application. Defaults to false.
+                    default: false
                     example: true
             example:
                 message: I would like to join the TSC to contribute my expertise.
