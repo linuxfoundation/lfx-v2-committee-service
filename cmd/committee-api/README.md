@@ -246,9 +246,10 @@ The service relies on some resources and external services being spun up prior t
 |NATS_URL|the URL of the nats server instance|nats://localhost:4222|false|
 |LOG_LEVEL|the log level for outputted logs|info|false|
 |LOG_ADD_SOURCE|whether to add the source field to outputted logs|false|false|
-|JWKS_URL|the URL to the endpoint for verifying ID tokens and JWT access tokens||false|
-|AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|false|
-|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal value for local development (to avoid needing a valid JWT token)||false|
+|AUTH_SOURCE|the authentication service implementation to use: `jwt` (verify real JWTs) or `mock` (bypass auth for local development)|jwt|false|
+|JWKS_URL|the URL to the endpoint for verifying ID tokens and JWT access tokens||required when `AUTH_SOURCE=jwt`|
+|JWT_AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|required when `AUTH_SOURCE=jwt`|
+|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal value for local development (to avoid needing a valid JWT token); only takes effect when `AUTH_SOURCE=mock`||false|
 
 #### 4. Development Workflow
 
