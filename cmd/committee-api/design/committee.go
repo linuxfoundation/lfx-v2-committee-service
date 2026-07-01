@@ -534,7 +534,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			IfMatchAttribute()
 			XSyncAttribute()
-			SkipMemberDeleteNotificationAttribute()
+			SkipNotificationAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 

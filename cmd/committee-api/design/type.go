@@ -379,17 +379,10 @@ func XSyncAttribute() {
 	})
 }
 
-// SkipNotificationAttribute is the DSL attribute for suppressing the member-added notification.
+// SkipNotificationAttribute is the DSL attribute for suppressing the member notification email
+// (whether the member is being added or removed).
 func SkipNotificationAttribute() {
-	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)", func() {
-		dsl.Default(false)
-		dsl.Example(true)
-	})
-}
-
-// SkipMemberDeleteNotificationAttribute is the DSL attribute for suppressing the member-removed notification.
-func SkipMemberDeleteNotificationAttribute() {
-	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the removal notification email sent to the member being removed (used for V1/PCC-synced deletes)", func() {
+	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the notification email sent to the committee member (whether added or removed)", func() {
 		dsl.Default(false)
 		dsl.Example(true)
 	})
