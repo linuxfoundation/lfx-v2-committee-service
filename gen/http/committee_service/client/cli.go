@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package client
 
@@ -1233,7 +1234,7 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 
 // BuildDeleteCommitteeMemberPayload builds the payload for the
 // committee-service delete-committee-member endpoint from CLI flags.
-func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string, committeeServiceDeleteCommitteeMemberXSync string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
+func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string, committeeServiceDeleteCommitteeMemberXSync string, committeeServiceDeleteCommitteeMemberSkipNotification string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 	var err error
 	var uid string
 	{
@@ -1282,6 +1283,15 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 			}
 		}
 	}
+	var skipNotification bool
+	{
+		if committeeServiceDeleteCommitteeMemberSkipNotification != "" {
+			skipNotification, err = strconv.ParseBool(committeeServiceDeleteCommitteeMemberSkipNotification)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipNotification, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
@@ -1289,6 +1299,7 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v, nil
 }

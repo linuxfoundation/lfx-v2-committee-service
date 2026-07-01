@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package server
 
@@ -1749,13 +1750,14 @@ func EncodeDeleteCommitteeMemberResponse(encoder func(context.Context, http.Resp
 func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 	return func(r *http.Request) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 		var (
-			uid         string
-			memberUID   string
-			version     string
-			bearerToken *string
-			ifMatch     *string
-			xSync       bool
-			err         error
+			uid              string
+			memberUID        string
+			version          string
+			bearerToken      *string
+			ifMatch          *string
+			xSync            bool
+			skipNotification bool
+			err              error
 
 			params = mux.Vars(r)
 		)
@@ -1788,10 +1790,20 @@ func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipNotificationRaw := r.Header.Get("X-Skip-Notification")
+			if skipNotificationRaw != "" {
+				v, err2 := strconv.ParseBool(skipNotificationRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_notification", skipNotificationRaw, "boolean"))
+				}
+				skipNotification = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeMemberPayload(uid, memberUID, version, bearerToken, ifMatch, xSync)
+		payload := NewDeleteCommitteeMemberPayload(uid, memberUID, version, bearerToken, ifMatch, xSync, skipNotification)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

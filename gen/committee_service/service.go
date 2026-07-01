@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package committeeservice
 
@@ -793,6 +794,9 @@ type DeleteCommitteeMemberPayload struct {
 	// Determines if the operation should be synchronous (true) or asynchronous
 	// (false, default)
 	XSync bool
+	// When true, suppress the invite/notification email sent to the new member
+	// (used for silent bulk imports)
+	SkipNotification bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly

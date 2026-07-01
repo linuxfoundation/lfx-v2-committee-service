@@ -625,7 +625,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	}
 
 	// Execute delete use case
-	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync)
+	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync, p.SkipNotification)
 	if errDelete != nil {
 		return wrapError(ctx, errDelete)
 	}
@@ -1300,7 +1300,7 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 	}
 
 	// Use orchestrator (not direct storage) to ensure event publishing and cleanup
-	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync); err != nil {
+	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync, false); err != nil {
 		return wrapError(ctx, err)
 	}
 

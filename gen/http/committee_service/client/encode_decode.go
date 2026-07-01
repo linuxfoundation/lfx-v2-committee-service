@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package client
 
@@ -2041,6 +2042,11 @@ func EncodeDeleteCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			head := p.XSync
 			headStr := strconv.FormatBool(head)
 			req.Header.Set("X-Sync", headStr)
+		}
+		{
+			head := p.SkipNotification
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Skip-Notification", headStr)
 		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)

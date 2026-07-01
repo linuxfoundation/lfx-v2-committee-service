@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package committeeservice
 

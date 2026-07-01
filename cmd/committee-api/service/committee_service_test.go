@@ -158,7 +158,7 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 	return m.updateMember, nil
 }
 
-func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
+func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{uid: uid, revision: revision})
 	return m.deleteError
 }
@@ -170,9 +170,9 @@ func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, ol
 	if err != nil {
 		return nil, err
 	}
-	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		if created != nil && created.UID != "" {
-			_ = m.DeleteMember(ctx, created.UID, 0, sync) // rollback attempt
+			_ = m.DeleteMember(ctx, created.UID, 0, sync, false) // rollback attempt
 		}
 		return nil, errDelete
 	}

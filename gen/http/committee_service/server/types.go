@@ -5,6 +5,7 @@
 // Command:
 // $ goa gen
 // github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+// -o .
 
 package server
 
@@ -6362,7 +6363,7 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 
 // NewDeleteCommitteeMemberPayload builds a committee-service service
 // delete-committee-member endpoint payload.
-func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeMemberPayload {
+func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool, skipNotification bool) *committeeservice.DeleteCommitteeMemberPayload {
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
@@ -6370,6 +6371,7 @@ func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version strin
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v
 }

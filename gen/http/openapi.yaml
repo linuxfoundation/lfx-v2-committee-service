@@ -2194,6 +2194,12 @@ paths:
                   required: false
                   type: boolean
                   default: false
+                - name: X-Skip-Notification
+                  in: header
+                  description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                  required: false
+                  type: boolean
+                  default: false
             responses:
                 "204":
                     description: No Content response.

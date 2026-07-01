@@ -713,7 +713,7 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	}
 	return member, s.updateMemberErr
 }
-func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error {
+func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
 	return nil
 }
 func (s *spyCommitteeWriterOrchestrator) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
@@ -1616,8 +1616,16 @@ func TestDiffNewCommitteeUsers(t *testing.T) {
 
 func buildMemberDeletedPayload(t *testing.T, member *model.CommitteeMember) []byte {
 	t.Helper()
+	return buildMemberDeletedPayloadWithSkip(t, member, false)
+}
+
+func buildMemberDeletedPayloadWithSkip(t *testing.T, member *model.CommitteeMember, skipNotification bool) []byte {
+	t.Helper()
 	event := model.CommitteeEvent{}
-	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionDeleted, member)
+	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionDeleted, &model.CommitteeMemberDeletedEventData{
+		CommitteeMember:  member,
+		SkipNotification: skipNotification,
+	})
 	require.NoError(t, err)
 	data, err := json.Marshal(built)
 	require.NoError(t, err)
@@ -1687,6 +1695,11 @@ func TestHandleCommitteeMemberDeleted(t *testing.T) {
 			msgData:        buildMemberDeletedPayload(t, lfidMember),
 			emailSenderErr: assert.AnError,
 			wantEmailCount: 1,
+		},
+		{
+			name:           "skip_notification set — no email sent",
+			msgData:        buildMemberDeletedPayloadWithSkip(t, lfidMember, true),
+			wantEmailCount: 0,
 		},
 		{
 			name:           "invalid JSON — handler returns nil without panic",

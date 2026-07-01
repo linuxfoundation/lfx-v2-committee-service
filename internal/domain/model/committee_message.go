@@ -47,6 +47,14 @@ type CommitteeMemberCreatedEventData struct {
 	SkipNotification bool `json:"skip_notification,omitempty"`
 }
 
+// CommitteeMemberDeletedEventData is the payload for committee_member.deleted events.
+// It embeds the member (flattened in JSON, so consumers that decode a plain
+// CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
+type CommitteeMemberDeletedEventData struct {
+	*CommitteeMember
+	SkipNotification bool `json:"skip_notification,omitempty"`
+}
+
 // CommitteeIndexerMessage is a NATS message schema for sending messages related to committees CRUD operations.
 type CommitteeIndexerMessage struct {
 	Action  MessageAction     `json:"action"`
@@ -244,18 +252,19 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		}
 		e.Data = createData
 	case ActionDeleted:
-		// For delete, expect CommitteeMember
-		member, ok := input.(*CommitteeMember)
-		if !ok || member == nil {
+		// For delete, expect CommitteeMemberDeletedEventData which carries the member
+		// plus the request-scoped skip_notification flag.
+		deletedData, ok := input.(*CommitteeMemberDeletedEventData)
+		if !ok || deletedData == nil || deletedData.CommitteeMember == nil {
 			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
 				"resource", resource,
 				"action", action,
-				"expected", "*CommitteeMember",
+				"expected", "*CommitteeMemberDeletedEventData",
 				"got", fmt.Sprintf("%T", input),
 			)
 			return nil, fmt.Errorf("invalid input type, got %T", input)
 		}
-		e.Data = member
+		e.Data = deletedData
 	case ActionUpdated:
 		// For updates, expect CommitteeMemberUpdateEventData
 		updateData, ok := input.(*CommitteeMemberUpdateEventData)
