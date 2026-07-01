@@ -284,11 +284,16 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, request)
+	writeCtx := ctx
+	if p.SkipEnrichment {
+		writeCtx = service.ContextWithSkipMemberEnrichment(ctx)
+	}
+
+	// Enrich from auth-service unless the caller opted out via X-Skip-Enrichment.
+	s.enrichMember(writeCtx, request)
 
 	// Execute use case
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
+	response, err := s.committeeWriterOrchestrator.CreateMember(writeCtx, request, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -588,11 +593,16 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, committeeMember)
+	writeCtx := ctx
+	if p.SkipEnrichment {
+		writeCtx = service.ContextWithSkipMemberEnrichment(ctx)
+	}
+
+	// Enrich from auth-service unless the caller opted out via X-Skip-Enrichment.
+	s.enrichMember(writeCtx, committeeMember)
 
 	// Execute use case
-	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
+	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(writeCtx, committeeMember, parsedRevision, p.XSync)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1727,6 +1737,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
 	if s.userReader == nil {
+		return
+	}
+	if service.SkipMemberEnrichment(ctx) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))

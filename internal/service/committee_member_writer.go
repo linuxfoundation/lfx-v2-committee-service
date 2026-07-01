@@ -30,15 +30,35 @@ type updateMemberContext struct {
 	skipUsernameEmailResolution bool
 }
 
-// contextWithSkipMemberUsernameEmailResolution skips auth email→username lookup in UpdateMember.
-// Used when invite acceptance sets username from accepted_by, matching Writers/Auditors enrichment.
-func contextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
+// ContextWithSkipMemberEnrichment skips auth-service enrichment (email→username lookup and
+// profile metadata backfill) in CreateMember and UpdateMember. Used when invite acceptance
+// or X-Skip-Enrichment sets member identity from the request payload.
+func ContextWithSkipMemberEnrichment(ctx context.Context) context.Context {
 	return context.WithValue(ctx, updateMemberContextKey{}, updateMemberContext{skipUsernameEmailResolution: true})
 }
 
-func skipMemberUsernameEmailResolution(ctx context.Context) bool {
+// SkipMemberEnrichment reports whether auth-service enrichment should be skipped.
+func SkipMemberEnrichment(ctx context.Context) bool {
 	opts, ok := ctx.Value(updateMemberContextKey{}).(updateMemberContext)
 	return ok && opts.skipUsernameEmailResolution
+}
+
+// ContextWithSkipMemberUsernameEmailResolution is deprecated naming; use ContextWithSkipMemberEnrichment.
+func ContextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
+	return ContextWithSkipMemberEnrichment(ctx)
+}
+
+// SkipMemberUsernameEmailResolution is deprecated naming; use SkipMemberEnrichment.
+func SkipMemberUsernameEmailResolution(ctx context.Context) bool {
+	return SkipMemberEnrichment(ctx)
+}
+
+func contextWithSkipMemberEnrichment(ctx context.Context) context.Context {
+	return ContextWithSkipMemberEnrichment(ctx)
+}
+
+func skipMemberEnrichment(ctx context.Context) bool {
+	return SkipMemberEnrichment(ctx)
 }
 
 // type committeeWriterOrchestrator from committee_writer.go
@@ -194,7 +214,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
 	// Clear first so a failed lookup never leaves an unverified value at rest.
-	if member.Email != "" {
+	if member.Email != "" && !skipMemberEnrichment(ctx) {
 		member.Username = ""
 		slog.DebugContext(ctx, "resolving username from email",
 			"email", redaction.RedactEmail(member.Email),
@@ -535,8 +555,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	// Resolve username from email when auth can map the email to an LFID.
 	// When lookup fails or returns empty, keep the stored username only if the email did not change.
 	// If the email changed, clear username to avoid persisting a username/email mismatch.
-	// Invite acceptance skips this block and persists accepted_by directly (see contextWithSkipMemberUsernameEmailResolution).
-	if member.Email != "" && !skipMemberUsernameEmailResolution(ctx) {
+	// Invite acceptance skips this block and persists accepted_by directly (see ContextWithSkipMemberEnrichment).
+	if member.Email != "" && !skipMemberEnrichment(ctx) {
 		slog.DebugContext(ctx, "resolving username from email during update",
 			"email", redaction.RedactEmail(member.Email),
 			"stored_username", redaction.Redact(existing.Username),

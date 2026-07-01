@@ -1669,6 +1669,26 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
 	})
+
+	t.Run("invite acceptance context persists caller-supplied username without email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, _ := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "other-lfid"}}
+		addCommittee(mockRepo)
+
+		ctx := ContextWithSkipMemberEnrichment(context.Background())
+		result, err := orchestrator.CreateMember(ctx, &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "c-1",
+				Email:        "alice@example.com",
+				Username:     "sync-lfid",
+				FirstName:    "Alice",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, "sync-lfid", result.Username)
+	})
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.T) {
@@ -1763,7 +1783,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
 		addCommitteeAndMember(mockRepo, memberWriter)
 
-		ctx := contextWithSkipMemberUsernameEmailResolution(context.Background())
+		ctx := contextWithSkipMemberEnrichment(context.Background())
 		result, err := orchestrator.UpdateMember(ctx, &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",

@@ -1157,7 +1157,7 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx context.Co
 			member.LastName = e.lastName
 		}
 
-		inviteCtx := contextWithSkipMemberUsernameEmailResolution(e.writeCtx)
+		inviteCtx := contextWithSkipMemberEnrichment(e.writeCtx)
 		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
 		if writeErr != nil {
 			var conflictErr errors.Conflict

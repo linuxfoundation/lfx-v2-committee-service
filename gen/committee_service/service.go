@@ -577,6 +577,10 @@ type CreateCommitteeMemberPayload struct {
 	// When true, suppress the notification email sent to the committee member
 	// (whether added or removed)
 	SkipNotification bool
+	// When true, skip auth-service enrichment: the username, name, and avatar from
+	// the request body are stored as-is without email→username lookup or profile
+	// metadata backfill. Intended for trusted sync callers.
+	SkipEnrichment bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// User's LF ID
@@ -1344,6 +1348,10 @@ type UpdateCommitteeMemberPayload struct {
 	// Determines if the operation should be synchronous (true) or asynchronous
 	// (false, default)
 	XSync bool
+	// When true, skip auth-service enrichment: the username, name, and avatar from
+	// the request body are stored as-is without email→username lookup or profile
+	// metadata backfill. Intended for trusted sync callers.
+	SkipEnrichment bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly

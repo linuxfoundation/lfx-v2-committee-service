@@ -6150,7 +6150,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 
 // NewCreateCommitteeMemberPayload builds a committee-service service
 // create-committee-member endpoint payload.
-func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool) *committeeservice.CreateCommitteeMemberPayload {
+func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool, skipEnrichment bool) *committeeservice.CreateCommitteeMemberPayload {
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           *body.Email,
@@ -6228,6 +6228,7 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	v.BearerToken = bearerToken
 	v.XSync = xSync
 	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
 
 	return v
 }
@@ -6277,7 +6278,7 @@ func NewReassignOrgCommitteeSeatPayload(body *ReassignOrgCommitteeSeatRequestBod
 
 // NewUpdateCommitteeMemberPayload builds a committee-service service
 // update-committee-member endpoint payload.
-func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeMemberPayload {
+func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool, skipEnrichment bool) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           *body.Email,
@@ -6356,6 +6357,7 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipEnrichment = skipEnrichment
 
 	return v
 }

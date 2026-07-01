@@ -2894,6 +2894,16 @@ paths:
                     default: false
                     example: true
                   example: true
+                - name: X-Skip-Enrichment
+                  in: header
+                  description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
+                    default: false
+                    example: true
+                  example: true
             requestBody:
                 required: true
                 content:
@@ -3281,6 +3291,16 @@ paths:
                   schema:
                     type: boolean
                     description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                    default: false
+                    example: true
+                  example: true
+                - name: X-Skip-Enrichment
+                  in: header
+                  description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
                     default: false
                     example: true
                   example: true

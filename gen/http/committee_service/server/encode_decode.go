@@ -996,6 +996,7 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 			bearerToken      *string
 			xSync            bool
 			skipNotification bool
+			skipEnrichment   bool
 
 			params = mux.Vars(r)
 		)
@@ -1032,10 +1033,20 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				skipNotification = v
 			}
 		}
+		{
+			skipEnrichmentRaw := r.Header.Get("X-Skip-Enrichment")
+			if skipEnrichmentRaw != "" {
+				v, err2 := strconv.ParseBool(skipEnrichmentRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_enrichment", skipEnrichmentRaw, "boolean"))
+				}
+				skipEnrichment = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification)
+		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification, skipEnrichment)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -1600,12 +1611,13 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		}
 
 		var (
-			uid         string
-			memberUID   string
-			version     string
-			bearerToken *string
-			ifMatch     *string
-			xSync       bool
+			uid            string
+			memberUID      string
+			version        string
+			bearerToken    *string
+			ifMatch        *string
+			xSync          bool
+			skipEnrichment bool
 
 			params = mux.Vars(r)
 		)
@@ -1638,10 +1650,20 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipEnrichmentRaw := r.Header.Get("X-Skip-Enrichment")
+			if skipEnrichmentRaw != "" {
+				v, err2 := strconv.ParseBool(skipEnrichmentRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_enrichment", skipEnrichmentRaw, "boolean"))
+				}
+				skipEnrichment = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewUpdateCommitteeMemberPayload(&body, uid, memberUID, version, bearerToken, ifMatch, xSync)
+		payload := NewUpdateCommitteeMemberPayload(&body, uid, memberUID, version, bearerToken, ifMatch, xSync, skipEnrichment)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
