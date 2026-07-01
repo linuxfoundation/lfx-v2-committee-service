@@ -167,10 +167,10 @@ func (w *mockWriter) UpdateSettings(_ context.Context, s *model.CommitteeSetting
 	return s, nil
 }
 func (w *mockWriter) Delete(_ context.Context, _ string, _ uint64, _ bool) error { return nil }
-func (w *mockWriter) CreateMember(_ context.Context, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+func (w *mockWriter) CreateMember(_ context.Context, m *model.CommitteeMember, _ bool, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
-func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64, _ bool) (*model.CommitteeMember, error) {
+func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64, _ bool, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
 func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
@@ -398,11 +398,11 @@ func (c *conditionalFailWriter) UpdateSettings(ctx context.Context, s *model.Com
 func (c *conditionalFailWriter) Delete(ctx context.Context, uid string, rev uint64, sync bool) error {
 	return c.inner.Delete(ctx, uid, rev, sync)
 }
-func (c *conditionalFailWriter) CreateMember(ctx context.Context, m *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
-	return c.inner.CreateMember(ctx, m, sync)
+func (c *conditionalFailWriter) CreateMember(ctx context.Context, m *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+	return c.inner.CreateMember(ctx, m, sync, skipEnrichment)
 }
-func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.CommitteeMember, rev uint64, sync bool) (*model.CommitteeMember, error) {
-	return c.inner.UpdateMember(ctx, m, rev, sync)
+func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.CommitteeMember, rev uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+	return c.inner.UpdateMember(ctx, m, rev, sync, skipEnrichment)
 }
 func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool, skipNotification bool) error {
 	return c.inner.DeleteMember(ctx, uid, rev, sync, skipNotification)

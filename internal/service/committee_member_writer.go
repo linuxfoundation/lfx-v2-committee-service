@@ -23,44 +23,6 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
-// updateMemberContextKey marks UpdateMember options on a context.
-type updateMemberContextKey struct{}
-
-type updateMemberContext struct {
-	skipUsernameEmailResolution bool
-}
-
-// ContextWithSkipMemberEnrichment skips auth-service enrichment (email→username lookup and
-// profile metadata backfill) in CreateMember and UpdateMember. Used when invite acceptance
-// or X-Skip-Enrichment sets member identity from the request payload.
-func ContextWithSkipMemberEnrichment(ctx context.Context) context.Context {
-	return context.WithValue(ctx, updateMemberContextKey{}, updateMemberContext{skipUsernameEmailResolution: true})
-}
-
-// SkipMemberEnrichment reports whether auth-service enrichment should be skipped.
-func SkipMemberEnrichment(ctx context.Context) bool {
-	opts, ok := ctx.Value(updateMemberContextKey{}).(updateMemberContext)
-	return ok && opts.skipUsernameEmailResolution
-}
-
-// ContextWithSkipMemberUsernameEmailResolution is deprecated naming; use ContextWithSkipMemberEnrichment.
-func ContextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
-	return ContextWithSkipMemberEnrichment(ctx)
-}
-
-// SkipMemberUsernameEmailResolution is deprecated naming; use SkipMemberEnrichment.
-func SkipMemberUsernameEmailResolution(ctx context.Context) bool {
-	return SkipMemberEnrichment(ctx)
-}
-
-func contextWithSkipMemberEnrichment(ctx context.Context) context.Context {
-	return ContextWithSkipMemberEnrichment(ctx)
-}
-
-func skipMemberEnrichment(ctx context.Context) bool {
-	return SkipMemberEnrichment(ctx)
-}
-
 // type committeeWriterOrchestrator from committee_writer.go
 
 func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, keys []string, isRollback bool) {
@@ -118,7 +80,7 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 }
 
 // CreateMember creates a new committee member includes validation and rollback support
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "creating committee member",
 		"committee_uid", member.CommitteeUID,
 		"member_email", redaction.RedactEmail(member.Email),
@@ -214,7 +176,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
 	// Clear first so a failed lookup never leaves an unverified value at rest.
-	if member.Email != "" && !skipMemberEnrichment(ctx) {
+	if member.Email != "" && !skipEnrichment {
 		member.Username = ""
 		slog.DebugContext(ctx, "resolving username from email",
 			"email", redaction.RedactEmail(member.Email),
@@ -366,7 +328,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 }
 
 // UpdateMember updates an existing committee member
-func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "executing update committee member use case",
 		"member_uid", member.UID,
 		"committee_uid", member.CommitteeUID,
@@ -555,8 +517,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	// Resolve username from email when auth can map the email to an LFID.
 	// When lookup fails or returns empty, keep the stored username only if the email did not change.
 	// If the email changed, clear username to avoid persisting a username/email mismatch.
-	// Invite acceptance skips this block and persists accepted_by directly (see ContextWithSkipMemberEnrichment).
-	if member.Email != "" && !skipMemberEnrichment(ctx) {
+	// Invite acceptance and X-Skip-Enrichment skip this block and persist caller-supplied identity.
+	if member.Email != "" && !skipEnrichment {
 		slog.DebugContext(ctx, "resolving username from email during update",
 			"email", redaction.RedactEmail(member.Email),
 			"stored_username", redaction.Redact(existing.Username),
@@ -857,7 +819,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 
 	// Create the replacement holder first. CreateMember owns its own internal rollback for partial
 	// create failures, so on error nothing is left behind and the old seat is untouched.
-	created, errCreate := uc.CreateMember(ctx, newMember, sync)
+	created, errCreate := uc.CreateMember(ctx, newMember, sync, false)
 	if errCreate != nil {
 		return nil, errCreate
 	}

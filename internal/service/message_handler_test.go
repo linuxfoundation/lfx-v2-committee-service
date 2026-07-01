@@ -699,10 +699,10 @@ func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, setti
 func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ uint64, _ bool) error {
 	return nil
 }
-func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool, _ bool) (*model.CommitteeMember, error) {
 	return nil, nil
 }
-func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool) (*model.CommitteeMember, error) {
+func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
