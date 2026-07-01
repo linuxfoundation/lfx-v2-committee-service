@@ -132,6 +132,12 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 		return
 	}
 
+	if !m.notificationsAllowedForProject(committee.ProjectSlug) {
+		slog.DebugContext(ctx, "skipping content notification — project not in allowlist",
+			"committee_uid", item.committeeUID, "project_slug", committee.ProjectSlug)
+		return
+	}
+
 	recipients := m.collectCommitteeRecipients(ctx, item.committeeUID)
 	if len(recipients) == 0 {
 		slog.DebugContext(ctx, "no LFID recipients for content notification", "committee_uid", item.committeeUID)

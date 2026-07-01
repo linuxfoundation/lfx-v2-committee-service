@@ -9,6 +9,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNotificationProjectAllowlist(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{name: "unset returns nil", value: "", want: nil},
+		{name: "single slug", value: "aaif", want: []string{"aaif"}},
+		{name: "multiple slugs", value: "aaif,pytorch", want: []string{"aaif", "pytorch"}},
+		{name: "whitespace trimmed", value: " aaif , pytorch ", want: []string{"aaif", "pytorch"}},
+		{name: "embedded empties dropped", value: "aaif,,pytorch,", want: []string{"aaif", "pytorch"}},
+		{name: "mixed-case normalized", value: "AAIF,PyTorch", want: []string{"aaif", "pytorch"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("EMAIL_NOTIFICATION_PROJECT_ALLOWLIST", tt.value)
+			assert.Equal(t, tt.want, NotificationProjectAllowlist())
+		})
+	}
+}
+
 func TestLFXSelfServeBaseURL(t *testing.T) {
 	tests := []struct {
 		name        string
