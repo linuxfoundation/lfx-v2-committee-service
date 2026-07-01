@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -457,6 +458,23 @@ func InviteSenderImpl(ctx context.Context) port.InviteSender {
 	return nil
 }
 
+// NotificationProjectAllowlist parses EMAIL_NOTIFICATION_PROJECT_ALLOWLIST into a
+// normalised slice of project slugs. An empty or unset value returns nil (allow all).
+func NotificationProjectAllowlist() []string {
+	raw := os.Getenv("EMAIL_NOTIFICATION_PROJECT_ALLOWLIST")
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	slugs := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.ToLower(strings.TrimSpace(p)); s != "" {
+			slugs = append(slugs, s)
+		}
+	}
+	return slugs
+}
+
 // LFXSelfServeBaseURL derives the LFX Self-Serve base URL from environment variables.
 // LFX_SELF_SERVE_BASE_URL takes precedence; otherwise it falls back to LFX_ENVIRONMENT.
 // When LFX_ENVIRONMENT is unset, prod is assumed (safe default for deployed environments).
@@ -862,6 +880,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
 			usecaseSvc.WithProjectReaderForMessageHandler(ProjectRetrieverImpl(ctx)),
 			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),
+			usecaseSvc.WithNotificationProjectAllowlistForMessageHandler(NotificationProjectAllowlist()),
 		),
 	}
 

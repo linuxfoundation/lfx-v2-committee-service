@@ -474,6 +474,11 @@ app:
     # JWT_AUDIENCE — mirrors .Values.app.audience (used by ruleset.yaml).
     JWT_AUDIENCE:
       value: lfx-v2-committee-service
+    # EMAIL_NOTIFICATION_PROJECT_ALLOWLIST restricts committee notification emails to
+    # a comma-separated list of project slugs (e.g. "aaif,test-project-group-it").
+    # Empty or unset means all projects receive notifications (no restriction).
+    EMAIL_NOTIFICATION_PROJECT_ALLOWLIST:
+      value: ""
     # EMAILS_ENABLED gates outbound role-notification emails to LFID users.
     EMAILS_ENABLED:
       value: "false"

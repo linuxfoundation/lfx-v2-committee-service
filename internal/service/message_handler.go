@@ -42,6 +42,9 @@ type messageHandlerOrchestrator struct {
 	linkReader                  port.CommitteeLinkReader
 	lfxSelfServeBaseURL         string
 	weeklyBriefGenerator        GroupWeeklyBriefGenerator
+	// notificationProjectAllowlist, when non-empty, restricts committee notification
+	// emails to committees whose project slug is in this set. Empty means all projects.
+	notificationProjectAllowlist map[string]struct{}
 }
 
 // messageHandlerOrchestratorOption defines a function type for setting options
@@ -124,6 +127,32 @@ func WithGroupWeeklyBriefGeneratorForMessageHandler(generator GroupWeeklyBriefGe
 	return func(m *messageHandlerOrchestrator) {
 		m.weeklyBriefGenerator = generator
 	}
+}
+
+// WithNotificationProjectAllowlistForMessageHandler restricts committee notification
+// emails to the given project slugs. An empty slice means all projects are allowed
+// (preserving the default behaviour when the env var is unset).
+func WithNotificationProjectAllowlistForMessageHandler(slugs []string) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		if len(slugs) == 0 {
+			m.notificationProjectAllowlist = nil
+			return
+		}
+		m.notificationProjectAllowlist = make(map[string]struct{}, len(slugs))
+		for _, s := range slugs {
+			m.notificationProjectAllowlist[strings.ToLower(s)] = struct{}{}
+		}
+	}
+}
+
+// notificationsAllowedForProject reports whether committee notification emails may
+// be sent for the given project slug. An empty allowlist means all projects are allowed.
+func (m *messageHandlerOrchestrator) notificationsAllowedForProject(projectSlug string) bool {
+	if len(m.notificationProjectAllowlist) == 0 {
+		return true
+	}
+	_, ok := m.notificationProjectAllowlist[strings.ToLower(projectSlug)]
+	return ok
 }
 
 // HandleGenerateWeeklyBriefRequested reacts to generate-requested stream events.
@@ -608,6 +637,14 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		return nil, nil
 	}
 
+	// Project allowlist gate: when a slug allowlist is configured, only send
+	// notifications for committees belonging to those projects.
+	if !m.notificationsAllowedForProject(member.ProjectSlug) {
+		slog.DebugContext(ctx, "skipping member notification — project not in allowlist",
+			"committee_uid", member.CommitteeUID, "project_slug", member.ProjectSlug)
+		return nil, nil
+	}
+
 	if member.Email == "" {
 		slog.WarnContext(ctx, "skipping member notification — no email address",
 			"committee_uid", member.CommitteeUID, "username", redaction.Redact(member.Username))
@@ -736,6 +773,27 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 		slog.DebugContext(ctx, "no writer/auditor changes — skipping settings notification",
 			"committee_uid", data.CommitteeUID)
 		return nil, nil
+	}
+
+	// Project allowlist gate: when a slug allowlist is configured, load the committee
+	// to obtain its project slug and gate before sending any per-user notifications.
+	if len(m.notificationProjectAllowlist) > 0 {
+		if m.committeeReader == nil {
+			slog.DebugContext(ctx, "committee reader not configured — skipping settings notification",
+				"committee_uid", data.CommitteeUID)
+			return nil, nil
+		}
+		committee, _, err := m.committeeReader.GetBase(ctx, data.CommitteeUID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to load committee for settings notification project gate",
+				"error", err, "committee_uid", data.CommitteeUID)
+			return nil, nil
+		}
+		if !m.notificationsAllowedForProject(committee.ProjectSlug) {
+			slog.DebugContext(ctx, "skipping settings notification — project not in allowlist",
+				"committee_uid", data.CommitteeUID, "project_slug", committee.ProjectSlug)
+			return nil, nil
+		}
 	}
 
 	committeeURL := buildCommitteeURL(m.lfxSelfServeBaseURL, data.CommitteeUID)

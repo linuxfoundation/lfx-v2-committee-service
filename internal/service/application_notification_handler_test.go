@@ -341,3 +341,90 @@ func TestHandleCommitteeApplicationUpdated(t *testing.T) {
 		require.NoError(t, err) // best-effort: error must not propagate
 	})
 }
+
+func TestApplicationNotificationsProjectAllowlist(t *testing.T) {
+	repoAllowlisted := mock.NewMockRepository()
+	repoAllowlisted.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:         "committee-allow",
+			Name:        "TSC",
+			ProjectUID:  "project-allow",
+			ProjectName: "AAIF",
+			ProjectSlug: "aaif",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:     "committee-allow",
+			Writers: []model.CommitteeUser{{Username: "writer1", Email: "writer1@example.com", Name: "Writer One"}},
+		},
+	})
+
+	repoBlocked := mock.NewMockRepository()
+	repoBlocked.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:         "committee-block",
+			Name:        "TSC",
+			ProjectUID:  "project-block",
+			ProjectName: "PyTorch",
+			ProjectSlug: "pytorch",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:     "committee-block",
+			Writers: []model.CommitteeUser{{Username: "writer1", Email: "writer1@example.com", Name: "Writer One"}},
+		},
+	})
+
+	readerAllow := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repoAllowlisted)))
+	readerBlock := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repoBlocked)))
+
+	t.Run("submitted — allowlisted project sends notification", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{committeeReader: readerAllow, emailSender: sender}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		app := &model.CommitteeApplication{CommitteeUID: "committee-allow", ApplicantEmail: "a@example.com"}
+		msg := newMockTransportMessenger(constants.CommitteeApplicationSubmittedSubject, buildApplicationSubmittedPayload(t, app))
+		_, err := h.HandleCommitteeApplicationSubmitted(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1)
+	})
+
+	t.Run("submitted — non-allowlisted project suppressed", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{committeeReader: readerBlock, emailSender: sender}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		app := &model.CommitteeApplication{CommitteeUID: "committee-block", ApplicantEmail: "a@example.com"}
+		msg := newMockTransportMessenger(constants.CommitteeApplicationSubmittedSubject, buildApplicationSubmittedPayload(t, app))
+		_, err := h.HandleCommitteeApplicationSubmitted(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 0)
+	})
+
+	t.Run("updated approved — allowlisted project sends notification", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     readerAllow,
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		app := &model.CommitteeApplication{CommitteeUID: "committee-allow", ApplicantEmail: "a@example.com", Status: "approved"}
+		msg := newMockTransportMessenger(constants.CommitteeApplicationUpdatedSubject, buildApplicationUpdatedPayload(t, app))
+		_, err := h.HandleCommitteeApplicationUpdated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1)
+	})
+
+	t.Run("updated approved — non-allowlisted project suppressed", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     readerBlock,
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		app := &model.CommitteeApplication{CommitteeUID: "committee-block", ApplicantEmail: "a@example.com", Status: "approved"}
+		msg := newMockTransportMessenger(constants.CommitteeApplicationUpdatedSubject, buildApplicationUpdatedPayload(t, app))
+		_, err := h.HandleCommitteeApplicationUpdated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 0)
+	})
+}

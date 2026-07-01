@@ -62,6 +62,13 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationSubmitted(ctx con
 		return nil, nil
 	}
 
+	// Project allowlist gate.
+	if !m.notificationsAllowedForProject(committee.ProjectSlug) {
+		slog.DebugContext(ctx, "skipping application submitted notification — project not in allowlist",
+			"committee_uid", application.CommitteeUID, "project_slug", committee.ProjectSlug)
+		return nil, nil
+	}
+
 	writers := m.collectCommitteeWriters(ctx, committee)
 	if len(writers) == 0 {
 		slog.DebugContext(ctx, "no LFID writers to notify for application submitted",
@@ -175,6 +182,13 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 	if err != nil {
 		slog.WarnContext(ctx, "failed to load committee for application updated notification",
 			"error", err, "committee_uid", application.CommitteeUID)
+		return nil, nil
+	}
+
+	// Project allowlist gate.
+	if !m.notificationsAllowedForProject(committee.ProjectSlug) {
+		slog.DebugContext(ctx, "skipping application updated notification — project not in allowlist",
+			"committee_uid", application.CommitteeUID, "project_slug", committee.ProjectSlug)
 		return nil, nil
 	}
 

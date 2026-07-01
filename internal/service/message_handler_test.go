@@ -2627,3 +2627,176 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	require.NoError(t, err)
 	return b
 }
+
+func TestNotificationsAllowedForProject(t *testing.T) {
+	tests := []struct {
+		name        string
+		allowlist   []string
+		projectSlug string
+		want        bool
+	}{
+		{"empty allowlist allows all", nil, "any-slug", true},
+		{"empty allowlist allows empty slug", nil, "", true},
+		{"exact match allowed", []string{"aaif"}, "aaif", true},
+		{"multiple slugs match", []string{"aaif", "test-project-group-it"}, "test-project-group-it", true},
+		{"slug not in list suppressed", []string{"aaif"}, "pytorch", false},
+		{"empty slug not in non-empty list suppressed", []string{"aaif"}, "", false},
+		{"case insensitive match", []string{"aaif"}, "AAIF", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &messageHandlerOrchestrator{}
+			WithNotificationProjectAllowlistForMessageHandler(tt.allowlist)(h)
+			assert.Equal(t, tt.want, h.notificationsAllowedForProject(tt.projectSlug))
+		})
+	}
+}
+
+func TestHandleCommitteeMemberCreatedProjectAllowlist(t *testing.T) {
+	memberInAllowlist := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "m-1",
+			Username:      "alice",
+			Email:         "alice@example.com",
+			FirstName:     "Alice",
+			CommitteeUID:  "c-1",
+			CommitteeName: "TSC",
+			ProjectSlug:   "aaif",
+		},
+	}
+	memberOutsideAllowlist := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "m-2",
+			Username:      "bob",
+			Email:         "bob@example.com",
+			FirstName:     "Bob",
+			CommitteeUID:  "c-2",
+			CommitteeName: "TSC",
+			ProjectSlug:   "pytorch",
+		},
+	}
+
+	t.Run("allowlisted project slug — email sent", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, memberInAllowlist))
+		_, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "email should be sent for allowlisted project")
+	})
+
+	t.Run("project slug not in allowlist — email suppressed", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, memberOutsideAllowlist))
+		_, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 0, "email should be suppressed for non-allowlisted project")
+	})
+
+	t.Run("empty allowlist — email sent for any project", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		// no allowlist set
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, memberOutsideAllowlist))
+		_, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "email should be sent when allowlist is empty")
+	})
+
+	t.Run("allowlist case-insensitive match", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"AAIF"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, buildMemberCreatedPayload(t, memberInAllowlist))
+		_, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "allowlist matching should be case-insensitive")
+	})
+}
+
+func TestHandleCommitteeSettingsUpdatedProjectAllowlist(t *testing.T) {
+	alice := model.CommitteeUser{Username: "alice", Email: "alice@example.com", Name: "Alice"}
+
+	buildPayloadWithUID := func(t *testing.T, committeeUID string, writers []model.CommitteeUser) []byte {
+		t.Helper()
+		return buildSettingsUpdatedPayload(t, &model.CommitteeSettingsUpdateEventData{
+			CommitteeUID:  committeeUID,
+			CommitteeName: "TSC",
+			Settings:      &model.CommitteeSettings{Writers: writers},
+			OldSettings:   &model.CommitteeSettings{},
+		})
+	}
+
+	repo := mock.NewMockRepository()
+	repo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:         "c-allowlisted",
+			Name:        "TSC",
+			ProjectSlug: "aaif",
+		},
+	})
+	repo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:         "c-blocked",
+			Name:        "TSC",
+			ProjectSlug: "pytorch",
+		},
+	})
+	reader := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repo)))
+
+	t.Run("allowlisted project — email sent", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			committeeReader:     reader,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeSettingsUpdatedSubject, buildPayloadWithUID(t, "c-allowlisted", []model.CommitteeUser{alice}))
+		_, err := h.HandleCommitteeSettingsUpdated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "email should be sent for allowlisted project")
+	})
+
+	t.Run("project not in allowlist — email suppressed", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			committeeReader:     reader,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeSettingsUpdatedSubject, buildPayloadWithUID(t, "c-blocked", []model.CommitteeUser{alice}))
+		_, err := h.HandleCommitteeSettingsUpdated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 0, "email should be suppressed for non-allowlisted project")
+	})
+
+	t.Run("empty allowlist — email sent for any project", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		// no allowlist — no committeeReader needed; gate is skipped entirely
+		msg := newMockTransportMessenger(constants.CommitteeSettingsUpdatedSubject, buildPayloadWithUID(t, "c-blocked", []model.CommitteeUser{alice}))
+		_, err := h.HandleCommitteeSettingsUpdated(context.Background(), msg)
+		require.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "email should be sent when allowlist is empty")
+	})
+}
