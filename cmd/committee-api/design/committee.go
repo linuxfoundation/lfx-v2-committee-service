@@ -534,6 +534,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			IfMatchAttribute()
 			XSyncAttribute()
+			SkipNotificationAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
@@ -554,6 +555,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
 			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)

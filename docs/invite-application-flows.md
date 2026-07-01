@@ -294,3 +294,32 @@ nats kv get --server "$NATS_URL" committee-members <member_uid>
 | LFID invite flow (this section) | Email-only Writers, Auditors, Members | `lfx.invite-service.invite_accepted` enriches matching rows with `username` |
 
 Both can apply to the same person over time; enrichment matches by **email**, not invite UID on resource rows.
+
+## Notification Suppression (skip_notification)
+
+Both the member-create and member-delete endpoints accept an `X-Skip-Notification` header (`skip_notification` in the Goa payload) that suppresses outbound emails for that specific request. This is the mechanism used by V1/PCC-origin callers (e.g. `lfx-v1-sync-helper`) to prevent notification emails from firing on sync-driven writes.
+
+### Member created (`POST /committees/{uid}/members`)
+
+When `X-Skip-Notification: true` is set:
+- `CommitteeMemberCreatedEventData.SkipNotification` is set to `true` in the `committee_member.created` NATS event payload.
+- `HandleCommitteeMemberCreated` short-circuits before sending either the direct notification email or the invite-service invite.
+
+### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
+
+When `X-Skip-Notification: true` is set:
+- `CommitteeMemberDeletedEventData.SkipNotification` is set to `true` in the `committee_member.deleted` NATS event payload.
+- `HandleCommitteeMemberDeleted` short-circuits before sending the removal notification email.
+
+### NATS event payload shapes
+
+`committee_member.created` data is a `CommitteeMemberCreatedEventData` (JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`).
+
+`committee_member.deleted` data is a `CommitteeMemberDeletedEventData` (same shape: JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`). Consumers that previously decoded a bare `CommitteeMember` from deleted events continue to work because the struct embeds `*CommitteeMember` and the extra field is `omitempty`.
+
+### Scope
+
+`skip_notification` only gates the **notification email** for the affected member. It does not suppress:
+- Indexer messages (`lfx.index.*`) — those are always published.
+- FGA access-control messages — those are always published.
+- Settings-change emails (`HandleCommitteeSettingsUpdated`) — those are not gated by this flag.

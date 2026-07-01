@@ -128,13 +128,14 @@ func ParseEndpoint(
 		committeeServiceUpdateCommitteeMemberIfMatchFlag     = committeeServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
 		committeeServiceUpdateCommitteeMemberXSyncFlag       = committeeServiceUpdateCommitteeMemberFlags.String("x-sync", "", "")
 
-		committeeServiceDeleteCommitteeMemberFlags           = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
-		committeeServiceDeleteCommitteeMemberUIDFlag         = committeeServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
-		committeeServiceDeleteCommitteeMemberMemberUIDFlag   = committeeServiceDeleteCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
-		committeeServiceDeleteCommitteeMemberVersionFlag     = committeeServiceDeleteCommitteeMemberFlags.String("version", "REQUIRED", "")
-		committeeServiceDeleteCommitteeMemberBearerTokenFlag = committeeServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeServiceDeleteCommitteeMemberIfMatchFlag     = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
-		committeeServiceDeleteCommitteeMemberXSyncFlag       = committeeServiceDeleteCommitteeMemberFlags.String("x-sync", "", "")
+		committeeServiceDeleteCommitteeMemberFlags                = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
+		committeeServiceDeleteCommitteeMemberUIDFlag              = committeeServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeleteCommitteeMemberMemberUIDFlag        = committeeServiceDeleteCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeServiceDeleteCommitteeMemberVersionFlag          = committeeServiceDeleteCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeServiceDeleteCommitteeMemberBearerTokenFlag      = committeeServiceDeleteCommitteeMemberFlags.String("bearer-token", "", "")
+		committeeServiceDeleteCommitteeMemberIfMatchFlag          = committeeServiceDeleteCommitteeMemberFlags.String("if-match", "", "")
+		committeeServiceDeleteCommitteeMemberXSyncFlag            = committeeServiceDeleteCommitteeMemberFlags.String("x-sync", "", "")
+		committeeServiceDeleteCommitteeMemberSkipNotificationFlag = committeeServiceDeleteCommitteeMemberFlags.String("skip-notification", "", "")
 
 		committeeServiceGetInviteFlags           = flag.NewFlagSet("get-invite", flag.ExitOnError)
 		committeeServiceGetInviteUIDFlag         = committeeServiceGetInviteFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
@@ -564,7 +565,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildUpdateCommitteeMemberPayload(*committeeServiceUpdateCommitteeMemberBodyFlag, *committeeServiceUpdateCommitteeMemberUIDFlag, *committeeServiceUpdateCommitteeMemberMemberUIDFlag, *committeeServiceUpdateCommitteeMemberVersionFlag, *committeeServiceUpdateCommitteeMemberBearerTokenFlag, *committeeServiceUpdateCommitteeMemberIfMatchFlag, *committeeServiceUpdateCommitteeMemberXSyncFlag)
 			case "delete-committee-member":
 				endpoint = c.DeleteCommitteeMember()
-				data, err = committeeservicec.BuildDeleteCommitteeMemberPayload(*committeeServiceDeleteCommitteeMemberUIDFlag, *committeeServiceDeleteCommitteeMemberMemberUIDFlag, *committeeServiceDeleteCommitteeMemberVersionFlag, *committeeServiceDeleteCommitteeMemberBearerTokenFlag, *committeeServiceDeleteCommitteeMemberIfMatchFlag, *committeeServiceDeleteCommitteeMemberXSyncFlag)
+				data, err = committeeservicec.BuildDeleteCommitteeMemberPayload(*committeeServiceDeleteCommitteeMemberUIDFlag, *committeeServiceDeleteCommitteeMemberMemberUIDFlag, *committeeServiceDeleteCommitteeMemberVersionFlag, *committeeServiceDeleteCommitteeMemberBearerTokenFlag, *committeeServiceDeleteCommitteeMemberIfMatchFlag, *committeeServiceDeleteCommitteeMemberXSyncFlag, *committeeServiceDeleteCommitteeMemberSkipNotificationFlag)
 			case "get-invite":
 				endpoint = c.GetInvite()
 				data, err = committeeservicec.BuildGetInvitePayload(*committeeServiceGetInviteUIDFlag, *committeeServiceGetInviteInviteUIDFlag, *committeeServiceGetInviteVersionFlag, *committeeServiceGetInviteBearerTokenFlag)
@@ -1030,6 +1031,7 @@ func committeeServiceDeleteCommitteeMemberUsage() {
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprint(os.Stderr, " -if-match STRING")
 	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprint(os.Stderr, " -skip-notification BOOL")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
@@ -1043,10 +1045,11 @@ func committeeServiceDeleteCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
 	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+	fmt.Fprintln(os.Stderr, `    -skip-notification BOOL: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service delete-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true --skip-notification true")
 }
 
 func committeeServiceGetInviteUsage() {

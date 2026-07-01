@@ -1365,11 +1365,25 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		return nil, nil
 	}
 
-	var member model.CommitteeMember
-	if err := json.Unmarshal(raw, &member); err != nil {
-		slog.WarnContext(ctx, "cannot decode CommitteeMember from committee_member.deleted event", "error", err)
+	// Decode the deleted-event payload into the typed wrapper so the
+	// request-scoped skip_notification flag is parsed alongside the member. On a
+	// malformed payload we fail safe by suppressing the notification rather than
+	// defaulting to send.
+	var deleted model.CommitteeMemberDeletedEventData
+	if err := json.Unmarshal(raw, &deleted); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMemberDeletedEventData from committee_member.deleted event — suppressing notification", "error", err)
 		return nil, nil
 	}
+	if deleted.CommitteeMember == nil {
+		slog.WarnContext(ctx, "committee_member.deleted event missing member payload — suppressing notification")
+		return nil, nil
+	}
+	if deleted.SkipNotification {
+		slog.DebugContext(ctx, "skipping member-deleted notification — skip_notification flag set",
+			"committee_uid", deleted.CommitteeUID)
+		return nil, nil
+	}
+	member := *deleted.CommitteeMember
 
 	if member.Username == "" {
 		slog.DebugContext(ctx, "skipping member-deleted notification — non-LF user",

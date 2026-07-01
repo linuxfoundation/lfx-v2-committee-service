@@ -173,7 +173,9 @@ func (w *mockWriter) CreateMember(_ context.Context, m *model.CommitteeMember, _
 func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
-func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error { return nil }
+func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
+	return nil
+}
 func (w *mockWriter) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
@@ -402,8 +404,8 @@ func (c *conditionalFailWriter) CreateMember(ctx context.Context, m *model.Commi
 func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.CommitteeMember, rev uint64, sync bool) (*model.CommitteeMember, error) {
 	return c.inner.UpdateMember(ctx, m, rev, sync)
 }
-func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool) error {
-	return c.inner.DeleteMember(ctx, uid, rev, sync)
+func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool, skipNotification bool) error {
+	return c.inner.DeleteMember(ctx, uid, rev, sync, skipNotification)
 }
 func (c *conditionalFailWriter) ReassignMember(ctx context.Context, oldUID string, oldRev uint64, m *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
 	return c.inner.ReassignMember(ctx, oldUID, oldRev, m, sync)

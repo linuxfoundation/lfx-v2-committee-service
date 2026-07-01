@@ -574,8 +574,8 @@ type CreateCommitteeMemberPayload struct {
 	// Determines if the operation should be synchronous (true) or asynchronous
 	// (false, default)
 	XSync bool
-	// When true, suppress the invite/notification email sent to the new member
-	// (used for silent bulk imports)
+	// When true, suppress the notification email sent to the committee member
+	// (whether added or removed)
 	SkipNotification bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -793,6 +793,9 @@ type DeleteCommitteeMemberPayload struct {
 	// Determines if the operation should be synchronous (true) or asynchronous
 	// (false, default)
 	XSync bool
+	// When true, suppress the notification email sent to the committee member
+	// (whether added or removed)
+	SkipNotification bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly

@@ -108,7 +108,7 @@ type CommitteeMemberDataWriter interface {
 	// UpdateMember modifies an existing committee member in the storage
 	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error
+	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error
 	// ReassignMember atomically replaces the holder of an existing seat: it creates newMember (the
 	// replacement holder) and deletes the old member (oldMemberUID at oldRevision), rolling back the
 	// newly-created member if the delete fails so no duplicate seat is left. It returns the created

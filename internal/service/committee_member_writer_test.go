@@ -677,7 +677,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 			tt.setupMock(mockRepo, memberWriter)
 
 			ctx := context.Background()
-			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false)
+			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -808,7 +808,7 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	orchestrator.committeeReader = memberWriter
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false)
+	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false, false)
 	require.NoError(t, err)
 
 	// Primary record must be gone.
@@ -1297,7 +1297,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	memberWriter.keys[lookupKey] = member.UID
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false)
+	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -1332,7 +1332,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 	// For now, we test the happy path
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false)
+	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false, false)
 
 	// Should succeed even if message publishing fails (currently mock always succeeds)
 	require.NoError(t, err)

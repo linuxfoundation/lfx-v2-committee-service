@@ -714,7 +714,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 }
 
 // DeleteMember removes a committee member
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
+func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
 	slog.DebugContext(ctx, "executing delete committee member use case",
 		"member_uid", uid,
 		"revision", revision,
@@ -796,7 +796,8 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 
 	// Step 5: Publish indexer message for member deletion
 	deleteEventData := &model.CommitteeMemberMessageData{
-		Member: existing,
+		Member:           existing,
+		SkipNotification: skipNotification,
 	}
 	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, deleteEventData, sync); errPublish != nil {
 		slog.ErrorContext(ctx, "failed to publish member deletion message",
@@ -842,7 +843,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 	}
 
 	// Delete the old holder. On success the reassign is complete.
-	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		// DeleteMember can fail after the old seat is already gone (e.g. a post-commit indexer publish
 		// failed). Re-read the old seat to decide what to do: we only roll back the new seat when we can
 		// POSITIVELY confirm the old holder still exists. If the re-read itself fails we cannot tell
@@ -878,7 +879,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {
-				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync)
+				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync, false)
 			} else {
 				errRollback = errGet
 			}
@@ -1104,8 +1105,11 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			SkipNotification: data.SkipNotification,
 		}
 	case model.ActionDeleted:
-		// For delete, use the member directly
-		eventInput = data.Member
+		// For delete, carry the request-scoped skip-notification flag alongside the member.
+		eventInput = &model.CommitteeMemberDeletedEventData{
+			CommitteeMember:  data.Member,
+			SkipNotification: data.SkipNotification,
+		}
 	}
 
 	eventMessage := model.CommitteeEvent{}
