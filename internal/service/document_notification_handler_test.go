@@ -292,6 +292,71 @@ func TestHandleCommitteeLinkCreated(t *testing.T) {
 	})
 }
 
+func TestHandleContentCreatedProjectAllowlist(t *testing.T) {
+	buildRepo := func(committeeUID, projectSlug string) CommitteeReader {
+		r := mock.NewMockRepository()
+		r.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:         committeeUID,
+				Name:        "Test Committee",
+				ProjectSlug: projectSlug,
+			},
+			CommitteeSettings: &model.CommitteeSettings{
+				UID: committeeUID,
+				Writers: []model.CommitteeUser{
+					{Username: "writer1", Email: "writer1@example.com", Name: "Writer One"},
+				},
+			},
+		})
+		return NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(r)))
+	}
+
+	doc := func(committeeUID string) *model.CommitteeDocument {
+		return &model.CommitteeDocument{UID: "d1", CommitteeUID: committeeUID, Name: "Doc", FileName: "doc.pdf"}
+	}
+
+	t.Run("allowlisted project sends content notification", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     buildRepo("c-allowed", "aaif"),
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-allowed")))
+		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "allowlisted project should send notification")
+	})
+
+	t.Run("non-allowlisted project suppresses content notification", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     buildRepo("c-blocked", "other-project"),
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
+		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-blocked")))
+		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Empty(t, sender.calls, "non-allowlisted project should suppress notification")
+	})
+
+	t.Run("empty allowlist sends to all projects", func(t *testing.T) {
+		sender := &mockEmailSender{}
+		h := &messageHandlerOrchestrator{
+			committeeReader:     buildRepo("c-any", "any-project"),
+			emailSender:         sender,
+			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+		}
+		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-any")))
+		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
+		assert.NoError(t, err)
+		assert.Len(t, sender.calls, 1, "empty allowlist should send to all projects")
+	})
+}
+
 func TestIsSafeURL(t *testing.T) {
 	tests := []struct {
 		url  string
