@@ -2436,7 +2436,6 @@ func TestEnrichMember(t *testing.T) {
 		name        string
 		member      func() *model.CommitteeMember
 		setupReader func(r *mockUserReader)
-		ctx         func() context.Context
 		validate    func(t *testing.T, m *model.CommitteeMember)
 	}{
 		{
@@ -2584,26 +2583,6 @@ func TestEnrichMember(t *testing.T) {
 				assert.Empty(t, m.Username)
 			},
 		},
-		{
-			name: "skip-enrichment context preserves caller-supplied username",
-			member: func() *model.CommitteeMember {
-				return &model.CommitteeMember{
-					CommitteeMemberBase: model.CommitteeMemberBase{
-						Email:    "ghost@example.com",
-						Username: "sync-lfid",
-					},
-				}
-			},
-			setupReader: func(r *mockUserReader) {
-				r.withUsernames("ghost@example.com", "other-lfid")
-			},
-			validate: func(t *testing.T, m *model.CommitteeMember) {
-				assert.Equal(t, "sync-lfid", m.Username)
-			},
-			ctx: func() context.Context {
-				return internalservice.ContextWithSkipMemberEnrichment(context.Background())
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -2615,11 +2594,7 @@ func TestEnrichMember(t *testing.T) {
 			}
 			svc.userReader = reader
 			m := tt.member()
-			ctx := context.Background()
-			if tt.ctx != nil {
-				ctx = tt.ctx()
-			}
-			svc.enrichMember(ctx, m)
+			svc.enrichMember(context.Background(), m)
 			tt.validate(t, m)
 		})
 	}

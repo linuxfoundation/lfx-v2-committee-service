@@ -287,10 +287,9 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	writeCtx := ctx
 	if p.SkipEnrichment {
 		writeCtx = service.ContextWithSkipMemberEnrichment(ctx)
+	} else {
+		s.enrichMember(ctx, request)
 	}
-
-	// Enrich from auth-service unless the caller opted out via X-Skip-Enrichment.
-	s.enrichMember(writeCtx, request)
 
 	// Execute use case
 	response, err := s.committeeWriterOrchestrator.CreateMember(writeCtx, request, p.XSync)
@@ -596,10 +595,9 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	writeCtx := ctx
 	if p.SkipEnrichment {
 		writeCtx = service.ContextWithSkipMemberEnrichment(ctx)
+	} else {
+		s.enrichMember(ctx, committeeMember)
 	}
-
-	// Enrich from auth-service unless the caller opted out via X-Skip-Enrichment.
-	s.enrichMember(writeCtx, committeeMember)
 
 	// Execute use case
 	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(writeCtx, committeeMember, parsedRevision, p.XSync)
@@ -1737,9 +1735,6 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
 	if s.userReader == nil {
-		return
-	}
-	if service.SkipMemberEnrichment(ctx) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))
