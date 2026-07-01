@@ -1441,6 +1441,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		return nil, nil
 	}
 
+	if !m.notificationsAllowedForProject(member.ProjectSlug) {
+		slog.DebugContext(ctx, "skipping member-deleted notification — project not in allowlist",
+			"committee_uid", member.CommitteeUID, "project_slug", member.ProjectSlug)
+		return nil, nil
+	}
+
 	if m.emailSender == nil {
 		slog.DebugContext(ctx, "email sender not configured — skipping member-deleted notification")
 		return nil, nil

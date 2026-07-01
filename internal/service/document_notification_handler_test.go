@@ -315,46 +315,33 @@ func TestHandleContentCreatedProjectAllowlist(t *testing.T) {
 		return &model.CommitteeDocument{UID: "d1", CommitteeUID: committeeUID, Name: "Doc", FileName: "doc.pdf"}
 	}
 
-	t.Run("allowlisted project sends content notification", func(t *testing.T) {
-		sender := &mockEmailSender{}
-		h := &messageHandlerOrchestrator{
-			committeeReader:     buildRepo("c-allowed", "aaif"),
-			emailSender:         sender,
-			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
-		}
-		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
-		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-allowed")))
-		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
-		assert.NoError(t, err)
-		assert.Len(t, sender.calls, 1, "allowlisted project should send notification")
-	})
+	tests := []struct {
+		name          string
+		committeeUID  string
+		projectSlug   string
+		allowlist     []string
+		expectedCalls int
+	}{
+		{"allowlisted project sends content notification", "c-allowed", "aaif", []string{"aaif"}, 1},
+		{"non-allowlisted project suppresses content notification", "c-blocked", "other-project", []string{"aaif"}, 0},
+		{"empty allowlist sends to all projects", "c-any", "any-project", nil, 1},
+	}
 
-	t.Run("non-allowlisted project suppresses content notification", func(t *testing.T) {
-		sender := &mockEmailSender{}
-		h := &messageHandlerOrchestrator{
-			committeeReader:     buildRepo("c-blocked", "other-project"),
-			emailSender:         sender,
-			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
-		}
-		WithNotificationProjectAllowlistForMessageHandler([]string{"aaif"})(h)
-		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-blocked")))
-		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
-		assert.NoError(t, err)
-		assert.Empty(t, sender.calls, "non-allowlisted project should suppress notification")
-	})
-
-	t.Run("empty allowlist sends to all projects", func(t *testing.T) {
-		sender := &mockEmailSender{}
-		h := &messageHandlerOrchestrator{
-			committeeReader:     buildRepo("c-any", "any-project"),
-			emailSender:         sender,
-			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
-		}
-		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc("c-any")))
-		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
-		assert.NoError(t, err)
-		assert.Len(t, sender.calls, 1, "empty allowlist should send to all projects")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &mockEmailSender{}
+			h := &messageHandlerOrchestrator{
+				committeeReader:     buildRepo(tt.committeeUID, tt.projectSlug),
+				emailSender:         sender,
+				lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
+			}
+			WithNotificationProjectAllowlistForMessageHandler(tt.allowlist)(h)
+			msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, doc(tt.committeeUID)))
+			_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
+			assert.NoError(t, err)
+			assert.Len(t, sender.calls, tt.expectedCalls)
+		})
+	}
 }
 
 func TestIsSafeURL(t *testing.T) {
