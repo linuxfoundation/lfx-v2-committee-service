@@ -139,7 +139,7 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 	return errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.createMemberCalls = append(m.createMemberCalls, member)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
@@ -150,7 +150,7 @@ func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, memb
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.updateMemberCalls = append(m.updateMemberCalls, updateMemberCall{member: member, revision: revision})
 	if m.updateMemberErr != nil {
 		return nil, m.updateMemberErr
@@ -166,7 +166,7 @@ func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid 
 // ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
 // the created member (an extra delete) if the delete fails, so reassign tests can assert the calls.
 func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
-	created, err := m.CreateMember(ctx, newMember, sync)
+	created, err := m.CreateMember(ctx, newMember, sync, false)
 	if err != nil {
 		return nil, err
 	}

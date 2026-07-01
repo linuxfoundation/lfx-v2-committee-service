@@ -448,7 +448,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 			continue
 		}
 
-		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false); errUpdate != nil {
+		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false, false); errUpdate != nil {
 			slog.ErrorContext(ctx, "failed to update member during sync",
 				"member_uid", member.UID, "committee_uid", data.CommitteeUID, "error", errUpdate)
 			syncErrors = append(syncErrors, errUpdate)
@@ -1157,8 +1157,7 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx context.Co
 			member.LastName = e.lastName
 		}
 
-		inviteCtx := contextWithSkipMemberUsernameEmailResolution(e.writeCtx)
-		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
+		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(e.writeCtx, member, revision, false, true)
 		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {

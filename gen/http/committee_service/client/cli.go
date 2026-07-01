@@ -627,7 +627,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 
 // BuildCreateCommitteeMemberPayload builds the payload for the
 // committee-service create-committee-member endpoint from CLI flags.
-func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string, committeeServiceCreateCommitteeMemberSkipEnrichment string) (*committeeservice.CreateCommitteeMemberPayload, error) {
 	var err error
 	var body CreateCommitteeMemberRequestBody
 	{
@@ -746,6 +746,15 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			}
 		}
 	}
+	var skipEnrichment bool
+	{
+		if committeeServiceCreateCommitteeMemberSkipEnrichment != "" {
+			skipEnrichment, err = strconv.ParseBool(committeeServiceCreateCommitteeMemberSkipEnrichment)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipEnrichment, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -827,6 +836,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	v.BearerToken = bearerToken
 	v.XSync = xSync
 	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
 
 	return v, nil
 }
@@ -1021,7 +1031,7 @@ func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSe
 
 // BuildUpdateCommitteeMemberPayload builds the payload for the
 // committee-service update-committee-member endpoint from CLI flags.
-func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
+func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string, committeeServiceUpdateCommitteeMemberSkipEnrichment string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
 	var err error
 	var body UpdateCommitteeMemberRequestBody
 	{
@@ -1145,6 +1155,15 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			}
 		}
 	}
+	var skipEnrichment bool
+	{
+		if committeeServiceUpdateCommitteeMemberSkipEnrichment != "" {
+			skipEnrichment, err = strconv.ParseBool(committeeServiceUpdateCommitteeMemberSkipEnrichment)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipEnrichment, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -1227,6 +1246,7 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipEnrichment = skipEnrichment
 
 	return v, nil
 }

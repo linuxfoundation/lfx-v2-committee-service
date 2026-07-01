@@ -388,6 +388,15 @@ func SkipNotificationAttribute() {
 	})
 }
 
+// SkipEnrichmentAttribute is the DSL attribute for skipping auth-service enrichment on
+// committee member writes (email→username lookup and profile metadata backfill).
+func SkipEnrichmentAttribute() {
+	dsl.Attribute("skip_enrichment", dsl.Boolean, "When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
 // CreatedAtAttribute is the DSL attribute for creation timestamp.
 func CreatedAtAttribute() {
 	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {

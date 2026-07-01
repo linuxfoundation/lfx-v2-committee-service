@@ -1187,6 +1187,11 @@ func EncodeCreateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			headStr := strconv.FormatBool(head)
 			req.Header.Set("X-Skip-Notification", headStr)
 		}
+		{
+			head := p.SkipEnrichment
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Skip-Enrichment", headStr)
+		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()
@@ -1860,6 +1865,11 @@ func EncodeUpdateCommitteeMemberRequest(encoder func(*http.Request) goahttp.Enco
 			head := p.XSync
 			headStr := strconv.FormatBool(head)
 			req.Header.Set("X-Sync", headStr)
+		}
+		{
+			head := p.SkipEnrichment
+			headStr := strconv.FormatBool(head)
+			req.Header.Set("X-Skip-Enrichment", headStr)
 		}
 		values := req.URL.Query()
 		values.Add("v", p.Version)

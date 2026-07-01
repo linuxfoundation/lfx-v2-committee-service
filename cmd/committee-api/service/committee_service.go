@@ -284,11 +284,12 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, request)
+	if !p.SkipEnrichment {
+		s.enrichMember(ctx, request)
+	}
 
 	// Execute use case
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync, p.SkipEnrichment)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -588,11 +589,12 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, committeeMember)
+	if !p.SkipEnrichment {
+		s.enrichMember(ctx, committeeMember)
+	}
 
 	// Execute use case
-	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
+	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync, p.SkipEnrichment)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -939,7 +941,7 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 	s.enrichMember(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1159,7 +1161,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 		member.SkipNotification = true
 	}
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1257,7 +1259,7 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 	s.enrichMember(ctx, member)
 	s.enrichMemberOrganization(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}

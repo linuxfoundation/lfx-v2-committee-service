@@ -540,7 +540,7 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			result, err := orchestrator.CreateMember(ctx, tt.member, false)
+			result, err := orchestrator.CreateMember(ctx, tt.member, false, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -587,7 +587,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Since validateCorporateEmailDomain is currently a placeholder that returns nil,
 	// this should succeed
@@ -763,7 +763,7 @@ func TestCreateMember_IndexKeyTracked(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.NotEmpty(t, result.UID)
@@ -922,7 +922,7 @@ func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
 	}}
 
 	ctx := context.Background()
-	res, err := orchestrator.CreateMember(ctx, member, false)
+	res, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	require.Error(t, err)
 	assert.Nil(t, res)
@@ -972,7 +972,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.
 		Organization: model.CommitteeMemberOrganization{ID: newOrg, Name: "New Org"},
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1021,7 +1021,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.
 		Organization: model.CommitteeMemberOrganization{},
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1071,7 +1071,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange(t *testing
 		FirstName: "Test", LastName: "User",
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1227,7 +1227,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) 
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Should fail because committee doesn't exist
 	require.Error(t, err)
@@ -1261,7 +1261,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Should succeed with default settings
 	require.NoError(t, err)
@@ -1395,7 +1395,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -1446,7 +1446,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3, false) // Using old revision 3
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3, false, false) // Using old revision 3
 
 	// Should fail with conflict error
 	require.Error(t, err)
@@ -1466,7 +1466,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail with not found error
 	require.Error(t, err)
@@ -1501,7 +1501,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail because member belongs to different committee
 	require.Error(t, err)
@@ -1557,7 +1557,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should succeed (corporate validation is mocked to always pass)
 	require.NoError(t, err)
@@ -1614,7 +1614,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail with conflict error
 	require.Error(t, err)
@@ -1645,7 +1645,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 				FirstName:    "Alice",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, false)
+		}, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "alice", result.Username)
@@ -1664,10 +1664,29 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 				FirstName:    "Alice",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, false)
+		}, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
+	})
+
+	t.Run("skip enrichment persists caller-supplied username without email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, _ := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "other-lfid"}}
+		addCommittee(mockRepo)
+
+		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "c-1",
+				Email:        "alice@example.com",
+				Username:     "sync-lfid",
+				FirstName:    "Alice",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, false, true)
+
+		require.NoError(t, err)
+		assert.Equal(t, "sync-lfid", result.Username)
 	})
 }
 
@@ -1701,7 +1720,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "new", result.Username)
@@ -1718,7 +1737,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
@@ -1735,7 +1754,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
@@ -1752,25 +1771,24 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "Old",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "old", result.Username)
 	})
 
-	t.Run("invite acceptance context persists accepted_by without email lookup", func(t *testing.T) {
+	t.Run("skip enrichment persists accepted_by without email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
 		addCommitteeAndMember(mockRepo, memberWriter)
 
-		ctx := contextWithSkipMemberUsernameEmailResolution(context.Background())
-		result, err := orchestrator.UpdateMember(ctx, &model.CommitteeMember{
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
 				Username: "accepted-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, "accepted-lfid", result.Username)

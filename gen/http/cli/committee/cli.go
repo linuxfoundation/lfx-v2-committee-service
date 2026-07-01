@@ -97,6 +97,7 @@ func ParseEndpoint(
 		committeeServiceCreateCommitteeMemberBearerTokenFlag      = committeeServiceCreateCommitteeMemberFlags.String("bearer-token", "", "")
 		committeeServiceCreateCommitteeMemberXSyncFlag            = committeeServiceCreateCommitteeMemberFlags.String("x-sync", "", "")
 		committeeServiceCreateCommitteeMemberSkipNotificationFlag = committeeServiceCreateCommitteeMemberFlags.String("skip-notification", "", "")
+		committeeServiceCreateCommitteeMemberSkipEnrichmentFlag   = committeeServiceCreateCommitteeMemberFlags.String("skip-enrichment", "", "")
 
 		committeeServiceGetCommitteeMemberFlags           = flag.NewFlagSet("get-committee-member", flag.ExitOnError)
 		committeeServiceGetCommitteeMemberUIDFlag         = committeeServiceGetCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
@@ -119,14 +120,15 @@ func ParseEndpoint(
 		committeeServiceReassignOrgCommitteeSeatVersionFlag     = committeeServiceReassignOrgCommitteeSeatFlags.String("version", "REQUIRED", "")
 		committeeServiceReassignOrgCommitteeSeatBearerTokenFlag = committeeServiceReassignOrgCommitteeSeatFlags.String("bearer-token", "", "")
 
-		committeeServiceUpdateCommitteeMemberFlags           = flag.NewFlagSet("update-committee-member", flag.ExitOnError)
-		committeeServiceUpdateCommitteeMemberBodyFlag        = committeeServiceUpdateCommitteeMemberFlags.String("body", "REQUIRED", "")
-		committeeServiceUpdateCommitteeMemberUIDFlag         = committeeServiceUpdateCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
-		committeeServiceUpdateCommitteeMemberMemberUIDFlag   = committeeServiceUpdateCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
-		committeeServiceUpdateCommitteeMemberVersionFlag     = committeeServiceUpdateCommitteeMemberFlags.String("version", "REQUIRED", "")
-		committeeServiceUpdateCommitteeMemberBearerTokenFlag = committeeServiceUpdateCommitteeMemberFlags.String("bearer-token", "", "")
-		committeeServiceUpdateCommitteeMemberIfMatchFlag     = committeeServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
-		committeeServiceUpdateCommitteeMemberXSyncFlag       = committeeServiceUpdateCommitteeMemberFlags.String("x-sync", "", "")
+		committeeServiceUpdateCommitteeMemberFlags              = flag.NewFlagSet("update-committee-member", flag.ExitOnError)
+		committeeServiceUpdateCommitteeMemberBodyFlag           = committeeServiceUpdateCommitteeMemberFlags.String("body", "REQUIRED", "")
+		committeeServiceUpdateCommitteeMemberUIDFlag            = committeeServiceUpdateCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceUpdateCommitteeMemberMemberUIDFlag      = committeeServiceUpdateCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
+		committeeServiceUpdateCommitteeMemberVersionFlag        = committeeServiceUpdateCommitteeMemberFlags.String("version", "REQUIRED", "")
+		committeeServiceUpdateCommitteeMemberBearerTokenFlag    = committeeServiceUpdateCommitteeMemberFlags.String("bearer-token", "", "")
+		committeeServiceUpdateCommitteeMemberIfMatchFlag        = committeeServiceUpdateCommitteeMemberFlags.String("if-match", "", "")
+		committeeServiceUpdateCommitteeMemberXSyncFlag          = committeeServiceUpdateCommitteeMemberFlags.String("x-sync", "", "")
+		committeeServiceUpdateCommitteeMemberSkipEnrichmentFlag = committeeServiceUpdateCommitteeMemberFlags.String("skip-enrichment", "", "")
 
 		committeeServiceDeleteCommitteeMemberFlags                = flag.NewFlagSet("delete-committee-member", flag.ExitOnError)
 		committeeServiceDeleteCommitteeMemberUIDFlag              = committeeServiceDeleteCommitteeMemberFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
@@ -550,7 +552,7 @@ func ParseEndpoint(
 				endpoint = c.Livez()
 			case "create-committee-member":
 				endpoint = c.CreateCommitteeMember()
-				data, err = committeeservicec.BuildCreateCommitteeMemberPayload(*committeeServiceCreateCommitteeMemberBodyFlag, *committeeServiceCreateCommitteeMemberUIDFlag, *committeeServiceCreateCommitteeMemberVersionFlag, *committeeServiceCreateCommitteeMemberBearerTokenFlag, *committeeServiceCreateCommitteeMemberXSyncFlag, *committeeServiceCreateCommitteeMemberSkipNotificationFlag)
+				data, err = committeeservicec.BuildCreateCommitteeMemberPayload(*committeeServiceCreateCommitteeMemberBodyFlag, *committeeServiceCreateCommitteeMemberUIDFlag, *committeeServiceCreateCommitteeMemberVersionFlag, *committeeServiceCreateCommitteeMemberBearerTokenFlag, *committeeServiceCreateCommitteeMemberXSyncFlag, *committeeServiceCreateCommitteeMemberSkipNotificationFlag, *committeeServiceCreateCommitteeMemberSkipEnrichmentFlag)
 			case "get-committee-member":
 				endpoint = c.GetCommitteeMember()
 				data, err = committeeservicec.BuildGetCommitteeMemberPayload(*committeeServiceGetCommitteeMemberUIDFlag, *committeeServiceGetCommitteeMemberMemberUIDFlag, *committeeServiceGetCommitteeMemberVersionFlag, *committeeServiceGetCommitteeMemberBearerTokenFlag)
@@ -562,7 +564,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildReassignOrgCommitteeSeatPayload(*committeeServiceReassignOrgCommitteeSeatBodyFlag, *committeeServiceReassignOrgCommitteeSeatUIDFlag, *committeeServiceReassignOrgCommitteeSeatMemberUIDFlag, *committeeServiceReassignOrgCommitteeSeatVersionFlag, *committeeServiceReassignOrgCommitteeSeatBearerTokenFlag)
 			case "update-committee-member":
 				endpoint = c.UpdateCommitteeMember()
-				data, err = committeeservicec.BuildUpdateCommitteeMemberPayload(*committeeServiceUpdateCommitteeMemberBodyFlag, *committeeServiceUpdateCommitteeMemberUIDFlag, *committeeServiceUpdateCommitteeMemberMemberUIDFlag, *committeeServiceUpdateCommitteeMemberVersionFlag, *committeeServiceUpdateCommitteeMemberBearerTokenFlag, *committeeServiceUpdateCommitteeMemberIfMatchFlag, *committeeServiceUpdateCommitteeMemberXSyncFlag)
+				data, err = committeeservicec.BuildUpdateCommitteeMemberPayload(*committeeServiceUpdateCommitteeMemberBodyFlag, *committeeServiceUpdateCommitteeMemberUIDFlag, *committeeServiceUpdateCommitteeMemberMemberUIDFlag, *committeeServiceUpdateCommitteeMemberVersionFlag, *committeeServiceUpdateCommitteeMemberBearerTokenFlag, *committeeServiceUpdateCommitteeMemberIfMatchFlag, *committeeServiceUpdateCommitteeMemberXSyncFlag, *committeeServiceUpdateCommitteeMemberSkipEnrichmentFlag)
 			case "delete-committee-member":
 				endpoint = c.DeleteCommitteeMember()
 				data, err = committeeservicec.BuildDeleteCommitteeMemberPayload(*committeeServiceDeleteCommitteeMemberUIDFlag, *committeeServiceDeleteCommitteeMemberMemberUIDFlag, *committeeServiceDeleteCommitteeMemberVersionFlag, *committeeServiceDeleteCommitteeMemberBearerTokenFlag, *committeeServiceDeleteCommitteeMemberIfMatchFlag, *committeeServiceDeleteCommitteeMemberXSyncFlag, *committeeServiceDeleteCommitteeMemberSkipNotificationFlag)
@@ -895,6 +897,7 @@ func committeeServiceCreateCommitteeMemberUsage() {
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprint(os.Stderr, " -x-sync BOOL")
 	fmt.Fprint(os.Stderr, " -skip-notification BOOL")
+	fmt.Fprint(os.Stderr, " -skip-enrichment BOOL")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
@@ -908,10 +911,11 @@ func committeeServiceCreateCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
 	fmt.Fprintln(os.Stderr, `    -skip-notification BOOL: `)
+	fmt.Fprintln(os.Stderr, `    -skip-enrichment BOOL: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-member --body '{\n      \"appointed_by\": \"Community\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true --skip-notification true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-member --body '{\n      \"appointed_by\": \"Community\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true --skip-notification true --skip-enrichment true")
 }
 
 func committeeServiceGetCommitteeMemberUsage() {
@@ -1002,6 +1006,7 @@ func committeeServiceUpdateCommitteeMemberUsage() {
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprint(os.Stderr, " -if-match STRING")
 	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprint(os.Stderr, " -skip-enrichment BOOL")
 	fmt.Fprintln(os.Stderr)
 
 	// Description
@@ -1016,10 +1021,11 @@ func committeeServiceUpdateCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
 	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+	fmt.Fprintln(os.Stderr, `    -skip-enrichment BOOL: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-member --body '{\n      \"appointed_by\": \"Community\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-member --body '{\n      \"appointed_by\": \"Community\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"job_title\": \"Chief Technology Officer\",\n      \"last_name\": \"Doe\",\n      \"linkedin_profile\": \"https://www.linkedin.com/in/johndoe\",\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      },\n      \"role\": {\n         \"end_date\": \"2024-12-31\",\n         \"name\": \"Chair\",\n         \"start_date\": \"2023-01-01\"\n      },\n      \"status\": \"Active\",\n      \"username\": \"user123\",\n      \"voting\": {\n         \"end_date\": \"2024-12-31\",\n         \"start_date\": \"2023-01-01\",\n         \"status\": \"Voting Rep\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true --skip-enrichment true")
 }
 
 func committeeServiceDeleteCommitteeMemberUsage() {
