@@ -3058,11 +3058,11 @@ paths:
                   example: true
                 - name: X-Skip-Notification
                   in: header
-                  description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                  description: When true, suppress the removal notification email sent to the member being removed (used for V1/PCC-synced deletes)
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                    description: When true, suppress the removal notification email sent to the member being removed (used for V1/PCC-synced deletes)
                     default: false
                     example: true
                   example: true
