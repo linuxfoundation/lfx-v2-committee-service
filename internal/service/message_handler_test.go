@@ -2627,3 +2627,250 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	require.NoError(t, err)
 	return b
 }
+
+// fakeUserReader is a configurable test double for port.UserReader.
+type fakeUserReader struct {
+	usernameByEmail func(ctx context.Context, email string) (string, error)
+}
+
+func (f *fakeUserReader) UsernameByEmail(ctx context.Context, email string) (string, error) {
+	if f.usernameByEmail != nil {
+		return f.usernameByEmail(ctx, email)
+	}
+	return "", nil
+}
+func (f *fakeUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+func (f *fakeUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, nil
+}
+
+// TestMessageHandlerOrchestrator_HandleUserEmailChanged covers the pre-dispatch path:
+// wrong subject, malformed JSON, missing email, and not-yet-handled event types all discard/ACK
+// without any wired collaborators. alternate_email_added is intentionally absent here because
+// it routes to reconcileUsernamesForEmail (tested separately below).
+func TestMessageHandlerOrchestrator_HandleUserEmailChanged(t *testing.T) {
+	ctx := context.Background()
+
+	validEvent := func(eventType model.UserEmailEventType) []byte {
+		b, _ := json.Marshal(model.UserEmailEvent{
+			Type:      eventType,
+			Email:     "user@example.com",
+			Timestamp: time.Now(),
+		})
+		return b
+	}
+
+	tests := []struct {
+		name        string
+		subject     string
+		messageData []byte
+		wantErr     bool
+	}{
+		{
+			name:        "alternate email removed — not yet handled, ACKs with no error",
+			subject:     constants.UserEmailChangedSubject,
+			messageData: validEvent(model.UserEmailEventAlternateEmailRemoved),
+		},
+		{
+			name:        "LFID user created — not yet handled, ACKs with no error",
+			subject:     constants.UserEmailChangedSubject,
+			messageData: validEvent(model.UserEmailEventLFIDUserCreated),
+		},
+		{
+			name:        "LFID user deleted — not yet handled, ACKs with no error",
+			subject:     constants.UserEmailChangedSubject,
+			messageData: validEvent(model.UserEmailEventLFIDUserDeleted),
+		},
+		{
+			name:        "wrong subject — skipped, no error",
+			subject:     "lfx.other-service.something",
+			messageData: validEvent(model.UserEmailEventAlternateEmailAdded),
+		},
+		{
+			name:        "malformed JSON — discarded, no error",
+			subject:     constants.UserEmailChangedSubject,
+			messageData: []byte(`not-json`),
+		},
+		{
+			name:    "missing email — discarded, no error",
+			subject: constants.UserEmailChangedSubject,
+			messageData: func() []byte {
+				b, _ := json.Marshal(model.UserEmailEvent{Type: model.UserEmailEventAlternateEmailAdded})
+				return b
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewMessageHandlerOrchestrator()
+
+			msg := &mockStreamMessenger{subject: tt.subject, data: tt.messageData}
+			err := handler.HandleUserEmailChanged(ctx, msg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestMessageHandlerOrchestrator_HandleUserEmailChanged_AlternateEmailAdded tests the full
+// alternate_email_added promotion flow: index lookup → auth resolution → UpdateMember per seat.
+func TestMessageHandlerOrchestrator_HandleUserEmailChanged_AlternateEmailAdded(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		targetEmail    = "alt@example.com"
+		resolvedUser   = "jane.doe"
+		committeeUID   = "committee-111"
+		emailOnlyUID   = "member-aaa"
+		alreadyLFIDUID = "member-bbb"
+	)
+
+	buildMsg := func(email string) *mockStreamMessenger {
+		b, _ := json.Marshal(model.UserEmailEvent{
+			Type:      model.UserEmailEventAlternateEmailAdded,
+			Email:     email,
+			Timestamp: time.Now(),
+		})
+		return &mockStreamMessenger{subject: constants.UserEmailChangedSubject, data: b}
+	}
+
+	// seedRepo returns a mock repo pre-loaded with one email-only seat and one already-LFID seat.
+	// The committee base is also seeded so the service-layer GetMember (which validates committee
+	// existence via GetBase first) can find the record.
+	seedRepo := func() *mock.MockRepository {
+		repo := mock.NewMockRepository()
+		repo.ClearAll()
+		repo.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{UID: committeeUID},
+		})
+		repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          emailOnlyUID,
+				CommitteeUID: committeeUID,
+				Email:        targetEmail,
+				Username:     "", // email-only
+			},
+		})
+		repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          alreadyLFIDUID,
+				CommitteeUID: committeeUID,
+				Email:        targetEmail,
+				Username:     "existing.user", // already has LFID
+			},
+		})
+		return repo
+	}
+
+	buildHandler := func(repo *mock.MockRepository, userReader port.UserReader, spy *spyCommitteeWriterOrchestrator) port.MessageHandler {
+		return NewMessageHandlerOrchestrator(
+			WithCommitteeReaderForMessageHandler(
+				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
+			),
+			WithUserReaderForMessageHandler(userReader),
+			WithCommitteeWriterOrchestratorForMessageHandler(spy),
+		)
+	}
+
+	tests := []struct {
+		name            string
+		email           string
+		userReaderFn    func(context.Context, string) (string, error)
+		wantErr         bool
+		wantUpdateCalls int
+		validateUpdated func(t *testing.T, members []*model.CommitteeMember)
+	}{
+		{
+			name:  "email-only seat is promoted, LFID seat is skipped",
+			email: targetEmail,
+			userReaderFn: func(_ context.Context, _ string) (string, error) {
+				return resolvedUser, nil
+			},
+			wantUpdateCalls: 1,
+			validateUpdated: func(t *testing.T, members []*model.CommitteeMember) {
+				t.Helper()
+				require.Len(t, members, 1)
+				assert.Equal(t, emailOnlyUID, members[0].UID)
+				assert.Equal(t, resolvedUser, members[0].Username)
+			},
+		},
+		{
+			name:  "UsernameByEmail returns NotFound — ACK, no UpdateMember",
+			email: targetEmail,
+			userReaderFn: func(_ context.Context, _ string) (string, error) {
+				return "", errs.NewNotFound("email not found")
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name:  "UsernameByEmail returns empty string — ACK, no UpdateMember",
+			email: targetEmail,
+			userReaderFn: func(_ context.Context, _ string) (string, error) {
+				return "", nil
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name:  "UsernameByEmail returns transient error — NAK",
+			email: targetEmail,
+			userReaderFn: func(_ context.Context, _ string) (string, error) {
+				return "", fmt.Errorf("auth service unavailable")
+			},
+			wantErr:         true,
+			wantUpdateCalls: 0,
+		},
+		{
+			name:  "no email-only seats — auth not called, ACK",
+			email: "nobody@example.com", // no members have this email
+			userReaderFn: func(_ context.Context, _ string) (string, error) {
+				// Should not be called; panic to surface any accidental call.
+				panic("UsernameByEmail should not be called when no email-only seats exist")
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name:  "no collaborators — returns validation error",
+			email: targetEmail,
+			// handler built without options (nil collaborators)
+			wantErr:         true,
+			wantUpdateCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spy := &spyCommitteeWriterOrchestrator{}
+
+			var handler port.MessageHandler
+			if tt.userReaderFn == nil {
+				// No-collaborator case
+				handler = NewMessageHandlerOrchestrator()
+			} else {
+				repo := seedRepo()
+				handler = buildHandler(repo, &fakeUserReader{usernameByEmail: tt.userReaderFn}, spy)
+			}
+
+			msg := buildMsg(tt.email)
+			err := handler.HandleUserEmailChanged(ctx, msg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.wantUpdateCalls, spy.updateMemberCalls, "UpdateMember call count mismatch")
+
+			if tt.validateUpdated != nil {
+				tt.validateUpdated(t, spy.updatedMembers)
+			}
+		})
+	}
+}

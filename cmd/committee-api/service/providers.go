@@ -918,6 +918,13 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		return fmt.Errorf("failed to start weekly-brief generate consumer: %w", err)
 	}
 
+	// Start the durable consumer that reacts to upstream user-email change events.
+	slog.InfoContext(ctx, "starting stream consumer", "consumer", constants.ConsumerNameUserEmailSync)
+	if _, err := natsClient.StartUserEmailConsumer(ctx, messageHandlerService.messageHandler.HandleUserEmailChanged); err != nil {
+		slog.ErrorContext(ctx, "failed to start user-email sync consumer", "error", err)
+		return fmt.Errorf("failed to start user-email sync consumer: %w", err)
+	}
+
 	slog.InfoContext(ctx, "NATS subscriptions started successfully")
 	return nil
 }

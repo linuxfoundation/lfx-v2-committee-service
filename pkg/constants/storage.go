@@ -112,6 +112,14 @@ const (
 	// the async weekly-brief generation (source gather → LLM → finalize).
 	ConsumerNameWeeklyBriefGenerate = "committee-service-weekly-brief-generate"
 
+	// StreamNameUserEmailEvents is the JetStream stream that captures upstream user-email change events
+	// (alternate email added/removed, LFID user created/deleted). Subject filter: lfx.user-email.*.
+	StreamNameUserEmailEvents = "user-email-events"
+
+	// ConsumerNameUserEmailSync is the durable JetStream consumer that reacts to user-email change
+	// events to trigger username re-resolution for affected committee members.
+	ConsumerNameUserEmailSync = "committee-service-user-email-sync"
+
 	// KVBucketNameGroupWeeklyBriefs is the KV bucket for working-group weekly briefs.
 	// Key: brief UID; Value: full brief JSON.
 	KVBucketNameGroupWeeklyBriefs = "group-weekly-briefs"
