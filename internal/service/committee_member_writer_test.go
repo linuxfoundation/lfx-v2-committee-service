@@ -1201,6 +1201,44 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_publishMemberMessages_NameAndAliasesIncludesFullName(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+	publisher := &mock.MockCommitteePublisher{}
+
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    memberWriter,
+		committeePublisher: publisher,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	data := &model.CommitteeMemberMessageData{
+		Member: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:           "member-123",
+				CommitteeUID:  "committee-123",
+				CommitteeName: "Governing Board",
+				Email:         "phinz@example.com",
+				FirstName:     "Paul",
+				LastName:      "Hinz",
+				Username:      "phinz",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	err := orchestrator.publishMemberMessages(ctx, model.ActionCreated, data, false)
+	require.NoError(t, err)
+
+	msg, ok := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
+	require.True(t, ok)
+	require.NotNil(t, msg.IndexingConfig)
+	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Paul Hinz")
+	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Paul")
+	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Hinz")
+}
+
 func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) {
 	orchestrator, mockRepo, _ := setupMemberWriterTest()
 
