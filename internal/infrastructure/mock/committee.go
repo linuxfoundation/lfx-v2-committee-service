@@ -1201,10 +1201,14 @@ func (m *MockRepository) GetCommitteeMemberCount(committeeUID string) int {
 }
 
 // MockCommitteePublisher implements CommitteePublisher interface for testing
-type MockCommitteePublisher struct{}
+type MockCommitteePublisher struct {
+	// LastIndexerMessage captures the most recently published indexer message for assertions.
+	LastIndexerMessage any
+}
 
 // Indexer simulates publishing an indexer message
 func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any, sync bool) error {
+	p.LastIndexerMessage = message
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
 		"message_type", "indexer",

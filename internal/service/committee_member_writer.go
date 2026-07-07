@@ -1043,6 +1043,9 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				nameAndAliases = append(nameAndAliases, v)
 			}
 		}
+		if data.Member.FirstName != "" && data.Member.LastName != "" {
+			nameAndAliases = append(nameAndAliases, fmt.Sprintf("%s %s", data.Member.FirstName, data.Member.LastName))
+		}
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             data.Member.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),

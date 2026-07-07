@@ -236,7 +236,7 @@ _(none)_
 | Field | Value |
 |---|---|
 | `fulltext` | `first_name`, `last_name`, `email`, `organization.name` |
-| `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
+| `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username`, `"first_name last_name"` (non-empty values only) |
 | `sort_name` | `first_name` |
 | `public` | _(omitted; viewer access check required)_ |
 
