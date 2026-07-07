@@ -1132,9 +1132,10 @@ func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T)
 
 func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 	tests := []struct {
-		name   string
-		action model.MessageAction
-		data   *model.CommitteeMemberMessageData
+		name               string
+		action             model.MessageAction
+		data               *model.CommitteeMemberMessageData
+		wantNameAndAliases []string
 	}{
 		{
 			name:   "publish create message with member data",
@@ -1186,57 +1187,54 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "publish create message includes combined full name in name_and_aliases",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:           "member-987",
+						CommitteeUID:  "committee-123",
+						CommitteeName: "Governing Board",
+						Email:         "phinz@example.com",
+						FirstName:     "Paul",
+						LastName:      "Hinz",
+						Username:      "phinz",
+					},
+				},
+			},
+			wantNameAndAliases: []string{"Paul", "Hinz", "Paul Hinz"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orchestrator, _, _ := setupMemberWriterTest()
+			mockRepo := mock.NewMockRepository()
+			memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := &committeeWriterOrchestrator{
+				committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+				committeeWriter:    memberWriter,
+				committeePublisher: publisher,
+				projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+			}
 
 			ctx := context.Background()
 			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data, false)
 
 			// Should succeed with mock publisher
 			assert.NoError(t, err)
+
+			if tt.wantNameAndAliases != nil {
+				msg, ok := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
+				require.True(t, ok)
+				require.NotNil(t, msg.IndexingConfig)
+				for _, want := range tt.wantNameAndAliases {
+					assert.Contains(t, msg.IndexingConfig.NameAndAliases, want)
+				}
+			}
 		})
 	}
-}
-
-func TestCommitteeWriterOrchestrator_publishMemberMessages_NameAndAliasesIncludesFullName(t *testing.T) {
-	mockRepo := mock.NewMockRepository()
-	memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
-	publisher := &mock.MockCommitteePublisher{}
-
-	orchestrator := &committeeWriterOrchestrator{
-		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
-		committeeWriter:    memberWriter,
-		committeePublisher: publisher,
-		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
-	}
-
-	data := &model.CommitteeMemberMessageData{
-		Member: &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID:           "member-123",
-				CommitteeUID:  "committee-123",
-				CommitteeName: "Governing Board",
-				Email:         "phinz@example.com",
-				FirstName:     "Paul",
-				LastName:      "Hinz",
-				Username:      "phinz",
-			},
-		},
-	}
-
-	ctx := context.Background()
-	err := orchestrator.publishMemberMessages(ctx, model.ActionCreated, data, false)
-	require.NoError(t, err)
-
-	msg, ok := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
-	require.True(t, ok)
-	require.NotNil(t, msg.IndexingConfig)
-	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Paul Hinz")
-	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Paul")
-	assert.Contains(t, msg.IndexingConfig.NameAndAliases, "Hinz")
 }
 
 func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) {
