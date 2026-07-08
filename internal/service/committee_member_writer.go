@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,7 +149,17 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"business_email_required", settings.BusinessEmailRequired,
 	)
 
-	// Step 2: Validate member against committee requirements (domain validation)
+	// Step 2: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
+	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+		slog.ErrorContext(ctx, "organization id resolution failed",
+			"error", errOrg,
+			"organization_id", member.Organization.ID,
+			"organization_name", member.Organization.Name,
+		)
+		return nil, errOrg
+	}
+
+	// Step 3: Validate member against committee requirements (domain validation)
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed",
@@ -446,6 +457,16 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
+	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+		slog.ErrorContext(ctx, "organization id resolution failed during update",
+			"error", errOrg,
+			"organization_id", member.Organization.ID,
+			"organization_name", member.Organization.Name,
+			"member_uid", member.UID,
+		)
+		return nil, errOrg
+	}
+
 	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
@@ -934,6 +955,40 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 	// This could involve calling LFX organization service or similar
 	// For now, we'll just validate that organization name is not empty
 
+	return nil
+}
+
+// sanitizeMemberOrganization clears organization.id when it does not resolve to a b2b_org.
+// Per LFXV2-2400, organization.id is either a verified b2b_org SFID or empty (name + domain only).
+func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
+	if org == nil {
+		return nil
+	}
+
+	org.ID = strings.TrimSpace(org.ID)
+	if org.ID == "" {
+		return nil
+	}
+	if uc.b2bOrgResolver == nil {
+		slog.DebugContext(ctx, "b2b org resolver not configured; skipping organization id resolution check")
+		return nil
+	}
+
+	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(ctx, org.ID)
+	if err != nil {
+		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
+	}
+	if !found {
+		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
+
+	org.ID = sfid
 	return nil
 }
 

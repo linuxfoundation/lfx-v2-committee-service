@@ -114,6 +114,7 @@ func run() error {
 		usecaseSvc.WithProjectRetriever(nats.NewMessageRequest(client)),
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(publisher),
+		usecaseSvc.WithB2BOrgResolver(nats.NewB2BOrgResolver(client)),
 	)
 
 	rc := commands.RunContext{

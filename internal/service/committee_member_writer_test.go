@@ -1120,6 +1120,36 @@ func TestCommitteeWriterOrchestrator_validateOrganizationExists(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+type stubB2BOrgResolver struct {
+	sfid string
+	ok   bool
+	err  error
+}
+
+func (s stubB2BOrgResolver) ResolveByUID(_ context.Context, _ string) (string, bool, error) {
+	if s.err != nil {
+		return "", false, s.err
+	}
+	return s.sfid, s.ok, nil
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	org := model.CommitteeMemberOrganization{ID: "0014100000Te2ovAAB", Name: "LF"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
+
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}
+	org = model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err = orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
+	assert.Equal(t, "Acme", org.Name)
+}
+
 func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 

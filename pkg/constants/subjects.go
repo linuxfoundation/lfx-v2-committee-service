@@ -46,6 +46,10 @@ const (
 	// The subject is of the form: lfx.auth-service.user_metadata.read
 	AuthUserMetadataReadSubject = "lfx.auth-service.user_metadata.read"
 
+	// MemberB2BOrgLookupSubject resolves a b2b_org by id via member-service.
+	// Request: {"id":"<uid>"}. Reply: {"id":"<canonical-18-char-sfid>"} or {"error":"..."}.
+	MemberB2BOrgLookupSubject = "lfx.member.b2b_org_lookup"
+
 	// IndexCommitteeSubject is the subject for the committee index.
 	// The subject is of the form: lfx.index.committee
 	IndexCommitteeSubject = "lfx.index.committee"
