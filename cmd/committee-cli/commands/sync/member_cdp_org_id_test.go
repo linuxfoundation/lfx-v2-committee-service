@@ -89,7 +89,11 @@ func TestExtractPrimaryDomain(t *testing.T) {
 
 func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
-	t.Cleanup(func() { memberCDPOrgIDTestResolver = nil })
+	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
+	t.Cleanup(func() {
+		memberCDPOrgIDTestResolver = nil
+		memberCDPOrgIDTestMemberUIDs = nil
+	})
 
 	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
@@ -114,7 +118,11 @@ func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 
 func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
 	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
-	t.Cleanup(func() { memberCDPOrgIDTestResolver = nil })
+	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
+	t.Cleanup(func() {
+		memberCDPOrgIDTestResolver = nil
+		memberCDPOrgIDTestMemberUIDs = nil
+	})
 
 	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",

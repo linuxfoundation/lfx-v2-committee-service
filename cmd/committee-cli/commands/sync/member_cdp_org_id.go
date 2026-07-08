@@ -29,6 +29,9 @@ const (
 	defaultOpenSearchURL   = "http://localhost:9200"
 	defaultOpenSearchIndex = "resources"
 	b2bOrgObjectType       = "b2b_org"
+	committeeMemberType    = "committee_member"
+	cdpOrgIDUUIDPattern    = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+	cdpOrgIDHexPattern     = "[0-9a-fA-F]{32}"
 )
 
 type memberCDPOrgIDStats struct {
@@ -47,8 +50,11 @@ func (s *memberCDPOrgIDSubcommand) Help() string {
 	return "repair committee members storing a CDP org UUID in organization.id by resolving the b2b_org Salesforce SFID (LFXV2-2647)"
 }
 
-// memberCDPOrgIDTestResolver is set by tests to bypass OpenSearch.
+// memberCDPOrgIDTestResolver is set by tests to bypass OpenSearch b2b_org lookup.
 var memberCDPOrgIDTestResolver b2bOrgSFIDResolver
+
+// memberCDPOrgIDTestMemberUIDs is set by tests to bypass OpenSearch member discovery.
+var memberCDPOrgIDTestMemberUIDs []string
 
 type b2bOrgSFIDResolver interface {
 	ResolveSFID(ctx context.Context, name, website string) (sfid string, ok bool, err error)
@@ -90,11 +96,13 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 	rc.DryRun = *dryRun
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
+	var osClient *opensearchgo.Client
 	var resolver b2bOrgSFIDResolver
 	if memberCDPOrgIDTestResolver != nil {
 		resolver = memberCDPOrgIDTestResolver
 	} else {
-		osClient, err := newOpenSearchClient(*openSearchURL)
+		var err error
+		osClient, err = newOpenSearchClient(*openSearchURL)
 		if err != nil {
 			return err
 		}
@@ -104,25 +112,22 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 		}
 	}
 
+	members, err := collectMembersForRepair(ctx, rc, osClient, *openSearchIndex, *committeeUID, *memberUID)
+	if err != nil {
+		return err
+	}
+	slog.InfoContext(ctx, "member-cdp-org-id candidates loaded", "count", len(members))
+
 	stats := memberCDPOrgIDStats{Stats: *commands.NewStats()}
 	stats.DryRun = rc.DryRun
 
-	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+	for _, member := range members {
 		stats.Total++
-
-		if *committeeUID != "" && member.CommitteeUID != *committeeUID {
-			stats.Skipped++
-			return nil
-		}
-		if *memberUID != "" && member.UID != *memberUID {
-			stats.Skipped++
-			return nil
-		}
 
 		orgID := strings.TrimSpace(member.Organization.ID)
 		if !isCDPUUID(orgID) {
 			stats.Skipped++
-			return nil
+			continue
 		}
 		stats.CDPUUIDFound++
 
@@ -136,7 +141,7 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 				"error", err,
 			)
 			stats.Failed++
-			return nil
+			continue
 		}
 
 		var wantID string
@@ -154,12 +159,12 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 				"organization_name", member.Organization.Name,
 				"organization_website", member.Organization.Website,
 			)
-			return nil
+			continue
 		}
 
 		if wantID == orgID {
 			stats.Skipped++
-			return nil
+			continue
 		}
 
 		action := "resolved_sfid"
@@ -183,22 +188,22 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 				stats.Cleared++
 			}
 			stats.Updated++
-			return nil
+			continue
 		}
 
 		fresh, revision, errGet := rc.CommitteeReader.GetMember(ctx, member.UID)
 		if errGet != nil || fresh == nil {
 			slog.WarnContext(ctx, "failed to re-read member before org id repair", "member_uid", member.UID, "error", errGet)
 			stats.Failed++
-			return nil
+			continue
 		}
 		if !isCDPUUID(strings.TrimSpace(fresh.Organization.ID)) {
 			stats.Skipped++
-			return nil
+			continue
 		}
 		if utils.NormalizeAccountSFID(fresh.Organization.ID) == wantID {
 			stats.Skipped++
-			return nil
+			continue
 		}
 
 		fresh.Organization.ID = wantID
@@ -207,7 +212,7 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 			slog.WarnContext(ctx, "failed to update member organization id",
 				"member_uid", member.UID, "committee_uid", member.CommitteeUID, "error", errUpdate)
 			stats.Failed++
-			return nil
+			continue
 		}
 
 		if wantID != "" {
@@ -222,10 +227,6 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 				return err
 			}
 		}
-		return nil
-	})
-	if errEach != nil {
-		return errors.NewUnexpected("failed to stream members", errEach)
 	}
 
 	s.logSummary(ctx, &stats)
@@ -234,6 +235,138 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 		return errors.NewUnexpected(fmt.Sprintf("%d member(s) failed to repair", stats.Failed))
 	}
 	return nil
+}
+
+// collectMembersForRepair loads candidate members without a full NATS KV bucket scan.
+// Default scope queries OpenSearch for committee_member docs whose organization.id is a CDP UUID.
+func collectMembersForRepair(
+	ctx context.Context,
+	rc commands.RunContext,
+	osClient *opensearchgo.Client,
+	index, committeeUID, memberUID string,
+) ([]*model.CommitteeMember, error) {
+	if memberUID != "" {
+		member, _, err := rc.CommitteeReader.GetMember(ctx, memberUID)
+		if err != nil {
+			return nil, errors.NewUnexpected("failed to get member", err)
+		}
+		return []*model.CommitteeMember{member}, nil
+	}
+
+	if committeeUID != "" {
+		members, err := rc.CommitteeReader.ListMembersByCommittee(ctx, committeeUID)
+		if err != nil {
+			return nil, errors.NewUnexpected("failed to list committee members", err)
+		}
+		return members, nil
+	}
+
+	if memberCDPOrgIDTestMemberUIDs != nil {
+		return loadMembersByUID(ctx, rc, memberCDPOrgIDTestMemberUIDs)
+	}
+
+	if osClient == nil {
+		return nil, errors.NewUnexpected("OpenSearch client is required to discover CDP org members")
+	}
+
+	uids, err := searchMemberUIDsWithCDPOrgID(ctx, osClient, index)
+	if err != nil {
+		return nil, err
+	}
+	slog.InfoContext(ctx, "discovered CDP org member candidates from OpenSearch", "count", len(uids))
+	return loadMembersByUID(ctx, rc, uids)
+}
+
+func loadMembersByUID(ctx context.Context, rc commands.RunContext, uids []string) ([]*model.CommitteeMember, error) {
+	members := make([]*model.CommitteeMember, 0, len(uids))
+	for _, uid := range uids {
+		member, _, err := rc.CommitteeReader.GetMember(ctx, uid)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to load member candidate from NATS KV",
+				"member_uid", uid, "error", err)
+			continue
+		}
+		members = append(members, member)
+	}
+	return members, nil
+}
+
+func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Client, index string) ([]string, error) {
+	query := map[string]any{
+		"size": 500,
+		"query": map[string]any{
+			"bool": map[string]any{
+				"must": []any{
+					map[string]any{"term": map[string]any{"latest": true}},
+					map[string]any{"term": map[string]any{"object_type": committeeMemberType}},
+					map[string]any{
+						"bool": map[string]any{
+							"should": []any{
+								map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDUUIDPattern}},
+								map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDHexPattern}},
+							},
+							"minimum_should_match": 1,
+						},
+					},
+				},
+			},
+		},
+		"_source": []string{"object_id", "data.uid"},
+	}
+
+	body, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("marshal OpenSearch member discovery query: %w", err)
+	}
+
+	res, err := client.Search(
+		client.Search.WithContext(ctx),
+		client.Search.WithIndex(index),
+		client.Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("OpenSearch member discovery request failed: %w", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.IsError() {
+		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return nil, fmt.Errorf("OpenSearch member discovery error %s: %s", res.Status(), raw)
+	}
+
+	var parsed struct {
+		Hits struct {
+			Hits []struct {
+				Source struct {
+					ObjectID string `json:"object_id"`
+					Data     struct {
+						UID string `json:"uid"`
+					} `json:"data"`
+				} `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
+		return nil, fmt.Errorf("decode OpenSearch member discovery response: %w", err)
+	}
+
+	seen := make(map[string]struct{}, len(parsed.Hits.Hits))
+	uids := make([]string, 0, len(parsed.Hits.Hits))
+	for _, hit := range parsed.Hits.Hits {
+		uid := strings.TrimSpace(hit.Source.Data.UID)
+		if uid == "" {
+			uid = strings.TrimSpace(hit.Source.ObjectID)
+		}
+		if uid == "" {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		uids = append(uids, uid)
+	}
+	return uids, nil
 }
 
 func (s *memberCDPOrgIDSubcommand) logSummary(ctx context.Context, stats *memberCDPOrgIDStats) {

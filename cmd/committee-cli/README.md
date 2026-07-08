@@ -19,6 +19,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | Env var | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://localhost:4222` | NATS server address |
+| `NATS_TIMEOUT` | `120s` | NATS request timeout for KV reads/writes |
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
@@ -140,7 +141,9 @@ NATS_URL=nats://localhost:4222 \
 
 #### `sync member-cdp-org-id`
 
-Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Scans the committee-members KV bucket, resolves each affected org to the canonical **b2b_org Salesforce SFID** via OpenSearch (`resources` index, `object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates the member through the writer orchestrator (reindexes + fixes the by-organization secondary index).
+Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** from OpenSearch (`object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).
+
+Use `--committee-uid` or `--member-uid` to scope via indexed NATS reads instead of the OpenSearch discovery query.
 
 Tracked in [LFXV2-2647](https://linuxfoundation.atlassian.net/browse/LFXV2-2647).
 
