@@ -25,6 +25,10 @@ func (s stubB2BOrgResolver) ResolveSFID(_ context.Context, _, _ string) (string,
 	return s.sfid, s.ok, s.err
 }
 
+func testMemberCDPOrgIDCmd(resolver b2bOrgSFIDResolver, memberUIDs []string) *memberCDPOrgIDSubcommand {
+	return &memberCDPOrgIDSubcommand{resolver: resolver, memberUIDs: memberUIDs}
+}
+
 type stubCommitteeWriter struct {
 	updated []*model.CommitteeMember
 }
@@ -88,13 +92,6 @@ func TestExtractPrimaryDomain(t *testing.T) {
 }
 
 func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
-	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
-	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
-	t.Cleanup(func() {
-		memberCDPOrgIDTestResolver = nil
-		memberCDPOrgIDTestMemberUIDs = nil
-	})
-
 	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -107,7 +104,7 @@ func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 	r := &mockReader{members: map[string][]*model.CommitteeMember{"c1": {member}}}
 	w := &stubCommitteeWriter{}
 
-	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+	err := testMemberCDPOrgIDCmd(stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}, []string{"m1"}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
 		Args:                        []string{"--dry-run"},
@@ -117,13 +114,6 @@ func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 }
 
 func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
-	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
-	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
-	t.Cleanup(func() {
-		memberCDPOrgIDTestResolver = nil
-		memberCDPOrgIDTestMemberUIDs = nil
-	})
-
 	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -148,7 +138,7 @@ func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
 	}
 	w := &stubCommitteeWriter{}
 
-	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+	err := testMemberCDPOrgIDCmd(stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}, []string{"m1"}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
 		Args:                        []string{"--dry-run=false"},
@@ -159,13 +149,6 @@ func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
 }
 
 func TestMemberCDPOrgID_ResolverErrorIncrementsFailed(t *testing.T) {
-	memberCDPOrgIDTestResolver = stubB2BOrgResolver{err: assert.AnError}
-	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
-	t.Cleanup(func() {
-		memberCDPOrgIDTestResolver = nil
-		memberCDPOrgIDTestMemberUIDs = nil
-	})
-
 	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -178,7 +161,7 @@ func TestMemberCDPOrgID_ResolverErrorIncrementsFailed(t *testing.T) {
 	r := &mockReader{members: map[string][]*model.CommitteeMember{"c1": {member}}}
 	w := &stubCommitteeWriter{}
 
-	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+	err := testMemberCDPOrgIDCmd(stubB2BOrgResolver{err: assert.AnError}, []string{"m1"}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
 		Args:                        []string{"--dry-run=false"},
@@ -206,13 +189,6 @@ func (r *sequentialMemberReader) GetMember(_ context.Context, _ string) (*model.
 }
 
 func TestMemberCDPOrgID_SkipsWhenFreshOrgChanged(t *testing.T) {
-	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
-	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
-	t.Cleanup(func() {
-		memberCDPOrgIDTestResolver = nil
-		memberCDPOrgIDTestMemberUIDs = nil
-	})
-
 	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -239,7 +215,7 @@ func TestMemberCDPOrgID_SkipsWhenFreshOrgChanged(t *testing.T) {
 	}
 	w := &stubCommitteeWriter{}
 
-	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+	err := testMemberCDPOrgIDCmd(stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}, []string{"m1"}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
 		Args:                        []string{"--dry-run=false"},
@@ -249,13 +225,6 @@ func TestMemberCDPOrgID_SkipsWhenFreshOrgChanged(t *testing.T) {
 }
 
 func TestMemberCDPOrgID_ClearUnresolved(t *testing.T) {
-	memberCDPOrgIDTestResolver = stubB2BOrgResolver{}
-	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
-	t.Cleanup(func() {
-		memberCDPOrgIDTestResolver = nil
-		memberCDPOrgIDTestMemberUIDs = nil
-	})
-
 	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -280,7 +249,7 @@ func TestMemberCDPOrgID_ClearUnresolved(t *testing.T) {
 	}
 	w := &stubCommitteeWriter{}
 
-	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+	err := testMemberCDPOrgIDCmd(stubB2BOrgResolver{}, []string{"m1"}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
 		Args:                        []string{"--dry-run=false", "--clear-unresolved"},

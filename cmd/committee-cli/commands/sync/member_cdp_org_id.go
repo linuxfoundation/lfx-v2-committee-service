@@ -43,19 +43,17 @@ type memberCDPOrgIDStats struct {
 	Unresolved   int
 }
 
-type memberCDPOrgIDSubcommand struct{}
+type memberCDPOrgIDSubcommand struct {
+	// Optional overrides for tests; production wiring leaves these nil.
+	resolver   b2bOrgSFIDResolver
+	memberUIDs []string
+}
 
 func (s *memberCDPOrgIDSubcommand) Name() string { return "member-cdp-org-id" }
 
 func (s *memberCDPOrgIDSubcommand) Help() string {
 	return "repair committee members storing a CDP org UUID in organization.id by resolving the b2b_org Salesforce SFID (LFXV2-2647)"
 }
-
-// memberCDPOrgIDTestResolver is set by tests to bypass OpenSearch b2b_org lookup.
-var memberCDPOrgIDTestResolver b2bOrgSFIDResolver
-
-// memberCDPOrgIDTestMemberUIDs is set by tests to bypass OpenSearch member discovery.
-var memberCDPOrgIDTestMemberUIDs []string
 
 type b2bOrgSFIDResolver interface {
 	ResolveSFID(ctx context.Context, name, website string) (sfid string, ok bool, err error)
@@ -99,8 +97,8 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 
 	var osClient *opensearchgo.Client
 	var resolver b2bOrgSFIDResolver
-	if memberCDPOrgIDTestResolver != nil {
-		resolver = memberCDPOrgIDTestResolver
+	if s.resolver != nil {
+		resolver = s.resolver
 	} else {
 		var err error
 		osClient, err = newOpenSearchClient(*openSearchURL)
@@ -113,7 +111,7 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 		}
 	}
 
-	members, err := collectMembersForRepair(ctx, rc, osClient, *openSearchIndex, *committeeUID, *memberUID)
+	members, err := collectMembersForRepair(ctx, rc, osClient, *openSearchIndex, *committeeUID, *memberUID, s.memberUIDs)
 	if err != nil {
 		return err
 	}
@@ -254,6 +252,7 @@ func collectMembersForRepair(
 	rc commands.RunContext,
 	osClient *opensearchgo.Client,
 	index, committeeUID, memberUID string,
+	discoveryUIDs []string,
 ) ([]*model.CommitteeMember, error) {
 	if memberUID != "" {
 		member, _, err := rc.CommitteeReader.GetMember(ctx, memberUID)
@@ -271,8 +270,8 @@ func collectMembersForRepair(
 		return members, nil
 	}
 
-	if memberCDPOrgIDTestMemberUIDs != nil {
-		return loadMembersByUID(ctx, rc, memberCDPOrgIDTestMemberUIDs)
+	if len(discoveryUIDs) > 0 {
+		return loadMembersByUID(ctx, rc, discoveryUIDs)
 	}
 
 	if osClient == nil {
