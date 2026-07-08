@@ -1242,6 +1242,97 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *tes
 	assert.Equal(t, "https://acme.com", result.Organization.Website)
 }
 
+func TestCommitteeWriterOrchestrator_CreateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	const wantID = "51fde723-67df-4e0e-91c6-936d01d59559"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	const wantID = "51fde723-67df-4e0e-91c6-936d01d59559"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members["member-123"]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
 func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 
