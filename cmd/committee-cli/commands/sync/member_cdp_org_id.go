@@ -322,10 +322,14 @@ func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Clie
 
 	seen := make(map[string]struct{})
 	uids := make([]string, 0)
+	var hitsTotal int64 = -1
 	for from := 0; ; from += memberDiscoveryPageSize {
-		page, err := searchMemberUIDPage(ctx, client, index, baseQuery, from, memberDiscoveryPageSize)
+		page, total, err := searchMemberUIDPage(ctx, client, index, baseQuery, from, memberDiscoveryPageSize)
 		if err != nil {
 			return nil, err
+		}
+		if from == 0 && total >= 0 {
+			hitsTotal = total
 		}
 		for _, uid := range page {
 			if _, ok := seen[uid]; ok {
@@ -338,10 +342,22 @@ func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Clie
 			break
 		}
 	}
+	if hitsTotal >= 0 {
+		slog.InfoContext(ctx, "OpenSearch CDP org member discovery complete",
+			"hits_total", hitsTotal,
+			"retrieved", len(uids),
+		)
+		if int64(len(uids)) < hitsTotal {
+			slog.WarnContext(ctx, "OpenSearch reported more CDP org members than were retrieved; discovery may be truncated",
+				"hits_total", hitsTotal,
+				"retrieved", len(uids),
+			)
+		}
+	}
 	return uids, nil
 }
 
-func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index string, baseQuery map[string]any, from, size int) ([]string, error) {
+func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index string, baseQuery map[string]any, from, size int) ([]string, int64, error) {
 	query := map[string]any{
 		"from":    from,
 		"size":    size,
@@ -352,7 +368,7 @@ func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index
 
 	body, err := json.Marshal(query)
 	if err != nil {
-		return nil, errors.NewUnexpected("marshal OpenSearch member discovery query", err)
+		return nil, -1, errors.NewUnexpected("marshal OpenSearch member discovery query", err)
 	}
 
 	res, err := client.Search(
@@ -361,17 +377,20 @@ func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index
 		client.Search.WithBody(bytes.NewReader(body)),
 	)
 	if err != nil {
-		return nil, errors.NewUnexpected("OpenSearch member discovery request failed", err)
+		return nil, -1, errors.NewUnexpected("OpenSearch member discovery request failed", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return nil, errors.NewUnexpected(fmt.Sprintf("OpenSearch member discovery error %s: %s", res.Status(), raw))
+		return nil, -1, errors.NewUnexpected(fmt.Sprintf("OpenSearch member discovery error %s: %s", res.Status(), raw))
 	}
 
 	var parsed struct {
 		Hits struct {
+			Total struct {
+				Value int64 `json:"value"`
+			} `json:"total"`
 			Hits []struct {
 				Source struct {
 					ObjectID string `json:"object_id"`
@@ -383,7 +402,7 @@ func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index
 		} `json:"hits"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-		return nil, errors.NewUnexpected("decode OpenSearch member discovery response", err)
+		return nil, -1, errors.NewUnexpected("decode OpenSearch member discovery response", err)
 	}
 
 	uids := make([]string, 0, len(parsed.Hits.Hits))
@@ -397,7 +416,7 @@ func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index
 		}
 		uids = append(uids, uid)
 	}
-	return uids, nil
+	return uids, parsed.Hits.Total.Value, nil
 }
 
 func (s *memberCDPOrgIDSubcommand) logSummary(ctx context.Context, stats *memberCDPOrgIDStats) {
