@@ -6,6 +6,7 @@ package commands
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -41,8 +42,18 @@ type RunContext struct {
 	// subcommands that need to publish without going through the writer orchestrator).
 	Publisher  port.CommitteePublisher
 	UserReader port.UserReader
-	DryRun     bool
-	Args       []string // remaining args after command + subcommand, for subcommand flag parsing
+	// B2BOrgSFIDResolver resolves organization name/website to a b2b_org SFID. When nil, sync
+	// member-cdp-org-id builds one from QUERY_SERVICE_URL and AUTH_TOKEN.
+	B2BOrgSFIDResolver B2BOrgSFIDResolver
+	// QueryHTTPClient carries service auth for query-service lookups (b2b_org SFID resolution).
+	QueryHTTPClient *http.Client
+	DryRun          bool
+	Args            []string // remaining args after command + subcommand, for subcommand flag parsing
+}
+
+// B2BOrgSFIDResolver resolves a member organization to its canonical b2b_org SFID.
+type B2BOrgSFIDResolver interface {
+	ResolveSFID(ctx context.Context, name, website string) (sfid string, ok bool, err error)
 }
 
 // Stats tracks counters for a command run.
