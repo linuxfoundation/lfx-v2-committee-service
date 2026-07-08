@@ -13,6 +13,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
+const b2bOrgLookupNotFoundError = "b2b org not found"
+
 type b2bOrgLookupRequest struct {
 	ID string `json:"id"`
 }
@@ -54,7 +56,14 @@ func (r *b2bOrgResolver) ResolveByUID(ctx context.Context, uid string) (string, 
 	if err := json.Unmarshal(msg.Data, &resp); err != nil {
 		return "", false, fmt.Errorf("decode b2b_org lookup response: %w", err)
 	}
-	if strings.TrimSpace(resp.Error) != "" || strings.TrimSpace(resp.ID) == "" {
+	errMsg := strings.TrimSpace(resp.Error)
+	if errMsg != "" {
+		if errMsg == b2bOrgLookupNotFoundError {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("b2b_org lookup: %s", errMsg)
+	}
+	if strings.TrimSpace(resp.ID) == "" {
 		return "", false, nil
 	}
 	return strings.TrimSpace(resp.ID), true, nil

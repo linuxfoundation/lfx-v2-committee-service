@@ -80,6 +80,37 @@ func TestB2BOrgResolver_ResolveByUID_notFound(t *testing.T) {
 	}
 }
 
+func TestB2BOrgResolver_ResolveByUID_lookupFailed(t *testing.T) {
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		t.Skipf("NATS not available: %v", err)
+	}
+	defer nc.Close()
+
+	sub, err := nc.Subscribe(constants.MemberB2BOrgLookupSubject, func(msg *nats.Msg) {
+		_ = msg.Respond([]byte(`{"error":"b2b org lookup failed"}`))
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer func() { _ = sub.Unsubscribe() }()
+
+	client, err := NewClient(context.Background(), Config{URL: nats.DefaultURL})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	resolver := NewB2BOrgResolver(client)
+	_, ok, err := resolver.ResolveByUID(context.Background(), "0014100000Te2ovAAB")
+	if err == nil {
+		t.Fatal("expected lookup error")
+	}
+	if ok {
+		t.Fatal("expected not found")
+	}
+}
+
 func TestB2BOrgLookupResponse_decode(t *testing.T) {
 	var resp b2bOrgLookupResponse
 	if err := json.Unmarshal([]byte(`{"id":"0014100000Te2ovAAB"}`), &resp); err != nil {

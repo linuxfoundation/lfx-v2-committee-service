@@ -91,6 +91,9 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("invalid NATS_TIMEOUT %q: %w", raw, err)
 		}
+		if parsed <= 0 {
+			return fmt.Errorf("invalid NATS_TIMEOUT %q: must be greater than zero", raw)
+		}
 		natsTimeout = parsed
 	}
 	client, err := nats.NewClient(ctx, nats.Config{

@@ -157,3 +157,74 @@ func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
 	require.Len(t, w.updated, 1)
 	assert.Equal(t, "0014100000Te2ovAAB", w.updated[0].Organization.ID)
 }
+
+func TestMemberCDPOrgID_ResolverErrorIncrementsFailed(t *testing.T) {
+	memberCDPOrgIDTestResolver = stubB2BOrgResolver{err: assert.AnError}
+	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
+	t.Cleanup(func() {
+		memberCDPOrgIDTestResolver = nil
+		memberCDPOrgIDTestMemberUIDs = nil
+	})
+
+	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          "m1",
+		CommitteeUID: "c1",
+		Organization: model.CommitteeMemberOrganization{
+			ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+			Name:    "The Linux Foundation",
+			Website: "https://linuxfoundation.org",
+		},
+	}}
+	r := &mockReader{members: map[string][]*model.CommitteeMember{"c1": {member}}}
+	w := &stubCommitteeWriter{}
+
+	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+		CommitteeReader:             r,
+		CommitteeWriterOrchestrator: w,
+		Args:                        []string{"--dry-run=false"},
+	})
+	require.Error(t, err)
+	assert.Empty(t, w.updated)
+}
+
+func TestMemberCDPOrgID_ClearUnresolved(t *testing.T) {
+	memberCDPOrgIDTestResolver = stubB2BOrgResolver{}
+	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
+	t.Cleanup(func() {
+		memberCDPOrgIDTestResolver = nil
+		memberCDPOrgIDTestMemberUIDs = nil
+	})
+
+	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          "m1",
+		CommitteeUID: "c1",
+		Organization: model.CommitteeMemberOrganization{
+			ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+			Name:    "The Linux Foundation",
+			Website: "https://linuxfoundation.org",
+		},
+	}}
+	fresh := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          "m1",
+		CommitteeUID: "c1",
+		Organization: model.CommitteeMemberOrganization{
+			ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+			Name:    "The Linux Foundation",
+			Website: "https://linuxfoundation.org",
+		},
+	}}
+	r := &freshMemberReader{
+		mockReader: &mockReader{members: map[string][]*model.CommitteeMember{"c1": {snapshot}}},
+		fresh:      fresh,
+	}
+	w := &stubCommitteeWriter{}
+
+	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+		CommitteeReader:             r,
+		CommitteeWriterOrchestrator: w,
+		Args:                        []string{"--dry-run=false", "--clear-unresolved"},
+	})
+	require.NoError(t, err)
+	require.Len(t, w.updated, 1)
+	assert.Empty(t, w.updated[0].Organization.ID)
+}

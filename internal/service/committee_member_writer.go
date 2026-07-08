@@ -151,12 +151,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 2: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
 	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
-		slog.ErrorContext(ctx, "organization id resolution failed",
+		slog.WarnContext(ctx, "organization id resolution unavailable; keeping organization id unchanged",
 			"error", errOrg,
 			"organization_id", member.Organization.ID,
 			"organization_name", member.Organization.Name,
 		)
-		return nil, errOrg
 	}
 
 	// Step 3: Validate member against committee requirements (domain validation)
@@ -457,14 +456,15 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
-	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
-		slog.ErrorContext(ctx, "organization id resolution failed during update",
-			"error", errOrg,
-			"organization_id", member.Organization.ID,
-			"organization_name", member.Organization.Name,
-			"member_uid", member.UID,
-		)
-		return nil, errOrg
+	if strings.TrimSpace(member.Organization.ID) != strings.TrimSpace(existing.Organization.ID) {
+		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+			slog.WarnContext(ctx, "organization id resolution unavailable during update; keeping organization id unchanged",
+				"error", errOrg,
+				"organization_id", member.Organization.ID,
+				"organization_name", member.Organization.Name,
+				"member_uid", member.UID,
+			)
+		}
 	}
 
 	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
@@ -988,7 +988,7 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 		return nil
 	}
 
-	org.ID = sfid
+	org.ID = utils.NormalizeAccountSFID(sfid)
 	return nil
 }
 

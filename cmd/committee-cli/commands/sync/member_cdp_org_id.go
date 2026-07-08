@@ -26,12 +26,13 @@ import (
 )
 
 const (
-	defaultOpenSearchURL   = "http://localhost:9200"
-	defaultOpenSearchIndex = "resources"
-	b2bOrgObjectType       = "b2b_org"
-	committeeMemberType    = "committee_member"
-	cdpOrgIDUUIDPattern    = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-	cdpOrgIDHexPattern     = "[0-9a-fA-F]{32}"
+	defaultOpenSearchURL    = "http://localhost:9200"
+	defaultOpenSearchIndex  = "resources"
+	b2bOrgObjectType        = "b2b_org"
+	committeeMemberType     = "committee_member"
+	cdpOrgIDUUIDPattern     = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+	cdpOrgIDHexPattern      = "[0-9a-fA-F]{32}"
+	memberDiscoveryPageSize = 500
 )
 
 type memberCDPOrgIDStats struct {
@@ -201,6 +202,15 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 			stats.Skipped++
 			continue
 		}
+		if strings.TrimSpace(fresh.Organization.Name) != strings.TrimSpace(member.Organization.Name) ||
+			strings.TrimSpace(fresh.Organization.Website) != strings.TrimSpace(member.Organization.Website) {
+			slog.WarnContext(ctx, "member organization changed before org id repair; skipping stale resolution",
+				"member_uid", member.UID,
+				"committee_uid", member.CommitteeUID,
+			)
+			stats.Skipped++
+			continue
+		}
 		if utils.NormalizeAccountSFID(fresh.Organization.ID) == wantID {
 			stats.Skipped++
 			continue
@@ -208,7 +218,7 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 
 		fresh.Organization.ID = wantID
 
-		if _, errUpdate := rc.CommitteeWriterOrchestrator.UpdateMember(ctx, fresh, revision, true, false); errUpdate != nil {
+		if _, errUpdate := rc.CommitteeWriterOrchestrator.UpdateMember(ctx, fresh, revision, true, true); errUpdate != nil {
 			slog.WarnContext(ctx, "failed to update member organization id",
 				"member_uid", member.UID, "committee_uid", member.CommitteeUID, "error", errUpdate)
 			stats.Failed++
@@ -292,31 +302,57 @@ func loadMembersByUID(ctx context.Context, rc commands.RunContext, uids []string
 }
 
 func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Client, index string) ([]string, error) {
-	query := map[string]any{
-		"size": 500,
-		"query": map[string]any{
-			"bool": map[string]any{
-				"must": []any{
-					map[string]any{"term": map[string]any{"latest": true}},
-					map[string]any{"term": map[string]any{"object_type": committeeMemberType}},
-					map[string]any{
-						"bool": map[string]any{
-							"should": []any{
-								map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDUUIDPattern}},
-								map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDHexPattern}},
-							},
-							"minimum_should_match": 1,
+	baseQuery := map[string]any{
+		"bool": map[string]any{
+			"must": []any{
+				map[string]any{"term": map[string]any{"latest": true}},
+				map[string]any{"term": map[string]any{"object_type": committeeMemberType}},
+				map[string]any{
+					"bool": map[string]any{
+						"should": []any{
+							map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDUUIDPattern}},
+							map[string]any{"regexp": map[string]any{"data.organization.id": cdpOrgIDHexPattern}},
 						},
+						"minimum_should_match": 1,
 					},
 				},
 			},
 		},
+	}
+
+	seen := make(map[string]struct{})
+	uids := make([]string, 0)
+	for from := 0; ; from += memberDiscoveryPageSize {
+		page, err := searchMemberUIDPage(ctx, client, index, baseQuery, from, memberDiscoveryPageSize)
+		if err != nil {
+			return nil, err
+		}
+		for _, uid := range page {
+			if _, ok := seen[uid]; ok {
+				continue
+			}
+			seen[uid] = struct{}{}
+			uids = append(uids, uid)
+		}
+		if len(page) < memberDiscoveryPageSize {
+			break
+		}
+	}
+	return uids, nil
+}
+
+func searchMemberUIDPage(ctx context.Context, client *opensearchgo.Client, index string, baseQuery map[string]any, from, size int) ([]string, error) {
+	query := map[string]any{
+		"from":    from,
+		"size":    size,
+		"query":   baseQuery,
+		"sort":    []any{map[string]any{"object_id": "asc"}},
 		"_source": []string{"object_id", "data.uid"},
 	}
 
 	body, err := json.Marshal(query)
 	if err != nil {
-		return nil, fmt.Errorf("marshal OpenSearch member discovery query: %w", err)
+		return nil, errors.NewUnexpected("marshal OpenSearch member discovery query", err)
 	}
 
 	res, err := client.Search(
@@ -325,13 +361,13 @@ func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Clie
 		client.Search.WithBody(bytes.NewReader(body)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("OpenSearch member discovery request failed: %w", err)
+		return nil, errors.NewUnexpected("OpenSearch member discovery request failed", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return nil, fmt.Errorf("OpenSearch member discovery error %s: %s", res.Status(), raw)
+		return nil, errors.NewUnexpected(fmt.Sprintf("OpenSearch member discovery error %s: %s", res.Status(), raw))
 	}
 
 	var parsed struct {
@@ -347,10 +383,9 @@ func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Clie
 		} `json:"hits"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("decode OpenSearch member discovery response: %w", err)
+		return nil, errors.NewUnexpected("decode OpenSearch member discovery response", err)
 	}
 
-	seen := make(map[string]struct{}, len(parsed.Hits.Hits))
 	uids := make([]string, 0, len(parsed.Hits.Hits))
 	for _, hit := range parsed.Hits.Hits {
 		uid := strings.TrimSpace(hit.Source.Data.UID)
@@ -360,10 +395,6 @@ func searchMemberUIDsWithCDPOrgID(ctx context.Context, client *opensearchgo.Clie
 		if uid == "" {
 			continue
 		}
-		if _, ok := seen[uid]; ok {
-			continue
-		}
-		seen[uid] = struct{}{}
 		uids = append(uids, uid)
 	}
 	return uids, nil
@@ -502,7 +533,7 @@ func (r *openSearchB2BOrgResolver) searchWildcard(ctx context.Context, field, pa
 func (r *openSearchB2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]any) (string, bool, error) {
 	body, err := json.Marshal(query)
 	if err != nil {
-		return "", false, fmt.Errorf("marshal OpenSearch query: %w", err)
+		return "", false, errors.NewUnexpected("marshal OpenSearch query", err)
 	}
 
 	res, err := r.client.Search(
@@ -511,13 +542,13 @@ func (r *openSearchB2BOrgResolver) searchFirstSFID(ctx context.Context, query ma
 		r.client.Search.WithBody(bytes.NewReader(body)),
 	)
 	if err != nil {
-		return "", false, fmt.Errorf("OpenSearch search request failed: %w", err)
+		return "", false, errors.NewUnexpected("OpenSearch search request failed", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return "", false, fmt.Errorf("OpenSearch search error %s: %s", res.Status(), raw)
+		return "", false, errors.NewUnexpected(fmt.Sprintf("OpenSearch search error %s: %s", res.Status(), raw))
 	}
 
 	var parsed struct {
@@ -533,7 +564,7 @@ func (r *openSearchB2BOrgResolver) searchFirstSFID(ctx context.Context, query ma
 		} `json:"hits"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-		return "", false, fmt.Errorf("decode OpenSearch search response: %w", err)
+		return "", false, errors.NewUnexpected("decode OpenSearch search response", err)
 	}
 	if len(parsed.Hits.Hits) == 0 {
 		return "", false, nil
