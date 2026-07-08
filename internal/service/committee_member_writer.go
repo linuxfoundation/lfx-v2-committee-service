@@ -149,7 +149,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"business_email_required", settings.BusinessEmailRequired,
 	)
 
-	// Step 2: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
+	// Step 2a: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
 	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
 		slog.WarnContext(ctx, "organization id resolution unavailable; keeping organization id unchanged",
 			"error", errOrg,
@@ -158,7 +158,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		)
 	}
 
-	// Step 3: Validate member against committee requirements (domain validation)
+	// Step 2b: Validate member against committee requirements (domain validation)
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed",
@@ -958,6 +958,10 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 	return nil
 }
 
+// b2bOrgLookupTimeout bounds the member-service NATS lookup in sanitizeMemberOrganization
+// so member create/update does not inherit an unbounded caller context.
+const b2bOrgLookupTimeout = 10 * time.Second
+
 // sanitizeMemberOrganization clears organization.id when it does not resolve to a b2b_org.
 // Per LFXV2-2400, organization.id is either a verified b2b_org SFID or empty (name + domain only).
 func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
@@ -974,7 +978,10 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 		return nil
 	}
 
-	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(ctx, org.ID)
+	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
+	defer cancel()
+
+	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(lookupCtx, org.ID)
 	if err != nil {
 		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
 	}
