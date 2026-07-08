@@ -484,7 +484,12 @@ func (r *openSearchB2BOrgResolver) ResolveSFID(ctx context.Context, name, websit
 		if err != nil || ok {
 			return sfid, ok, err
 		}
-		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*"+domain+"*")
+		// Anchor with scheme separator so "hat.com" cannot match "redhat.com".
+		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://"+domain+"*")
+		if err != nil || ok {
+			return sfid, ok, err
+		}
+		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://www."+domain+"*")
 		if err != nil || ok {
 			return sfid, ok, err
 		}
@@ -498,7 +503,7 @@ func (r *openSearchB2BOrgResolver) ResolveSFID(ctx context.Context, name, websit
 
 func (r *openSearchB2BOrgResolver) searchTerm(ctx context.Context, field, value string) (string, bool, error) {
 	query := map[string]any{
-		"size": 1,
+		"size": 2,
 		"query": map[string]any{
 			"bool": map[string]any{
 				"must": []any{
@@ -515,7 +520,7 @@ func (r *openSearchB2BOrgResolver) searchTerm(ctx context.Context, field, value 
 
 func (r *openSearchB2BOrgResolver) searchWildcard(ctx context.Context, field, pattern string) (string, bool, error) {
 	query := map[string]any{
-		"size": 1,
+		"size": 2,
 		"query": map[string]any{
 			"bool": map[string]any{
 				"must": []any{
@@ -567,6 +572,11 @@ func (r *openSearchB2BOrgResolver) searchFirstSFID(ctx context.Context, query ma
 		return "", false, errors.NewUnexpected("decode OpenSearch search response", err)
 	}
 	if len(parsed.Hits.Hits) == 0 {
+		return "", false, nil
+	}
+	// More than one hit means ambiguous match — skip to avoid misattribution.
+	if len(parsed.Hits.Hits) > 1 {
+		slog.WarnContext(ctx, "b2b_org resolution skipped: ambiguous match (multiple results)", "hits", len(parsed.Hits.Hits))
 		return "", false, nil
 	}
 

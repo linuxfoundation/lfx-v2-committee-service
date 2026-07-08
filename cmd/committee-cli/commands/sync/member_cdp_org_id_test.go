@@ -187,6 +187,67 @@ func TestMemberCDPOrgID_ResolverErrorIncrementsFailed(t *testing.T) {
 	assert.Empty(t, w.updated)
 }
 
+// sequentialMemberReader returns snapshot on the first GetMember call and fresh on all
+// subsequent calls. This lets tests exercise the stale-resolution guard by simulating
+// an org change between the discovery load and the pre-write re-read.
+type sequentialMemberReader struct {
+	*mockReader
+	calls    int
+	snapshot *model.CommitteeMember
+	fresh    *model.CommitteeMember
+}
+
+func (r *sequentialMemberReader) GetMember(_ context.Context, _ string) (*model.CommitteeMember, uint64, error) {
+	r.calls++
+	if r.calls == 1 {
+		return r.snapshot, 1, nil
+	}
+	return r.fresh, 1, nil
+}
+
+func TestMemberCDPOrgID_SkipsWhenFreshOrgChanged(t *testing.T) {
+	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+	memberCDPOrgIDTestMemberUIDs = []string{"m1"}
+	t.Cleanup(func() {
+		memberCDPOrgIDTestResolver = nil
+		memberCDPOrgIDTestMemberUIDs = nil
+	})
+
+	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          "m1",
+		CommitteeUID: "c1",
+		Organization: model.CommitteeMemberOrganization{
+			ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+			Name:    "The Linux Foundation",
+			Website: "https://linuxfoundation.org",
+		},
+	}}
+	// Re-read has a different org name — stale resolution guard should skip the write.
+	fresh := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          "m1",
+		CommitteeUID: "c1",
+		Organization: model.CommitteeMemberOrganization{
+			ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+			Name:    "Different Foundation",
+			Website: "https://linuxfoundation.org",
+		},
+	}}
+	r := &sequentialMemberReader{
+		mockReader: &mockReader{},
+		snapshot:   snapshot,
+		fresh:      fresh,
+	}
+	w := &stubCommitteeWriter{}
+
+	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
+		CommitteeReader:             r,
+		CommitteeWriterOrchestrator: w,
+		Args:                        []string{"--dry-run=false"},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, w.updated, "write should be skipped when fresh org name differs from snapshot")
+}
+
 func TestMemberCDPOrgID_ClearUnresolved(t *testing.T) {
 	memberCDPOrgIDTestResolver = stubB2BOrgResolver{}
 	memberCDPOrgIDTestMemberUIDs = []string{"m1"}

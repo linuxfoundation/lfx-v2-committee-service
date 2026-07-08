@@ -1148,6 +1148,98 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, org.ID)
 	assert.Equal(t, "Acme", org.Name)
+	assert.Equal(t, "https://acme.com", org.Website)
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Empty(t, stored.Organization.ID)
+	assert.Equal(t, "Acme Corp", stored.Organization.Name)
+	assert.Equal(t, "https://acme.com", stored.Organization.Website)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
 }
 
 func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T) {

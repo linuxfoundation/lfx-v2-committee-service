@@ -962,8 +962,10 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 // so member create/update does not inherit an unbounded caller context.
 const b2bOrgLookupTimeout = 10 * time.Second
 
-// sanitizeMemberOrganization clears organization.id when it does not resolve to a b2b_org.
-// Per LFXV2-2400, organization.id is either a verified b2b_org SFID or empty (name + domain only).
+// sanitizeMemberOrganization validates organization.id against member-service b2b_org lookup.
+// When the id is not found, it clears organization.id and returns nil so create/update continues
+// with organization name and website only (LFXV2-2400). Infrastructure lookup errors are returned
+// to callers, which fail-open (warn and keep the submitted id).
 func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
 	if org == nil {
 		return nil
