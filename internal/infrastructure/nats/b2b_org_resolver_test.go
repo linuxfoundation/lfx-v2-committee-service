@@ -7,116 +7,71 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
+
+func setupB2BOrgResolverTest(t *testing.T, responder func(*nats.Msg) []byte) port.B2BOrgResolver {
+	t.Helper()
+
+	_, url := startTestNATSServer(t)
+
+	nc, err := nats.Connect(url)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	_, err = nc.Subscribe(constants.MemberB2BOrgLookupSubject, func(msg *nats.Msg) {
+		_ = msg.Respond(responder(msg))
+	})
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+
+	return NewB2BOrgResolver(&NATSClient{
+		conn:    nc,
+		timeout: 2 * time.Second,
+	})
+}
 
 func TestB2BOrgResolver_ResolveByUID(t *testing.T) {
 	const wantSFID = "0014100000Te2ovAAB"
 
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Skipf("NATS not available: %v", err)
-	}
-	defer nc.Close()
-
-	sub, err := nc.Subscribe(constants.MemberB2BOrgLookupSubject, func(msg *nats.Msg) {
-		_ = msg.Respond([]byte(`{"id":"` + wantSFID + `"}`))
+	resolver := setupB2BOrgResolverTest(t, func(_ *nats.Msg) []byte {
+		return []byte(`{"id":"` + wantSFID + `"}`)
 	})
-	if err != nil {
-		t.Fatalf("subscribe: %v", err)
-	}
-	defer func() { _ = sub.Unsubscribe() }()
 
-	client, err := NewClient(context.Background(), Config{URL: nats.DefaultURL})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	resolver := NewB2BOrgResolver(client)
 	sfid, ok, err := resolver.ResolveByUID(context.Background(), wantSFID)
-	if err != nil {
-		t.Fatalf("ResolveByUID error: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok")
-	}
-	if sfid != wantSFID {
-		t.Fatalf("sfid = %q", sfid)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, wantSFID, sfid)
 }
 
 func TestB2BOrgResolver_ResolveByUID_notFound(t *testing.T) {
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Skipf("NATS not available: %v", err)
-	}
-	defer nc.Close()
-
-	sub, err := nc.Subscribe(constants.MemberB2BOrgLookupSubject, func(msg *nats.Msg) {
-		_ = msg.Respond([]byte(`{"error":"b2b org not found"}`))
+	resolver := setupB2BOrgResolverTest(t, func(_ *nats.Msg) []byte {
+		return []byte(`{"error":"b2b org not found"}`)
 	})
-	if err != nil {
-		t.Fatalf("subscribe: %v", err)
-	}
-	defer func() { _ = sub.Unsubscribe() }()
 
-	client, err := NewClient(context.Background(), Config{URL: nats.DefaultURL})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	resolver := NewB2BOrgResolver(client)
 	_, ok, err := resolver.ResolveByUID(context.Background(), "51fde723-67df-4e0e-91c6-936d01d59559")
-	if err != nil {
-		t.Fatalf("ResolveByUID error: %v", err)
-	}
-	if ok {
-		t.Fatal("expected not found")
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestB2BOrgResolver_ResolveByUID_lookupFailed(t *testing.T) {
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Skipf("NATS not available: %v", err)
-	}
-	defer nc.Close()
-
-	sub, err := nc.Subscribe(constants.MemberB2BOrgLookupSubject, func(msg *nats.Msg) {
-		_ = msg.Respond([]byte(`{"error":"b2b org lookup failed"}`))
+	resolver := setupB2BOrgResolverTest(t, func(_ *nats.Msg) []byte {
+		return []byte(`{"error":"b2b org lookup failed"}`)
 	})
-	if err != nil {
-		t.Fatalf("subscribe: %v", err)
-	}
-	defer func() { _ = sub.Unsubscribe() }()
 
-	client, err := NewClient(context.Background(), Config{URL: nats.DefaultURL})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	resolver := NewB2BOrgResolver(client)
 	_, ok, err := resolver.ResolveByUID(context.Background(), "0014100000Te2ovAAB")
-	if err == nil {
-		t.Fatal("expected lookup error")
-	}
-	if ok {
-		t.Fatal("expected not found")
-	}
+	require.Error(t, err)
+	require.False(t, ok)
 }
 
 func TestB2BOrgLookupResponse_decode(t *testing.T) {
 	var resp b2bOrgLookupResponse
-	if err := json.Unmarshal([]byte(`{"id":"0014100000Te2ovAAB"}`), &resp); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if resp.ID != "0014100000Te2ovAAB" {
-		t.Fatalf("id = %q", resp.ID)
-	}
+	require.NoError(t, json.Unmarshal([]byte(`{"id":"0014100000Te2ovAAB"}`), &resp))
+	require.Equal(t, "0014100000Te2ovAAB", resp.ID)
 }

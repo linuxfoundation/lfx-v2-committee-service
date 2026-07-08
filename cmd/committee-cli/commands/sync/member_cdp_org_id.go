@@ -428,15 +428,6 @@ func isCDPUUID(id string) bool {
 	if _, err := uuid.Parse(id); err == nil {
 		return true
 	}
-	// CDP identifiers may appear as 32 hex chars without hyphens.
-	if len(id) == 32 {
-		for _, c := range id {
-			if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
-				return false
-			}
-		}
-		return true
-	}
 	return false
 }
 
