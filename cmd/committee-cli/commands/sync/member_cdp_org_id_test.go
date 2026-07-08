@@ -64,7 +64,33 @@ func (r *freshMemberReader) GetMember(_ context.Context, _ string) (*model.Commi
 	return r.fresh, 9, nil
 }
 
+func TestIsCDPUUID(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"", false},
+		{"001B000000IqhSLIAZ", false},
+		{"0014100000Te2ovAAB", false},
+		{"51fde723-67df-4e0e-91c6-936d01d59559", true},
+		{"4340abc06f4e11f1944c4bb16c3aa46c", true},
+		{"111", false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, isCDPUUID(tt.in), "input=%q", tt.in)
+	}
+}
+
+func TestExtractPrimaryDomain(t *testing.T) {
+	assert.Equal(t, "linuxfoundation.org", extractPrimaryDomain("https://www.linuxfoundation.org/about"))
+	assert.Equal(t, "example.com", extractPrimaryDomain("example.com"))
+	assert.Equal(t, "", extractPrimaryDomain(""))
+}
+
 func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
+	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+	t.Cleanup(func() { memberCDPOrgIDTestResolver = nil })
+
 	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -80,7 +106,6 @@ func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
-		B2BOrgSFIDResolver:          stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true},
 		Args:                        []string{"--dry-run"},
 	})
 	require.NoError(t, err)
@@ -88,6 +113,9 @@ func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 }
 
 func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
+	memberCDPOrgIDTestResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+	t.Cleanup(func() { memberCDPOrgIDTestResolver = nil })
+
 	snapshot := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",
 		CommitteeUID: "c1",
@@ -115,7 +143,6 @@ func TestMemberCDPOrgID_WritesResolvedSFID(t *testing.T) {
 	err := (&memberCDPOrgIDSubcommand{}).Run(context.Background(), commands.RunContext{
 		CommitteeReader:             r,
 		CommitteeWriterOrchestrator: w,
-		B2BOrgSFIDResolver:          stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true},
 		Args:                        []string{"--dry-run=false"},
 	})
 	require.NoError(t, err)

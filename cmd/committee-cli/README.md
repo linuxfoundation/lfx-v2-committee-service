@@ -19,8 +19,8 @@ committee-cli <command> <subcommand> [subcommand flags]
 | Env var | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://localhost:4222` | NATS server address |
-| `QUERY_SERVICE_URL` | `""` | Query-service base URL (required for `sync member-cdp-org-id`) |
-| `AUTH_TOKEN` | `""` | Bearer token for query-service (required for `sync member-cdp-org-id`) |
+| `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
+| `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 
 ### Commands
@@ -140,7 +140,7 @@ NATS_URL=nats://localhost:4222 \
 
 #### `sync member-cdp-org-id`
 
-Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Scans the committee-members KV bucket, resolves each affected org to the canonical **b2b_org Salesforce SFID** via query-service (`GET /query/resources?type=b2b_org`, matched by `primary_domain` / `website` / `name`), and updates the member through the writer orchestrator (reindexes + fixes the by-organization secondary index).
+Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Scans the committee-members KV bucket, resolves each affected org to the canonical **b2b_org Salesforce SFID** via OpenSearch (`resources` index, `object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates the member through the writer orchestrator (reindexes + fixes the by-organization secondary index).
 
 Tracked in [LFXV2-2647](https://linuxfoundation.atlassian.net/browse/LFXV2-2647).
 
@@ -150,7 +150,8 @@ Tracked in [LFXV2-2647](https://linuxfoundation.atlassian.net/browse/LFXV2-2647)
 |---|---|---|
 | `--committee-uid` | `""` | Limit repair to members of a single committee |
 | `--member-uid` | `""` | Limit repair to a single committee member |
-| `--query-service-url` | `$QUERY_SERVICE_URL` | Override query-service base URL |
+| `--opensearch-url` | `$OPENSEARCH_URL` | Override OpenSearch base URL |
+| `--opensearch-index` | `$OPENSEARCH_INDEX` | Override OpenSearch resources index |
 | `--clear-unresolved` | `false` | When SFID cannot be resolved, clear `organization.id` (keep name/website) |
 | `--sleep` | `0` | Wait between each write (e.g. `200ms`, `1s`) |
 | `--dry-run` | `true` | Log planned repairs without writing (pass `--dry-run=false` to apply) |
@@ -160,16 +161,14 @@ Tracked in [LFXV2-2647](https://linuxfoundation.atlassian.net/browse/LFXV2-2647)
 Dry-run:
 ```sh
 NATS_URL=nats://localhost:4222 \
-QUERY_SERVICE_URL=https://query-service.example \
-AUTH_TOKEN=$TOKEN \
+OPENSEARCH_URL=http://localhost:9200 \
   committee-cli sync member-cdp-org-id
 ```
 
 Apply repairs:
 ```sh
 NATS_URL=nats://localhost:4222 \
-QUERY_SERVICE_URL=https://query-service.example \
-AUTH_TOKEN=$TOKEN \
+OPENSEARCH_URL=http://localhost:9200 \
   committee-cli sync member-cdp-org-id --dry-run=false --sleep=200ms
 ```
 

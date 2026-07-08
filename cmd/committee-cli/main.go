@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
@@ -115,7 +114,6 @@ func run() error {
 		CommitteeInviteWriter:       storage,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
-		QueryHTTPClient:             &http.Client{Timeout: 15 * time.Second},
 		Args:                        parsed.SubArgs,
 	}
 
@@ -134,8 +132,8 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "environment variables:")
 	_, _ = fmt.Fprintln(w, "  NATS_URL            NATS server address (default: nats://localhost:4222)")
-	_, _ = fmt.Fprintln(w, "  QUERY_SERVICE_URL   query-service base URL (required for sync member-cdp-org-id)")
-	_, _ = fmt.Fprintln(w, "  AUTH_TOKEN          bearer token for query-service (required for sync member-cdp-org-id)")
+	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
+	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
 	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "commands:")
