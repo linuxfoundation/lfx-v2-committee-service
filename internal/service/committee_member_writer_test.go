@@ -1193,7 +1193,9 @@ func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *tes
 			FirstName:    "Test",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
-				ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
 				Name:    "Acme Corp",
 				Website: "https://acme.com",
 			},
@@ -1251,7 +1253,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *tes
 			FirstName:    "Test",
 			LastName:     "User",
 			Organization: model.CommitteeMemberOrganization{
-				ID:      "51fde723-67df-4e0e-91c6-936d01d59559",
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
 				Name:    "Acme Corp",
 				Website: "https://acme.com",
 			},
