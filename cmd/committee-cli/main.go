@@ -145,7 +145,7 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "environment variables:")
 	_, _ = fmt.Fprintln(w, "  NATS_URL            NATS server address (default: nats://localhost:4222)")
-	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS request timeout (default: 120s)")
+	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS connection dial/timeout (default: 120s); KV ops use caller context")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
 	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")

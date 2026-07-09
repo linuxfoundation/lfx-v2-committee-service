@@ -456,7 +456,9 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
-	if strings.TrimSpace(member.Organization.ID) != strings.TrimSpace(existing.Organization.ID) {
+	member.Organization.ID = strings.TrimSpace(member.Organization.ID)
+	trimmedExistingOrgID := strings.TrimSpace(existing.Organization.ID)
+	if member.Organization.ID != trimmedExistingOrgID {
 		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
 			slog.WarnContext(ctx, "organization id resolution unavailable during update; keeping organization id unchanged",
 				"error", errOrg,

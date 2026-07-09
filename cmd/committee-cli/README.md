@@ -19,7 +19,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | Env var | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://localhost:4222` | NATS server address |
-| `NATS_TIMEOUT` | `120s` | NATS request timeout for KV reads/writes |
+| `NATS_TIMEOUT` | `120s` | NATS connection dial/timeout (`nats.Timeout`); KV operations use caller context deadlines |
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
