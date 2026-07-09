@@ -23,6 +23,7 @@ func (c *command) Subcommands() map[string]commands.Subcommand {
 		"members-by-organization-index": &membersByOrganizationIndexSubcommand{},
 		"members-by-email-index":        &membersByEmailIndexSubcommand{},
 		"reindex-invites":               &reindexInvitesSubcommand{},
+		"member-cdp-org-id":             &memberCDPOrgIDSubcommand{},
 	}
 }
 

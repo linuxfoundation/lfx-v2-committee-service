@@ -19,6 +19,9 @@ committee-cli <command> <subcommand> [subcommand flags]
 | Env var | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://localhost:4222` | NATS server address |
+| `NATS_TIMEOUT` | `120s` | NATS connection dial/timeout (`nats.Timeout`); KV operations use caller context deadlines |
+| `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
+| `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 
 ### Commands
@@ -134,6 +137,42 @@ Reindex a single committee's invites:
 ```sh
 NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-invites --committee-uid=abc-123
+```
+
+#### `sync member-cdp-org-id`
+
+Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** from OpenSearch (`object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).
+
+Use `--committee-uid` or `--member-uid` to scope via indexed NATS reads instead of the OpenSearch discovery query.
+
+Tracked in [LFXV2-2647](https://linuxfoundation.atlassian.net/browse/LFXV2-2647).
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit repair to members of a single committee |
+| `--member-uid` | `""` | Limit repair to a single committee member |
+| `--opensearch-url` | `$OPENSEARCH_URL` | Override OpenSearch base URL |
+| `--opensearch-index` | `$OPENSEARCH_INDEX` | Override OpenSearch resources index |
+| `--clear-unresolved` | `false` | When SFID cannot be resolved, clear `organization.id` (keep name/website) |
+| `--sleep` | `0` | Wait between each write (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Log planned repairs without writing (pass `--dry-run=false` to apply) |
+
+**Examples**
+
+Dry-run:
+```sh
+NATS_URL=nats://localhost:4222 \
+OPENSEARCH_URL=http://localhost:9200 \
+  committee-cli sync member-cdp-org-id
+```
+
+Apply repairs:
+```sh
+NATS_URL=nats://localhost:4222 \
+OPENSEARCH_URL=http://localhost:9200 \
+  committee-cli sync member-cdp-org-id --dry-run=false --sleep=200ms
 ```
 
 ## Building

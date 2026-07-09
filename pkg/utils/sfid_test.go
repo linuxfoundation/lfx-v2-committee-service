@@ -5,6 +5,33 @@ package utils
 
 import "testing"
 
+func TestIsSFIDShaped(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"empty", "", false},
+		{"15-char alphanumeric", "0017000000abcde", true},
+		{"18-char alphanumeric", "001QP00001BMxFmYAL", true},
+		{"lf-prefix 15-char (post b2b/b2c split)", "lf00000001Te0OK", true},
+		{"lf-prefix 18-char (post b2b/b2c split)", "lf00000001Te0OKAAZ", true},
+		{"CDP UUID (hyphenated)", "abc12345-6789-abcd-ef01-234567890abc", false},
+		{"32-char hex digest", "abc123de45fg6789abcd1234ef567890", false},
+		{"too short", "001ABC", false},
+		{"too long", "001QP00001BMxFmYALx", false},
+		{"15-char with hyphen", "001-00000abcde0", false},
+		{"whitespace-padded 18-char", "  001QP00001BMxFmYAL  ", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsSFIDShaped(tt.in); got != tt.want {
+				t.Fatalf("IsSFIDShaped(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeAccountSFID(t *testing.T) {
 	tests := []struct {
 		name string

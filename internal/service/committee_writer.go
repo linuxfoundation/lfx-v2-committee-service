@@ -154,6 +154,13 @@ func WithUserReader(reader port.UserReader) committeeWriterOrchestratorOption {
 	}
 }
 
+// WithB2BOrgResolver sets the b2b_org resolver used to validate organization.id values.
+func WithB2BOrgResolver(resolver port.B2BOrgResolver) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.b2bOrgResolver = resolver
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	projectRetriever   port.ProjectReader
@@ -161,6 +168,7 @@ type committeeWriterOrchestrator struct {
 	committeeWriter    port.CommitteeWriter
 	committeePublisher port.CommitteePublisher
 	userReader         port.UserReader
+	b2bOrgResolver     port.B2BOrgResolver
 }
 
 // deleteKeys removes keys by getting their revision and deleting them

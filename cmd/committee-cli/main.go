@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
@@ -84,9 +85,20 @@ func run() error {
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
+	natsTimeout := 120 * time.Second
+	if raw := strings.TrimSpace(env.Get("NATS_TIMEOUT", "")); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil {
+			return fmt.Errorf("invalid NATS_TIMEOUT %q: %w", raw, err)
+		}
+		if parsed <= 0 {
+			return fmt.Errorf("invalid NATS_TIMEOUT %q: must be greater than zero", raw)
+		}
+		natsTimeout = parsed
+	}
 	client, err := nats.NewClient(ctx, nats.Config{
 		URL:           natsURL,
-		Timeout:       10 * time.Second,
+		Timeout:       natsTimeout,
 		MaxReconnect:  3,
 		ReconnectWait: 2 * time.Second,
 	})
@@ -105,6 +117,7 @@ func run() error {
 		usecaseSvc.WithProjectRetriever(nats.NewMessageRequest(client)),
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(publisher),
+		usecaseSvc.WithB2BOrgResolver(nats.NewB2BOrgResolver(client)),
 	)
 
 	rc := commands.RunContext{
@@ -131,8 +144,11 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w, "usage: committee-cli <command> <subcommand> [subcommand flags]")
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "environment variables:")
-	_, _ = fmt.Fprintln(w, "  NATS_URL    NATS server address (default: nats://localhost:4222)")
-	_, _ = fmt.Fprintln(w, "  LOG_LEVEL   Log verbosity, e.g. info (default: debug)")
+	_, _ = fmt.Fprintln(w, "  NATS_URL            NATS server address (default: nats://localhost:4222)")
+	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS connection dial/timeout (default: 120s); KV ops use caller context")
+	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
+	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
+	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "commands:")
 	for _, cmd := range registry {
