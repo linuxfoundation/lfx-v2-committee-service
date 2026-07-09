@@ -1151,6 +1151,30 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
 	assert.Equal(t, "https://acme.com", org.Website)
 }
 
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	// Resolver would return found=true if called, but the pre-filter must prevent
+	// non-SFID-shaped ids from even reaching the resolver (FR-005 / T017).
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	cases := []struct {
+		name string
+		id   string
+	}{
+		{"CDP UUID", "51fde723-67df-4e0e-91c6-936d01d59559"},
+		{"hex digest", "abc123de45fg6789abcd1234ef567890"},
+		{"arbitrary non-sfid", "not-a-sfid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			org := model.CommitteeMemberOrganization{ID: tc.id, Name: "Acme"}
+			err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+			require.NoError(t, err)
+			assert.Empty(t, org.ID, "non-SFID id %q must be cleared before lookup", tc.id)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found

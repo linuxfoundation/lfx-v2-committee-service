@@ -977,6 +977,18 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 	if org.ID == "" {
 		return nil
 	}
+	// Pre-filter: clear ids that aren't SFID-shaped before the lookup.
+	// Callers fail-open on lookup error (warn + keep org.ID), so only SFID-shaped
+	// ids may be retained through a transient NATS error (FR-005 / T017).
+	if !utils.IsSFIDShaped(org.ID) {
+		slog.InfoContext(ctx, "clearing organization id that is not SFID-shaped",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
 	if uc.b2bOrgResolver == nil {
 		slog.DebugContext(ctx, "b2b org resolver not configured; skipping organization id resolution check")
 		return nil
