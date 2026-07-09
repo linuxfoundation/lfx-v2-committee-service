@@ -1268,7 +1268,9 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *tes
 
 func TestCommitteeWriterOrchestrator_CreateMember_ResolverErrorKeepsOrgID(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	const wantID = "51fde723-67df-4e0e-91c6-936d01d59559"
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
 
 	committee := &model.Committee{
@@ -1304,7 +1306,9 @@ func TestCommitteeWriterOrchestrator_CreateMember_ResolverErrorKeepsOrgID(t *tes
 
 func TestCommitteeWriterOrchestrator_UpdateMember_ResolverErrorKeepsOrgID(t *testing.T) {
 	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	const wantID = "51fde723-67df-4e0e-91c6-936d01d59559"
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
 	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
 

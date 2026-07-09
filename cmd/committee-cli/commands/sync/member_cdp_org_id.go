@@ -440,25 +440,13 @@ func isCDPUUID(id string) bool {
 	if id == "" {
 		return false
 	}
-	if looksLikeSFID(id) {
+	if utils.IsSFIDShaped(id) {
 		return false
 	}
 	if _, err := uuid.Parse(id); err == nil {
 		return true
 	}
 	return false
-}
-
-func looksLikeSFID(id string) bool {
-	if len(id) != 15 && len(id) != 18 {
-		return false
-	}
-	for _, c := range id {
-		if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') {
-			return false
-		}
-	}
-	return true
 }
 
 type openSearchB2BOrgResolver struct {
