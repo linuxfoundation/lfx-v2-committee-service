@@ -52,10 +52,16 @@ paths:
                                 public: true
                             category: Technical Steering Committee
                             chat_channel: https://slack.example.org/channels/tsc
+                            deliverables:
+                                - Quarterly technical roadmap
+                                - Annual governance review
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
                             join_mode: open
+                            key_dates:
+                                - date: 2026-04
+                                  label: Charter renewal
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             mailing_list: tsc@lists.example.org
@@ -64,7 +70,11 @@ paths:
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                             public: true
+                            repository: https://github.com/example/repo
                             requires_review: true
+                            scope:
+                                - Define governance for the project
+                                - Review and approve major architectural changes
                             show_meeting_attendees: false
                             sso_group_enabled: true
                             website: https://committee.example.org
@@ -91,11 +101,17 @@ paths:
                                     public: true
                                 category: Technical Steering Committee
                                 chat_channel: https://slack.example.org/channels/tsc
+                                deliverables:
+                                    - Quarterly technical roadmap
+                                    - Annual governance review
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
                                 has_mailing_list: true
                                 join_mode: open
+                                key_dates:
+                                    - date: 2026-04
+                                      label: Charter renewal
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 mailing_list: tsc@lists.example.org
@@ -104,7 +120,11 @@ paths:
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
+                                repository: https://github.com/example/repo
                                 requires_review: true
+                                scope:
+                                    - Define governance for the project
+                                    - Review and approve major architectural changes
                                 show_meeting_attendees: false
                                 sso_group_enabled: true
                                 sso_group_name: lfx-committee-group
@@ -300,18 +320,28 @@ paths:
                                     public: true
                                 category: Technical Steering Committee
                                 chat_channel: https://slack.example.org/channels/tsc
+                                deliverables:
+                                    - Quarterly technical roadmap
+                                    - Annual governance review
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
                                 has_mailing_list: true
                                 join_mode: open
+                                key_dates:
+                                    - date: 2026-04
+                                      label: Charter renewal
                                 mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_name: Linux Foundation Project
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
+                                repository: https://github.com/example/repo
                                 requires_review: true
+                                scope:
+                                    - Define governance for the project
+                                    - Review and approve major architectural changes
                                 sso_group_enabled: true
                                 sso_group_name: lfx-committee-group
                                 total_members: 15
@@ -402,16 +432,26 @@ paths:
                                 public: true
                             category: Technical Steering Committee
                             chat_channel: https://slack.example.org/channels/tsc
+                            deliverables:
+                                - Quarterly technical roadmap
+                                - Annual governance review
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
                             join_mode: open
+                            key_dates:
+                                - date: 2026-04
+                                  label: Charter renewal
                             mailing_list: tsc@lists.example.org
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                             public: true
+                            repository: https://github.com/example/repo
                             requires_review: true
+                            scope:
+                                - Define governance for the project
+                                - Review and approve major architectural changes
                             sso_group_enabled: true
                             website: https://committee.example.org
             responses:
@@ -426,18 +466,28 @@ paths:
                                     public: true
                                 category: Technical Steering Committee
                                 chat_channel: https://slack.example.org/channels/tsc
+                                deliverables:
+                                    - Quarterly technical roadmap
+                                    - Annual governance review
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
                                 has_mailing_list: true
                                 join_mode: open
+                                key_dates:
+                                    - date: 2026-04
+                                      label: Charter renewal
                                 mailing_list: tsc@lists.example.org
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_name: Linux Foundation Project
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 public: true
+                                repository: https://github.com/example/repo
                                 requires_review: true
+                                scope:
+                                    - Define governance for the project
+                                    - Review and approve major architectural changes
                                 sso_group_enabled: true
                                 sso_group_name: lfx-committee-group
                                 total_members: 15
@@ -1360,12 +1410,6 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkFolderWithReadonlyAttributes'
                                 example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by_username: alexlee
-                                      name: Meeting Notes
-                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      updated_at: "2023-06-20T14:45:30Z"
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by_username: alexlee
@@ -2466,9 +2510,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 2dd27bf5-b711-4dd7-96ad-5cde70af53eb
+                    example: 651bf8c6-b1d6-40ee-8403-f96f536031aa
                     format: uuid
-                  example: 760c86c7-66c8-4b77-ac2d-1eb86ba7160f
+                  example: 8c003d06-7f6d-4f9a-8186-1f38ac29276e
             responses:
                 "200":
                     description: OK response.
@@ -2516,6 +2560,24 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       url: https://confluence.example.com/architecture-decisions
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  url: https://confluence.example.com/architecture-decisions
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by_username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by_username: alexlee
@@ -4060,7 +4122,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Reprehenderit quas.
+                        example: Autem ut voluptatum dicta ex dolores explicabo.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4458,6 +4520,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Enim voluptatum voluptas.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -4483,6 +4554,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -4508,11 +4587,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Quam quisquam.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 sso_group_enabled:
                     type: boolean
                     description: Whether SSO group integration is enabled
@@ -4530,16 +4624,26 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 sso_group_enabled: true
                 website: https://committee.example.org
         CommitteeBaseWithReadonlyAttributes:
@@ -4586,6 +4690,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Sed sed.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -4616,6 +4729,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -4646,11 +4767,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Officiis similique.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 sso_group_enabled:
                     type: boolean
                     description: Whether SSO group integration is enabled
@@ -4689,18 +4825,28 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 has_mailing_list: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_name: Linux Foundation Project
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 sso_group_enabled: true
                 sso_group_name: lfx-committee-group
                 total_members: 15
@@ -4836,6 +4982,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Saepe occaecati illo aut unde.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -4861,6 +5016,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4903,11 +5066,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Rem similique.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -4946,10 +5124,16 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
@@ -4958,7 +5142,11 @@ components:
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 show_meeting_attendees: false
                 sso_group_enabled: true
                 website: https://committee.example.org
@@ -5026,6 +5214,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Nemo magnam odio nihil id.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -5056,6 +5253,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -5098,11 +5303,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Quia sunt labore itaque repellat.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -5162,11 +5382,17 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 has_mailing_list: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
@@ -5175,7 +5401,11 @@ components:
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 show_meeting_attendees: false
                 sso_group_enabled: true
                 sso_group_name: lfx-committee-group
@@ -6096,12 +6326,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: iso
+                    example: l51
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: db7cf23a-c321-4c85-9bf2-38e82505f74c
+                    example: b8556933-d513-4ad5-906b-0d26422014d7
                     format: uuid
                 name:
                     type: string
@@ -6114,8 +6344,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: c2z
-                folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
+                description: ndu
+                folder_uid: aab907bf-135e-4b48-97a2-ffe216ba92fc
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -6353,6 +6583,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Qui quaerat ipsam.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -6378,6 +6617,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -6420,11 +6667,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Nostrum eos voluptate.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -6462,10 +6724,16 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
@@ -6474,7 +6742,11 @@ components:
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 show_meeting_attendees: false
                 sso_group_enabled: true
                 website: https://committee.example.org
@@ -6696,7 +6968,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: hnl
+                    example: mok
                     maxLength: 5000
                 id:
                     type: string
@@ -6712,7 +6984,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: 0k4
+                excerpt: zhm
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -6814,7 +7086,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: ibj
+                    example: ekz
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -6873,14 +7145,6 @@ components:
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 22l
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: 22l
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
                 state:
                     type: string
                     description: Lifecycle state
@@ -6913,7 +7177,7 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: 0xr
+                brief_text: 6t7
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 last_edited_at: "2026-05-18T14:03:00Z"
@@ -6924,10 +7188,6 @@ components:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 22l
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
                     - excerpt: 22l
                       id: https://meet.example.org/abc123
                       kind: meeting
@@ -6956,6 +7216,26 @@ components:
                 message: An internal server error occurred.
             required:
                 - message
+        KeyDate:
+            type: object
+            properties:
+                date:
+                    type: string
+                    description: The month of the key date, in YYYY-MM format
+                    example: 2026-04
+                    pattern: ^\d{4}-(0[1-9]|1[0-2])$
+                label:
+                    type: string
+                    description: Label describing the key date
+                    example: Charter renewal
+                    maxLength: 200
+            description: A single entry in a committee's key-dates timeline.
+            example:
+                date: 2026-04
+                label: Charter renewal
+            required:
+                - date
+                - label
         NotFoundError:
             type: object
             properties:
@@ -7267,6 +7547,24 @@ components:
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       username: user123
                       voting_status: Voting Rep
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
             required:
                 - seats
         ReassignOrgCommitteeSeatRequestBody:
@@ -7373,6 +7671,15 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
+                deliverables:
+                    type: array
+                    items:
+                        type: string
+                        example: Minima velit.
+                    description: The deliverables of the committee, as a list of bullet points
+                    example:
+                        - Quarterly technical roadmap
+                        - Annual governance review
                 description:
                     type: string
                     description: The description of the committee
@@ -7398,6 +7705,14 @@ components:
                         - invite_only
                         - application
                         - closed
+                key_dates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeyDate'
+                    description: Timeline of important dates for the committee
+                    example:
+                        - date: 2026-04
+                          label: Charter renewal
                 mailing_list:
                     type: string
                     description: The mailing list email address for the committee
@@ -7423,11 +7738,26 @@ components:
                     description: General committee visibility/access permissions
                     default: false
                     example: true
+                repository:
+                    type: string
+                    description: The URL of the committee's code repository
+                    example: https://github.com/example/repo
+                    format: uri
+                    pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
                 requires_review:
                     type: boolean
                     description: Whether this committee is expected to be reviewed
                     default: false
                     example: true
+                scope:
+                    type: array
+                    items:
+                        type: string
+                        example: Vel dolores itaque ut et sint.
+                    description: The scope of the committee, as a list of bullet points
+                    example:
+                        - Define governance for the project
+                        - Review and approve major architectural changes
                 sso_group_enabled:
                     type: boolean
                     description: Whether SSO group integration is enabled
@@ -7444,16 +7774,26 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
+                deliverables:
+                    - Quarterly technical roadmap
+                    - Annual governance review
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
                 join_mode: open
+                key_dates:
+                    - date: 2026-04
+                      label: Charter renewal
                 mailing_list: tsc@lists.example.org
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 public: true
+                repository: https://github.com/example/repo
                 requires_review: true
+                scope:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
                 sso_group_enabled: true
                 website: https://committee.example.org
             required:
@@ -7560,40 +7900,34 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Qui et sint voluptates expedita quod dolor.
+                    example: Officia officia ut non et non eius.
                 description:
                     type: string
                     description: Optional description
-                    example: rr3
+                    example: 43i
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 86
-                        - 101
-                        - 114
-                        - 105
-                        - 116
-                        - 97
-                        - 116
-                        - 105
-                        - 115
-                        - 32
-                        - 100
-                        - 101
-                        - 115
-                        - 101
-                        - 114
+                        - 81
                         - 117
-                        - 110
-                        - 116
+                        - 111
+                        - 100
+                        - 32
+                        - 99
+                        - 111
+                        - 109
+                        - 109
+                        - 111
+                        - 100
+                        - 105
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Atque et aut ipsam aut enim dicta.
+                    example: Quibusdam commodi ex et mollitia recusandae minima.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -7605,50 +7939,44 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Numquam hic et totam quam autem quaerat.
-                description: n1a
+                content_type: Perspiciatis numquam ut.
+                description: je9
                 file:
-                    - 65
-                    - 116
-                    - 32
-                    - 113
-                    - 117
-                    - 105
-                    - 32
-                    - 110
-                    - 105
-                    - 104
-                    - 105
-                    - 108
-                    - 32
-                    - 101
+                    - 69
                     - 120
-                    - 101
-                    - 114
                     - 99
+                    - 101
+                    - 112
+                    - 116
+                    - 117
+                    - 114
                     - 105
-                    - 116
+                    - 32
                     - 97
+                    - 117
                     - 116
+                    - 32
+                    - 108
+                    - 97
+                    - 98
+                    - 111
+                    - 114
                     - 105
                     - 111
-                    - 110
-                    - 101
+                    - 115
+                    - 97
                     - 109
                     - 32
                     - 100
-                    - 111
-                    - 108
-                    - 111
+                    - 101
+                    - 115
+                    - 101
                     - 114
-                    - 32
-                    - 97
-                    - 32
-                    - 113
                     - 117
-                    - 105
+                    - 110
+                    - 116
                     - 46
-                file_name: Eos provident temporibus quis eos velit facere.
+                file_name: Adipisci pariatur atque.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

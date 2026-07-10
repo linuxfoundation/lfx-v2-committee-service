@@ -55,6 +55,10 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `join_mode` | string (optional) | How members can join |
 | `calendar.public` | bool (optional) | Whether the committee calendar is public; omitted when the `calendar` object is empty |
 | `parent_uid` | string (optional) | UID of the parent committee (if nested) |
+| `repository` | string (optional) | Committee repository URL |
+| `scope` | []string (optional) | Committee scope bullet points |
+| `deliverables` | []string (optional) | Committee deliverables bullet points |
+| `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |

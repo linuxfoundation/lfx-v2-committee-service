@@ -251,6 +251,14 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
 	// The name of the project this committee belongs to
 	ProjectName *string
 	// The name of the SSO group - read-only
@@ -330,6 +338,14 @@ type CommitteeFullWithReadonlyAttributes struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
 	// The name of the SSO group - read-only
 	SsoGroupName *string
 	// The total number of members in this committee
@@ -673,6 +689,14 @@ type CreateCommitteePayload struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -1124,6 +1148,14 @@ type JoinCommitteePayload struct {
 	UID string
 }
 
+// A single entry in a committee's key-dates timeline.
+type KeyDate struct {
+	// The month of the key date, in YYYY-MM format
+	Date string
+	// Label describing the key date
+	Label string
+}
+
 // LeaveCommitteePayload is the payload type of the committee-service service
 // leave-committee method.
 type LeaveCommitteePayload struct {
@@ -1334,6 +1366,14 @@ type UpdateCommitteeBasePayload struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service

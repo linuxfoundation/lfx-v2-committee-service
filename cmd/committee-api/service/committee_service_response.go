@@ -59,6 +59,14 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
 
+	// Handle Repository (already a pointer, safe to assign directly)
+	base.Repository = p.Repository
+	base.Scope = p.Scope
+	base.Deliverables = p.Deliverables
+
+	// Handle KeyDates if present
+	base.KeyDates = convertPayloadKeyDatesToModel(p.KeyDates)
+
 	// Handle calendar if present
 	if p.Calendar != nil {
 		base.Calendar = model.Calendar{
@@ -127,6 +135,14 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
 
+	// Handle Repository (already a pointer, safe to assign directly)
+	base.Repository = p.Repository
+	base.Scope = p.Scope
+	base.Deliverables = p.Deliverables
+
+	// Handle KeyDates if present
+	base.KeyDates = convertPayloadKeyDatesToModel(p.KeyDates)
+
 	base.JoinMode = p.JoinMode
 
 	// Handle calendar if present
@@ -143,6 +159,44 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	}
 
 	return committee
+}
+
+// convertPayloadKeyDatesToModel converts GOA KeyDate payloads to domain KeyDates.
+func convertPayloadKeyDatesToModel(dates []*committeeservice.KeyDate) []model.KeyDate {
+	if dates == nil {
+		return nil
+	}
+
+	result := make([]model.KeyDate, 0, len(dates))
+	for _, d := range dates {
+		if d == nil {
+			continue
+		}
+
+		result = append(result, model.KeyDate{
+			Date:  d.Date,
+			Label: d.Label,
+		})
+	}
+
+	return result
+}
+
+// convertModelKeyDatesToResponse converts domain KeyDates to GOA response KeyDates.
+func convertModelKeyDatesToResponse(dates []model.KeyDate) []*committeeservice.KeyDate {
+	if dates == nil {
+		return nil
+	}
+
+	result := make([]*committeeservice.KeyDate, 0, len(dates))
+	for _, d := range dates {
+		result = append(result, &committeeservice.KeyDate{
+			Date:  d.Date,
+			Label: d.Label,
+		})
+	}
+
+	return result
 }
 
 // convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model.
@@ -211,6 +265,12 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	if response.ParentUID != nil && *response.ParentUID != "" {
 		result.ParentUID = response.ParentUID
 	}
+	if response.Repository != nil && *response.Repository != "" {
+		result.Repository = response.Repository
+	}
+	result.Scope = response.Scope
+	result.Deliverables = response.Deliverables
+	result.KeyDates = convertModelKeyDatesToResponse(response.KeyDates)
 	if response.SSOGroupName != "" {
 		result.SsoGroupName = &response.SSOGroupName
 	}
@@ -292,6 +352,12 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	if base.ParentUID != nil && *base.ParentUID != "" {
 		result.ParentUID = base.ParentUID
 	}
+	if base.Repository != nil && *base.Repository != "" {
+		result.Repository = base.Repository
+	}
+	result.Scope = base.Scope
+	result.Deliverables = base.Deliverables
+	result.KeyDates = convertModelKeyDatesToResponse(base.KeyDates)
 	if base.SSOGroupName != "" {
 		result.SsoGroupName = &base.SSOGroupName
 	}

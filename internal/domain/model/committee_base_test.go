@@ -5,6 +5,7 @@ package model
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -589,4 +590,25 @@ func BenchmarkCommitteeTags_Parallel(b *testing.B) {
 			_ = committee.Tags()
 		}
 	})
+}
+
+func TestCommitteeBase_UnmarshalJSON_LegacyBlobWithoutMetadataFields(t *testing.T) {
+	legacyJSON := `{
+		"uid": "comm-123",
+		"project_uid": "proj-123",
+		"name": "Test Committee",
+		"category": "Board",
+		"enable_voting": true,
+		"public": true
+	}`
+
+	var base CommitteeBase
+	err := json.Unmarshal([]byte(legacyJSON), &base)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "comm-123", base.UID)
+	assert.Nil(t, base.Repository)
+	assert.Nil(t, base.Scope)
+	assert.Nil(t, base.Deliverables)
+	assert.Nil(t, base.KeyDates)
 }

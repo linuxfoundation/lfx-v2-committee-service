@@ -53,6 +53,14 @@ type CreateCommitteeRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -109,6 +117,14 @@ type UpdateCommitteeBaseRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -394,6 +410,14 @@ type CreateCommitteeResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -464,6 +488,14 @@ type UpdateCommitteeBaseResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -2534,6 +2566,14 @@ type UpdateCurrentWeeklyBriefServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// KeyDateRequestBody is used to define fields on request body types.
+type KeyDateRequestBody struct {
+	// The month of the key date, in YYYY-MM format
+	Date string `form:"date" json:"date" xml:"date"`
+	// Label describing the key date
+	Label string `form:"label" json:"label" xml:"label"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -2544,6 +2584,14 @@ type CommitteeUserRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+}
+
+// KeyDateResponseBody is used to define fields on response body types.
+type KeyDateResponseBody struct {
+	// The month of the key date, in YYYY-MM format
+	Date *string `form:"date,omitempty" json:"date,omitempty" xml:"date,omitempty"`
+	// Label describing the key date
+	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
 }
 
 // CommitteeUserResponseBody is used to define fields on response body types.
@@ -2598,6 +2646,14 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -2932,6 +2988,7 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		DisplayName:           p.DisplayName,
 		ParentUID:             p.ParentUID,
 		JoinMode:              p.JoinMode,
+		Repository:            p.Repository,
 		BusinessEmailRequired: p.BusinessEmailRequired,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
@@ -2980,6 +3037,24 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	if p.Scope != nil {
+		body.Scope = make([]string, len(p.Scope))
+		for i, val := range p.Scope {
+			body.Scope[i] = val
+		}
+	}
+	if p.Deliverables != nil {
+		body.Deliverables = make([]string, len(p.Deliverables))
+		for i, val := range p.Deliverables {
+			body.Deliverables[i] = val
+		}
+	}
+	if p.KeyDates != nil {
+		body.KeyDates = make([]*KeyDateRequestBody, len(p.KeyDates))
+		for i, val := range p.KeyDates {
+			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateRequestBody(val)
 		}
 	}
 	{
@@ -3034,6 +3109,7 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		DisplayName:     p.DisplayName,
 		ParentUID:       p.ParentUID,
 		JoinMode:        p.JoinMode,
+		Repository:      p.Repository,
 	}
 	{
 		var zero bool
@@ -3077,6 +3153,24 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	if p.Scope != nil {
+		body.Scope = make([]string, len(p.Scope))
+		for i, val := range p.Scope {
+			body.Scope[i] = val
+		}
+	}
+	if p.Deliverables != nil {
+		body.Deliverables = make([]string, len(p.Deliverables))
+		for i, val := range p.Deliverables {
+			body.Deliverables[i] = val
+		}
+	}
+	if p.KeyDates != nil {
+		body.KeyDates = make([]*KeyDateRequestBody, len(p.KeyDates))
+		for i, val := range p.KeyDates {
+			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateRequestBody(val)
 		}
 	}
 	return body
@@ -3475,6 +3569,7 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 		ChatChannel:      body.ChatChannel,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
+		Repository:       body.Repository,
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
@@ -3534,6 +3629,24 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = unmarshalKeyDateResponseBodyToCommitteeserviceKeyDate(val)
+		}
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
@@ -3627,6 +3740,7 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 		ChatChannel:      body.ChatChannel,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
+		Repository:       body.Repository,
 		ProjectName:      body.ProjectName,
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
@@ -3676,6 +3790,24 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = unmarshalKeyDateResponseBodyToCommitteeserviceKeyDate(val)
+		}
 	}
 	if body.HasMailingList == nil {
 		v.HasMailingList = false
@@ -3733,6 +3865,7 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 		ChatChannel:      body.ChatChannel,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
+		Repository:       body.Repository,
 		ProjectName:      body.ProjectName,
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
@@ -3782,6 +3915,24 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = unmarshalKeyDateResponseBodyToCommitteeserviceKeyDate(val)
+		}
 	}
 	if body.HasMailingList == nil {
 		v.HasMailingList = false
@@ -6515,6 +6666,19 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	if body.TotalMembers != nil {
 		if *body.TotalMembers < 0 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_members", *body.TotalMembers, 0, true))
@@ -6601,6 +6765,19 @@ func ValidateGetCommitteeBaseResponseBody(body *GetCommitteeBaseResponseBody) (e
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	if body.ProjectName != nil {
 		if utf8.RuneCountInString(*body.ProjectName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.project_name", *body.ProjectName, utf8.RuneCountInString(*body.ProjectName), 100, false))
@@ -6668,6 +6845,19 @@ func ValidateUpdateCommitteeBaseResponseBody(body *UpdateCommitteeBaseResponseBo
 	if body.JoinMode != nil {
 		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	if body.ProjectName != nil {
@@ -9607,11 +9797,41 @@ func ValidateUpdateCurrentWeeklyBriefServiceUnavailableResponseBody(body *Update
 	return
 }
 
+// ValidateKeyDateRequestBody runs the validations defined on
+// key-dateRequestBody
+func ValidateKeyDateRequestBody(body *KeyDateRequestBody) (err error) {
+	err = goa.MergeErrors(err, goa.ValidatePattern("body.date", body.Date, "^\\d{4}-(0[1-9]|1[0-2])$"))
+	if utf8.RuneCountInString(body.Label) > 200 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", body.Label, utf8.RuneCountInString(body.Label), 200, false))
+	}
+	return
+}
+
 // ValidateCommitteeUserRequestBody runs the validations defined on
 // committee-userRequestBody
 func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
 	if body.Avatar != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.avatar", *body.Avatar, goa.FormatURI))
+	}
+	return
+}
+
+// ValidateKeyDateResponseBody runs the validations defined on
+// key-dateResponseBody
+func ValidateKeyDateResponseBody(body *KeyDateResponseBody) (err error) {
+	if body.Date == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("date", "body"))
+	}
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.Date != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.date", *body.Date, "^\\d{4}-(0[1-9]|1[0-2])$"))
+	}
+	if body.Label != nil {
+		if utf8.RuneCountInString(*body.Label) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", *body.Label, utf8.RuneCountInString(*body.Label), 200, false))
+		}
 	}
 	return
 }
@@ -9674,6 +9894,19 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 	if body.JoinMode != nil {
 		if !(*body.JoinMode == "open" || *body.JoinMode == "invite_only" || *body.JoinMode == "application" || *body.JoinMode == "closed") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
 		}
 	}
 	if body.ProjectName != nil {
