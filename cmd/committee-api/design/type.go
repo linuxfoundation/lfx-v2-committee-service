@@ -201,8 +201,10 @@ func DescriptionAttribute() {
 	})
 }
 
-// urlPattern validates an optional-scheme URL (used by website and repository attributes).
-const urlPattern = `^(https?://)?[^\s/$.?#].[^\s]*$`
+// urlPattern validates an HTTP(S) URL (used by website and repository attributes).
+// The scheme is mandatory to reject non-HTTP schemes (e.g. javascript:, data:) that
+// would otherwise pass dsl.FormatURI as syntactically valid URIs.
+const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
 
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
@@ -225,6 +227,10 @@ func RepositoryAttribute() {
 // ScopeAttribute is the DSL attribute for committee scope bullet points.
 func ScopeAttribute() {
 	dsl.Attribute("scope", dsl.ArrayOf(dsl.String), "The scope of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
 		dsl.Example([]string{"Define governance for the project", "Review and approve major architectural changes"})
 	})
 }
@@ -232,6 +238,10 @@ func ScopeAttribute() {
 // DeliverablesAttribute is the DSL attribute for committee deliverables bullet points.
 func DeliverablesAttribute() {
 	dsl.Attribute("deliverables", dsl.ArrayOf(dsl.String), "The deliverables of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
 		dsl.Example([]string{"Quarterly technical roadmap", "Annual governance review"})
 	})
 }
@@ -256,6 +266,7 @@ var KeyDateType = dsl.Type("key-date", func() {
 // KeyDatesAttribute is the DSL attribute for a committee's key-dates timeline.
 func KeyDatesAttribute() {
 	dsl.Attribute("key_dates", dsl.ArrayOf(KeyDateType), "Timeline of important dates for the committee", func() {
+		dsl.MaxLength(50)
 		dsl.Example([]map[string]interface{}{
 			{"date": "2026-04", "label": "Charter renewal"},
 		})

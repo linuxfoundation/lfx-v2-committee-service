@@ -2940,11 +2940,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Qui velit aspernatur corrupti.
+                    example: o04
+                    maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
                     - Quarterly technical roadmap
                     - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -2983,6 +2985,7 @@ definitions:
                 example:
                     - date: 2026-04
                       label: Charter renewal
+                maxItems: 50
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -3018,7 +3021,7 @@ definitions:
                 description: The URL of the committee's code repository
                 example: https://github.com/example/repo
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
@@ -3028,11 +3031,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Sed voluptas doloremque cum laboriosam consequuntur mollitia.
+                    example: 0zl
+                    maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
                     - Define governance for the project
                     - Review and approve major architectural changes
+                maxItems: 50
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -3064,7 +3069,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
         description: A base representation of LFX committees with readonly attributes.
         example:
             calendar:
@@ -3233,11 +3238,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Voluptatem iste praesentium autem totam.
+                    example: 7tq
+                    maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
                     - Quarterly technical roadmap
                     - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -3276,6 +3283,7 @@ definitions:
                 example:
                     - date: 2026-04
                       label: Charter renewal
+                maxItems: 50
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -3323,7 +3331,7 @@ definitions:
                 description: The URL of the committee's code repository
                 example: https://github.com/example/repo
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
@@ -3333,11 +3341,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Quam magnam nihil facilis officia et.
+                    example: i12
+                    maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
                     - Define governance for the project
                     - Review and approve major architectural changes
+                maxItems: 50
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -3374,7 +3384,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             writers:
                 type: array
                 items:
@@ -3858,12 +3868,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: lo2
+                example: 35s
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 74716d5c-f7a8-4e33-8fbb-795bdb01df87
+                example: 74716d5c-f7a8-43b5-9dcd-e1b0559aec46
                 format: uuid
             name:
                 type: string
@@ -3876,8 +3886,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: jf1
-            folder_uid: 864b49a7-132c-48ac-ab4d-540f4f6e123b
+            description: 4qt
+            folder_uid: 14a3f275-b892-4648-8a0a-af4fe104d5b1
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4121,11 +4131,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Earum qui quis.
+                    example: zhe
+                    maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
                     - Quarterly technical roadmap
                     - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -4159,6 +4171,7 @@ definitions:
                 example:
                     - date: 2026-04
                       label: Charter renewal
+                maxItems: 50
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4206,7 +4219,7 @@ definitions:
                 description: The URL of the committee's code repository
                 example: https://github.com/example/repo
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
@@ -4216,11 +4229,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Non nemo rerum.
+                    example: in0
+                    maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
                     - Define governance for the project
                     - Review and approve major architectural changes
+                maxItems: 50
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -4236,7 +4251,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             writers:
                 type: array
                 items:
@@ -4483,11 +4498,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Qui ut non expedita quod qui.
+                    example: 07k
+                    maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
                     - Quarterly technical roadmap
                     - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -4521,6 +4538,7 @@ definitions:
                 example:
                     - date: 2026-04
                       label: Charter renewal
+                maxItems: 50
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -4551,7 +4569,7 @@ definitions:
                 description: The URL of the committee's code repository
                 example: https://github.com/example/repo
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
@@ -4561,11 +4579,13 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: Illo et quas nemo.
+                    example: cp3
+                    maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
                     - Define governance for the project
                     - Review and approve major architectural changes
+                maxItems: 50
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -4576,7 +4596,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
         example:
             calendar:
                 public: true
@@ -4885,53 +4905,59 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Id nesciunt ducimus maiores porro.
+                example: Culpa neque a.
             description:
                 type: string
                 description: Optional description
-                example: 0st
+                example: d5r
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 83
-                    - 105
-                    - 116
-                    - 32
-                    - 105
-                    - 117
-                    - 115
-                    - 116
-                    - 111
-                    - 32
-                    - 105
-                    - 117
-                    - 115
-                    - 116
-                    - 111
-                    - 32
-                    - 101
-                    - 116
-                    - 32
+                    - 79
+                    - 109
                     - 110
                     - 105
-                    - 104
-                    - 105
-                    - 108
+                    - 115
                     - 32
+                    - 114
                     - 101
-                    - 97
+                    - 109
+                    - 32
+                    - 111
+                    - 109
+                    - 110
+                    - 105
+                    - 115
+                    - 32
+                    - 115
+                    - 105
+                    - 110
+                    - 116
                     - 32
                     - 101
                     - 115
                     - 116
+                    - 32
+                    - 113
+                    - 117
+                    - 97
+                    - 115
+                    - 105
+                    - 32
+                    - 109
+                    - 97
+                    - 120
+                    - 105
+                    - 109
+                    - 101
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Fuga iusto soluta soluta.
+                example: Quisquam harum.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4943,53 +4969,45 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Deleniti labore.
-            description: bjh
+            content_type: Sit iusto iusto et nihil ea est.
+            description: i8v
             file:
-                - 79
-                - 99
-                - 99
+                - 83
+                - 111
+                - 108
+                - 117
+                - 116
                 - 97
-                - 101
-                - 99
-                - 97
+                - 32
+                - 105
+                - 112
+                - 115
+                - 117
+                - 109
+                - 32
+                - 109
+                - 111
+                - 108
+                - 108
+                - 105
                 - 116
                 - 105
-                - 32
-                - 101
-                - 120
-                - 32
                 - 97
                 - 32
-                - 114
                 - 101
-                - 99
                 - 117
-                - 115
-                - 97
-                - 110
-                - 100
-                - 97
-                - 101
-                - 32
-                - 101
-                - 111
-                - 115
-                - 32
                 - 109
-                - 97
+                - 32
+                - 113
+                - 117
+                - 105
+                - 32
+                - 111
+                - 100
                 - 105
                 - 111
-                - 114
-                - 101
-                - 115
-                - 32
-                - 110
-                - 101
-                - 109
-                - 111
                 - 46
-            file_name: Qui odio maxime voluptatum incidunt nihil ab.
+            file_name: Id nesciunt ducimus maiores porro.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -5275,7 +5293,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: vno
+                example: soc
                 maxLength: 5000
             id:
                 type: string
@@ -5291,7 +5309,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: nap
+            excerpt: 6su
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5396,7 +5414,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: lgs
+                example: t2b
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5455,6 +5473,10 @@ definitions:
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
             state:
                 type: string
                 description: Lifecycle state
@@ -5487,7 +5509,7 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: 1uq
+            brief_text: 4hn
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             last_edited_at: "2026-05-18T14:03:00Z"
@@ -5498,10 +5520,6 @@ definitions:
             regeneration_count: 0
             revision: 7
             source_refs:
-                - excerpt: 0jc
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
                 - excerpt: 0jc
                   id: https://meet.example.org/abc123
                   kind: meeting
@@ -5770,45 +5788,27 @@ definitions:
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       username: user123
                       voting_status: Voting Rep
-                    - appointed_by: Community
-                      avatar: https://example.com/avatar.png
-                      committee_category: Board
-                      committee_name: Technical Steering Committee
-                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      email: user@example.com
-                      first_name: John
-                      is_org_editable: true
-                      job_title: Chief Technology Officer
-                      last_name: Doe
-                      organization_id: 001B000000IqhSLIAZ
-                      project_slug: example-foundation
-                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      reason: This seat is foundation-controlled.
-                      role_name: Chair
-                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                      username: user123
-                      voting_status: Voting Rep
-                    - appointed_by: Community
-                      avatar: https://example.com/avatar.png
-                      committee_category: Board
-                      committee_name: Technical Steering Committee
-                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      email: user@example.com
-                      first_name: John
-                      is_org_editable: true
-                      job_title: Chief Technology Officer
-                      last_name: Doe
-                      organization_id: 001B000000IqhSLIAZ
-                      project_slug: example-foundation
-                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      reason: This seat is foundation-controlled.
-                      role_name: Chair
-                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                      username: user123
-                      voting_status: Voting Rep
         example:
             page_token: eyJvIjoxMDB9
             seats:
+                - appointed_by: Community
+                  avatar: https://example.com/avatar.png
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  project_slug: example-foundation
+                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
+                  voting_status: Voting Rep
                 - appointed_by: Community
                   avatar: https://example.com/avatar.png
                   committee_category: Board

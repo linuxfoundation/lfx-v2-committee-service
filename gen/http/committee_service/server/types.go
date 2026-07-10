@@ -6957,7 +6957,7 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 	}
 	if body.Website != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.MailingList != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -6984,7 +6984,26 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
 	}
 	if body.Repository != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if len(body.Scope) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+	}
+	for _, e := range body.Scope {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.Deliverables) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+	}
+	for _, e := range body.Deliverables {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.KeyDates) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
 	}
 	for _, e := range body.KeyDates {
 		if e != nil {
@@ -7052,7 +7071,7 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 	}
 	if body.Website != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.MailingList != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -7079,7 +7098,26 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
 	}
 	if body.Repository != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if len(body.Scope) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+	}
+	for _, e := range body.Scope {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.Deliverables) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+	}
+	for _, e := range body.Deliverables {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.KeyDates) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
 	}
 	for _, e := range body.KeyDates {
 		if e != nil {
