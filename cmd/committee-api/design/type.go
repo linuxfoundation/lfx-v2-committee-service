@@ -32,6 +32,10 @@ func CommitteeBaseAttributes() {
 	DisplayNameAttribute()
 	ParentCommitteeUIDAttribute()
 	JoinModeAttribute()
+	RepositoryAttribute()
+	ScopeAttribute()
+	DeliverablesAttribute()
+	KeyDatesAttribute()
 }
 
 // CommitteeSettings is the DSL type for a committee settings.
@@ -197,12 +201,75 @@ func DescriptionAttribute() {
 	})
 }
 
+// urlPattern validates an HTTP(S) URL (used by website and repository attributes).
+// The scheme is mandatory to reject non-HTTP schemes (e.g. javascript:, data:) that
+// would otherwise pass dsl.FormatURI as syntactically valid URIs.
+const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
+
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "The website URL of the committee", func() {
 		dsl.Format(dsl.FormatURI)
-		dsl.Pattern(`^(https?://)?[^\s/$.?#].[^\s]*$`)
+		dsl.Pattern(urlPattern)
 		dsl.Example("https://committee.example.org")
+	})
+}
+
+// RepositoryAttribute is the DSL attribute for committee repository URL.
+func RepositoryAttribute() {
+	dsl.Attribute("repository", dsl.String, "The URL of the committee's code repository", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.Example("https://github.com/example/repo")
+	})
+}
+
+// ScopeAttribute is the DSL attribute for committee scope bullet points.
+func ScopeAttribute() {
+	dsl.Attribute("scope", dsl.ArrayOf(dsl.String), "The scope of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Define governance for the project", "Review and approve major architectural changes"})
+	})
+}
+
+// DeliverablesAttribute is the DSL attribute for committee deliverables bullet points.
+func DeliverablesAttribute() {
+	dsl.Attribute("deliverables", dsl.ArrayOf(dsl.String), "The deliverables of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Quarterly technical roadmap", "Annual governance review"})
+	})
+}
+
+// keyDateFormatPattern validates a month-only date in YYYY-MM format.
+const keyDateFormatPattern = `^\d{4}-(0[1-9]|1[0-2])$`
+
+// KeyDateType is the DSL type for a single entry in a committee's key-dates timeline.
+var KeyDateType = dsl.Type("key-date", func() {
+	dsl.Description("A single entry in a committee's key-dates timeline.")
+	dsl.Attribute("date", dsl.String, "The month of the key date, in YYYY-MM format", func() {
+		dsl.Pattern(keyDateFormatPattern)
+		dsl.Example("2026-04")
+	})
+	dsl.Attribute("label", dsl.String, "Label describing the key date", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Charter renewal")
+	})
+	dsl.Required("date", "label")
+})
+
+// KeyDatesAttribute is the DSL attribute for a committee's key-dates timeline.
+func KeyDatesAttribute() {
+	dsl.Attribute("key_dates", dsl.ArrayOf(KeyDateType), "Timeline of important dates for the committee", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{"date": "2026-04", "label": "Charter renewal"},
+		})
 	})
 }
 

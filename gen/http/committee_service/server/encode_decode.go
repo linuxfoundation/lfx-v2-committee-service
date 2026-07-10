@@ -5615,6 +5615,20 @@ func EncodeUpdateCurrentWeeklyBriefError(encoder func(context.Context, http.Resp
 	}
 }
 
+// unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate builds a value of type
+// *committeeservice.KeyDate from a value of type *KeyDateRequestBody.
+func unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(v *KeyDateRequestBody) *committeeservice.KeyDate {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.KeyDate{
+		Date:  *v.Date,
+		Label: *v.Label,
+	}
+
+	return res
+}
+
 // unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -5627,6 +5641,20 @@ func unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *Committ
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceKeyDateToKeyDateResponseBody builds a value of type
+// *KeyDateResponseBody from a value of type *committeeservice.KeyDate.
+func marshalCommitteeserviceKeyDateToKeyDateResponseBody(v *committeeservice.KeyDate) *KeyDateResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &KeyDateResponseBody{
+		Date:  v.Date,
+		Label: v.Label,
 	}
 
 	return res

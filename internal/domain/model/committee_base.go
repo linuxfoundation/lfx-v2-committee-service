@@ -47,6 +47,10 @@ type CommitteeBase struct {
 	Calendar         Calendar  `json:"calendar,omitempty"`
 	DisplayName      string    `json:"display_name,omitempty"`
 	ParentUID        *string   `json:"parent_uid,omitempty"`
+	Repository       *string   `json:"repository,omitempty"`
+	Scope            []string  `json:"scope,omitempty"`
+	Deliverables     []string  `json:"deliverables,omitempty"`
+	KeyDates         []KeyDate `json:"key_dates,omitempty"`
 	TotalMembers     int       `json:"total_members"`
 	TotalVotingRepos int       `json:"total_voting_repos"`
 	HasMailingList   bool      `json:"has_mailing_list"`
@@ -57,6 +61,12 @@ type CommitteeBase struct {
 // Calendar represents committee calendar settings
 type Calendar struct {
 	Public bool `json:"public"`
+}
+
+// KeyDate represents a single entry in a committee's key-dates timeline.
+type KeyDate struct {
+	Date  string `json:"date"`
+	Label string `json:"label"`
 }
 
 // SSOGroupNameBuild builds the SSO group name for the committee based on the project slug and committee name.

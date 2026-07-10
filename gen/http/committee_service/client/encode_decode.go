@@ -6442,6 +6442,20 @@ func DecodeUpdateCurrentWeeklyBriefResponse(decoder func(*http.Response) goahttp
 	}
 }
 
+// marshalCommitteeserviceKeyDateToKeyDateRequestBody builds a value of type
+// *KeyDateRequestBody from a value of type *committeeservice.KeyDate.
+func marshalCommitteeserviceKeyDateToKeyDateRequestBody(v *committeeservice.KeyDate) *KeyDateRequestBody {
+	if v == nil {
+		return nil
+	}
+	res := &KeyDateRequestBody{
+		Date:  v.Date,
+		Label: v.Label,
+	}
+
+	return res
+}
+
 // marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody builds a
 // value of type *CommitteeUserRequestBody from a value of type
 // *committeeservice.CommitteeUser.
@@ -6459,6 +6473,20 @@ func marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody(v *committee
 	return res
 }
 
+// marshalKeyDateRequestBodyToCommitteeserviceKeyDate builds a value of type
+// *committeeservice.KeyDate from a value of type *KeyDateRequestBody.
+func marshalKeyDateRequestBodyToCommitteeserviceKeyDate(v *KeyDateRequestBody) *committeeservice.KeyDate {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.KeyDate{
+		Date:  v.Date,
+		Label: v.Label,
+	}
+
+	return res
+}
+
 // marshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -6471,6 +6499,20 @@ func marshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *Committee
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+
+	return res
+}
+
+// unmarshalKeyDateResponseBodyToCommitteeserviceKeyDate builds a value of type
+// *committeeservice.KeyDate from a value of type *KeyDateResponseBody.
+func unmarshalKeyDateResponseBodyToCommitteeserviceKeyDate(v *KeyDateResponseBody) *committeeservice.KeyDate {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.KeyDate{
+		Date:  *v.Date,
+		Label: *v.Label,
 	}
 
 	return res
