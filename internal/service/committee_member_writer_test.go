@@ -1120,6 +1120,305 @@ func TestCommitteeWriterOrchestrator_validateOrganizationExists(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+type stubB2BOrgResolver struct {
+	sfid string
+	ok   bool
+	err  error
+}
+
+func (s stubB2BOrgResolver) ResolveByUID(_ context.Context, _ string) (string, bool, error) {
+	if s.err != nil {
+		return "", false, s.err
+	}
+	return s.sfid, s.ok, nil
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	org := model.CommitteeMemberOrganization{ID: "0014100000Te2ovAAB", Name: "LF"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
+
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}
+	org = model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err = orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
+	assert.Equal(t, "Acme", org.Name)
+	assert.Equal(t, "https://acme.com", org.Website)
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	// Resolver would return found=true if called, but the pre-filter must prevent
+	// non-SFID-shaped ids from even reaching the resolver (FR-005 / T017).
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	cases := []struct {
+		name string
+		id   string
+	}{
+		{"CDP UUID", "51fde723-67df-4e0e-91c6-936d01d59559"},
+		{"hex digest", "abc123de45fg6789abcd1234ef567890"},
+		{"arbitrary non-sfid", "not-a-sfid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			org := model.CommitteeMemberOrganization{ID: tc.id, Name: "Acme"}
+			err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+			require.NoError(t, err)
+			assert.Empty(t, org.ID, "non-SFID id %q must be cleared before lookup", tc.id)
+		})
+	}
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Empty(t, stored.Organization.ID)
+	assert.Equal(t, "Acme Corp", stored.Organization.Name)
+	assert.Equal(t, "https://acme.com", stored.Organization.Website)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members["member-123"]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_TrimsWhitespaceOrgIDWithoutLookup(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call resolver")}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{ID: wantID, Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:   "  " + wantID + "  ",
+				Name: "Acme Corp",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members["member-123"]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
 func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 

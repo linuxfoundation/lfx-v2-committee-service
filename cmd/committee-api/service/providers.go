@@ -31,10 +31,11 @@ import (
 )
 
 var (
-	natsStorage    port.CommitteeReaderWriter
-	natsMessaging  port.ProjectReader
-	natsUserReader port.UserReader
-	natsPublisher  port.CommitteePublisher
+	natsStorage        port.CommitteeReaderWriter
+	natsMessaging      port.ProjectReader
+	natsUserReader     port.UserReader
+	natsB2BOrgResolver port.B2BOrgResolver
+	natsPublisher      port.CommitteePublisher
 
 	// expose the NATS client for direct access in subscriptions
 	natsClient *nats.NATSClient
@@ -92,6 +93,7 @@ func natsInit(ctx context.Context) {
 		natsStorage = nats.NewStorage(client)
 		natsMessaging = nats.NewMessageRequest(client)
 		natsUserReader = nats.NewUserRequest(client)
+		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
@@ -229,6 +231,27 @@ func UserReaderImpl(ctx context.Context) port.UserReader {
 	}
 
 	return userReader
+}
+
+// B2BOrgResolverImpl initializes the b2b_org resolver used to validate committee member
+// organization.id values (LFXV2-2400). Returns nil in mock mode.
+func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		return nil
+	case "nats":
+		natsInit(ctx)
+		return natsB2BOrgResolver
+	default:
+		log.Fatalf("unsupported b2b org resolver implementation: %s", repoSource)
+	}
+
+	return nil
 }
 
 // AuthServiceImpl initializes the authentication service implementation
@@ -852,6 +875,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 					usecaseSvc.WithProjectRetriever(ProjectRetrieverImpl(ctx)),
 					usecaseSvc.WithUserReader(UserReaderImpl(ctx)),
 					usecaseSvc.WithCommitteePublisher(CommitteePublisherImpl(ctx)),
+					usecaseSvc.WithB2BOrgResolver(B2BOrgResolverImpl(ctx)),
 				),
 			),
 			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),

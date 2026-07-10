@@ -19,6 +19,7 @@ require (
 	github.com/linuxfoundation/lfx-v2-invite-service v0.1.4
 	github.com/nats-io/nats-server/v2 v2.12.6
 	github.com/nats-io/nats.go v1.49.0
+	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/remychantenay/slog-otel v1.3.4
 	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1

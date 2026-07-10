@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,7 +149,16 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"business_email_required", settings.BusinessEmailRequired,
 	)
 
-	// Step 2: Validate member against committee requirements (domain validation)
+	// Step 2a: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
+	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+		slog.WarnContext(ctx, "organization id resolution unavailable; keeping organization id unchanged",
+			"error", errOrg,
+			"organization_id", member.Organization.ID,
+			"organization_name", member.Organization.Name,
+		)
+	}
+
+	// Step 2b: Validate member against committee requirements (domain validation)
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed",
@@ -446,6 +456,19 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
+	member.Organization.ID = strings.TrimSpace(member.Organization.ID)
+	trimmedExistingOrgID := strings.TrimSpace(existing.Organization.ID)
+	if member.Organization.ID != trimmedExistingOrgID {
+		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+			slog.WarnContext(ctx, "organization id resolution unavailable during update; keeping organization id unchanged",
+				"error", errOrg,
+				"organization_id", member.Organization.ID,
+				"organization_name", member.Organization.Name,
+				"member_uid", member.UID,
+			)
+		}
+	}
+
 	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
@@ -934,6 +957,61 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 	// This could involve calling LFX organization service or similar
 	// For now, we'll just validate that organization name is not empty
 
+	return nil
+}
+
+// b2bOrgLookupTimeout bounds the member-service NATS lookup in sanitizeMemberOrganization
+// so member create/update does not inherit an unbounded caller context.
+const b2bOrgLookupTimeout = 10 * time.Second
+
+// sanitizeMemberOrganization validates organization.id against member-service b2b_org lookup.
+// When the id is not found, it clears organization.id and returns nil so create/update continues
+// with organization name and website only (LFXV2-2400). Infrastructure lookup errors are returned
+// to callers, which fail-open (warn and keep the submitted id).
+func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
+	if org == nil {
+		return nil
+	}
+
+	org.ID = strings.TrimSpace(org.ID)
+	if org.ID == "" {
+		return nil
+	}
+	// Pre-filter: clear ids that aren't SFID-shaped before the lookup.
+	// Callers fail-open on lookup error (warn + keep org.ID), so only SFID-shaped
+	// ids may be retained through a transient NATS error (FR-005 / T017).
+	if !utils.IsSFIDShaped(org.ID) {
+		slog.InfoContext(ctx, "clearing organization id that is not SFID-shaped",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
+	if uc.b2bOrgResolver == nil {
+		slog.DebugContext(ctx, "b2b org resolver not configured; skipping organization id resolution check")
+		return nil
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
+	defer cancel()
+
+	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(lookupCtx, org.ID)
+	if err != nil {
+		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
+	}
+	if !found {
+		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
+
+	org.ID = utils.NormalizeAccountSFID(sfid)
 	return nil
 }
 

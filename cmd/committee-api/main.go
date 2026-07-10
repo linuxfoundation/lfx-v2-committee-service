@@ -106,6 +106,7 @@ func main() {
 		usecaseSvc.WithProjectRetriever(projectRetriever),
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(committeePublisher),
+		usecaseSvc.WithB2BOrgResolver(service.B2BOrgResolverImpl(ctx)),
 	)
 
 	readCommitteeUseCase := usecaseSvc.NewCommitteeReaderOrchestrator(
