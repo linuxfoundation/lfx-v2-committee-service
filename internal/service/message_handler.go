@@ -960,19 +960,38 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
 	}
 
-	for _, committeeUID := range allUIDs {
-		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
+	// Publish FGA invitee tuples immediately for the specific committees this user was invited to.
+	// This runs before the full-committee scan so that access is granted even if the scan times out.
+	for committeeUID := range invitesByCommittee {
+		m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
 			writeCtx:           writeCtx,
 			committeeUID:       committeeUID,
 			normalizedEmail:    normalizedEmail,
 			username:           event.AcceptedBy,
 			inviteUID:          event.UID,
-			firstName:          firstName,
-			lastName:           lastName,
-			fullName:           fullName,
 			invitesByCommittee: invitesByCommittee,
 		})
 	}
+
+	var g errgroup.Group
+	g.SetLimit(10)
+	for _, committeeUID := range allUIDs {
+		uid := committeeUID
+		g.Go(func() error {
+			m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
+				writeCtx:        writeCtx,
+				committeeUID:    uid,
+				normalizedEmail: normalizedEmail,
+				username:        event.AcceptedBy,
+				inviteUID:       event.UID,
+				firstName:       firstName,
+				lastName:        lastName,
+				fullName:        fullName,
+			})
+			return nil
+		})
+	}
+	_ = g.Wait()
 
 	return nil, nil
 }
@@ -995,13 +1014,11 @@ type inviteAcceptedEnrichment struct {
 
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
-// reconciles all resource data for the recipient email. It also publishes the FGA invitee
-// relation for every committee invite (any status) that matches the recipient email, so the
-// newly created LFID user can see their full invite history.
+// reconciles all resource data for the recipient email. FGA invitee tuples are published
+// upfront in HandleInviteAccepted before this scan runs, so they are not repeated here.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	m.enrichInvitedUserInCommitteeSettings(ctx, e)
 	m.enrichInvitedUserInCommitteeMembers(ctx, e)
-	m.publishInviteeFGAForCommittee(ctx, e)
 }
 
 // fetchInvitesByEmail calls ListAllInvites once and returns a map of committeeUID → invites
