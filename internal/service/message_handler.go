@@ -952,6 +952,9 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	firstName, lastName, fullName := m.resolveInvitedName(resolveCtx, event.AcceptedBy, event.Recipient.Name)
 	resolveCancel()
 
+	// Resolve the committee UID this LFID invite was issued for (carried in the Resource field).
+	inviteResourceUID := event.Resource.UID
+
 	// Pre-fetch all invites once and filter to the accepting email. This avoids an O(committees × invites)
 	// full-bucket scan that would result from calling ListInvites per committee inside the loop.
 	// The result is partitioned per committee inside publishInviteeFGAForCommittee.
@@ -961,10 +964,11 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
 	}
 
-	// Accept pending committee invites for this user upfront — before the full-committee scan.
-	// This writes the invite status to "accepted", publishes the indexer update, and grants FGA
-	// access, so the user can see and interact with their committee invite even if the scan times out.
-	m.acceptPendingCommitteeInvites(ctx, writeCtx, event.AcceptedBy, invitesByCommittee)
+	// Accept the pending committee invite for the specific committee this LFID invite was issued for.
+	// We only accept the one the user explicitly acted on — other pending committee invites remain
+	// pending because we don't know whether the user wants to accept them.
+	// FGA invitee tuples are still published for all committees so the user can see all their invites.
+	m.acceptPendingCommitteeInvites(ctx, writeCtx, event.AcceptedBy, inviteResourceUID, invitesByCommittee)
 
 	var g errgroup.Group
 	g.SetLimit(10)
@@ -1076,12 +1080,13 @@ func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.C
 	}
 }
 
-// acceptPendingCommitteeInvites accepts all pending committee invites for the given user and publishes
-// the corresponding indexer update and FGA invitee tuple. It runs before the full-committee scan so
-// that committee invite status and access are resolved even if the scan later times out.
-// For invites that are already accepted (e.g. self-serve accepted first), it still publishes the FGA
-// tuple to ensure the user has access.
-func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx context.Context, username string, invitesByCommittee map[string][]*model.CommitteeInvite) {
+// acceptPendingCommitteeInvites publishes FGA invitee tuples for every committee this user has
+// been invited to, and additionally accepts (status → "accepted") the pending invite for
+// targetCommitteeUID — the specific committee the accepted LFID invite was issued for.
+// Invite acceptance is scoped to one committee because accepting an LFID invite is consent
+// for that resource only; invites to other committees remain pending for the user to decide.
+// The FGA grant is issued for all committees so the user can see all their pending invites.
+func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx context.Context, username, targetCommitteeUID string, invitesByCommittee map[string][]*model.CommitteeInvite) {
 	if m.committeePublisher == nil {
 		return
 	}
@@ -1090,14 +1095,38 @@ func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx
 			if cached == nil {
 				continue
 			}
-			// Attempt to get a fresh copy with revision for optimistic locking. When the
-			// fetch fails or the writer is unavailable, fall back to FGA-only grant.
-			if m.committeeWriter != nil {
+			// Accept the invite only for the specific committee the LFID invite was issued for.
+			// For all other committees, only the FGA tuple is published.
+			if m.committeeWriter != nil && m.committeeWriterOrchestrator != nil && committeeUID == targetCommitteeUID {
 				invite, revision, err := m.committeeReader.GetInvite(ctx, cached.UID)
 				if err != nil {
 					slog.WarnContext(ctx, "failed to get committee invite for acceptance — granting FGA only",
 						"invite_uid", cached.UID, "committee_uid", committeeUID, "error", err)
 				} else if invite.Status == "pending" {
+					// Create the committee member first so that if it fails the invite stays
+					// pending and the user can retry. Mirrors the AcceptInvite HTTP endpoint flow.
+					member := &model.CommitteeMember{
+						CommitteeMemberBase: model.CommitteeMemberBase{
+							CommitteeUID: invite.CommitteeUID,
+							Email:        invite.InviteeEmail,
+							Username:     username,
+							Role:         model.CommitteeMemberRole{Name: invite.Role},
+							Status:       "Active",
+						},
+					}
+					if _, createErr := m.committeeWriterOrchestrator.CreateMember(writeCtx, member, false, false); createErr != nil {
+						var conflictErr errors.Conflict
+						if !stderrors.As(createErr, &conflictErr) {
+							slog.WarnContext(ctx, "failed to create committee member during invite acceptance",
+								"invite_uid", invite.UID, "committee_uid", committeeUID,
+								"username", redaction.Redact(username), "error", createErr)
+						} else {
+							slog.DebugContext(ctx, "committee member already exists during invite acceptance — skipping create",
+								"invite_uid", invite.UID, "committee_uid", committeeUID)
+						}
+					}
+					// Mark the invite accepted regardless of whether member creation succeeded (it may
+					// already exist as a placeholder that was enriched by the enrichment scan).
 					invite.Status = "accepted"
 					if updateErr := m.committeeWriter.UpdateInvite(writeCtx, invite, revision); updateErr != nil {
 						slog.WarnContext(ctx, "failed to accept committee invite",
@@ -1114,7 +1143,7 @@ func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx
 						"invite_uid", invite.UID, "committee_uid", committeeUID, "status", invite.Status)
 				}
 			}
-			// Always publish the FGA invitee tuple so the user has access to see the invite.
+			// Always publish the FGA invitee tuple so the user can see the invite.
 			m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
 				writeCtx: writeCtx, committeeUID: committeeUID, username: username,
 				invitesByCommittee: invitesByCommittee,

@@ -2558,6 +2558,7 @@ func TestAcceptPendingCommitteeInvites(t *testing.T) {
 			UID:        uuid.New().String(),
 			AcceptedBy: username,
 			Recipient:  inviteapi.Recipient{Email: writerEmail},
+			Resource:   inviteapi.Resource{UID: committeeUID, Type: "group"},
 		}}
 		b, _ := json.Marshal(event)
 		return b
