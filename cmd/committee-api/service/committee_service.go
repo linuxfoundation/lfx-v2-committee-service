@@ -931,8 +931,8 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 				return s.convertMemberDomainToFullResponse(m), nil
 			}
 		}
-		// Member not found despite accepted status — return success with empty body.
-		return nil, nil
+		// Invite is accepted but no matching member record found — data inconsistency.
+		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 
 	// Create the committee member first — if this fails the invite remains pending/declined
