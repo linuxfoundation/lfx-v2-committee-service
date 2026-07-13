@@ -25,6 +25,7 @@ import (
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
 )
@@ -960,18 +961,10 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
 	}
 
-	// Publish FGA invitee tuples immediately for the specific committees this user was invited to.
-	// This runs before the full-committee scan so that access is granted even if the scan times out.
-	for committeeUID := range invitesByCommittee {
-		m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
-			writeCtx:           writeCtx,
-			committeeUID:       committeeUID,
-			normalizedEmail:    normalizedEmail,
-			username:           event.AcceptedBy,
-			inviteUID:          event.UID,
-			invitesByCommittee: invitesByCommittee,
-		})
-	}
+	// Accept pending committee invites for this user upfront — before the full-committee scan.
+	// This writes the invite status to "accepted", publishes the indexer update, and grants FGA
+	// access, so the user can see and interact with their committee invite even if the scan times out.
+	m.acceptPendingCommitteeInvites(ctx, writeCtx, event.AcceptedBy, invitesByCommittee)
 
 	var g errgroup.Group
 	g.SetLimit(10)
@@ -1080,6 +1073,89 @@ func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.C
 				"invite_uid", invite.UID, "committee_uid", e.committeeUID,
 				"username", redaction.Redact(e.username))
 		}
+	}
+}
+
+// acceptPendingCommitteeInvites accepts all pending committee invites for the given user and publishes
+// the corresponding indexer update and FGA invitee tuple. It runs before the full-committee scan so
+// that committee invite status and access are resolved even if the scan later times out.
+// For invites that are already accepted (e.g. self-serve accepted first), it still publishes the FGA
+// tuple to ensure the user has access.
+func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx context.Context, username string, invitesByCommittee map[string][]*model.CommitteeInvite) {
+	if m.committeePublisher == nil {
+		return
+	}
+	for committeeUID, invites := range invitesByCommittee {
+		for _, cached := range invites {
+			if cached == nil {
+				continue
+			}
+			// Attempt to get a fresh copy with revision for optimistic locking. When the
+			// fetch fails or the writer is unavailable, fall back to FGA-only grant.
+			if m.committeeWriter != nil {
+				invite, revision, err := m.committeeReader.GetInvite(ctx, cached.UID)
+				if err != nil {
+					slog.WarnContext(ctx, "failed to get committee invite for acceptance — granting FGA only",
+						"invite_uid", cached.UID, "committee_uid", committeeUID, "error", err)
+				} else if invite.Status == "pending" {
+					invite.Status = "accepted"
+					if updateErr := m.committeeWriter.UpdateInvite(writeCtx, invite, revision); updateErr != nil {
+						slog.WarnContext(ctx, "failed to accept committee invite",
+							"invite_uid", invite.UID, "committee_uid", committeeUID,
+							"username", redaction.Redact(username), "error", updateErr)
+					} else {
+						slog.InfoContext(ctx, "accepted committee invite via LFID acceptance",
+							"invite_uid", invite.UID, "committee_uid", committeeUID,
+							"username", redaction.Redact(username))
+						m.publishInviteIndexerForHandler(writeCtx, invite)
+					}
+				} else {
+					slog.DebugContext(ctx, "committee invite already processed — granting FGA only",
+						"invite_uid", invite.UID, "committee_uid", committeeUID, "status", invite.Status)
+				}
+			}
+			// Always publish the FGA invitee tuple so the user has access to see the invite.
+			m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
+				writeCtx: writeCtx, committeeUID: committeeUID, username: username,
+				invitesByCommittee: invitesByCommittee,
+			})
+		}
+	}
+}
+
+// publishInviteIndexerForHandler builds and publishes an indexer updated message for a committee
+// invite accepted via the NATS invite-accepted handler. It mirrors the service-layer
+// publishInviteIndexerMessage but is scoped to the message handler where no HTTP request context exists.
+func (m *messageHandlerOrchestrator) publishInviteIndexerForHandler(ctx context.Context, invite *model.CommitteeInvite) {
+	tags := invite.Tags()
+	public := false
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             invite.UID,
+		AccessCheckObject:    fmt.Sprintf("committee_invite:%s", invite.UID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", invite.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", invite.CommitteeUID)},
+		SortName:             invite.InviteeEmail,
+		NameAndAliases:       []string{invite.InviteeEmail},
+		Fulltext:             invite.InviteeEmail,
+		Tags:                 tags,
+		Public:               &public,
+	}
+	msg := model.CommitteeIndexerMessage{
+		Action:         model.ActionUpdated,
+		Tags:           tags,
+		IndexingConfig: indexingConfig,
+	}
+	built, err := msg.Build(ctx, invite)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build invite indexer message for handler",
+			"error", err, "invite_uid", invite.UID)
+		return
+	}
+	if pubErr := m.committeePublisher.Indexer(ctx, constants.IndexCommitteeInviteSubject, built, false); pubErr != nil {
+		slog.WarnContext(ctx, "failed to publish invite indexer message from handler",
+			"error", pubErr, "invite_uid", invite.UID)
 	}
 }
 

@@ -67,6 +67,10 @@ func (r *stubCommitteeReader) GetMemberRevision(_ context.Context, _ string) (ui
 	panic("not used")
 }
 
+func (r *stubCommitteeReader) GetInvite(_ context.Context, _ string) (*model.CommitteeInvite, uint64, error) {
+	panic("not used")
+}
+
 func (r *stubCommitteeReader) ListInvites(_ context.Context, _ string) ([]*model.CommitteeInvite, error) {
 	panic("not used")
 }

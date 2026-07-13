@@ -30,6 +30,8 @@ type CommitteeDataReader interface {
 	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
 	// ListAllUIDs returns all active committee UIDs
 	ListAllUIDs(ctx context.Context) ([]string, error)
+	// GetInvite retrieves a committee invite by UID and returns its revision
+	GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error)
 	// ListInvites retrieves all invites for a given committee UID
 	ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error)
 	// ListAllInvites retrieves every invite across all committees via a full bucket scan.
@@ -115,6 +117,11 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 // ListAllUIDs returns all active committee UIDs
 func (rc *committeeReaderOrchestrator) ListAllUIDs(ctx context.Context) ([]string, error) {
 	return rc.committeeReader.ListAllUIDs(ctx)
+}
+
+// GetInvite retrieves a committee invite by UID
+func (rc *committeeReaderOrchestrator) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
+	return rc.committeeReader.GetInvite(ctx, uid)
 }
 
 // ListInvites retrieves all invites for a given committee UID
