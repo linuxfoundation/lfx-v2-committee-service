@@ -1096,13 +1096,14 @@ func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx
 				continue
 			}
 			// Accept the invite only for the specific committee the LFID invite was issued for.
-			// For all other committees, only the FGA tuple is published.
+			// For all other committees, only the FGA tuple is published (once per committee, below).
 			if m.committeeWriter != nil && m.committeeWriterOrchestrator != nil && committeeUID == targetCommitteeUID {
 				invite, revision, err := m.committeeReader.GetInvite(ctx, cached.UID)
-				if err != nil {
+				switch {
+				case err != nil:
 					slog.WarnContext(ctx, "failed to get committee invite for acceptance — granting FGA only",
 						"invite_uid", cached.UID, "committee_uid", committeeUID, "error", err)
-				} else if invite.Status == "pending" {
+				case invite.Status == "pending":
 					// Create the committee member first so that if it fails the invite stays
 					// pending and the user can retry. Mirrors the AcceptInvite HTTP endpoint flow.
 					member := &model.CommitteeMember{
@@ -1138,17 +1139,17 @@ func (m *messageHandlerOrchestrator) acceptPendingCommitteeInvites(ctx, writeCtx
 							"username", redaction.Redact(username))
 						m.publishInviteIndexerForHandler(writeCtx, invite)
 					}
-				} else {
+				default:
 					slog.DebugContext(ctx, "committee invite already processed — granting FGA only",
 						"invite_uid", invite.UID, "committee_uid", committeeUID, "status", invite.Status)
 				}
 			}
-			// Always publish the FGA invitee tuple so the user can see the invite.
-			m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
-				writeCtx: writeCtx, committeeUID: committeeUID, username: username,
-				invitesByCommittee: invitesByCommittee,
-			})
 		}
+		// Publish the FGA invitee tuple once per committee so the user can see the invite.
+		m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
+			writeCtx: writeCtx, committeeUID: committeeUID, username: username,
+			invitesByCommittee: invitesByCommittee,
+		})
 	}
 }
 

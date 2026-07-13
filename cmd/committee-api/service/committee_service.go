@@ -923,14 +923,15 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		// Idempotent: the invite was already accepted (e.g. by the LFID invite handler).
 		// Find and return the existing member so the caller can treat this as a success.
 		members, listErr := s.storage.ListMembersByCommittee(ctx, p.UID)
-		if listErr == nil {
-			for _, m := range members {
-				if m != nil && strings.EqualFold(m.Email, invite.InviteeEmail) {
-					return s.convertMemberDomainToFullResponse(m), nil
-				}
+		if listErr != nil {
+			return nil, wrapError(ctx, listErr)
+		}
+		for _, m := range members {
+			if m != nil && strings.EqualFold(m.Email, invite.InviteeEmail) {
+				return s.convertMemberDomainToFullResponse(m), nil
 			}
 		}
-		// Member not found — return success with empty body rather than surfacing an error.
+		// Member not found despite accepted status — return success with empty body.
 		return nil, nil
 	}
 
