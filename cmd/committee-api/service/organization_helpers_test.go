@@ -29,15 +29,24 @@ func TestAcceptInviteOrganization(t *testing.T) {
 		assert.Equal(t, "https://payload.org", org.Website)
 	})
 
-	t.Run("ignores partial payload without ID", func(t *testing.T) {
+	t.Run("uses payload name and website without ID", func(t *testing.T) {
 		orgName := "Payload Org"
-		org := acceptInviteOrganization(invite, nil, &orgName, nil)
-		assert.Equal(t, "Invite Org", org.Name)
-		assert.Equal(t, "https://invite.org", org.Website)
+		orgWebsite := "https://payload.org"
+		org := acceptInviteOrganization(invite, nil, &orgName, &orgWebsite)
+		assert.Equal(t, "Payload Org", org.Name)
+		assert.Equal(t, "https://payload.org", org.Website)
 		assert.Empty(t, org.ID)
 	})
 
-	t.Run("falls back to invite when payload has no organization", func(t *testing.T) {
+	t.Run("uses payload name-only without ID", func(t *testing.T) {
+		orgName := "Payload Org"
+		org := acceptInviteOrganization(invite, nil, &orgName, nil)
+		assert.Equal(t, "Payload Org", org.Name)
+		assert.Empty(t, org.Website)
+		assert.Empty(t, org.ID)
+	})
+
+	t.Run("falls back to invite when payload has no organization data", func(t *testing.T) {
 		org := acceptInviteOrganization(invite, nil, nil, nil)
 		assert.Equal(t, "Invite Org", org.Name)
 		assert.Equal(t, "https://invite.org", org.Website)
