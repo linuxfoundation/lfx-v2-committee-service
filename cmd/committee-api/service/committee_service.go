@@ -922,7 +922,7 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 
 	if invite.Status == "accepted" {
-		// Idempotent: the invite was already accepted (e.g. by the LFID invite handler).
+		// Idempotent: the invite is already accepted (e.g. caller retrying a prior successful HTTP acceptance).
 		// Find and return the existing member so the caller can treat this as a success.
 		members, listErr := s.storage.ListMembersByCommittee(ctx, p.UID)
 		if listErr != nil {

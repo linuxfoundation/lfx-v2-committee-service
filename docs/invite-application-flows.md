@@ -68,7 +68,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
-- **Idempotent for `accepted` status:** if the invite is already `accepted` (e.g. via LFID invite flow which publishes FGA tuples so the self-serve UI can call this endpoint), the endpoint looks up the existing committee member by email and returns it as a success (`200 OK`). If no matching member record is found despite the accepted status (data inconsistency), returns `409 Conflict`.
+- **Idempotent for `accepted` status:** if the invite is already `accepted` (e.g. when the caller retries a prior successful HTTP acceptance), the endpoint looks up the existing committee member by email and returns it as a success (`200 OK`). If no matching member record is found despite the accepted status (data inconsistency), returns `409 Conflict`.
 - On success (from `pending`/`declined`): creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
 - Returns the created or existing committee member.
 
@@ -236,8 +236,9 @@ The handler requires `uid` (invite UID), `accepted_by` (new LFID username), and 
 
 1. Validate the event (`uid`, `accepted_by`, `recipient.email`); discard if any are missing.
 2. Normalize `recipient.email` (lowercase, trimmed).
-3. List **all** committee UIDs (`ListAllUIDs`; a full scan today — see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for the planned email-index lookup).
-4. For each committee, `enrichInvitedUserInCommittee` reconciles every email-only record matching that email. The invite `role` is **ignored** — acceptance always reconciles all resource data for the recipient email:
+3. **(Upfront FGA phase)** Fetch all `CommitteeInvite` records for the normalized email (`fetchInvitesByEmail` via `ListAllInvites`). For each committee that has a matching invite, publish an FGA `invitee` tuple for every invite record (`publishInviteeFGAForCommittee`). This runs before the enrichment scan so the invite is immediately visible in the self-serve UI and the user can call `AcceptInvite` without waiting for the full scan to complete. See [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for the planned email-index that will replace the `ListAllInvites` full-bucket scan.
+4. List **all** committee UIDs (`ListAllUIDs`; a full scan — see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238)).
+5. Enrich up to **10 committees concurrently** (bounded errgroup). For each committee, `enrichInvitedUserInCommittee` reconciles every email-only record matching that email. The invite `role` is **ignored** — acceptance always reconciles all resource data for the recipient email:
    - **Settings:** all email-only Writers and Auditors (`username == ""`) — set `username` from `accepted_by` via `UpdateSettings`, retrying up to 3 times on revision conflicts. `UpdateSettings` fires FGA and indexer messages and publishes `committee_settings.updated`.
    - **Members:** email-only roster rows — set `username` from `accepted_by` via `UpdateMember` (revision-conflict retries), same as Writers/Auditors. No auth email lookup on this path.
 
