@@ -970,11 +970,10 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	var g errgroup.Group
 	g.SetLimit(10)
 	for _, committeeUID := range allUIDs {
-		uid := committeeUID
 		g.Go(func() error {
 			m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
 				writeCtx:        writeCtx,
-				committeeUID:    uid,
+				committeeUID:    committeeUID,
 				normalizedEmail: normalizedEmail,
 				username:        event.AcceptedBy,
 				inviteUID:       event.UID,

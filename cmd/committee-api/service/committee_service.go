@@ -924,12 +924,12 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	if invite.Status == "accepted" {
 		// Idempotent: the invite is already accepted (e.g. caller retrying a prior successful HTTP acceptance).
 		// Find and return the existing member so the caller can treat this as a success.
-		members, listErr := s.storage.ListMembersByCommittee(ctx, p.UID)
+		members, listErr := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
 		if listErr != nil {
 			return nil, wrapError(ctx, listErr)
 		}
 		for _, m := range members {
-			if m != nil && strings.EqualFold(m.Email, invite.InviteeEmail) {
+			if m != nil && strings.EqualFold(m.CommitteeUID, p.UID) {
 				return s.convertMemberDomainToFullResponse(m), nil
 			}
 		}
