@@ -54,11 +54,12 @@ func normalizeMemberOrganization(org *model.CommitteeMemberOrganization) {
 }
 
 // acceptInviteOrganization selects the organization for member creation on invite accept.
-// When the accept payload includes an organization ID, the entire payload organization is
-// used. Otherwise the stored invite organization is used as-is (no field-level merging).
+// When the accept payload carries any organization data (ID, name, or website), it is used
+// as-is. The stored invite organization is only used when the payload supplies nothing at
+// all, preserving any pre-filled org on the invite as a fallback.
 func acceptInviteOrganization(invite *model.CommitteeInvite, id, name, website *string) model.CommitteeMemberOrganization {
 	payloadOrg := organizationFromOptionalFields(id, name, website)
-	if strings.TrimSpace(payloadOrg.ID) != "" {
+	if organizationHasData(payloadOrg) {
 		return payloadOrg
 	}
 	return inviteOrganizationValue(invite)

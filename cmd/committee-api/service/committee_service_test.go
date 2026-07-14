@@ -1387,12 +1387,12 @@ func TestAcceptInvite_Organization(t *testing.T) {
 		assert.Equal(t, "https://payload.org", member.Organization.Website)
 	})
 
-	t.Run("ignores partial payload without organization ID", func(t *testing.T) {
+	t.Run("uses payload name and website without organization ID", func(t *testing.T) {
 		svc, mockOrch, repo := setupServiceTestWithRepo()
 		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
 
 		repo.AddCommitteeInvite(&model.CommitteeInvite{
-			UID:          "invite-org-merge",
+			UID:          "invite-org-name-website",
 			CommitteeUID: "committee-1",
 			InviteeEmail: "accept@example.com",
 			Status:       "pending",
@@ -1411,25 +1411,28 @@ func TestAcceptInvite_Organization(t *testing.T) {
 			},
 		}
 
-		overrideName := "Payload Org"
+		payloadName := "Payload Org"
+		payloadWebsite := "https://payload.org"
 		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
 			UID:       "committee-1",
-			InviteUID: "invite-org-merge",
+			InviteUID: "invite-org-name-website",
 			Body: &committeeservice.AcceptInviteOptionalBody{
 				Organization: &struct {
 					ID      *string
 					Name    *string
 					Website *string
 				}{
-					Name: &overrideName,
+					Name:    &payloadName,
+					Website: &payloadWebsite,
 				},
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, mockOrch.createMemberCalls, 1)
 		member := mockOrch.createMemberCalls[0]
-		assert.Equal(t, "Invite Org", member.Organization.Name)
-		assert.Equal(t, "https://invite.org", member.Organization.Website)
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://payload.org", member.Organization.Website)
+		assert.Empty(t, member.Organization.ID)
 	})
 
 	t.Run("falls back to invite organization", func(t *testing.T) {
