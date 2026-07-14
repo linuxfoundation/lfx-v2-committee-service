@@ -890,7 +890,9 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	return nil
 }
 
-// AcceptInvite accepts a pending or previously-declined invite and creates a committee member
+// AcceptInvite accepts a pending or previously-declined invite and creates a committee member.
+// Idempotent for already-accepted invites: returns the existing member when found, or 409 Conflict
+// when the invite is accepted but no matching member record exists (data inconsistency).
 func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.accept-invite",
 		"committee_uid", p.UID,

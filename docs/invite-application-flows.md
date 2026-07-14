@@ -67,9 +67,10 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
-- Blocked from: `accepted` (already done), `revoked` (invite was withdrawn).
-- On success: creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
-- Returns the created committee member.
+- Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
+- **Idempotent for `accepted` status:** if the invite is already `accepted` (e.g. via LFID invite flow which publishes FGA tuples so the self-serve UI can call this endpoint), the endpoint looks up the existing committee member by email and returns it as a success (`200 OK`). If no matching member record is found despite the accepted status (data inconsistency), returns `409 Conflict`.
+- On success (from `pending`/`declined`): creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
+- Returns the created or existing committee member.
 
 **Declining an invite** (`POST .../decline`):
 - Only the invitee can decline.
