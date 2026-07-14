@@ -890,7 +890,9 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	return nil
 }
 
-// AcceptInvite accepts a pending or previously-declined invite and creates a committee member
+// AcceptInvite accepts a pending or previously-declined invite and creates a committee member.
+// Idempotent for already-accepted invites: returns the existing member when found, or 409 Conflict
+// when the invite is accepted but no matching member record exists (data inconsistency).
 func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.accept-invite",
 		"committee_uid", p.UID,
@@ -915,7 +917,23 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
-	if invite.Status == "accepted" || invite.Status == "revoked" {
+	if invite.Status == "revoked" {
+		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	if invite.Status == "accepted" {
+		// Idempotent: the invite is already accepted (e.g. caller retrying a prior successful HTTP acceptance).
+		// Find and return the existing member so the caller can treat this as a success.
+		members, listErr := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
+		if listErr != nil {
+			return nil, wrapError(ctx, listErr)
+		}
+		for _, m := range members {
+			if m != nil && strings.EqualFold(m.CommitteeUID, p.UID) {
+				return s.convertMemberDomainToFullResponse(m), nil
+			}
+		}
+		// Invite is accepted but no matching member record found — data inconsistency.
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 

@@ -656,6 +656,8 @@ func (m *mockStreamMessenger) Data() []byte    { return m.data }
 
 // spyCommitteeWriterOrchestrator records Update, UpdateMember, and UpdateSettings calls and can be configured to fail.
 type spyCommitteeWriterOrchestrator struct {
+	mu sync.Mutex
+
 	updateCalls      int
 	updateErr        error
 	updatedCommittee *model.Committee
@@ -677,11 +679,15 @@ func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Comm
 	return nil, nil
 }
 func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Committee, _ uint64, _ bool) (*model.Committee, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateCalls++
 	s.updatedCommittee = c
 	return c, s.updateErr
 }
 func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateSettingsCalls++
 	// Deep-copy the snapshot so later in-place mutations by the handler don't overwrite it.
 	snap := *settings
@@ -703,6 +709,8 @@ func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *mode
 	return nil, nil
 }
 func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)

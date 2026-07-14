@@ -1177,28 +1177,51 @@ func TestRevokeInvite_NotFound(t *testing.T) {
 
 func TestAcceptInvite(t *testing.T) {
 	tests := []struct {
-		name        string
-		seedStatus  string
-		principal   string
-		expectError bool
+		name         string
+		seedStatus   string
+		seedMember   *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
+		principal    string
+		inviteeEmail string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expectError  bool
+		expectResult bool // false means nil result is acceptable
 	}{
 		{
-			name:        "successful accept of pending invite",
-			seedStatus:  "pending",
-			principal:   "accept@example.com",
-			expectError: false,
+			name:         "successful accept of pending invite",
+			seedStatus:   "pending",
+			principal:    "accept@example.com",
+			expectError:  false,
+			expectResult: true,
 		},
 		{
-			name:        "successful accept of previously declined invite",
-			seedStatus:  "declined",
-			principal:   "accept@example.com",
-			expectError: false,
+			name:         "successful accept of previously declined invite",
+			seedStatus:   "declined",
+			principal:    "accept@example.com",
+			expectError:  false,
+			expectResult: true,
 		},
 		{
-			name:        "cannot accept already accepted invite",
-			seedStatus:  "accepted",
-			principal:   "accept@example.com",
-			expectError: true,
+			name:       "already accepted invite returns success (idempotent) — member found",
+			seedStatus: "accepted",
+			seedMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "existing-member-uid",
+					CommitteeUID: "committee-1",
+					Email:        "accept@example.com",
+					Status:       "Active",
+				},
+			},
+			principal:    "accept@example.com",
+			expectError:  false,
+			expectResult: true,
+		},
+		{
+			// Use a distinct email to avoid matching the member seeded by the previous sub-test
+			// (the global mock repo is a singleton, so state leaks between subtests).
+			name:         "already accepted invite with no member record returns conflict",
+			seedStatus:   "accepted",
+			principal:    "no-member-accept@example.com",
+			inviteeEmail: "no-member-accept@example.com",
+			expectError:  true,
 		},
 		{
 			name:        "cannot accept revoked invite",
@@ -1213,14 +1236,22 @@ func TestAcceptInvite(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 			svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 
+			inviteeEmail := tt.inviteeEmail
+			if inviteeEmail == "" {
+				inviteeEmail = tt.principal
+			}
 			invite := &model.CommitteeInvite{
 				UID:          "invite-accept-test",
 				CommitteeUID: "committee-1",
-				InviteeEmail: "accept@example.com",
+				InviteeEmail: inviteeEmail,
 				Status:       tt.seedStatus,
 				CreatedAt:    time.Now(),
 			}
 			repo.AddCommitteeInvite(invite)
+
+			if tt.seedMember != nil {
+				repo.AddCommitteeMember(tt.seedMember.CommitteeUID, tt.seedMember)
+			}
 
 			mockOrch.createMember = &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
@@ -1242,8 +1273,10 @@ func TestAcceptInvite(t *testing.T) {
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, result)
-				assert.Equal(t, "Active", result.Status)
+				if tt.expectResult {
+					require.NotNil(t, result)
+					assert.Equal(t, "Active", result.Status)
+				}
 			}
 		})
 	}

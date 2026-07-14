@@ -937,6 +937,22 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
 
+	// Publish FGA invitee tuples upfront — before the full committee scan — so the user can
+	// see their pending invites in the UI immediately after LFID acceptance. The UI can then
+	// call AcceptInvite on the now-visible invite without any backend polling.
+	// Guard: skip when FGA publishing is disabled (committeePublisher == nil).
+	// TODO(LFXV2-2238): replace ListAllInvites with an email→committee index so this avoids a full scan.
+	if m.committeePublisher != nil {
+		invitesByCommittee := m.fetchInvitesByEmail(ctx, normalizedEmail)
+		for committeeUID := range invitesByCommittee {
+			m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
+				committeeUID:       committeeUID,
+				username:           event.AcceptedBy,
+				invitesByCommittee: invitesByCommittee,
+			})
+		}
+	}
+
 	// Full scan (LFXV2-2238): per committee, load settings and list members to reconcile email-only records.
 	allUIDs, listErr := m.committeeReader.ListAllUIDs(ctx)
 	if listErr != nil {
@@ -951,28 +967,24 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	firstName, lastName, fullName := m.resolveInvitedName(resolveCtx, event.AcceptedBy, event.Recipient.Name)
 	resolveCancel()
 
-	// Pre-fetch all invites once and filter to the accepting email. This avoids an O(committees × invites)
-	// full-bucket scan that would result from calling ListInvites per committee inside the loop.
-	// The result is partitioned per committee inside publishInviteeFGAForCommittee.
-	// Guard: skip the scan entirely when FGA publishing is disabled (committeePublisher == nil).
-	var invitesByCommittee map[string][]*model.CommitteeInvite
-	if m.committeePublisher != nil {
-		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
-	}
-
+	var g errgroup.Group
+	g.SetLimit(10)
 	for _, committeeUID := range allUIDs {
-		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
-			writeCtx:           writeCtx,
-			committeeUID:       committeeUID,
-			normalizedEmail:    normalizedEmail,
-			username:           event.AcceptedBy,
-			inviteUID:          event.UID,
-			firstName:          firstName,
-			lastName:           lastName,
-			fullName:           fullName,
-			invitesByCommittee: invitesByCommittee,
+		g.Go(func() error {
+			m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
+				writeCtx:        writeCtx,
+				committeeUID:    committeeUID,
+				normalizedEmail: normalizedEmail,
+				username:        event.AcceptedBy,
+				inviteUID:       event.UID,
+				firstName:       firstName,
+				lastName:        lastName,
+				fullName:        fullName,
+			})
+			return nil
 		})
 	}
+	_ = g.Wait()
 
 	return nil, nil
 }
@@ -995,13 +1007,11 @@ type inviteAcceptedEnrichment struct {
 
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
-// reconciles all resource data for the recipient email. It also publishes the FGA invitee
-// relation for every committee invite (any status) that matches the recipient email, so the
-// newly created LFID user can see their full invite history.
+// reconciles all resource data for the recipient email. FGA invitee tuples are published
+// upfront in HandleInviteAccepted before this scan runs, so they are not repeated here.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	m.enrichInvitedUserInCommitteeSettings(ctx, e)
 	m.enrichInvitedUserInCommitteeMembers(ctx, e)
-	m.publishInviteeFGAForCommittee(ctx, e)
 }
 
 // fetchInvitesByEmail calls ListAllInvites once and returns a map of committeeUID → invites
