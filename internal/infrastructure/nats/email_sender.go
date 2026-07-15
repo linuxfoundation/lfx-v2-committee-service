@@ -38,9 +38,7 @@ func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailReque
 	}
 
 	if len(msg.Data) == 0 {
-		slog.InfoContext(ctx, "email sent",
-			"to", redaction.RedactEmail(req.To),
-			"subject", req.Subject)
+		slog.InfoContext(ctx, "email sent", "to", redaction.RedactEmail(req.To))
 		return nil
 	}
 
@@ -49,9 +47,7 @@ func (e *emailSender) SendEmail(ctx context.Context, req emailapi.SendEmailReque
 		return errors.NewUnexpected("email service error: "+errResp.Error, nil)
 	}
 
-	slog.InfoContext(ctx, "email sent",
-		"to", redaction.RedactEmail(req.To),
-		"subject", req.Subject)
+	slog.InfoContext(ctx, "email sent", "to", redaction.RedactEmail(req.To))
 	return nil
 }
 

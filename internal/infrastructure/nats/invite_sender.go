@@ -58,15 +58,15 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 		result.InviteUID = resp.UID
 		result.RecipientEmail = resp.Email
 		result.ExpiresAt = resp.ExpiresAt
+		var recipientEmail string
+		if req.Recipient != nil {
+			recipientEmail = req.Recipient.Email
+		}
+		slog.InfoContext(ctx, "invite sent",
+			"invite_uid", result.InviteUID,
+			"recipient_email", redaction.RedactEmail(recipientEmail),
+			"expires_at", result.ExpiresAt)
 	}
-	var recipientEmail string
-	if req.Recipient != nil {
-		recipientEmail = req.Recipient.Email
-	}
-	slog.InfoContext(ctx, "invite sent",
-		"invite_uid", result.InviteUID,
-		"recipient_email", redaction.RedactEmail(recipientEmail),
-		"expires_at", result.ExpiresAt)
 	return result, nil
 }
 

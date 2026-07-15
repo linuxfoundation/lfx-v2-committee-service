@@ -929,7 +929,7 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	if event.UID == "" || event.AcceptedBy == "" || strings.TrimSpace(event.Recipient.Email) == "" {
 		slog.WarnContext(ctx, "invite_accepted event missing required fields — discarding",
 			"invite_uid", event.UID, "accepted_by", redaction.Redact(event.AcceptedBy),
-			"recipient_email", event.Recipient.Email)
+			"recipient_email", redaction.RedactEmail(event.Recipient.Email))
 		return nil, nil
 	}
 
