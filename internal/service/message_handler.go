@@ -664,7 +664,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		slog.InfoContext(ctx, "sent member notification email",
 			"committee_uid", member.CommitteeUID,
 			"member_uid", member.UID,
-			"recipient_email", redaction.RedactEmail(member.Email))
+			"recipient_email", redaction.RedactEmail(member.Email),
+			"username", redaction.Redact(member.Username))
 	}
 
 	return nil, nil
