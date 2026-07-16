@@ -783,6 +783,7 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, "Technical Advisory Committee", call.Resource.Name)
 				assert.Equal(t, "group", call.Resource.Type)
 				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
+				assert.Equal(t, *result.UID, call.CustomClaims["committee_invite_uid"], "CustomClaims must carry the persisted invite UID so the BFF can accept unambiguously")
 			}
 		})
 	}
@@ -918,6 +919,7 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	// ("Member"), not the committee role ("chair") which lives on the persisted
 	// invite record and is applied on acceptance.
 	assert.Equal(t, "Member", sender.calls[0].Role)
+	assert.Equal(t, revoked.UID, sender.calls[0].CustomClaims["committee_invite_uid"], "reinstated invite must carry its own UID in CustomClaims")
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
