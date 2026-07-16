@@ -661,8 +661,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		slog.WarnContext(ctx, "failed to send member notification email",
 			"error", sendErr, "committee_uid", member.CommitteeUID)
 	} else {
-		slog.DebugContext(ctx, "sent member notification email",
-			"committee_uid", member.CommitteeUID)
+		slog.InfoContext(ctx, "sent member notification email",
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+			"recipient_email", redaction.RedactEmail(member.Email),
+			"username", redaction.Redact(member.Username))
 	}
 
 	return nil, nil
@@ -701,8 +704,11 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		return err
 	}
 
-	slog.DebugContext(ctx, "sent member invite request",
-		"committee_uid", member.CommitteeUID, "invite_uid", result.InviteUID)
+	slog.InfoContext(ctx, "sent member invite request",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"recipient_email", redaction.RedactEmail(member.Email),
+		"invite_uid", result.InviteUID)
 	return nil
 }
 
@@ -821,8 +827,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					return nil
 				}
 
-				slog.DebugContext(gctx, "sent settings invite request",
-					"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+				slog.InfoContext(gctx, "sent settings invite request",
+					"committee_uid", data.CommitteeUID,
+					"recipient_email", redaction.RedactEmail(u.Email),
+					"invite_uid", result.InviteUID,
+					"kind", kind)
 
 				return nil
 			}
@@ -890,8 +899,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				slog.WarnContext(gctx, "failed to send settings notification email",
 					"error", sendErr, "committee_uid", data.CommitteeUID, "kind", kind)
 			} else {
-				slog.DebugContext(gctx, "sent settings notification email",
-					"committee_uid", data.CommitteeUID, "kind", kind)
+				slog.InfoContext(gctx, "sent settings notification email",
+					"committee_uid", data.CommitteeUID,
+					"recipient_email", redaction.RedactEmail(u.Email),
+					"username", redaction.Redact(u.Username),
+					"kind", kind)
 			}
 			return nil
 		})
@@ -1446,8 +1458,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		slog.WarnContext(ctx, "failed to send member-deleted notification email",
 			"error", sendErr, "committee_uid", member.CommitteeUID)
 	} else {
-		slog.DebugContext(ctx, "sent member-deleted notification email",
-			"committee_uid", member.CommitteeUID)
+		slog.InfoContext(ctx, "sent member-deleted notification email",
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+			"recipient_email", redaction.RedactEmail(member.Email),
+			"username", redaction.Redact(member.Username))
 	}
 
 	return nil, nil

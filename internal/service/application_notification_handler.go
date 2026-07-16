@@ -113,8 +113,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationSubmitted(ctx con
 					"error", sendErr, "committee_uid", application.CommitteeUID,
 					"username", redaction.Redact(writer.username))
 			} else {
-				slog.DebugContext(gctx, "sent application submitted notification email",
-					"committee_uid", application.CommitteeUID)
+				slog.InfoContext(gctx, "sent application submitted notification email",
+					"committee_uid", application.CommitteeUID,
+					"application_uid", application.UID,
+					"recipient_email", redaction.RedactEmail(writer.email),
+					"username", redaction.Redact(writer.username))
 			}
 			return nil
 		})
@@ -223,8 +226,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeApplicationUpdated(ctx conte
 		slog.WarnContext(ctx, "failed to send application updated notification email",
 			"error", sendErr, "committee_uid", application.CommitteeUID, "status", application.Status)
 	} else {
-		slog.DebugContext(ctx, "sent application updated notification email",
-			"committee_uid", application.CommitteeUID, "status", application.Status)
+		slog.InfoContext(ctx, "sent application updated notification email",
+			"committee_uid", application.CommitteeUID,
+			"application_uid", application.UID,
+			"recipient_email", redaction.RedactEmail(application.ApplicantEmail),
+			"status", application.Status)
 	}
 
 	return nil, nil

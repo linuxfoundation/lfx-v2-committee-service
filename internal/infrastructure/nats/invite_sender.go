@@ -11,6 +11,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -58,7 +59,14 @@ func (s *inviteSender) SendInvite(ctx context.Context, req inviteapi.SendInviteR
 		result.RecipientEmail = resp.Email
 		result.ExpiresAt = resp.ExpiresAt
 	}
-	slog.DebugContext(ctx, "invite service replied", "invite_uid", result.InviteUID, "expires_at", result.ExpiresAt)
+	var recipientEmail string
+	if req.Recipient != nil {
+		recipientEmail = req.Recipient.Email
+	}
+	slog.InfoContext(ctx, "invite sent",
+		"invite_uid", result.InviteUID,
+		"recipient_email", redaction.RedactEmail(recipientEmail),
+		"expires_at", result.ExpiresAt)
 	return result, nil
 }
 

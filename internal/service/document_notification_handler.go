@@ -198,8 +198,11 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 				slog.WarnContext(gctx, "failed to send content notification email",
 					"error", sendErr, "committee_uid", item.committeeUID)
 			} else {
-				slog.DebugContext(gctx, "sent content notification email",
-					"committee_uid", item.committeeUID, "document_type", item.documentType)
+				slog.InfoContext(gctx, "sent content notification email",
+					"committee_uid", item.committeeUID,
+					"recipient_email", redaction.RedactEmail(email),
+					"username", redaction.Redact(recipient.username),
+					"document_type", item.documentType)
 			}
 			return nil
 		})
