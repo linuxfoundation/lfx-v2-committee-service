@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -833,6 +834,15 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
+
+	// Extract org fields before building claims — Organization is a pointer.
+	var orgName, orgID, orgWebsite string
+	if invite.Organization != nil {
+		orgName = invite.Organization.Name
+		orgID = invite.Organization.ID
+		orgWebsite = invite.Organization.Website
+	}
+
 	_, err := s.inviteSender.SendInvite(dispatchCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
@@ -848,8 +858,17 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		},
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		// Emit variable-length values only when they are within the invite-service's 1024-byte
+		// per-claim limit. If a value would exceed the limit it is omitted (empty string) and
+		// a warning is logged — relaying a truncated value downstream is worse than omitting it,
+		// because the consumer treats non-empty claims as authoritative and would persist broken data.
 		CustomClaims: map[string]string{
-			"committee_invite_uid": invite.UID,
+			"committee_invite_uid":  invite.UID,
+			"organization_required": strconv.FormatBool(invite.OrganizationRequired),
+			"committee_name":        safeClaimValue(ctx, invite.CommitteeName, "committee_name", invite.UID),
+			"organization_name":     safeClaimValue(ctx, orgName, "organization_name", invite.UID),
+			"organization_id":       safeClaimValue(ctx, orgID, "organization_id", invite.UID),
+			"organization_website":  safeClaimValue(ctx, orgWebsite, "organization_website", invite.UID),
 		},
 	})
 	if err != nil {
@@ -859,6 +878,20 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	}
 	slog.DebugContext(ctx, "dispatched committee invite email",
 		"committee_uid", committee.UID, "invite_uid", invite.UID)
+}
+
+// safeClaimValue returns s when it is within the invite-service's 1024-byte per-claim limit.
+// If s exceeds the limit it logs a warning and returns "" so the consumer falls back to
+// its no-value behaviour rather than persisting a truncated (and therefore broken) string.
+func safeClaimValue(ctx context.Context, s, claimKey, inviteUID string) string {
+	const maxClaimValueBytes = 1024
+	if len(s) <= maxClaimValueBytes {
+		return s
+	}
+	slog.WarnContext(ctx, "claim value exceeds invite-service limit — omitting from JWT",
+		"claim_key", claimKey, "invite_uid", inviteUID,
+		"byte_length", len(s), "limit", maxClaimValueBytes)
+	return ""
 }
 
 // RevokeInvite revokes a pending or declined invite

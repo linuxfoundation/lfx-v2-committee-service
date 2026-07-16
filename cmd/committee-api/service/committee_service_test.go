@@ -784,6 +784,14 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, "group", call.Resource.Type)
 				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
 				assert.Equal(t, *result.UID, call.CustomClaims["committee_invite_uid"], "CustomClaims must carry the persisted invite UID so the BFF can accept unambiguously")
+				assert.Equal(t, "true", call.CustomClaims["organization_required"], "CustomClaims must carry organization_required so the BFF can prompt for org without an email fetch")
+				assert.Equal(t, "Technical Advisory Committee", call.CustomClaims["committee_name"], "CustomClaims must carry committee_name for the org-collection dialog header")
+				assert.Contains(t, call.CustomClaims, "organization_name", "organization_name key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_name"], "CustomClaims organization_name must be empty when no org is pre-filled")
+				assert.Contains(t, call.CustomClaims, "organization_id", "organization_id key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_id"], "CustomClaims organization_id must be empty when no org is pre-filled")
+				assert.Contains(t, call.CustomClaims, "organization_website", "organization_website key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_website"], "CustomClaims organization_website must be empty when no org is pre-filled")
 			}
 		})
 	}
@@ -804,6 +812,7 @@ func TestCreateInvite_Organization(t *testing.T) {
 
 	t.Run("stores organization from payload", func(t *testing.T) {
 		svc, _, _ := setupServiceTestWithRepo()
+		sender := svc.inviteSender.(*mockInviteSender)
 
 		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 			UID:          "committee-1",
@@ -816,10 +825,19 @@ func TestCreateInvite_Organization(t *testing.T) {
 		assert.Equal(t, "The Linux Foundation", *result.Organization.Name)
 		require.NotNil(t, result.Organization.Website)
 		assert.Equal(t, "https://linuxfoundation.org", *result.Organization.Website)
+
+		// Verify that org fields are embedded in the JWT claims for the BFF to read.
+		require.Len(t, sender.calls, 1)
+		call := sender.calls[0]
+		assert.Equal(t, "true", call.CustomClaims["organization_required"])
+		assert.Equal(t, "The Linux Foundation", call.CustomClaims["organization_name"], "pre-filled org name must be embedded in CustomClaims")
+		assert.Equal(t, "", call.CustomClaims["organization_id"], "org ID is nil in sampleInviteOrganizationPayload so claim must be empty")
+		assert.Equal(t, "https://linuxfoundation.org", call.CustomClaims["organization_website"], "pre-filled org website must be embedded in CustomClaims")
 	})
 
 	t.Run("optional on open committee", func(t *testing.T) {
 		svc, _, _ := setupServiceTestWithRepo()
+		sender := svc.inviteSender.(*mockInviteSender)
 
 		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 			UID:          "committee-2",
@@ -828,6 +846,19 @@ func TestCreateInvite_Organization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Nil(t, result.Organization)
+
+		// committee-2 has BusinessEmailRequired=false and EnableVoting=false, so organization
+		// is not required; the claim must reflect that so the BFF accepts without prompting.
+		require.Len(t, sender.calls, 1)
+		call := sender.calls[0]
+		assert.Equal(t, "false", call.CustomClaims["organization_required"], "open committee must emit organization_required=false")
+		assert.Equal(t, "Security Committee", call.CustomClaims["committee_name"])
+		assert.Contains(t, call.CustomClaims, "organization_name")
+		assert.Equal(t, "", call.CustomClaims["organization_name"])
+		assert.Contains(t, call.CustomClaims, "organization_id")
+		assert.Equal(t, "", call.CustomClaims["organization_id"])
+		assert.Contains(t, call.CustomClaims, "organization_website")
+		assert.Equal(t, "", call.CustomClaims["organization_website"])
 	})
 
 	t.Run("reinstate preserves stored organization", func(t *testing.T) {
@@ -920,6 +951,14 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	// invite record and is applied on acceptance.
 	assert.Equal(t, "Member", sender.calls[0].Role)
 	assert.Equal(t, revoked.UID, sender.calls[0].CustomClaims["committee_invite_uid"], "reinstated invite must carry its own UID in CustomClaims")
+	assert.Equal(t, "true", sender.calls[0].CustomClaims["organization_required"], "reinstated invite must carry organization_required in CustomClaims")
+	assert.Equal(t, "Technical Advisory Committee", sender.calls[0].CustomClaims["committee_name"], "reinstated invite must carry committee_name in CustomClaims")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_name", "organization_name key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_name"], "reinstated invite must carry empty organization_name when no org pre-filled")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_id", "organization_id key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_id"], "reinstated invite must carry empty organization_id when no org pre-filled")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_website", "organization_website key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_website"], "reinstated invite must carry empty organization_website when no org pre-filled")
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
@@ -2717,4 +2756,39 @@ func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
 	}
 	err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
 	assert.Error(t, err)
+}
+
+func TestSafeClaimValue(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("short value passes through unchanged", func(t *testing.T) {
+		s := "hello"
+		assert.Equal(t, s, safeClaimValue(ctx, s, "test_claim", "invite-1"))
+	})
+
+	t.Run("empty string passes through", func(t *testing.T) {
+		assert.Equal(t, "", safeClaimValue(ctx, "", "test_claim", "invite-1"))
+	})
+
+	t.Run("exactly 1024 bytes passes through", func(t *testing.T) {
+		s := string(make([]byte, 1024))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, s, result)
+	})
+
+	t.Run("1025 bytes returns empty string", func(t *testing.T) {
+		s := string(make([]byte, 1025))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "oversized value must be omitted, not truncated")
+	})
+
+	t.Run("multibyte rune crossing byte 1024 returns empty string", func(t *testing.T) {
+		// Build a string that is exactly 1023 ASCII bytes followed by a 3-byte UTF-8 rune
+		// (U+4E2D '中'). Total length is 1026 bytes — over limit.
+		prefix := string(make([]byte, 1023))
+		s := prefix + "中" // "中" is 3 UTF-8 bytes
+		assert.Greater(t, len(s), 1024)
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "value with multibyte rune crossing the limit must be omitted")
+	})
 }
