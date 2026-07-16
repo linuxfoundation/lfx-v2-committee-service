@@ -784,6 +784,11 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, "group", call.Resource.Type)
 				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
 				assert.Equal(t, *result.UID, call.CustomClaims["committee_invite_uid"], "CustomClaims must carry the persisted invite UID so the BFF can accept unambiguously")
+				assert.Equal(t, "true", call.CustomClaims["organization_required"], "CustomClaims must carry organization_required so the BFF can prompt for org without an email fetch")
+				assert.Equal(t, "Technical Advisory Committee", call.CustomClaims["committee_name"], "CustomClaims must carry committee_name for the org-collection dialog header")
+				assert.Equal(t, "", call.CustomClaims["organization_name"], "CustomClaims organization_name must be empty when no org is pre-filled")
+				assert.Equal(t, "", call.CustomClaims["organization_id"], "CustomClaims organization_id must be empty when no org is pre-filled")
+				assert.Equal(t, "", call.CustomClaims["organization_website"], "CustomClaims organization_website must be empty when no org is pre-filled")
 			}
 		})
 	}
@@ -920,6 +925,11 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	// invite record and is applied on acceptance.
 	assert.Equal(t, "Member", sender.calls[0].Role)
 	assert.Equal(t, revoked.UID, sender.calls[0].CustomClaims["committee_invite_uid"], "reinstated invite must carry its own UID in CustomClaims")
+	assert.Equal(t, "true", sender.calls[0].CustomClaims["organization_required"], "reinstated invite must carry organization_required in CustomClaims")
+	assert.Equal(t, "Technical Advisory Committee", sender.calls[0].CustomClaims["committee_name"], "reinstated invite must carry committee_name in CustomClaims")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_name"], "reinstated invite must carry empty organization_name when no org pre-filled")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_id"], "reinstated invite must carry empty organization_id when no org pre-filled")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_website"], "reinstated invite must carry empty organization_website when no org pre-filled")
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -833,6 +834,15 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
+
+	// Extract org fields before building claims — Organization is a pointer.
+	var orgName, orgID, orgWebsite string
+	if invite.Organization != nil {
+		orgName = invite.Organization.Name
+		orgID = invite.Organization.ID
+		orgWebsite = invite.Organization.Website
+	}
+
 	_, err := s.inviteSender.SendInvite(dispatchCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
@@ -849,7 +859,12 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
 		CustomClaims: map[string]string{
-			"committee_invite_uid": invite.UID,
+			"committee_invite_uid":  invite.UID,
+			"organization_required": strconv.FormatBool(invite.OrganizationRequired),
+			"committee_name":        invite.CommitteeName,
+			"organization_name":     orgName,
+			"organization_id":       orgID,
+			"organization_website":  orgWebsite,
 		},
 	})
 	if err != nil {
