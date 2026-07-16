@@ -2757,3 +2757,38 @@ func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
 	err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
 	assert.Error(t, err)
 }
+
+func TestSafeClaimValue(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("short value passes through unchanged", func(t *testing.T) {
+		s := "hello"
+		assert.Equal(t, s, safeClaimValue(ctx, s, "test_claim", "invite-1"))
+	})
+
+	t.Run("empty string passes through", func(t *testing.T) {
+		assert.Equal(t, "", safeClaimValue(ctx, "", "test_claim", "invite-1"))
+	})
+
+	t.Run("exactly 1024 bytes passes through", func(t *testing.T) {
+		s := string(make([]byte, 1024))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, s, result)
+	})
+
+	t.Run("1025 bytes returns empty string", func(t *testing.T) {
+		s := string(make([]byte, 1025))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "oversized value must be omitted, not truncated")
+	})
+
+	t.Run("multibyte rune crossing byte 1024 returns empty string", func(t *testing.T) {
+		// Build a string that is exactly 1023 ASCII bytes followed by a 3-byte UTF-8 rune
+		// (U+4E2D '中'). Total length is 1026 bytes — over limit.
+		prefix := string(make([]byte, 1023))
+		s := prefix + "中" // "中" is 3 UTF-8 bytes
+		assert.Greater(t, len(s), 1024)
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "value with multibyte rune crossing the limit must be omitted")
+	})
+}

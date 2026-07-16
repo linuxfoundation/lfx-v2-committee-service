@@ -858,15 +858,17 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		},
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
-		// Truncate variable-length values to the invite-service's 1024-byte per-claim limit.
-		// Dispatch is best-effort; truncation avoids a silent rejection of the whole call.
+		// Emit variable-length values only when they are within the invite-service's 1024-byte
+		// per-claim limit. If a value would exceed the limit it is omitted (empty string) and
+		// a warning is logged — relaying a truncated value downstream is worse than omitting it,
+		// because the consumer treats non-empty claims as authoritative and would persist broken data.
 		CustomClaims: map[string]string{
 			"committee_invite_uid":  invite.UID,
 			"organization_required": strconv.FormatBool(invite.OrganizationRequired),
-			"committee_name":        truncateClaimValue(invite.CommitteeName),
-			"organization_name":     truncateClaimValue(orgName),
-			"organization_id":       truncateClaimValue(orgID),
-			"organization_website":  truncateClaimValue(orgWebsite),
+			"committee_name":        safeClaimValue(ctx, invite.CommitteeName, "committee_name", invite.UID),
+			"organization_name":     safeClaimValue(ctx, orgName, "organization_name", invite.UID),
+			"organization_id":       safeClaimValue(ctx, orgID, "organization_id", invite.UID),
+			"organization_website":  safeClaimValue(ctx, orgWebsite, "organization_website", invite.UID),
 		},
 	})
 	if err != nil {
@@ -878,19 +880,18 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		"committee_uid", committee.UID, "invite_uid", invite.UID)
 }
 
-// truncateClaimValue trims s to at most maxClaimValueBytes bytes so the invite
-// service does not reject the SendInvite call due to an oversized claim value.
-// Truncation is at a UTF-8 rune boundary to avoid producing invalid UTF-8.
-func truncateClaimValue(s string) string {
+// safeClaimValue returns s when it is within the invite-service's 1024-byte per-claim limit.
+// If s exceeds the limit it logs a warning and returns "" so the consumer falls back to
+// its no-value behaviour rather than persisting a truncated (and therefore broken) string.
+func safeClaimValue(ctx context.Context, s, claimKey, inviteUID string) string {
 	const maxClaimValueBytes = 1024
 	if len(s) <= maxClaimValueBytes {
 		return s
 	}
-	i := maxClaimValueBytes
-	for i > 0 && (s[i]&0xC0) == 0x80 {
-		i--
-	}
-	return s[:i]
+	slog.WarnContext(ctx, "claim value exceeds invite-service limit — omitting from JWT",
+		"claim_key", claimKey, "invite_uid", inviteUID,
+		"byte_length", len(s), "limit", maxClaimValueBytes)
+	return ""
 }
 
 // RevokeInvite revokes a pending or declined invite

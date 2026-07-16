@@ -63,6 +63,19 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
 - After the invite record is persisted (create or reinstate), the service dispatches a best-effort send-invite request to the invite service (`lfx.invite-service.send_invite`, `dispatchInviteEmail` in `cmd/committee-api/service/committee_service.go`) so the invitee receives an email. The request uses the invite-service permission vocabulary with `role: "Member"` (the committee role on the invite record is applied after acceptance). Dispatch is best-effort: `inviteSender.SendInvite` failures are logged (`failed to dispatch committee invite email` with `error`, `committee_uid`, `invite_uid`) and do not fail the API call. There is no automatic retry of a failed send, and committee-service exposes no dedicated "resend" endpoint. Recovery is via the invite lifecycle: revoke the invite and re-invite the same email (`POST /committees/{uid}/invites`), which reinstates the record and re-triggers `dispatchInviteEmail`.
 
+  The request includes six `CustomClaims` (JWT `map[string]string`) so the BFF ([lfx-self-serve](https://github.com/linuxfoundation/lfx-self-serve)) can accept the invite on LFID registration without a secondary email-indexed fetch:
+
+  | Claim key | Value | Notes |
+  |---|---|---|
+  | `committee_invite_uid` | `invite.UID` | UID of this specific committee invite record; lets the BFF resolve the exact invite without an email query |
+  | `organization_required` | `"true"` / `"false"` | String-formatted bool (Go `map[string]string` constraint); derived from `invite.OrganizationRequired` |
+  | `committee_name` | `invite.CommitteeName` | Used by the BFF as the org-collection dialog header |
+  | `organization_name` | `invite.Organization.Name` | Empty string when `Organization` is nil |
+  | `organization_id` | `invite.Organization.ID` | Salesforce SFID; empty string when `Organization` is nil |
+  | `organization_website` | `invite.Organization.Website` | Empty string when `Organization` is nil |
+
+  All variable-length claims (`committee_name`, `organization_name`, `organization_id`, `organization_website`) are validated against the invite-service's 1024-byte per-claim limit before dispatch. Values that would exceed the limit are omitted (sent as empty string) and a warning is logged — relaying a truncated value is worse than omitting it, because the consumer treats non-empty claims as authoritative. **Note:** these custom claims are only present on invites dispatched via the API (`POST /committees/{uid}/invites`); the NATS-triggered `sendMemberInvite` path does not include them.
+
 **Accepting an invite** (`POST .../accept`):
 - Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
