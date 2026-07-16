@@ -848,6 +848,9 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		},
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		CustomClaims: map[string]string{
+			"committee_invite_uid": invite.UID,
+		},
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to dispatch committee invite email",
