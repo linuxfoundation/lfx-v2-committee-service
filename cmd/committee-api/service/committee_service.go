@@ -858,13 +858,15 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		},
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		// Truncate variable-length values to the invite-service's 1024-byte per-claim limit.
+		// Dispatch is best-effort; truncation avoids a silent rejection of the whole call.
 		CustomClaims: map[string]string{
 			"committee_invite_uid":  invite.UID,
 			"organization_required": strconv.FormatBool(invite.OrganizationRequired),
-			"committee_name":        invite.CommitteeName,
-			"organization_name":     orgName,
-			"organization_id":       orgID,
-			"organization_website":  orgWebsite,
+			"committee_name":        truncateClaimValue(invite.CommitteeName),
+			"organization_name":     truncateClaimValue(orgName),
+			"organization_id":       truncateClaimValue(orgID),
+			"organization_website":  truncateClaimValue(orgWebsite),
 		},
 	})
 	if err != nil {
@@ -874,6 +876,21 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	}
 	slog.DebugContext(ctx, "dispatched committee invite email",
 		"committee_uid", committee.UID, "invite_uid", invite.UID)
+}
+
+// truncateClaimValue trims s to at most maxClaimValueBytes bytes so the invite
+// service does not reject the SendInvite call due to an oversized claim value.
+// Truncation is at a UTF-8 rune boundary to avoid producing invalid UTF-8.
+func truncateClaimValue(s string) string {
+	const maxClaimValueBytes = 1024
+	if len(s) <= maxClaimValueBytes {
+		return s
+	}
+	i := maxClaimValueBytes
+	for i > 0 && (s[i]&0xC0) == 0x80 {
+		i--
+	}
+	return s[:i]
 }
 
 // RevokeInvite revokes a pending or declined invite
