@@ -16,7 +16,7 @@ require (
 	github.com/linuxfoundation/lfx-v2-email-service v0.1.0
 	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17
 	github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16
-	github.com/linuxfoundation/lfx-v2-invite-service v0.1.10-0.20260716124858-8a4848f0064c
+	github.com/linuxfoundation/lfx-v2-invite-service v0.1.10
 	github.com/nats-io/nats-server/v2 v2.12.6
 	github.com/nats-io/nats.go v1.49.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
