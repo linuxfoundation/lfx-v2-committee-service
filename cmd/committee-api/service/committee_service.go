@@ -64,8 +64,9 @@ type committeeServicesrvc struct {
 // for the "jwt" security scheme.
 func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme *security.JWTScheme) (context.Context, error) {
 
-	// Parse the Heimdall-authorized principal from the token
-	principal, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
+	// Parse the Heimdall-authorized principal and email from the token.
+	// Email is non-empty for user JWTs (set by Authelia's oidc_contextualizer); empty for M2M/anonymous.
+	principal, email, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
 	if err != nil {
 		slog.ErrorContext(ctx, "committeeService.jwt-auth",
 			"error", err,
@@ -75,6 +76,7 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 	}
 
 	ctx = context.WithValue(ctx, constants.PrincipalContextID, principal)
+	ctx = context.WithValue(ctx, constants.EmailContextID, email)
 	return ctx, nil
 }
 
@@ -1403,6 +1405,18 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 
 	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
 	if err != nil {
+		// New LFID users are not yet propagated to auth-service immediately after registration.
+		// Fall back to the email claim from the Heimdall JWT (populated by Authelia's
+		// oidc_contextualizer) so the invite can be accepted without waiting for propagation.
+		var notFoundErr errors.NotFound
+		if stderrors.As(err, &notFoundErr) {
+			if ctxEmail, _ := ctx.Value(constants.EmailContextID).(string); ctxEmail != "" {
+				slog.InfoContext(ctx, "resolveCallerEmail: auth-service user not found, using JWT email claim as fallback",
+					"principal", principal,
+				)
+				return ctxEmail, nil
+			}
+		}
 		return "", err
 	}
 

@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ type mockUserReader struct {
 	usernames   map[string]string              // email → username (for UsernameByEmail)
 	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
+	emailsErr   error                          // if set, returned by EmailsByAuthToken for all calls
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
@@ -81,6 +83,9 @@ func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (str
 }
 
 func (m *mockUserReader) EmailsByAuthToken(_ context.Context, authToken string) (*model.UserEmails, error) {
+	if m.emailsErr != nil {
+		return nil, m.emailsErr
+	}
 	if authToken == "" {
 		return nil, errs.NewValidation("mock: auth token is empty")
 	}
@@ -2790,5 +2795,139 @@ func TestSafeClaimValue(t *testing.T) {
 		assert.Greater(t, len(s), 1024)
 		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
 		assert.Equal(t, "", result, "value with multibyte rune crossing the limit must be omitted")
+	})
+}
+
+// testCtxWithEmail builds a context with both principal and email context values,
+// simulating what JWTAuth populates after parsing a Heimdall JWT with an email claim.
+func testCtxWithEmail(principal, email string) context.Context {
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	return context.WithValue(ctx, constants.EmailContextID, email)
+}
+
+// withEmailsErr configures the error returned by EmailsByAuthToken for all calls and returns the receiver for chaining.
+func (m *mockUserReader) withEmailsErr(err error) *mockUserReader {
+	m.emailsErr = err
+	return m
+}
+
+// mockUserReaderNotFound returns a mockUserReader that returns a NotFound error for all
+// EmailsByAuthToken calls, simulating an auth-service propagation delay for new LFID users.
+func mockUserReaderNotFound() *mockUserReader {
+	return newMockUserReader().withEmailsErr(errs.NewNotFound("the user does not exist"))
+}
+
+// TestAcceptInvite_NewUserEmailFallback tests the propagation-race fallback: when
+// auth-service returns NOT_FOUND for a new user, resolveCallerEmail uses the email
+// claim stored in the request context from the Heimdall JWT.
+func TestAcceptInvite_NewUserEmailFallback(t *testing.T) {
+	const inviteeEmail = "newuser@example.com"
+	const principal = "newuser"
+
+	t.Run("NOT_FOUND + JWT email matches invitee — accept succeeds", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-new-user",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "new-member-uid",
+				CommitteeUID: "committee-1",
+				Email:        inviteeEmail,
+				Status:       "Active",
+			},
+		}
+
+		ctx := testCtxWithEmail(principal, inviteeEmail)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-new-user",
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "Active", result.Status)
+	})
+
+	t.Run("NOT_FOUND + no JWT email in context — returns error", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-no-email",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		// Context has principal but no email — simulates M2M or old-format token
+		ctx := testCtx(principal)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-no-email",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-NOT_FOUND error + JWT email present — returns original error (no fallback)", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		unexpectedErr := errs.NewServiceUnavailable("NATS timeout")
+		svc.userReader = newMockUserReader().withEmailsErr(unexpectedErr)
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-nats-err",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		ctx := testCtxWithEmail(principal, inviteeEmail)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-nats-err",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		// Must be the original upstream error, not a fallback or forbidden
+		assert.NotNil(t, err)
+		var forbiddenErr *committeeservice.ForbiddenError
+		assert.False(t, stderrors.As(err, &forbiddenErr), "non-NOT_FOUND error must not become Forbidden")
+	})
+
+	t.Run("NOT_FOUND + JWT email does not match invitee — returns Forbidden", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-wrong-email",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		// JWT email belongs to a different user
+		ctx := testCtxWithEmail(principal, "someone-else@example.com")
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-wrong-email",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var forbiddenErr *committeeservice.ForbiddenError
+		require.ErrorAs(t, err, &forbiddenErr)
+		assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
 	})
 }

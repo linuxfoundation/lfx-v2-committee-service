@@ -84,10 +84,11 @@ func TestJWTAuthParsePrincipalNilValidator(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 	assert.Contains(t, err.Error(), "JWT validator is not set up")
 }
 
@@ -103,10 +104,11 @@ func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 }
 
 func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
@@ -135,10 +137,11 @@ func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
 			testName = testName[:50]
 		}
 		t.Run(testName, func(t *testing.T) {
-			principal, err := jwtAuth.ParsePrincipal(ctx, token, logger)
+			principal, email, err := jwtAuth.ParsePrincipal(ctx, token, logger)
 
 			assert.Error(t, err)
 			assert.Empty(t, principal)
+			assert.Empty(t, email)
 			// Should not contain sensitive information
 			assert.NotContains(t, err.Error(), "go-jose/go-jose/jwt")
 		})
@@ -268,5 +271,39 @@ func TestErrorMessageSanitization(t *testing.T) {
 			assert.Equal(t, tc.expected, errString)
 		})
 		_ = i // Use i to avoid unused variable warning
+	}
+}
+
+func TestHeimdallClaimsEmailField(t *testing.T) {
+	tests := []struct {
+		name          string
+		claims        HeimdallClaims
+		expectedEmail string
+	}{
+		{
+			name: "claims with email",
+			claims: HeimdallClaims{
+				Principal: "testuser",
+				Email:     "testuser@example.com",
+			},
+			expectedEmail: "testuser@example.com",
+		},
+		{
+			name: "claims without email (M2M or legacy token)",
+			claims: HeimdallClaims{
+				Principal: "testuser",
+				Email:     "",
+			},
+			expectedEmail: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedEmail, tt.claims.Email)
+			// Validate still passes when principal is set, regardless of email
+			err := tt.claims.Validate(context.Background())
+			assert.NoError(t, err)
+		})
 	}
 }
