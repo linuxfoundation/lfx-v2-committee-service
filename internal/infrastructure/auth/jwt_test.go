@@ -287,6 +287,13 @@ func TestHeimdallClaimsEmailJSONDecoding(t *testing.T) {
 		assert.Equal(t, "testuser", claims.Principal)
 		assert.Equal(t, "testuser@example.com", claims.Email)
 		assert.NoError(t, claims.Validate(context.Background()))
+
+		// Marshal back and assert the JSON tag is exactly "email" (lowercase).
+		// json.Unmarshal is case-insensitive, so a wrong tag like json:"Email" would still
+		// unmarshal correctly but would produce "Email" in the output — catching that here.
+		marshaled, err := json.Marshal(claims)
+		require.NoError(t, err)
+		assert.Contains(t, string(marshaled), `"email":"testuser@example.com"`)
 	})
 
 	t.Run("email absent from claims JSON (M2M or legacy token)", func(t *testing.T) {
@@ -297,5 +304,4 @@ func TestHeimdallClaimsEmailJSONDecoding(t *testing.T) {
 		assert.Empty(t, claims.Email)
 		assert.NoError(t, claims.Validate(context.Background()))
 	})
-
 }
