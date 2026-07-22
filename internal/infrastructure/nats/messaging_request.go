@@ -116,10 +116,19 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 
 	if !response.Success {
 		errMsg := response.Error
-		if errMsg == "" {
-			errMsg = "user not found"
+		// Only classify as NotFound when auth-service explicitly signals a missing user.
+		// Other success:false responses (validation errors, internal errors) must not be
+		// treated as NotFound: the resolveCallerEmail fallback uses NotFound as the signal
+		// to proceed with the JWT email, so a misclassified validation error would
+		// silently bypass the intended error path.
+		lower := strings.ToLower(errMsg)
+		if errMsg == "" || strings.Contains(lower, "not found") || strings.Contains(lower, "does not exist") {
+			if errMsg == "" {
+				errMsg = "user not found"
+			}
+			return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
 		}
-		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
+		return nil, errors.NewUnexpected(fmt.Sprintf("auth-service user emails request failed: %s", errMsg))
 	}
 
 	if response.Data == nil {
