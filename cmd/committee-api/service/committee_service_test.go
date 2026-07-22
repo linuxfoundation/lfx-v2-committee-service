@@ -2977,8 +2977,9 @@ func TestResolveCallerEmail(t *testing.T) {
 		ctx := testCtxWithEmail(principal, primaryEmail)
 		_, err := svc.resolveCallerEmail(ctx)
 		require.Error(t, err)
-		var forbiddenErr *committeeservice.ForbiddenError
-		assert.False(t, stderrors.As(err, &forbiddenErr), "non-NOT_FOUND must not become Forbidden")
+		var unavailErr errs.ServiceUnavailable
+		assert.True(t, stderrors.As(err, &unavailErr), "non-NOT_FOUND error must propagate unchanged, got %T: %v", err, err)
+		assert.Contains(t, unavailErr.Error(), "NATS timeout")
 	})
 
 	t.Run("missing principal — returns validation error before any reader call", func(t *testing.T) {
@@ -3029,7 +3030,13 @@ func TestJWTAuth_ContextPropagation(t *testing.T) {
 		svc := &committeeServicesrvc{
 			auth: &stubAuthenticator{err: errs.NewValidation("bad token")},
 		}
-		_, err := svc.JWTAuth(context.Background(), "bad", nil)
+		// Seed a pre-existing value to verify JWTAuth doesn't wipe caller context on error.
+		type callerKey struct{}
+		seedCtx := context.WithValue(context.Background(), callerKey{}, "seed-value")
+		returnedCtx, err := svc.JWTAuth(seedCtx, "bad", nil)
 		require.Error(t, err)
+		assert.Equal(t, "seed-value", returnedCtx.Value(callerKey{}), "pre-existing context values must be preserved on auth error")
+		assert.Nil(t, returnedCtx.Value(constants.PrincipalContextID), "principal must not be set in context on auth error")
+		assert.Nil(t, returnedCtx.Value(constants.EmailContextID), "email must not be set in context on auth error")
 	})
 }
