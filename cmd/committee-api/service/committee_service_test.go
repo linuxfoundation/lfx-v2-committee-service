@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	stderrors "errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -2929,5 +2930,48 @@ func TestAcceptInvite_NewUserEmailFallback(t *testing.T) {
 		var forbiddenErr *committeeservice.ForbiddenError
 		require.ErrorAs(t, err, &forbiddenErr)
 		assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+	})
+}
+
+// stubAuthenticator is a test-only Authenticator that returns fixed values.
+type stubAuthenticator struct {
+	principal string
+	email     string
+	err       error
+}
+
+func (s *stubAuthenticator) ParsePrincipal(_ context.Context, _ string, _ *slog.Logger) (string, string, error) {
+	return s.principal, s.email, s.err
+}
+
+// TestJWTAuth_ContextPropagation verifies that JWTAuth stores both the principal and the
+// email claim returned by ParsePrincipal into the request context.
+func TestJWTAuth_ContextPropagation(t *testing.T) {
+	t.Run("principal and email both stored in context", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{principal: "testuser", email: "testuser@example.com"},
+		}
+		ctx, err := svc.JWTAuth(context.Background(), "token", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "testuser", ctx.Value(constants.PrincipalContextID))
+		assert.Equal(t, "testuser@example.com", ctx.Value(constants.EmailContextID))
+	})
+
+	t.Run("empty email (M2M token) stored as empty string in context", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{principal: "svc-account", email: ""},
+		}
+		ctx, err := svc.JWTAuth(context.Background(), "token", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "svc-account", ctx.Value(constants.PrincipalContextID))
+		assert.Equal(t, "", ctx.Value(constants.EmailContextID))
+	})
+
+	t.Run("auth error propagated — context unchanged", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{err: errs.NewValidation("bad token")},
+		}
+		_, err := svc.JWTAuth(context.Background(), "bad", nil)
+		require.Error(t, err)
 	})
 }
