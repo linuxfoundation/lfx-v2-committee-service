@@ -99,14 +99,18 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 		return "", "", errors.New("failed to get custom authorization claims")
 	}
 
-	// Only surface the email if the IdP has confirmed ownership. An unverified email
-	// must not be used as a fallback identity (e.g. new-user propagation race), because
-	// it could allow a self-asserted address to match an existing invite.
-	email := ""
-	if customClaims.EmailVerified {
-		email = customClaims.Email
+	return customClaims.Principal, filterEmailByVerification(customClaims.Email, customClaims.EmailVerified), nil
+}
+
+// filterEmailByVerification returns email only when verified is true.
+// An unverified address must not be used as a fallback identity (e.g. new-user
+// propagation race) because it could allow a self-asserted address to match an
+// existing invite.
+func filterEmailByVerification(email string, verified bool) string {
+	if verified {
+		return email
 	}
-	return customClaims.Principal, email, nil
+	return ""
 }
 
 // NewJWTAuth creates a new JWT authentication service

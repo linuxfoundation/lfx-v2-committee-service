@@ -275,6 +275,50 @@ func TestErrorMessageSanitization(t *testing.T) {
 	}
 }
 
+// TestFilterEmailByVerification directly exercises the EmailVerified gate so that
+// a regression returning the raw email regardless of verification status fails here
+// rather than silently passing the suite.
+func TestFilterEmailByVerification(t *testing.T) {
+	tests := []struct {
+		name     string
+		email    string
+		verified bool
+		expected string
+	}{
+		{
+			name:     "verified email is returned",
+			email:    "user@example.com",
+			verified: true,
+			expected: "user@example.com",
+		},
+		{
+			name:     "unverified email is suppressed",
+			email:    "user@example.com",
+			verified: false,
+			expected: "",
+		},
+		{
+			name:     "empty email with verified true returns empty",
+			email:    "",
+			verified: true,
+			expected: "",
+		},
+		{
+			name:     "empty email with verified false returns empty",
+			email:    "",
+			verified: false,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterEmailByVerification(tt.email, tt.verified)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // TestHeimdallClaimsEmailJSONDecoding verifies that the json:"email" and
 // json:"email_verified" tags are correct by deserializing JWT claim JSON (as the
 // validator does at runtime) and asserting the fields are populated. A wrong tag
