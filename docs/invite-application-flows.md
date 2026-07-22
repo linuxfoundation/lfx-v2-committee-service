@@ -77,7 +77,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   All variable-length claims (`committee_name`, `organization_name`, `organization_id`, `organization_website`) are validated against the invite-service's 1024-byte per-claim limit before dispatch. Values that would exceed the limit are omitted (sent as empty string) and a warning is logged — relaying a truncated value is worse than omitting it, because the consumer treats non-empty claims as authoritative. **Note:** these custom claims are only present on invites dispatched via the API (`POST /committees/{uid}/invites`); the NATS-triggered `sendMemberInvite` path does not include them.
 
 **Accepting an invite** (`POST .../accept`):
-- Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
+- Only the invitee can accept their own invite. The caller's email is resolved via the two-phase identity resolution described in [Identity Resolution](#identity-resolution): auth-service primary email (primary path) or the Heimdall JWT `email` claim (fallback for new accounts not yet propagated).
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
@@ -121,7 +121,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 
 **Submitting an application** (`POST /committees/{uid}/applications`):
 - Only available when `join_mode: application`.
-- The applicant's identity is resolved via the auth-service (see [Identity Resolution](#identity-resolution)).
+- The applicant's identity is resolved via the two-phase strategy described in [Identity Resolution](#identity-resolution) (auth-service primary path with JWT email claim fallback).
 - Creates a new application with `status: pending`.
 - If an application for the same email already exists in this committee:
   - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared and `message` is updated if provided.
@@ -158,13 +158,16 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 
 ## Identity Resolution
 
-Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (LFX username), the service maps that username to an Auth0 sub (`auth0|{userID}`) and resolves the email at request time via a NATS request/reply call to the auth-service:
+Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. The JWT issued by Heimdall contains the user's `principal` (LFX username) and, for standard user logins, an `email` claim populated by Authelia's `oidc_contextualizer` from the OIDC userinfo endpoint. The service resolves the caller's email using the following two-phase strategy:
 
-- **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username via `pkg/auth.MapUsernameToAuthSub` (safe usernames are used directly; unsafe/legacy usernames are SHA-512 hashed and base58-encoded to ~88 characters). See `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`.
-- **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
+1. **Primary path — auth-service lookup:** The `principal` is mapped to an Auth0 sub (`auth0|{userID}`) and the service issues a NATS request/reply call to the auth-service:
+   - **Subject:** `lfx.auth-service.user_emails.read`
+   - **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username via `pkg/auth.MapUsernameToAuthSub` (safe usernames are used directly; unsafe/legacy usernames are SHA-512 hashed and base58-encoded to ~88 characters). See `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`.
+   - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing principal, or no primary email in the response) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`, or no email data returned) → `404 Not Found`; auth-service or NATS unavailable (transport failure) → `503 Service Unavailable`.
+2. **Fallback — JWT email claim (new-user propagation race):** For brand-new LFID accounts, Auth0 may not have propagated the user to auth-service by the time the first authenticated request arrives. When auth-service returns `user not found` AND the Heimdall JWT carries a non-empty `email` claim with `email_verified: true`, the service uses that JWT email claim as the caller's identity instead of returning 404. The `email_verified` gate is enforced in `ParsePrincipal`: only a verified email is stored in the request context, so an unverified address can never trigger the fallback. The JWT email claim is verified by Authelia at login time and therefore trusted to the same degree as the `principal`. M2M tokens and tokens issued without the `email` scope carry an empty `email` claim and do not benefit from this fallback. (Note: `email_verified` is emitted by the Heimdall `create_jwt` finalizer only when the companion platform-chart change is deployed — see lfx-v2-helm PR for details.)
+
+The service uses `primary_email` from the auth-service response (primary path) or the JWT `email` claim (fallback). Lookup failures map to HTTP status as follows: validation errors (missing principal, or no primary email in the response) → `400 Bad Request`; auth-service user not found AND no JWT email fallback available → `404 Not Found`; auth-service or NATS unavailable (transport failure) → `503 Service Unavailable`.
 
 ---
 

@@ -293,12 +293,28 @@ func TestMessageRequest_EmailsByAuthToken(t *testing.T) {
 			wantErrStr: "auth token must not be empty",
 		},
 		{
-			name:      "auth-service error envelope returns NotFound",
+			name:      "auth-service not-found envelope returns NotFound",
+			authToken: "auth0|missing",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":false,"error":"user not found"}`)
+			},
+			wantErrStr: "user emails not found",
+		},
+		{
+			name:      "auth-service validation error envelope returns Unexpected (not NotFound)",
 			authToken: "auth0|missing",
 			responder: func(payload []byte) []byte {
 				return []byte(`{"success":false,"error":"user_id is required to get user"}`)
 			},
-			wantErrStr: "user emails not found",
+			wantErrStr: "auth-service user emails request failed",
+		},
+		{
+			name:      "malformed success:false with empty error returns Unexpected (not NotFound)",
+			authToken: "auth0|missing",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":false}`)
+			},
+			wantErrStr: "auth-service user emails request failed",
 		},
 		{
 			name:      "success with nil data returns NotFound",

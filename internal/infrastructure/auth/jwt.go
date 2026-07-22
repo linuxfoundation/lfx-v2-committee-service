@@ -46,7 +46,9 @@ var (
 // HeimdallClaims contains extra custom claims we want to parse from the JWT
 // token.
 type HeimdallClaims struct {
-	Principal string `json:"principal"`
+	Principal     string `json:"principal"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -64,10 +66,12 @@ type JWTAuth struct {
 	config    JWTAuthConfig
 }
 
-// ParsePrincipal extracts the principal from the JWT claims.
-func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, error) {
+// ParsePrincipal extracts the principal and email from the JWT claims.
+// Email is present when Authelia's oidc_contextualizer resolves it; it is empty
+// for M2M or anonymous tokens.
+func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
 	if j.validator == nil {
-		return "", errors.New("JWT validator is not set up")
+		return "", "", errors.New("JWT validator is not set up")
 	}
 
 	parsedJWT, err := j.validator.ValidateToken(ctx, token)
@@ -82,20 +86,31 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 				errString = errString[:firstColon+secondColon+1]
 			}
 		}
-		return "", errors.New(errString)
+		return "", "", errors.New(errString)
 	}
 
 	claims, ok := parsedJWT.(*validator.ValidatedClaims)
 	if !ok {
-		return "", errors.New("failed to get validated authorization claims")
+		return "", "", errors.New("failed to get validated authorization claims")
 	}
 
 	customClaims, ok := claims.CustomClaims.(*HeimdallClaims)
 	if !ok {
-		return "", errors.New("failed to get custom authorization claims")
+		return "", "", errors.New("failed to get custom authorization claims")
 	}
 
-	return customClaims.Principal, nil
+	return customClaims.Principal, filterEmailByVerification(customClaims.Email, customClaims.EmailVerified), nil
+}
+
+// filterEmailByVerification returns email only when verified is true.
+// An unverified address must not be used as a fallback identity (e.g. new-user
+// propagation race) because it could allow a self-asserted address to match an
+// existing invite.
+func filterEmailByVerification(email string, verified bool) string {
+	if verified {
+		return email
+	}
+	return ""
 }
 
 // NewJWTAuth creates a new JWT authentication service
