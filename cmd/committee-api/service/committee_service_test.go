@@ -2933,6 +2933,64 @@ func TestAcceptInvite_NewUserEmailFallback(t *testing.T) {
 	})
 }
 
+// TestResolveCallerEmail tests resolveCallerEmail directly, covering the primary auth-service
+// path and the NOT_FOUND JWT email fallback without going through a full AcceptInvite call.
+func TestResolveCallerEmail(t *testing.T) {
+	const principal = "testuser"
+	const primaryEmail = "testuser@example.com"
+
+	t.Run("auth-service returns primary email", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail(principal, primaryEmail)
+
+		ctx := testCtx(principal)
+		got, err := svc.resolveCallerEmail(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primaryEmail, got)
+	})
+
+	t.Run("NOT_FOUND + verified JWT email in context — returns JWT email", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		ctx := testCtxWithEmail(principal, primaryEmail)
+		got, err := svc.resolveCallerEmail(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primaryEmail, got)
+	})
+
+	t.Run("NOT_FOUND + no JWT email in context — propagates NOT_FOUND", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		ctx := testCtx(principal)
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+		var notFoundErr errs.NotFound
+		assert.True(t, stderrors.As(err, &notFoundErr), "expected NotFound, got %T: %v", err, err)
+	})
+
+	t.Run("non-NOT_FOUND error — not suppressed by fallback", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().withEmailsErr(errs.NewServiceUnavailable("NATS timeout"))
+
+		ctx := testCtxWithEmail(principal, primaryEmail)
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+		var forbiddenErr *committeeservice.ForbiddenError
+		assert.False(t, stderrors.As(err, &forbiddenErr), "non-NOT_FOUND must not become Forbidden")
+	})
+
+	t.Run("missing principal — returns validation error before any reader call", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader()
+
+		ctx := context.Background() // no principal in context
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+	})
+}
+
 // stubAuthenticator is a test-only Authenticator that returns fixed values.
 type stubAuthenticator struct {
 	principal string

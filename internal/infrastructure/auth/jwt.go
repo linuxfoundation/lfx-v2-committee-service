@@ -46,8 +46,9 @@ var (
 // HeimdallClaims contains extra custom claims we want to parse from the JWT
 // token.
 type HeimdallClaims struct {
-	Principal string `json:"principal"`
-	Email     string `json:"email"`
+	Principal     string `json:"principal"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -98,7 +99,14 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 		return "", "", errors.New("failed to get custom authorization claims")
 	}
 
-	return customClaims.Principal, customClaims.Email, nil
+	// Only surface the email if the IdP has confirmed ownership. An unverified email
+	// must not be used as a fallback identity (e.g. new-user propagation race), because
+	// it could allow a self-asserted address to match an existing invite.
+	email := ""
+	if customClaims.EmailVerified {
+		email = customClaims.Email
+	}
+	return customClaims.Principal, email, nil
 }
 
 // NewJWTAuth creates a new JWT authentication service

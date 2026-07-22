@@ -275,33 +275,46 @@ func TestErrorMessageSanitization(t *testing.T) {
 	}
 }
 
-// TestHeimdallClaimsEmailJSONDecoding verifies that the json:"email" tag is correct by
-// deserializing JWT claim JSON (as the validator does at runtime) and asserting the Email
-// field is populated. A wrong tag (e.g. json:"Email") would make this test fail while all
-// struct-literal tests would still pass.
+// TestHeimdallClaimsEmailJSONDecoding verifies that the json:"email" and
+// json:"email_verified" tags are correct by deserializing JWT claim JSON (as the
+// validator does at runtime) and asserting the fields are populated. A wrong tag
+// (e.g. json:"Email") would make these tests fail while all struct-literal tests
+// would still pass.
 func TestHeimdallClaimsEmailJSONDecoding(t *testing.T) {
-	t.Run("email present in claims JSON", func(t *testing.T) {
-		claimsJSON := `{"principal":"testuser","email":"testuser@example.com"}`
+	t.Run("verified email present in claims JSON", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser","email":"testuser@example.com","email_verified":true}`
 		var claims HeimdallClaims
 		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
 		assert.Equal(t, "testuser", claims.Principal)
 		assert.Equal(t, "testuser@example.com", claims.Email)
+		assert.True(t, claims.EmailVerified)
 		assert.NoError(t, claims.Validate(context.Background()))
 
-		// Marshal back and assert the JSON tag is exactly "email" (lowercase).
+		// Marshal back and assert the JSON tags are exactly lowercase.
 		// json.Unmarshal is case-insensitive, so a wrong tag like json:"Email" would still
 		// unmarshal correctly but would produce "Email" in the output — catching that here.
 		marshaled, err := json.Marshal(claims)
 		require.NoError(t, err)
 		assert.Contains(t, string(marshaled), `"email":"testuser@example.com"`)
+		assert.Contains(t, string(marshaled), `"email_verified":true`)
 	})
 
-	t.Run("email absent from claims JSON (M2M or legacy token)", func(t *testing.T) {
+	t.Run("email present but not verified — EmailVerified false", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser","email":"testuser@example.com","email_verified":false}`
+		var claims HeimdallClaims
+		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
+		assert.Equal(t, "testuser@example.com", claims.Email)
+		assert.False(t, claims.EmailVerified)
+		// ParsePrincipal filters email when EmailVerified is false — the context will receive "".
+	})
+
+	t.Run("email absent from claims JSON (M2M or anonymous token)", func(t *testing.T) {
 		claimsJSON := `{"principal":"testuser"}`
 		var claims HeimdallClaims
 		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
 		assert.Equal(t, "testuser", claims.Principal)
 		assert.Empty(t, claims.Email)
+		assert.False(t, claims.EmailVerified)
 		assert.NoError(t, claims.Validate(context.Background()))
 	})
 }
