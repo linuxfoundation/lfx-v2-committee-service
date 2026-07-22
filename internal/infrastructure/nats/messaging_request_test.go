@@ -309,6 +309,14 @@ func TestMessageRequest_EmailsByAuthToken(t *testing.T) {
 			wantErrStr: "auth-service user emails request failed",
 		},
 		{
+			name:      "malformed success:false with empty error returns Unexpected (not NotFound)",
+			authToken: "auth0|missing",
+			responder: func(payload []byte) []byte {
+				return []byte(`{"success":false}`)
+			},
+			wantErrStr: "auth-service user emails request failed",
+		},
+		{
 			name:      "success with nil data returns NotFound",
 			authToken: "auth0|alice",
 			responder: func(payload []byte) []byte {

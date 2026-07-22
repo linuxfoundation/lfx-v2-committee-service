@@ -122,12 +122,12 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 		// to proceed with the JWT email, so a misclassified validation error would
 		// silently bypass the intended error path.
 		lower := strings.ToLower(errMsg)
-		if errMsg == "" || strings.Contains(lower, "not found") || strings.Contains(lower, "does not exist") {
-			if errMsg == "" {
-				errMsg = "user not found"
-			}
+		if strings.Contains(lower, "not found") || strings.Contains(lower, "does not exist") {
 			return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
 		}
+		// Empty error field or any other message is unexpected — do not classify as NotFound.
+		// An empty success:false response is a malformed envelope, not a confirmed missing-user signal.
+		// Misclassifying it as NotFound would trigger the resolveCallerEmail JWT email fallback.
 		return nil, errors.NewUnexpected(fmt.Sprintf("auth-service user emails request failed: %s", errMsg))
 	}
 
