@@ -77,7 +77,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   All variable-length claims (`committee_name`, `organization_name`, `organization_id`, `organization_website`) are validated against the invite-service's 1024-byte per-claim limit before dispatch. Values that would exceed the limit are omitted (sent as empty string) and a warning is logged — relaying a truncated value is worse than omitting it, because the consumer treats non-empty claims as authoritative. **Note:** these custom claims are only present on invites dispatched via the API (`POST /committees/{uid}/invites`); the NATS-triggered `sendMemberInvite` path does not include them.
 
 **Accepting an invite** (`POST .../accept`):
-- Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
+- Only the invitee can accept their own invite. The caller's email is resolved via the two-phase identity resolution described in [Identity Resolution](#identity-resolution): auth-service primary email (primary path) or the Heimdall JWT `email` claim (fallback for new accounts not yet propagated).
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
@@ -121,7 +121,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 
 **Submitting an application** (`POST /committees/{uid}/applications`):
 - Only available when `join_mode: application`.
-- The applicant's identity is resolved via the auth-service (see [Identity Resolution](#identity-resolution)).
+- The applicant's identity is resolved via the two-phase strategy described in [Identity Resolution](#identity-resolution) (auth-service primary path with JWT email claim fallback).
 - Creates a new application with `status: pending`.
 - If an application for the same email already exists in this committee:
   - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared and `message` is updated if provided.
