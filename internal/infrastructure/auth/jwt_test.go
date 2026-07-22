@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"strings"
@@ -274,36 +275,27 @@ func TestErrorMessageSanitization(t *testing.T) {
 	}
 }
 
-func TestHeimdallClaimsEmailField(t *testing.T) {
-	tests := []struct {
-		name          string
-		claims        HeimdallClaims
-		expectedEmail string
-	}{
-		{
-			name: "claims with email",
-			claims: HeimdallClaims{
-				Principal: "testuser",
-				Email:     "testuser@example.com",
-			},
-			expectedEmail: "testuser@example.com",
-		},
-		{
-			name: "claims without email (M2M or legacy token)",
-			claims: HeimdallClaims{
-				Principal: "testuser",
-				Email:     "",
-			},
-			expectedEmail: "",
-		},
-	}
+// TestHeimdallClaimsEmailJSONDecoding verifies that the json:"email" tag is correct by
+// deserializing JWT claim JSON (as the validator does at runtime) and asserting the Email
+// field is populated. A wrong tag (e.g. json:"Email") would make this test fail while all
+// struct-literal tests would still pass.
+func TestHeimdallClaimsEmailJSONDecoding(t *testing.T) {
+	t.Run("email present in claims JSON", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser","email":"testuser@example.com"}`
+		var claims HeimdallClaims
+		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
+		assert.Equal(t, "testuser", claims.Principal)
+		assert.Equal(t, "testuser@example.com", claims.Email)
+		assert.NoError(t, claims.Validate(context.Background()))
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedEmail, tt.claims.Email)
-			// Validate still passes when principal is set, regardless of email
-			err := tt.claims.Validate(context.Background())
-			assert.NoError(t, err)
-		})
-	}
+	t.Run("email absent from claims JSON (M2M or legacy token)", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser"}`
+		var claims HeimdallClaims
+		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
+		assert.Equal(t, "testuser", claims.Principal)
+		assert.Empty(t, claims.Email)
+		assert.NoError(t, claims.Validate(context.Background()))
+	})
+
 }

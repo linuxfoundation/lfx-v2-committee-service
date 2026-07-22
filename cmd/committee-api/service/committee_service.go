@@ -1412,7 +1412,7 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 		if stderrors.As(err, &notFoundErr) {
 			if ctxEmail, _ := ctx.Value(constants.EmailContextID).(string); ctxEmail != "" {
 				slog.InfoContext(ctx, "resolveCallerEmail: auth-service user not found, using JWT email claim as fallback",
-					"principal", principal,
+					"principal", redaction.Redact(principal),
 				)
 				return ctxEmail, nil
 			}
