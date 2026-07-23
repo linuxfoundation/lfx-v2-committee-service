@@ -391,6 +391,35 @@ nats:
     # compression reduces storage cost for JSON payloads
     compression: s2
 
+  # stream_user_email_events is the JetStream stream for upstream user-email change events.
+  # Subjects capture identity changes (alternate email added/removed, LFID user created/deleted)
+  # published by lfx-v1-sync-helper and other identity producers. The committee service
+  # consumes this stream to trigger username re-resolution for affected member seats.
+  stream_user_email_events:
+    # creation controls whether the stream CRD is provisioned by this chart
+    creation: true
+    # keep preserves the stream during helm uninstall to avoid event loss
+    keep: true
+    # name is the NATS stream name
+    name: user-email-events
+    # subjects captures all user-email change events from identity producers
+    subjects:
+      - lfx.user-email.*
+    # storage is the storage backend for the stream
+    storage: file
+    # retention keeps messages up to maxAge; they are not accumulated indefinitely
+    retention: limits
+    # maxAge is the maximum age of a message before it is removed
+    maxAge: 24h
+    # maxBytes is unlimited; maxAge is the primary eviction mechanism
+    maxBytes: -1
+    # maxMsgs is unlimited; maxAge is the primary eviction mechanism
+    maxMsgs: -1
+    # replicas matches the NATS cluster size for durability
+    replicas: 3
+    # compression reduces storage cost for JSON payloads
+    compression: s2
+
   # object_store_committee_documents is the configuration for the Object Store for storing committee document files
   object_store_committee_documents:
     # creation is a boolean to determine if the Object Store should be created via the helm chart.
