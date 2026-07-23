@@ -180,6 +180,7 @@ func CategoryAttribute() {
 			"Marketing Committee/Sub Committee",
 			"Marketing Mailing List",
 			"Marketing Oversight Committee/Marketing Advisory Committee",
+			"Newsletter",
 			"Other",
 			"Product Security",
 			"Special Interest Group",
