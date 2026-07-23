@@ -46,9 +46,8 @@ var (
 // HeimdallClaims contains extra custom claims we want to parse from the JWT
 // token.
 type HeimdallClaims struct {
-	Principal     string `json:"principal"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
+	Principal string `json:"principal"`
+	Email     string `json:"email"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -99,18 +98,7 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 		return "", "", errors.New("failed to get custom authorization claims")
 	}
 
-	return customClaims.Principal, filterEmailByVerification(customClaims.Email, customClaims.EmailVerified), nil
-}
-
-// filterEmailByVerification returns email only when verified is true.
-// An unverified address must not be used as a fallback identity (e.g. new-user
-// propagation race) because it could allow a self-asserted address to match an
-// existing invite.
-func filterEmailByVerification(email string, verified bool) string {
-	if verified {
-		return email
-	}
-	return ""
+	return customClaims.Principal, customClaims.Email, nil
 }
 
 // NewJWTAuth creates a new JWT authentication service
