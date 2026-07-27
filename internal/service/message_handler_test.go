@@ -2872,3 +2872,74 @@ func TestHandleUserDeleted(t *testing.T) {
 		})
 	}
 }
+
+// staleIndexCommitteeReader wraps a CommitteeReader but overrides ListMembersByUsername to
+// return a fixed set of members, simulating a stale secondary index that still points to a
+// member whose username has since changed.
+type staleIndexCommitteeReader struct {
+	CommitteeReader
+	staleMembers []*model.CommitteeMember
+}
+
+func (r *staleIndexCommitteeReader) ListMembersByUsername(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return r.staleMembers, nil
+}
+
+// TestHandleUserDeleted_StaleIndexReuse verifies that the reuse guard (re-reading the member
+// and checking current.Username before clearing) prevents a scrub when the secondary index
+// returns a stale candidate whose username has already been reassigned to a different value.
+func TestHandleUserDeleted_StaleIndexReuse(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	// Set up a repo where the member now carries a different username (post-reassignment).
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        committeeUID1,
+			ProjectUID: "proj-1",
+			Name:       "Test Committee",
+		},
+	})
+	mockRepo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-reassigned",
+			CommitteeUID: committeeUID1,
+			Username:     "otheruser", // already reassigned to a different person
+		},
+	})
+
+	// Build the real reader from the mock repo.
+	baseReader := NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo))
+
+	// Wrap it so ListMembersByUsername returns the stale index candidate, as if the
+	// index still maps "deleted.user" to "member-reassigned".
+	staleEntry := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-reassigned",
+			CommitteeUID: committeeUID1,
+			Username:     deletedUsername,
+		},
+	}
+	staleReader := &staleIndexCommitteeReader{
+		CommitteeReader: baseReader,
+		staleMembers:    []*model.CommitteeMember{staleEntry},
+	}
+
+	spy := &spyCommitteeWriterOrchestrator{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(staleReader),
+		WithCommitteeWriterOrchestratorForMessageHandler(spy),
+	).(*messageHandlerOrchestrator)
+
+	b, _ := json.Marshal(V1UserDeletedEvent{Username: deletedUsername})
+	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, b)
+	_, err := handler.HandleUserDeleted(ctx, msg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, spy.updateMemberCalls,
+		"reuse guard must skip update when re-read shows member username has been reassigned")
+}
