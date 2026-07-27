@@ -32,7 +32,8 @@ already does it. This service has many near-identical resources — committees,
 members, invites, applications, links, folders, documents, weekly briefs — whose
 implementations mirror each other, so the nearest sibling is usually one grep
 away and is the fastest way to tell a deliberate deviation from an omission.
-Unexplained drift from the sibling is a finding even when the code "works".
+Drift from the sibling is a reason to look harder, not a finding in itself: what
+you report is whatever concrete problem the comparison turns up.
 
 ## The house standards
 
@@ -150,10 +151,12 @@ Run these on the changed code, scaled to the size of the change:
   that produced it. Ask what a failure between the two leaves behind — an orphan
   blob, a dangling lookup key, a member with no terminal invite status — and
   whether the code cleans up or is safe to retry. `invite-application-flows.md`
-  documents the ordering for the membership flows — the member is created before
-  the invite or application moves to its terminal status, so a failure leaves the
-  record unchanged and the caller able to retry — and a diff that inverts it
-  strands records.
+  documents the ordering for the membership flows: the member is created before
+  the invite or application moves to its terminal status, so a failure *of the
+  member creation* leaves the source record unchanged and the caller able to
+  retry. Note what that does not cover — a member created but the status update
+  failing leaves a member alongside a nonterminal record, which is the partial
+  write to ask about. A diff that inverts the ordering strands records.
 - **Secondary indexes and key derivation.** Lookup keys are derived from values
   (a committee UID, an organization SFID, a hashed normalized email) with
   separator assumptions baked into the filter wildcards. When a diff changes how
