@@ -24,12 +24,13 @@ import (
 // recording (indexed, orgIndexed, emailIndexed, updated) and error simulation
 // (indexError, updateError) support those tests.
 type mockMemberWriter struct {
-	indexed      []string                 // committee_uid+"."+member_uid keys that were written
-	orgIndexed   []string                 // org_sfid+"."+member_uid keys that were written
-	emailIndexed []string                 // email_hash+"."+member_uid keys that were written
-	updated      []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
-	indexError   error
-	updateError  error
+	indexed         []string                 // committee_uid+"."+member_uid keys that were written
+	orgIndexed      []string                 // org_sfid+"."+member_uid keys that were written
+	emailIndexed    []string                 // email_hash+"."+member_uid keys that were written
+	usernameIndexed []string                 // username_hash+"."+member_uid keys that were written
+	updated         []*model.CommitteeMember // members passed to UpdateMember (member-project-attribute repair)
+	indexError      error
+	updateError     error
 }
 
 func (w *mockMemberWriter) CreateMember(_ context.Context, _ *model.CommitteeMember) error {
@@ -81,11 +82,15 @@ func (w *mockMemberWriter) IndexMemberByEmail(ctx context.Context, m *model.Comm
 }
 
 func (w *mockMemberWriter) IndexMemberByUsername(ctx context.Context, m *model.CommitteeMember) (string, error) {
+	if w.indexError != nil {
+		return "", w.indexError
+	}
 	hash := m.BuildUsernameIndexKey(ctx)
 	if hash == "" {
 		return "", nil
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, m.UID)
+	w.usernameIndexed = append(w.usernameIndexed, key)
 	return key, nil
 }
 
