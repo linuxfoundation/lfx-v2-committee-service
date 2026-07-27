@@ -41,8 +41,8 @@ types; `internal/domain/` holds the models and the port interfaces;
 `internal/service/` holds the use cases; `internal/infrastructure/` holds the
 NATS storage, auth, AI, M2M source clients, and the mocks; `pkg/` holds the
 shared utilities (`constants`, `errors`, `log`, `redaction`, and friends).
-Business logic that lands in the presentation layer, or an HTTP header read from
-service code, is a layering finding even when it works.
+Business logic that lands in the presentation layer, or HTTP transport concerns
+that leak into the use-case layer, is a layering finding even when it works.
 
 Authorization arrives in two halves that must agree. Heimdall sits in front,
 runs the per-route rules declared in this repo's Helm chart under
@@ -89,11 +89,11 @@ Three sources, each authoritative for its own domain:
 
 1. **Understand the intent.** From the PR title, body, commits, and the diff:
    what is this change trying to accomplish, and why? Work that out first, then
-   test the claim against the code. A diff that does more than its description
-   (an extra endpoint, a widened chart rule, a new bucket, a dependency added in
-   passing) deserves a finding even when each piece is individually fine, because
-   unreviewed intent is how scope creeps. If the stated intent and the diff
-   disagree, or you cannot work out what the change is for, that is a finding.
+   read the code against it. Undeclared new surface — an extra endpoint, a
+   widened chart rule, a new bucket or stream, a dependency added in passing —
+   is a finding on its own terms, because unreviewed surface is how scope creeps.
+   A mismatch between the description and the diff is not: the team has already
+   rejected "the description says X but the code does Y" comments as noise.
 2. **Place the change.** In this service's architecture and in the platform:
    - Does it belong here? This service owns committees. Logic that belongs to
      another resource's owner, or a direct write into another service's KV
@@ -141,10 +141,10 @@ costs the author attention; spend it only where it changes the outcome:
   visible to you, do not repeat them.
 - **Never duplicate the deterministic pipeline.** Every pull request runs the Go
   build and the unit tests, MegaLinter's Go flavor, and the shared license-header
-  check (which excludes `gen/` and `cmd/committee-api/kodata/`); contributors who
-  ran `make setup-dev` also get a pre-commit hook that runs `make fmt` and
-  `make lint`. Formatting, import order, gofmt spacing, lint nits, missing
-  license headers, and anything the compiler already catches are not findings.
+  check; contributors who ran `make setup-dev` also get a pre-commit hook that
+  runs `make fmt` and `make lint`. Formatting, import order, gofmt spacing, lint
+  nits, missing license headers, and anything the compiler already catches are
+  not findings.
   Be equally clear about what the pipeline does *not* cover: the working-group
   weekly-brief live-LLM eval is a release gate on `v*` tags, not per-PR
   coverage, and none of the documented conventions in this repo — contract docs

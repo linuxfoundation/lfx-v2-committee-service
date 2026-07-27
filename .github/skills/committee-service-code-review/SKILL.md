@@ -24,11 +24,10 @@ A diff alone is not enough. For each non-trivial hunk, read the **whole changed
 function**, not just the diff lines, and grep for **callers and sibling
 implementations** of the same pattern to confirm the change matches how the repo
 already does it. This service has many near-identical resources — committees,
-members, invites, applications, links, folders, documents, weekly briefs — each
-with its own writer, reader, storage adapter, and message-publishing path, so
-the sibling implementation is usually one grep away and is the fastest way to
-tell a deliberate deviation from an omission. Convention drift is a finding even
-when the code "works".
+members, invites, applications, links, folders, documents, weekly briefs — whose
+implementations mirror each other, so the nearest sibling is usually one grep
+away and is the fastest way to tell a deliberate deviation from an omission.
+Convention drift is a finding even when the code "works".
 
 ## The house standards
 
@@ -48,13 +47,14 @@ with it. They live in:
   layout (`references/goa-patterns.md`) and messaging inventory
   (`references/nats-messaging.md`).
 - **The contract docs under `docs/`** — `indexer-contract.md` and
-  `fga-contract.md` for what this service emits, `invite-application-flows.md`
-  for the membership modes and the invite/application state machines, and
-  `nats-request-reply.md` for the synchronous subjects other services call.
-  These are consumed outside this repo. The repo's own rule is that a behavior
-  change updates its contract doc in the same PR; a diff that changes an emitted
-  message, a state transition, or a request/reply payload without touching the
-  matching doc is a finding.
+  `fga-contract.md` for what this service emits, and
+  `invite-application-flows.md` for the membership modes and the
+  invite/application state machines. These are consumed outside this repo, and
+  the repo's own rule names them as the contracts a behavior change updates in
+  the same PR; a diff that changes an emitted message or a state transition
+  without touching the matching doc is a finding. `nats-request-reply.md`
+  describes the synchronous subjects other services call — reference material
+  when judging a request/reply change, though no same-PR rule is attached to it.
 - **`docs/reviews/knowledge-base/`** — the empirical patterns this repo's PRs
   have actually been bitten by, organized by area, with
   `known-false-positives.md` recording what the team has already rejected. Use
@@ -80,7 +80,7 @@ Run these on the changed code, scaled to the size of the change:
 - **Error handling**: use the typed domain errors in `pkg/errors` rather than a
   parallel sentinel family or a bare `fmt.Errorf`, wrap so `errors.Is` and
   `errors.As` keep working, and translate at the Goa boundary in
-  `cmd/committee-api/service/error.go` — a new domain error case that `wrapError`
+  `cmd/committee-api/service/` — a new domain error case the boundary mapper
   does not handle silently becomes a 500. Matching on error text instead of the
   typed error is a finding. Raw upstream NATS or HTTP errors must not reach the
   client.
@@ -127,9 +127,11 @@ Run these on the changed code, scaled to the size of the change:
   break.
 - **Optimistic locking.** KV-backed state is updated with revisions, and mutable
   resources expose that to clients as ETag / If-Match. A read-modify-write that
-  drops the revision, a delete that does not pass one, or a revision-conflict
-  error that does not surface as a conflict to the caller are all last-writer-
-  wins bugs that only show under concurrency.
+  drops the revision, a delete of the primary record that does not pass one, or a
+  revision-conflict error that does not surface as a conflict to the caller are
+  all last-writer-wins bugs that only show under concurrency. Best-effort cleanup
+  of lookup keys, companion records, and stored blobs is a sanctioned pattern
+  here and is not the same thing.
 - **Multi-write ordering and rollback.** Several flows write more than one thing:
   a record plus its lookup keys and secondary indexes, an Object Store blob plus
   its metadata entry, a membership record plus the invite or application status
@@ -180,16 +182,18 @@ not a reportable security finding.
   Heimdall rules in this repo's chart; fine-grained rules — invite ownership,
   join-mode gating, entitlement checks on org-scoped reads — are enforced in the
   handlers. A new or widened route needs both, and a change that relaxes either
-  one is top-scale. Flag a route added to the design with no corresponding chart
-  rule, a rule loosened to allow anonymous or unauthenticated access, and an
-  in-handler check that a refactor moved off the path the request actually takes.
+  one silently changes who can reach the resource. Flag a route added to the
+  design with no corresponding chart rule, a rule loosened to allow anonymous or
+  unauthenticated access, and an in-handler check that a refactor moved off the
+  path the request actually takes.
 - **Identity: the principal is not an email.** The service receives a principal
   (an LFX username) and, when available, an email claim, and resolves the
-  caller's authoritative email through the documented two-phase path
-  (`resolveCallerEmail`) rather than assuming the principal is one. Membership,
-  invites, and applications key on email. Using the principal as an email, or
-  skipping the resolution and trusting a client-supplied address, lets one user
-  act as another — the invite and application flows are exactly where this bites.
+  caller's authoritative email through the documented resolution path (see
+  `docs/invite-application-flows.md`) rather than assuming the principal is one.
+  Membership, invites, and applications key on email. Using the principal as an
+  email, or skipping the resolution and trusting a client-supplied address, lets
+  one user act as another — the invite and application flows are exactly where
+  this bites.
 - **Ownership checks on self-service flows.** Accept, decline, join, leave, and
   application submission are called by ordinary users, not admins. Each needs the
   resolved caller identity compared against the record it is acting on, and each
@@ -225,8 +229,7 @@ not a reportable security finding.
 ## What not to flag
 
 - Anything the deterministic pipeline owns: formatting, gofmt, lint nits, import
-  ordering, license-header complaints on a file that already carries one,
-  anything the compiler catches.
+  ordering, license-header complaints, anything the compiler catches.
 - Cosmetic Markdown and table-rendering nits on docs.
 - Denial of service, resource exhaustion, or "add rate limiting" on their own,
   and theoretical race or timing issues with no practical exploit.
