@@ -22,6 +22,7 @@ type publisherClientStub struct {
 	readyErr   error
 	publishErr error
 	published  int
+	requested  int
 }
 
 func (s *publisherClientStub) IsReady(context.Context) error {
@@ -34,6 +35,7 @@ func (s *publisherClientStub) publishWithSpan(ctx context.Context, _ string, _ [
 }
 
 func (s *publisherClientStub) requestWithSpan(ctx context.Context, _ string, _ []byte) (context.Context, *natsgo.Msg, error) {
+	s.requested++
 	return ctx, &natsgo.Msg{}, nil
 }
 
@@ -78,6 +80,29 @@ func TestMessagePublisher_UpdateAccessPublishesWithoutReply(t *testing.T) {
 	}
 	assert.Contains(t, spanNames, "nats.publish")
 	assert.NotContains(t, spanNames, "nats.request")
+}
+
+func TestMessagePublisher_AccessGuardsUpdateAccessSubject(t *testing.T) {
+	tests := []struct {
+		name string
+		sync bool
+	}{
+		{name: "sync=true cannot reach requestMessage", sync: true},
+		{name: "sync=false behaves as UpdateAccess", sync: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &publisherClientStub{}
+			publisher := &messagePublisher{client: client}
+
+			err := publisher.Access(context.Background(), fgaconstants.GenericUpdateAccessSubject, "payload", tt.sync)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, client.published, "Access must route GenericUpdateAccessSubject through publishWithSpan regardless of sync")
+			assert.Zero(t, client.requested, "Access must never reach requestWithSpan for GenericUpdateAccessSubject")
+		})
+	}
 }
 
 func TestMessagePublisher_UpdateAccessErrors(t *testing.T) {

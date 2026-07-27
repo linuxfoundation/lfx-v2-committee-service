@@ -122,7 +122,13 @@ func (m *messagePublisher) Indexer(ctx context.Context, subject string, message 
 }
 
 // Access publishes an access-control message to the given NATS subject for permission updates.
+//
+// GenericUpdateAccessSubject is guarded here regardless of sync: callers must use
+// UpdateAccess for that subject so it can never reach requestMessage.
 func (m *messagePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
+	if subject == fgaconstants.GenericUpdateAccessSubject {
+		return m.UpdateAccess(ctx, message)
+	}
 	return m.publish(ctx, subject, message, "access", sync)
 }
 
