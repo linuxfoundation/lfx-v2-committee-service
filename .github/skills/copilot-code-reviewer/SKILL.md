@@ -116,9 +116,11 @@ Three sources, each authoritative for its own domain:
      buckets/streams, or the invite and application state machines. A change to
      any of those has consumers outside this repo or outside this PR; verify it
      against its owner and its contract doc, never against the PR's claims.
-   - Storage-shape changes deserve a migration question: this repo keeps
-     one-off repair and backfill programs under `scripts/`, so ask what happens
-     to records already written in the old shape.
+   - On a storage-shape change, work out what happens to records already
+     written in the old shape; this repo keeps one-off repair and backfill
+     programs under `scripts/`. Where the code already reads both shapes, or a
+     backfill ships alongside, there is nothing to raise — the finding is data
+     the change would strand, not a missing explanation of how it was handled.
 3. **Judge the implementation.** For any change to code, apply the
    `committee-service-code-review` skill
    (`.github/skills/committee-service-code-review/SKILL.md`) — it carries the

@@ -177,8 +177,9 @@ Run these on the changed code, scaled to the size of the change:
   code compiles: timeouts, retry and backoff values, concurrency limits, page
   sizes, throttle counts, subject and bucket names, JWT audience and issuer
   defaults. When the diff moves one, ask whether the change is stated and
-  intentional and what its blast radius is; an unexplained constant change is a
-  finding.
+  intentional and what its blast radius is. The finding is a blast radius the
+  change does not account for, not the absence of a sentence explaining it — a
+  correct new value needs no rationale to be correct.
 - **The CLI and the migration scripts.** `cmd/committee-cli/` and `scripts/`
   publish the same messages and write the same buckets as the API, usually with
   a wider blast radius and no HTTP-level guard. Hold them to the same envelope,
