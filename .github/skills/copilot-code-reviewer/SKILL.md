@@ -90,11 +90,12 @@ Three sources, each authoritative for its own domain:
 
 1. **Understand the intent.** From the PR title, body, commits, and the diff:
    what is this change trying to accomplish, and why? Work that out first, then
-   read the code against it. Undeclared new surface — an extra endpoint, a
-   widened chart rule, a new bucket or stream, a dependency added in passing —
-   is a finding on its own terms, because unreviewed surface is how scope creeps.
-   A mismatch between the description and the diff is not: the team has already
-   rejected "the description says X but the code does Y" comments as noise.
+   read the code against it. New surface the change carries — an extra endpoint,
+   a widened chart rule, a new bucket or stream, a dependency added in passing —
+   is judged on whether it is necessary, owned, and safe (step 2), not on
+   whether the description mentioned it. A mismatch between the description and
+   the diff is not a finding: the team has already rejected "the description
+   says X but the code does Y" comments as noise.
 2. **Place the change.** In this service's architecture and in the platform:
    - Does it belong here? This service owns committees. Logic that belongs to
      another resource's owner, or a direct write into another service's KV
@@ -157,11 +158,13 @@ costs the author attention; spend it only where it changes the outcome:
   `committee-service-code-review` expects them held to.
 - **One comment per issue.** If the same defect repeats across lines or files,
   raise it once and note where else it applies.
-- **No generic advice.** A finding that could apply to any Go service does not
-  belong here; tie every comment to this service's shape, invariants, or
-  documented standards. "Add a nil check", "add a test", "rename this", or
-  "extract a helper", with no tie to a committee-service contract or convention,
-  is the shape to leave out.
+- **No generic advice.** What disqualifies a comment is its shape, not the
+  category of the bug. Abstract counsel that could be pasted into any review —
+  "add a nil check", "add a test", "rename this", "extract a helper" — with no
+  defect behind it does not belong here. A concrete defect you can point at in
+  this diff does, however ordinary its kind: a dropped context, a swallowed
+  error, an off-by-one or a race is a common mistake everywhere, and being
+  common is not an excuse here.
 
 Every comment states the problem, why it matters in this service, and what a fix
 looks like, grounded in the actual file, function, contract, or invariant.

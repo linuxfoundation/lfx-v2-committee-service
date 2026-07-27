@@ -240,12 +240,14 @@ not a reportable security finding.
 - Anything the deterministic pipeline owns: formatting, gofmt, lint nits, import
   ordering, license-header complaints, anything the compiler catches.
 - Cosmetic Markdown and table-rendering nits on docs.
-- Denial of service, resource exhaustion, or "add rate limiting" on their own,
-  and theoretical race or timing issues with no practical exploit.
+- Denial of service, resource exhaustion, or "add rate limiting" raised in the
+  abstract, and race or timing issues you cannot trace to a concrete path. A
+  traced defect — a pool sized from untrusted input, a shared map written from
+  several goroutines — belongs under the concurrency dimension above.
 - Outdated third-party dependencies; a *new* dependency's risk belongs to the
   architecture lens instead.
-- Generic advice with no tie to this repo — a bare "add a nil check", "add a
-  test", "rename this", or "extract a helper".
+- Advice that could be pasted into any review with no defect behind it — a bare
+  "add a nil check", "add a test", "rename this", or "extract a helper".
 - Unguessability as authorization, in either direction: an authorization finding
   rests on a missing server-side check, never on whether a UID can be guessed —
   but validating an identifier's format against the contract that defines it
