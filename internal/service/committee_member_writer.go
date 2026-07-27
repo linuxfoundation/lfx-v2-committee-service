@@ -1247,6 +1247,12 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			// Only publish access message if username is present
 			// Without a username, there's no user identity to grant access to in FGA
 			if data.Member.Username == "" {
+				// If username was cleared on update (e.g. user-deleted scrub), revoke the old FGA tuple
+				// so the deleted identity no longer holds the member relation on this committee.
+				if action == model.ActionUpdated && data.OldMember != nil && data.OldMember.Username != "" {
+					oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
+					return uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync)
+				}
 				slog.DebugContext(ctx, "skipping access message for member without username",
 					"member_uid", data.Member.UID,
 					"action", action,
