@@ -2655,11 +2655,10 @@ func TestHandleUserDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	const deletedUsername = "deleted.user"
-	const deletedEmail = "deleted@example.com"
 	const committeeUID1 = "committee-1"
 
-	makeEvent := func(username, email string) []byte {
-		b, _ := json.Marshal(V1UserDeletedEvent{Username: username, Email: email})
+	makeEvent := func(username string) []byte {
+		b, _ := json.Marshal(V1UserDeletedEvent{Username: username})
 		return b
 	}
 
@@ -2685,14 +2684,8 @@ func TestHandleUserDeleted(t *testing.T) {
 		validateSkipEnrichment  bool
 	}{
 		{
-			name:                  "empty email: event discarded — no updates",
-			data:                  makeEvent(deletedUsername, ""),
-			setupRepo:             func(_ *mock.MockRepository) {},
-			wantUpdateMemberCalls: 0,
-		},
-		{
 			name:                  "empty username: event discarded — no updates",
-			data:                  makeEvent("", deletedEmail),
+			data:                  makeEvent(""),
 			setupRepo:             func(_ *mock.MockRepository) {},
 			wantUpdateMemberCalls: 0,
 		},
@@ -2704,7 +2697,7 @@ func TestHandleUserDeleted(t *testing.T) {
 		},
 		{
 			name: "member match — username cleared, skipEnrichment = true",
-			data: makeEvent(deletedUsername, deletedEmail),
+			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{
 					CommitteeBase: model.CommitteeBase{
@@ -2718,7 +2711,7 @@ func TestHandleUserDeleted(t *testing.T) {
 						UID:          "member-1",
 						CommitteeUID: committeeUID1,
 						Username:     deletedUsername,
-						Email:        deletedEmail,
+						Email:        "deleted@example.com",
 					},
 				})
 			},
@@ -2727,12 +2720,12 @@ func TestHandleUserDeleted(t *testing.T) {
 			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
 				require.Len(t, captured, 1)
 				assert.Equal(t, "", captured[0].Username, "member username should be cleared")
-				assert.Equal(t, deletedEmail, captured[0].Email, "member email should be unchanged")
+				assert.Equal(t, "deleted@example.com", captured[0].Email, "member email should be unchanged")
 			},
 		},
 		{
-			name: "member reuse guard — username already cleared",
-			data: makeEvent(deletedUsername, deletedEmail),
+			name: "member username mismatch — no update",
+			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{
 					CommitteeBase: model.CommitteeBase{
@@ -2745,8 +2738,8 @@ func TestHandleUserDeleted(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{
 						UID:          "member-2",
 						CommitteeUID: committeeUID1,
-						Username:     "otheruser", // different username, not matching the deleted user
-						Email:        deletedEmail,
+						Username:     "otheruser",
+						Email:        "other@example.com",
 					},
 				})
 			},
@@ -2754,7 +2747,7 @@ func TestHandleUserDeleted(t *testing.T) {
 		},
 		{
 			name: "conflict retry — retries and succeeds on second attempt",
-			data: makeEvent(deletedUsername, deletedEmail),
+			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{
 					CommitteeBase: model.CommitteeBase{
@@ -2768,7 +2761,7 @@ func TestHandleUserDeleted(t *testing.T) {
 						UID:          "member-4",
 						CommitteeUID: committeeUID1,
 						Username:     deletedUsername,
-						Email:        deletedEmail,
+						Email:        "deleted@example.com",
 					},
 				})
 			},
@@ -2778,7 +2771,7 @@ func TestHandleUserDeleted(t *testing.T) {
 		},
 		{
 			name: "settings match — writer username cleared",
-			data: makeEvent(deletedUsername, deletedEmail),
+			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{
 					CommitteeBase: model.CommitteeBase{
@@ -2789,7 +2782,7 @@ func TestHandleUserDeleted(t *testing.T) {
 					CommitteeSettings: &model.CommitteeSettings{
 						UID: committeeUID1,
 						Writers: []model.CommitteeUser{
-							{Username: deletedUsername, Email: deletedEmail},
+							{Username: deletedUsername, Email: "deleted@example.com"},
 						},
 					},
 				})
@@ -2803,7 +2796,7 @@ func TestHandleUserDeleted(t *testing.T) {
 		},
 		{
 			name: "settings no match — no update",
-			data: makeEvent(deletedUsername, deletedEmail),
+			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{
 					CommitteeBase: model.CommitteeBase{
@@ -2823,7 +2816,7 @@ func TestHandleUserDeleted(t *testing.T) {
 		},
 		{
 			name:      "nil reader — no panic, no updates",
-			data:      makeEvent(deletedUsername, deletedEmail),
+			data:      makeEvent(deletedUsername),
 			setupRepo: func(_ *mock.MockRepository) {},
 			// handler will have nil reader, should not panic
 			wantUpdateMemberCalls: 0,

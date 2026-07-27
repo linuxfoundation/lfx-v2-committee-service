@@ -47,6 +47,8 @@ type CommitteeMemberDataReader interface {
 	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
 	// ListMembersByEmail retrieves all committee members whose normalized email matches the given address.
 	ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error)
+	// ListMembersByUsername retrieves all committee members whose normalized username matches the given LFID.
+	ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -228,6 +230,16 @@ func (rc *committeeReaderOrchestrator) ListMembersByEmail(ctx context.Context, e
 	members, err := rc.committeeReader.ListMembersByEmail(ctx, email)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list committee members by email", "error", err)
+		return nil, err
+	}
+	return members, nil
+}
+
+// ListMembersByUsername retrieves all committee members whose normalized username matches the given LFID.
+func (rc *committeeReaderOrchestrator) ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error) {
+	members, err := rc.committeeReader.ListMembersByUsername(ctx, username)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members by username", "error", err)
 		return nil, err
 	}
 	return members, nil

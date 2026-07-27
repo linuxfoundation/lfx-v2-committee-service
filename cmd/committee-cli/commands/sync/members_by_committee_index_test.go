@@ -80,6 +80,15 @@ func (w *mockMemberWriter) IndexMemberByEmail(ctx context.Context, m *model.Comm
 	return key, nil
 }
 
+func (w *mockMemberWriter) IndexMemberByUsername(ctx context.Context, m *model.CommitteeMember) (string, error) {
+	hash := m.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, m.UID)
+	return key, nil
+}
+
 // newBackfillRC builds a RunContext wired with the provided reader and writer mocks.
 func newBackfillRC(r *mockReader, w *mockMemberWriter, args ...string) commands.RunContext {
 	return commands.RunContext{

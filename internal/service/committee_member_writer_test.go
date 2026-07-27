@@ -190,6 +190,16 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByEmail(ctx context.Context, 
 	return key, nil
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
+	return key, nil
+}
+
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
@@ -321,6 +331,10 @@ func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _
 }
 
 func (r *TestMockCommitteeReader) ListMembersByEmail(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
+}
+
+func (r *TestMockCommitteeReader) ListMembersByUsername(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, nil
 }
 

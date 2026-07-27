@@ -64,6 +64,21 @@ const (
 	// given email: "lookup/committee-members-by-email/<email_hash>.*"
 	KVLookupMembersByEmailFilter = "lookup/committee-members-by-email/%s.*"
 
+	// KVLookupMembersByUsernamePrefix is the secondary index that maps a member's LFID username to
+	// each committee membership held by that username. Key pattern:
+	// "lookup/committee-members-by-username/<username_hash>.<member_uid>", Value: <member_uid>.
+	// The username segment is the lowercase SHA-256 hex digest of the normalized username
+	// (strings.TrimSpace + strings.ToLower), making it dot-free and key-safe. The dot-separated
+	// suffix is the member UID (a UUID, never containing dots), allowing server-side filtered scans
+	// via ListKeysFiltered with a "<username_hash>.*" wildcard. This enables efficient lookups of
+	// all committee seats held by a username — used by the user-deleted scrub flow to clear usernames
+	// without a full bucket scan.
+	KVLookupMembersByUsernamePrefix = "lookup/committee-members-by-username/%s.%s"
+
+	// KVLookupMembersByUsernameFilter is the ListKeysFiltered subject filter for all members with a
+	// given username: "lookup/committee-members-by-username/<username_hash>.*"
+	KVLookupMembersByUsernameFilter = "lookup/committee-members-by-username/%s.*"
+
 	// KVLookupInvitePrefix is the prefix for invite lookup keys in the KV store.
 	KVLookupInvitePrefix = "lookup/committee-invites/%s"
 

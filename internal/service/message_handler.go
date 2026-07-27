@@ -559,10 +559,9 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 }
 
 // V1UserDeletedEvent is the payload published by v1-sync-helper on "lfx.v1-sync-helper.user.deleted"
-// when a merged user record is soft-deleted. Email is the user's primary email; Username is their LFID.
+// when a merged user record is soft-deleted. Username is the user's LFID.
 type V1UserDeletedEvent struct {
 	Username string `json:"username"`
-	Email    string `json:"email"`
 }
 
 // HandleUserDeleted scrubs the deleted user's username from committee members and settings.
@@ -573,11 +572,6 @@ func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg 
 		slog.ErrorContext(ctx, "failed to unmarshal V1UserDeletedEvent — discarding", "error", err)
 		return nil, nil
 	}
-	if event.Email == "" {
-		slog.WarnContext(ctx, "user.deleted event missing email — cannot scrub committee data",
-			"username", redaction.Redact(event.Username))
-		return nil, nil
-	}
 	if event.Username == "" {
 		slog.WarnContext(ctx, "user.deleted event missing username — nothing to scrub")
 		return nil, nil
@@ -586,28 +580,26 @@ func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	ctx = log.AppendCtx(ctx, slog.String("username", redaction.Redact(event.Username)))
-	ctx = log.AppendCtx(ctx, slog.String("email", redaction.RedactEmail(event.Email)))
 
 	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data")
 
-	m.scrubUsernameFromMembers(ctx, event.Username, event.Email)
-	m.scrubUsernameFromSettings(ctx, event.Username, event.Email)
+	m.scrubUsernameFromMembers(ctx, event.Username)
+	m.scrubUsernameFromSettings(ctx, event.Username)
 	return nil, nil
 }
 
-// scrubUsernameFromMembers clears the username from committee member records whose email
-// matches the deleted user and username matches exactly (reuse guard).
-// Uses the committee-members email secondary index for an efficient lookup.
-func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Context, username, email string) {
+// scrubUsernameFromMembers clears the username from committee member records that match the
+// deleted user's LFID. Uses the committee-members username secondary index for an efficient lookup.
+func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Context, username string) {
 	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee reader/writer not configured — skipping member username scrub")
 		return
 	}
 
-	members, err := m.committeeReader.ListMembersByEmail(ctx, email)
+	members, err := m.committeeReader.ListMembersByUsername(ctx, username)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list committee members by email for username scrub",
-			"error", err, "email", redaction.RedactEmail(email))
+		slog.ErrorContext(ctx, "failed to list committee members by username for scrub",
+			"error", err, "username", redaction.Redact(username))
 		return
 	}
 
@@ -615,12 +607,6 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 		"username", redaction.Redact(username), "count", len(members))
 
 	for _, member := range members {
-		if member.Username != username {
-			slog.DebugContext(ctx, "committee member username already cleared or reassigned — skipping",
-				"member_uid", member.UID, "committee_uid", member.CommitteeUID)
-			continue
-		}
-
 		const maxRetries = 4
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			current, revision, err := m.committeeReader.GetMember(ctx, member.CommitteeUID, member.UID)
@@ -631,11 +617,6 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 			}
 			if current.Username != username {
 				slog.DebugContext(ctx, "committee member username already cleared or reassigned — skipping",
-					"member_uid", member.UID)
-				break
-			}
-			if !strings.EqualFold(strings.TrimSpace(current.Email), strings.TrimSpace(email)) {
-				slog.DebugContext(ctx, "committee member email no longer matches deleted user — skipping",
 					"member_uid", member.UID)
 				break
 			}
@@ -661,9 +642,9 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 }
 
 // scrubUsernameFromSettings clears the username from committee settings writers/auditors
-// whose email and username both match the deleted user (reuse guard).
-// Full scan: no email-based index exists for settings (mirrors HandleInviteAccepted pattern).
-func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Context, username, email string) {
+// that match the deleted user's LFID. Full scan: no username index exists for settings
+// (mirrors HandleInviteAccepted pattern).
+func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Context, username string) {
 	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee reader/writer not configured — skipping settings username scrub")
 		return
@@ -675,19 +656,17 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Conte
 		return
 	}
 
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-
 	slog.InfoContext(ctx, "scrubbing username from committee settings",
 		"username", redaction.Redact(username), "committee_count", len(allUIDs))
 
 	for _, committeeUID := range allUIDs {
-		m.scrubUsernameFromOneCommitteeSettings(ctx, committeeUID, username, normalizedEmail)
+		m.scrubUsernameFromOneCommitteeSettings(ctx, committeeUID, username)
 	}
 }
 
 // scrubUsernameFromOneCommitteeSettings fetches settings for a single committee, clears the
-// username on any writer/auditor entry that matches both email and username, and persists.
-func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username, normalizedEmail string) {
+// username on any writer/auditor entry that matches, and persists.
+func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username string) {
 	const maxRetries = 4
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
@@ -703,14 +682,14 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx c
 		changed := false
 		for i := range settings.Writers {
 			w := &settings.Writers[i]
-			if w.Username == username && strings.ToLower(strings.TrimSpace(w.Email)) == normalizedEmail {
+			if w.Username == username {
 				w.Username = ""
 				changed = true
 			}
 		}
 		for i := range settings.Auditors {
 			a := &settings.Auditors[i]
-			if a.Username == username && strings.ToLower(strings.TrimSpace(a.Email)) == normalizedEmail {
+			if a.Username == username {
 				a.Username = ""
 				changed = true
 			}

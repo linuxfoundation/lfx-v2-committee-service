@@ -301,6 +301,22 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errEmailIndex
 	}
 
+	// Step 8e: Write the username→member secondary index so the user-deleted scrub can find all
+	// committee seats for a given LFID via a server-side filtered scan rather than a full bucket scan.
+	// No-op (empty key) for members with no username.
+	usernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+	if usernameIndexKey != "" {
+		keys = append(keys, usernameIndexKey)
+	}
+	if errUsernameIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member username index",
+			"error", errUsernameIndex,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errUsernameIndex
+	}
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -656,6 +672,32 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		}
 		if oldOrgSFID != "" {
 			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, oldOrgSFID, existing.UID))
+		}
+	}
+
+	// Step 7c: Reconcile the username→member secondary index when the username changes.
+	// Write the new entry first (tracked for rollback), then mark the old one stale for
+	// post-update cleanup. Members with no new username skip the write; members with no old
+	// username skip the stale-key append.
+	oldUsernameHash := existing.BuildUsernameIndexKey(ctx)
+	newUsernameHash := member.BuildUsernameIndexKey(ctx)
+	if oldUsernameHash != newUsernameHash {
+		if newUsernameHash != "" {
+			newUsernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+			if newUsernameIndexKey != "" {
+				newKeys = append(newKeys, newUsernameIndexKey)
+			}
+			if errUsernameIndex != nil {
+				slog.ErrorContext(ctx, "failed to write username index during member update",
+					"error", errUsernameIndex,
+					"member_uid", member.UID,
+				)
+				rollbackRequired = true
+				return nil, errUsernameIndex
+			}
+		}
+		if oldUsernameHash != "" {
+			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, oldUsernameHash, existing.UID))
 		}
 	}
 
