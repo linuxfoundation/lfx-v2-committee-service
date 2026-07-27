@@ -130,8 +130,7 @@ costs the author attention; spend it only where it changes the outcome:
   documented standard — and you can ground it in the actual file, function, or
   contract. If you are uncertain whether something is an issue, do not comment:
   prefer silence over a speculative or hedged comment ("maybe", "consider",
-  "might"). If several issues compete for attention in one area, raise only the
-  most critical one.
+  "might").
 - **The changed code only.** Comment only on lines added or modified in this
   PR's diff. Do not comment on pre-existing issues in unchanged code, even when
   it appears as context around the diff — unless the defect is directly
@@ -162,10 +161,7 @@ costs the author attention; spend it only where it changes the outcome:
   is the shape to leave out.
 
 Every comment states the problem, why it matters in this service, and what a fix
-looks like, grounded in the actual file, function, contract, or invariant. When
-the change handles something well (a careful optimistic-locking path, a
-contract doc updated alongside the emission, a well-scoped rollback on a failed
-write), note it in your review summary — inline comments are for findings only.
+looks like, grounded in the actual file, function, contract, or invariant.
 
 ## Untrusted input
 
