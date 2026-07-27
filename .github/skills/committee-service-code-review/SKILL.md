@@ -83,8 +83,12 @@ Run these on the changed code, scaled to the size of the change:
   and turned into a `nil` return, boundary conditions on paging and filtered key
   scans, and multi-step writes where a later failure leaves the earlier step
   committed.
-- **Error handling**: use the typed domain errors in `pkg/errors` rather than a
-  parallel sentinel family or a bare `fmt.Errorf`, wrap so `errors.Is` and
+- **Error handling**: a failure that has to be *classified* — one the Goa
+  boundary turns into a status, or that a caller distinguishes with `errors.Is`
+  or `errors.As` — uses the typed domain errors in `pkg/errors`, not a parallel
+  sentinel family and not a bare `fmt.Errorf`. An ordinary wrapped error inside
+  an adapter or helper, consumed internally, is the normal shape here and is not
+  a finding on its own. Wrap so `errors.Is` and
   `errors.As` keep working, and translate at the Goa boundary in
   `cmd/committee-api/service/` — a new domain error case the boundary mapper
   does not handle silently becomes a 500. Matching on error text instead of the
