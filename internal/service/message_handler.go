@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
@@ -584,9 +585,10 @@ func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg 
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data",
-		"username", redaction.Redact(event.Username),
-		"email", redaction.RedactEmail(event.Email))
+	ctx = log.AppendCtx(ctx, slog.String("username", redaction.Redact(event.Username)))
+	ctx = log.AppendCtx(ctx, slog.String("email", redaction.RedactEmail(event.Email)))
+
+	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data")
 
 	m.scrubUsernameFromMembers(ctx, event.Username, event.Email)
 	m.scrubUsernameFromSettings(ctx, event.Username, event.Email)
@@ -619,7 +621,7 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 			continue
 		}
 
-		const maxRetries = 3
+		const maxRetries = 4
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			current, revision, err := m.committeeReader.GetMember(ctx, member.CommitteeUID, member.UID)
 			if err != nil {
@@ -632,9 +634,14 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 					"member_uid", member.UID)
 				break
 			}
+			if !strings.EqualFold(strings.TrimSpace(current.Email), strings.TrimSpace(email)) {
+				slog.DebugContext(ctx, "committee member email no longer matches deleted user — skipping",
+					"member_uid", member.UID)
+				break
+			}
 
 			current.Username = ""
-			if _, err := m.committeeWriterOrchestrator.UpdateMember(ctx, current, revision, false, false); err != nil {
+			if _, err := m.committeeWriterOrchestrator.UpdateMember(ctx, current, revision, false, true); err != nil {
 				var conflictErr errors.Conflict
 				if stderrors.As(err, &conflictErr) && attempt < maxRetries-1 {
 					slog.DebugContext(ctx, "revision conflict scrubbing member username — retrying",
@@ -681,7 +688,7 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Conte
 // scrubUsernameFromOneCommitteeSettings fetches settings for a single committee, clears the
 // username on any writer/auditor entry that matches both email and username, and persists.
 func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username, normalizedEmail string) {
-	const maxRetries = 3
+	const maxRetries = 4
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
 		if err != nil {

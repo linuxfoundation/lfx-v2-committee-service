@@ -910,6 +910,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeLinkCreatedSubject:          messageHandlerService.HandleMessage,
 		constants.CommitteeApplicationSubmittedSubject: messageHandlerService.HandleMessage,
 		constants.CommitteeApplicationUpdatedSubject:   messageHandlerService.HandleMessage,
+		constants.V1SyncHelperUserDeletedSubject:       messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

@@ -662,10 +662,11 @@ type spyCommitteeWriterOrchestrator struct {
 	updateErr        error
 	updatedCommittee *model.Committee
 
-	updateMemberCalls int
-	updateMemberErr   error
-	updateMemberErrs  []error
-	updatedMembers    []*model.CommitteeMember
+	updateMemberCalls      int
+	updateMemberErr        error
+	updateMemberErrs       []error
+	updatedMembers         []*model.CommitteeMember
+	capturedSkipEnrichment []bool
 
 	updateSettingsCalls int
 	updateSettingsErr   error
@@ -714,6 +715,7 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
+	s.capturedSkipEnrichment = append(s.capturedSkipEnrichment, skipEnrichment)
 	if len(s.updateMemberErrs) > 0 {
 		err := s.updateMemberErrs[0]
 		s.updateMemberErrs = s.updateMemberErrs[1:]
@@ -2647,4 +2649,231 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
 	return b
+}
+
+func TestHandleUserDeleted(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const deletedEmail = "deleted@example.com"
+	const committeeUID1 = "committee-1"
+
+	makeEvent := func(username, email string) []byte {
+		b, _ := json.Marshal(V1UserDeletedEvent{Username: username, Email: email})
+		return b
+	}
+
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
+		h := NewMessageHandlerOrchestrator(
+			WithCommitteeReaderForMessageHandler(
+				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
+			),
+			WithCommitteeWriterOrchestratorForMessageHandler(spy),
+		)
+		return h.(*messageHandlerOrchestrator)
+	}
+
+	tests := []struct {
+		name                    string
+		data                    []byte
+		setupRepo               func(*mock.MockRepository)
+		spyMemberErrs           []error
+		wantUpdateMemberCalls   int
+		wantUpdateSettingsCalls int
+		validateMembers         func(*testing.T, []*model.CommitteeMember)
+		validateSettings        func(*testing.T, []*model.CommitteeSettings)
+		validateSkipEnrichment  bool
+	}{
+		{
+			name:                  "empty email: event discarded — no updates",
+			data:                  makeEvent(deletedUsername, ""),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name:                  "empty username: event discarded — no updates",
+			data:                  makeEvent("", deletedEmail),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name:                  "invalid JSON: unmarshal error returned — no updates",
+			data:                  []byte(`not-json`),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name: "member match — username cleared, skipEnrichment = true",
+			data: makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-1",
+						CommitteeUID: committeeUID1,
+						Username:     deletedUsername,
+						Email:        deletedEmail,
+					},
+				})
+			},
+			wantUpdateMemberCalls:  1,
+			validateSkipEnrichment: true,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "", captured[0].Username, "member username should be cleared")
+				assert.Equal(t, deletedEmail, captured[0].Email, "member email should be unchanged")
+			},
+		},
+		{
+			name: "member reuse guard — username already cleared",
+			data: makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-2",
+						CommitteeUID: committeeUID1,
+						Username:     "otheruser", // different username, not matching the deleted user
+						Email:        deletedEmail,
+					},
+				})
+			},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name: "conflict retry — retries and succeeds on second attempt",
+			data: makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-4",
+						CommitteeUID: committeeUID1,
+						Username:     deletedUsername,
+						Email:        deletedEmail,
+					},
+				})
+			},
+			spyMemberErrs:          []error{errs.NewConflict("revision mismatch"), nil},
+			wantUpdateMemberCalls:  2,
+			validateSkipEnrichment: true,
+		},
+		{
+			name: "settings match — writer username cleared",
+			data: makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee",
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID: committeeUID1,
+						Writers: []model.CommitteeUser{
+							{Username: deletedUsername, Email: deletedEmail},
+						},
+					},
+				})
+			},
+			wantUpdateSettingsCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "", captured[0].Writers[0].Username, "writer username should be cleared")
+			},
+		},
+		{
+			name: "settings no match — no update",
+			data: makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee",
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID: committeeUID1,
+						Writers: []model.CommitteeUser{
+							{Username: "other", Email: "other@example.com"},
+						},
+					},
+				})
+			},
+			wantUpdateSettingsCalls: 0,
+		},
+		{
+			name:      "nil reader — no panic, no updates",
+			data:      makeEvent(deletedUsername, deletedEmail),
+			setupRepo: func(_ *mock.MockRepository) {},
+			// handler will have nil reader, should not panic
+			wantUpdateMemberCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			tt.setupRepo(mockRepo)
+
+			spy := &spyCommitteeWriterOrchestrator{updateMemberErrs: tt.spyMemberErrs}
+
+			var handler *messageHandlerOrchestrator
+			if tt.name == "nil reader — no panic, no updates" {
+				// Create handler without reader to test nil case
+				handler = &messageHandlerOrchestrator{
+					committeeWriterOrchestrator: spy,
+				}
+			} else {
+				handler = makeHandler(mockRepo, spy)
+			}
+
+			msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, tt.data)
+			resp, err := handler.HandleUserDeleted(ctx, msg)
+
+			// HandleUserDeleted returns nil, nil on success
+			assert.NoError(t, err, "HandleUserDeleted should not return error for this test")
+			assert.Nil(t, resp, "HandleUserDeleted should return nil response")
+
+			assert.Equal(t, tt.wantUpdateMemberCalls, spy.updateMemberCalls,
+				"UpdateMember call count mismatch")
+			assert.Equal(t, tt.wantUpdateSettingsCalls, spy.updateSettingsCalls,
+				"UpdateSettings call count mismatch")
+
+			if tt.validateSkipEnrichment && len(spy.capturedSkipEnrichment) > 0 {
+				// Check all captured skipEnrichment values are true
+				for i, val := range spy.capturedSkipEnrichment {
+					assert.True(t, val, "skipEnrichment should be true for call %d", i+1)
+				}
+			}
+
+			if tt.validateMembers != nil {
+				tt.validateMembers(t, spy.updatedMembers)
+			}
+
+			if tt.validateSettings != nil {
+				tt.validateSettings(t, spy.capturedSettings)
+			}
+		})
+	}
 }
