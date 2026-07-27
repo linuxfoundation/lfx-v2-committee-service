@@ -2736,7 +2736,33 @@ func TestHandleUserDeleted(t *testing.T) {
 			},
 		},
 		{
-			name: "member username mismatch — no update",
+			name: "event username case differs from stored member — still scrubbed",
+			data: makeEvent("Deleted.User"),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-case",
+						CommitteeUID: committeeUID1,
+						Username:     "deleted.user",
+						Email:        "deleted@example.com",
+					},
+				})
+			},
+			wantUpdateMemberCalls:  1,
+			validateSkipEnrichment: true,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "", captured[0].Username)
+			},
+		},
+		{
 			data: makeEvent(deletedUsername),
 			setupRepo: func(repo *mock.MockRepository) {
 				repo.AddCommittee(&model.Committee{

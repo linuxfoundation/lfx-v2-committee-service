@@ -564,6 +564,12 @@ type V1UserDeletedEvent struct {
 	Username string `json:"username"`
 }
 
+// usernameMatches reports whether storedUsername represents the same LFID as deletedUsername,
+// using the same TrimSpace+ToLower normalization as BuildUsernameIndexKey.
+func usernameMatches(deletedUsername, storedUsername string) bool {
+	return strings.EqualFold(strings.TrimSpace(deletedUsername), strings.TrimSpace(storedUsername))
+}
+
 // HandleUserDeleted scrubs the deleted user's username from committee members and settings.
 // Best-effort: partial failures are logged but do not block the overall scrub.
 func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
@@ -615,7 +621,7 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 					"error", err, "member_uid", member.UID, "committee_uid", member.CommitteeUID)
 				break
 			}
-			if current.Username != username {
+			if !usernameMatches(username, current.Username) {
 				slog.DebugContext(ctx, "committee member username already cleared or reassigned — skipping",
 					"member_uid", member.UID)
 				break
@@ -682,14 +688,14 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx c
 		changed := false
 		for i := range settings.Writers {
 			w := &settings.Writers[i]
-			if w.Username == username {
+			if usernameMatches(username, w.Username) {
 				w.Username = ""
 				changed = true
 			}
 		}
 		for i := range settings.Auditors {
 			a := &settings.Auditors[i]
-			if a.Username == username {
+			if usernameMatches(username, a.Username) {
 				a.Username = ""
 				changed = true
 			}
