@@ -816,6 +816,11 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, emailHash, existing.UID))
 	}
 
+	// Build username→member secondary index key so it is cleaned up on delete.
+	if usernameHash := existing.BuildUsernameIndexKey(ctx); usernameHash != "" {
+		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existing.UID))
+	}
+
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
 		"member_uid", uid,
 		"indices_count", len(indicesToDelete),

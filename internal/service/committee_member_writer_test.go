@@ -819,9 +819,16 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	indexKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s",
 		existingMember.CommitteeUID, existingMember.UID)
 	memberWriter.members[indexKey] = existingMember
-	orchestrator.committeeReader = memberWriter
 
 	ctx := context.Background()
+
+	// Pre-register the username→member secondary index key.
+	usernameHash := existingMember.BuildUsernameIndexKey(ctx)
+	usernameIndexKey := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existingMember.UID)
+	memberWriter.members[usernameIndexKey] = existingMember
+
+	orchestrator.committeeReader = memberWriter
+
 	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false, false)
 	require.NoError(t, err)
 
@@ -829,9 +836,13 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	_, primaryStillExists := memberWriter.members["member-del-idx"]
 	assert.False(t, primaryStillExists, "main member record should be deleted")
 
-	// Index key must also have been removed by the cleanup pass.
+	// Committee index key must also have been removed by the cleanup pass.
 	_, indexStillExists := memberWriter.members[indexKey]
 	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
+
+	// Username index key must also have been removed by the cleanup pass.
+	_, usernameIndexStillExists := memberWriter.members[usernameIndexKey]
+	assert.False(t, usernameIndexStillExists, "username→member index key should be cleaned up on delete")
 }
 
 // flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
