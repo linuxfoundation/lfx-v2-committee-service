@@ -1899,6 +1899,18 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 			wantInviteCount: 1,
 			wantInviteRole:  string(inviteapi.InviteRoleView),
 		},
+		{
+			// When the scrub clears Username, classifyCommitteeUsers sees the old
+			// username-keyed entry as removed and the new email-keyed entry as added.
+			// wasInvitedInOldSettings must suppress the invite for the "added" entry
+			// because the email was already present in old settings (as an LFID user).
+			name:            "LF user: username cleared by scrub — removal email sent, no re-invite",
+			oldWriters:      []model.CommitteeUser{alice},
+			newWriters:      []model.CommitteeUser{{Username: "", Email: alice.Email, Name: alice.Name}},
+			wantEmailCount:  1, // removal email for the username-keyed entry that disappeared
+			wantInviteCount: 0, // email-only "added" entry must NOT trigger a re-invite
+			subjectContains: "removed you from",
+		},
 	}
 
 	for _, tt := range tests {
