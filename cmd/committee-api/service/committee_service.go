@@ -1562,12 +1562,14 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 		}
 	}
 
-	subject := fgaconstants.GenericUpdateAccessSubject
+	var pubErr error
 	if action == model.ActionDeleted {
-		subject = fgaconstants.GenericDeleteAccessSubject
+		pubErr = s.publisher.Access(ctx, fgaconstants.GenericDeleteAccessSubject, msg, sync)
+	} else {
+		pubErr = s.publisher.UpdateAccess(ctx, msg)
 	}
 
-	if pubErr := s.publisher.Access(ctx, subject, msg, sync); pubErr != nil {
+	if pubErr != nil {
 		slog.WarnContext(ctx, "failed to publish invite access control message",
 			"error", pubErr,
 			"action", string(action),

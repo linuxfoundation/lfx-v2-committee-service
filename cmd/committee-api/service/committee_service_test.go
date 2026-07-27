@@ -21,6 +21,8 @@ import (
 	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -233,6 +235,88 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	}
 
 	return svc, mockOrchestrator, mockRepo
+}
+
+func TestPublishInviteAccessControlMessage(t *testing.T) {
+	invite := &model.CommitteeInvite{
+		UID:          "invite-1",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "invitee@example.com",
+	}
+	tests := []struct {
+		name             string
+		action           model.MessageAction
+		userReader       *mockUserReader
+		wantRelation     map[string][]string
+		wantExclusions   []string
+		wantUpdateAccess int
+		wantAccess       int
+	}{
+		{
+			name:             "resolved username",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee"),
+			wantRelation:     map[string][]string{constants.RelationInvitee: {"invitee"}},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "missing username",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, ""),
+			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "username lookup failure",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader(),
+			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:       "defensive delete action",
+			action:     model.ActionDeleted,
+			userReader: newMockUserReader(),
+			wantAccess: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			publisher := &mock.MockCommitteePublisher{}
+			svc := &committeeServicesrvc{
+				publisher:  publisher,
+				userReader: tt.userReader,
+			}
+
+			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, true)
+
+			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
+			assert.Equal(t, tt.wantAccess, publisher.AccessCallCount)
+			if tt.action == model.ActionDeleted {
+				assert.Equal(t, fgaconstants.GenericDeleteAccessSubject, publisher.LastAccessSubject)
+				assert.Equal(t, []bool{true}, publisher.AccessSyncValues)
+				msg, ok := publisher.LastAccessMessage.(fgatypes.GenericFGAMessage)
+				require.True(t, ok)
+				assert.Equal(t, "delete_access", msg.Operation)
+				assert.Equal(t, fgatypes.GenericDeleteData{UID: invite.UID}, msg.Data)
+				return
+			}
+
+			msg, ok := publisher.LastUpdateAccessMessage.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "committee_invite", msg.ObjectType)
+			assert.Equal(t, "update_access", msg.Operation)
+			data, ok := msg.Data.(fgatypes.GenericAccessData)
+			require.True(t, ok)
+			assert.Equal(t, invite.UID, data.UID)
+			assert.Equal(t, map[string][]string{
+				constants.RelationCommittee: {invite.CommitteeUID},
+			}, data.References)
+			assert.Equal(t, tt.wantRelation, data.Relations)
+			assert.Equal(t, tt.wantExclusions, data.ExcludeRelations)
+		})
+	}
 }
 
 func TestDeleteCommitteeMember(t *testing.T) {

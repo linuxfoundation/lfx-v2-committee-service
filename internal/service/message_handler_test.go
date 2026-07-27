@@ -22,7 +22,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -511,6 +511,8 @@ type spyCommitteePublisher struct {
 	capturedAccessSubjects []string
 	// capturedAccessMsgs records the raw message value for each Access call.
 	capturedAccessMsgs []any
+	// capturedUpdateAccessMsgs records messages sent through the asynchronous-only operation.
+	capturedUpdateAccessMsgs []any
 }
 
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
@@ -521,6 +523,10 @@ func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any
 func (s *spyCommitteePublisher) Access(_ context.Context, subject string, msg any, _ bool) error {
 	s.capturedAccessSubjects = append(s.capturedAccessSubjects, subject)
 	s.capturedAccessMsgs = append(s.capturedAccessMsgs, msg)
+	return nil
+}
+func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
+	s.capturedUpdateAccessMsgs = append(s.capturedUpdateAccessMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
@@ -2431,8 +2437,15 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
-				require.Len(t, pub.capturedAccessSubjects, 1, "expected one FGA access publish for the pending invite")
-				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
+				require.Len(t, pub.capturedUpdateAccessMsgs, 1, "expected one FGA access publish for the pending invite")
+				assert.Empty(t, pub.capturedAccessSubjects)
+				msg, ok := pub.capturedUpdateAccessMsgs[0].(fgatypes.GenericFGAMessage)
+				require.True(t, ok)
+				data, ok := msg.Data.(fgatypes.GenericAccessData)
+				require.True(t, ok)
+				assert.Equal(t, "pending-invite-1", data.UID)
+				assert.Equal(t, []string{committee1UID}, data.References[constants.RelationCommittee])
+				assert.Equal(t, []string{username}, data.Relations[constants.RelationInvitee])
 			},
 		},
 		{
@@ -2458,7 +2471,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
-				assert.Len(t, pub.capturedAccessSubjects, 2, "expected one FGA publish per pending invite")
+				assert.Len(t, pub.capturedUpdateAccessMsgs, 2, "expected one FGA publish per pending invite")
+				assert.Empty(t, pub.capturedAccessSubjects)
 			},
 		},
 		{
@@ -2476,8 +2490,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
-				require.Len(t, pub.capturedAccessSubjects, 1, "accepted invite should still get FGA invitee grant")
-				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
+				require.Len(t, pub.capturedUpdateAccessMsgs, 1, "accepted invite should still get FGA invitee grant")
+				assert.Empty(t, pub.capturedAccessSubjects)
 			},
 		},
 		{
@@ -2495,7 +2509,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			msgData:         makeEvent(inviteUID, username, writerEmail, string(inviteapi.InviteRoleManage)),
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
-				assert.Empty(t, pub.capturedAccessSubjects, "invite for different email must not trigger FGA publish")
+				assert.Empty(t, pub.capturedUpdateAccessMsgs, "invite for different email must not trigger FGA publish")
+				assert.Empty(t, pub.capturedAccessSubjects)
 			},
 		},
 	}

@@ -532,21 +532,21 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+		return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 	})
 
 	// all messages are executed concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish indexer message",
+		slog.ErrorContext(ctx, "failed to publish committee messages",
 			"error", errPublishingMessage,
 			"committee_uid", committee.CommitteeBase.UID,
 		)
+	} else {
+		slog.DebugContext(ctx, "indexer and access control messages published successfully",
+			"committee_uid", committee.CommitteeBase.UID,
+		)
 	}
-
-	slog.DebugContext(ctx, "indexer and access control messages published successfully",
-		"committee_uid", committee.CommitteeBase.UID,
-	)
 
 	return committee, nil
 }
@@ -756,7 +756,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 		},
 		func() error {
 			committeeEvent := model.CommitteeEvent{}
@@ -775,17 +775,17 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// all messages are executed concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish indexer message",
+		slog.ErrorContext(ctx, "failed to publish committee update messages",
 			"error", errPublishingMessage,
 			"committee_uid", committee.CommitteeBase.UID,
 		)
+	} else {
+		slog.DebugContext(ctx, "committee update messages published successfully",
+			"committee_uid", committee.CommitteeBase.UID,
+			"stale_keys_count", len(staleKeys),
+		)
 	}
 	// ******************************************************
-
-	slog.DebugContext(ctx, "committee update completed successfully",
-		"committee_uid", committee.CommitteeBase.UID,
-		"stale_keys_count", len(staleKeys),
-	)
 
 	// Mark update as successful for defer cleanup
 	updateSucceeded = true
@@ -884,13 +884,13 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 		},
 	}
 
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish access control message",
+		slog.ErrorContext(ctx, "failed to publish committee settings messages",
 			"error", errPublishingMessage,
 			"committee_uid", settings.UID,
 		)

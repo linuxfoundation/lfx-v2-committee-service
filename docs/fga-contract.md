@@ -28,6 +28,14 @@ All messages use the generic FGA message format on the following NATS subjects:
 
 Each message carries `object_type`, `operation`, and a `data` map. The sections below describe the `data` contents for each operation.
 
+### Delivery and `X-Sync`
+
+`lfx.fga-sync.update_access` is always sent with core NATS publish. Publication is asynchronous: `X-Sync: true` does not wait for fga-sync processing or OpenFGA convergence. `X-Sync` continues to request synchronous processing for applicable downstream operations, including indexer messages.
+
+For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds. A successful publish means that core NATS accepted the message; it does not mean that fga-sync or OpenFGA finished processing it.
+
+This asynchronous-only rule applies to `update_access`. The existing transport selection and payloads for `delete_access`, `member_put`, and `member_remove` are unchanged in this phase.
+
 ---
 
 ## Committee
@@ -160,7 +168,7 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 
 ### delete_access (Delete)
 
-Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Removes all FGA tuples for the `committee_invite:{uid}` object.
+The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. No current production callsite invokes this branch.
 
 ---
 

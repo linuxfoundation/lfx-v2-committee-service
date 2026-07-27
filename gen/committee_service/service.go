@@ -553,8 +553,9 @@ type CreateCommitteeLinkFolderPayload struct {
 	UID *string
 	// Folder name
 	Name string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -575,8 +576,9 @@ type CreateCommitteeLinkPayload struct {
 	Description *string
 	// Optional folder UID to place this link in
 	FolderUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -587,8 +589,9 @@ type CreateCommitteeMemberPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// When true, suppress the notification email sent to the committee member
 	// (whether added or removed)
@@ -651,8 +654,9 @@ type CreateCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
@@ -722,8 +726,9 @@ type CreateInvitePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -768,8 +773,9 @@ type DeleteCommitteeDocumentPayload struct {
 	DocumentUID string
 	// If-Match header value for conditional requests
 	IfMatch string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -786,8 +792,9 @@ type DeleteCommitteeLinkFolderPayload struct {
 	UID *string
 	// Committee folder UID
 	FolderUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -804,8 +811,9 @@ type DeleteCommitteeLinkPayload struct {
 	UID *string
 	// Committee link UID
 	LinkUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -818,8 +826,9 @@ type DeleteCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// When true, suppress the notification email sent to the committee member
 	// (whether added or removed)
@@ -839,8 +848,9 @@ type DeleteCommitteePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -1141,8 +1151,9 @@ type JoinCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -1163,8 +1174,9 @@ type LeaveCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -1305,8 +1317,9 @@ type SubmitApplicationPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -1326,8 +1339,9 @@ type UpdateCommitteeBasePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -1385,8 +1399,9 @@ type UpdateCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// When true, skip auth-service enrichment: the username, name, and avatar from
 	// the request body are stored as-is without email→username lookup or profile
@@ -1450,8 +1465,9 @@ type UpdateCommitteeSettingsPayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -1509,8 +1525,9 @@ type UploadCommitteeDocumentPayload struct {
 	ContentType string
 	// File content
 	File []byte
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access publication remains
+	// asynchronous and does not wait for FGA processing or OpenFGA convergence.
 	XSync bool
 }
 
