@@ -559,15 +559,32 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 }
 
 // V1UserDeletedEvent is the payload published by v1-sync-helper on "lfx.v1-sync-helper.user.deleted"
-// when a merged user record is soft-deleted. Username is the user's LFID.
+// when a merged user record is soft-deleted. Username is the user's LFID; Email is the deleted
+// account's primary email when available so scrubbers can distinguish LFID reuse.
 type V1UserDeletedEvent struct {
 	Username string `json:"username"`
+	Email    string `json:"email,omitempty"`
 }
 
 // usernameMatches reports whether storedUsername represents the same LFID as deletedUsername,
 // using the same TrimSpace+ToLower normalization as BuildUsernameIndexKey.
 func usernameMatches(deletedUsername, storedUsername string) bool {
-	return strings.EqualFold(strings.TrimSpace(deletedUsername), strings.TrimSpace(storedUsername))
+	deleted := strings.TrimSpace(deletedUsername)
+	stored := strings.TrimSpace(storedUsername)
+	if deleted == "" || stored == "" {
+		return false
+	}
+	return strings.EqualFold(deleted, stored)
+}
+
+// emailMatches reports whether two email addresses refer to the same mailbox.
+func emailMatches(deletedEmail, storedEmail string) bool {
+	deleted := strings.ToLower(strings.TrimSpace(deletedEmail))
+	stored := strings.ToLower(strings.TrimSpace(storedEmail))
+	if deleted == "" || stored == "" {
+		return false
+	}
+	return deleted == stored
 }
 
 // HandleUserDeleted scrubs the deleted user's username from committee members and settings.
@@ -578,7 +595,7 @@ func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg 
 		slog.ErrorContext(ctx, "failed to unmarshal V1UserDeletedEvent — discarding", "error", err)
 		return nil, nil
 	}
-	if event.Username == "" {
+	if strings.TrimSpace(event.Username) == "" {
 		slog.WarnContext(ctx, "user.deleted event missing username — nothing to scrub")
 		return nil, nil
 	}
@@ -589,14 +606,14 @@ func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg 
 
 	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data")
 
-	m.scrubUsernameFromMembers(ctx, event.Username)
-	m.scrubUsernameFromSettings(ctx, event.Username)
+	m.scrubUsernameFromMembers(ctx, event.Username, event.Email)
+	m.scrubUsernameFromSettings(ctx, event.Username, event.Email)
 	return nil, nil
 }
 
 // scrubUsernameFromMembers clears the username from committee member records that match the
 // deleted user's LFID. Uses the committee-members username secondary index for an efficient lookup.
-func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Context, username string) {
+func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Context, username, deletedEmail string) {
 	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee reader/writer not configured — skipping member username scrub")
 		return
@@ -626,6 +643,11 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 					"member_uid", member.UID)
 				break
 			}
+			if deletedEmail != "" && current.Email != "" && !emailMatches(deletedEmail, current.Email) {
+				slog.DebugContext(ctx, "committee member username matches but email differs — skipping reuse guard",
+					"member_uid", member.UID)
+				break
+			}
 
 			current.Username = ""
 			if _, err := m.committeeWriterOrchestrator.UpdateMember(ctx, current, revision, false, true); err != nil {
@@ -650,7 +672,7 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 // scrubUsernameFromSettings clears the username from committee settings writers/auditors
 // that match the deleted user's LFID. Full scan: no username index exists for settings
 // (mirrors HandleInviteAccepted pattern).
-func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Context, username string) {
+func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Context, username, deletedEmail string) {
 	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee reader/writer not configured — skipping settings username scrub")
 		return
@@ -666,13 +688,13 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Conte
 		"username", redaction.Redact(username), "committee_count", len(allUIDs))
 
 	for _, committeeUID := range allUIDs {
-		m.scrubUsernameFromOneCommitteeSettings(ctx, committeeUID, username)
+		m.scrubUsernameFromOneCommitteeSettings(ctx, committeeUID, username, deletedEmail)
 	}
 }
 
 // scrubUsernameFromOneCommitteeSettings fetches settings for a single committee, clears the
 // username on any writer/auditor entry that matches, and persists.
-func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username string) {
+func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username, deletedEmail string) {
 	const maxRetries = 4
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
@@ -688,17 +710,25 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx c
 		changed := false
 		for i := range settings.Writers {
 			w := &settings.Writers[i]
-			if usernameMatches(username, w.Username) {
-				w.Username = ""
-				changed = true
+			if !usernameMatches(username, w.Username) {
+				continue
 			}
+			if deletedEmail != "" && w.Email != "" && !emailMatches(deletedEmail, w.Email) {
+				continue
+			}
+			w.Username = ""
+			changed = true
 		}
 		for i := range settings.Auditors {
 			a := &settings.Auditors[i]
-			if usernameMatches(username, a.Username) {
-				a.Username = ""
-				changed = true
+			if !usernameMatches(username, a.Username) {
+				continue
 			}
+			if deletedEmail != "" && a.Email != "" && !emailMatches(deletedEmail, a.Email) {
+				continue
+			}
+			a.Username = ""
+			changed = true
 		}
 
 		if !changed {
