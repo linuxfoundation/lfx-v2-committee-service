@@ -40,6 +40,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeLinkCreatedSubject:          mhs.handleCommitteeLinkCreated,
 		constants.CommitteeApplicationSubmittedSubject: mhs.handleCommitteeApplicationSubmitted,
 		constants.CommitteeApplicationUpdatedSubject:   mhs.handleCommitteeApplicationUpdated,
+		constants.V1SyncHelperUserDeletedSubject:       mhs.handleUserDeleted,
 	}
 
 	handler, ok := handlers[subject]
@@ -123,6 +124,10 @@ func (mhs *MessageHandlerService) handleCommitteeApplicationUpdated(ctx context.
 
 func (mhs *MessageHandlerService) handleCommitteeGetProject(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeGetProject(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleUserDeleted(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {

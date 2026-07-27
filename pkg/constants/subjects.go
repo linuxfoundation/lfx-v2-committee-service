@@ -88,6 +88,12 @@ const (
 	// MailingListCommitteeChangedSubject is consumed from mailing-list-api when
 	// committee-related mailing list state changes (e.g. has_mailing_list flag).
 	MailingListCommitteeChangedSubject = "lfx.mailing-list-api.committee_mailing_list.changed"
+
+	// V1SyncHelperUserDeletedSubject is emitted by v1-sync-helper when a merged user record is
+	// soft-deleted. The committee service subscribes to scrub the deleted user's username from
+	// all committee member records and committee settings writers/auditors that carry it.
+	// Payload: JSON-encoded V1UserDeletedEvent (see internal/service/message_handler.go).
+	V1SyncHelperUserDeletedSubject = "lfx.v1-sync-helper.user.deleted"
 )
 
 // Event subjects emitted by the committee service for general consumption by any service

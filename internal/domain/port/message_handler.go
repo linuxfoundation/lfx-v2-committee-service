@@ -75,6 +75,13 @@ type WeeklyBriefGenerateHandler interface {
 	HandleGenerateWeeklyBriefRequested(ctx context.Context, msg StreamMessenger) error
 }
 
+// UserEventHandler handles user lifecycle events from external services.
+type UserEventHandler interface {
+	// HandleUserDeleted scrubs the deleted user's username from committee members
+	// and settings writers/auditors that still carry it.
+	HandleUserDeleted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+}
+
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.
 type MessageHandler interface {
 	CommitteeAttributeHandler
@@ -82,4 +89,5 @@ type MessageHandler interface {
 	CommitteeMailingListHandler
 	CommitteeNotificationHandler
 	WeeklyBriefGenerateHandler
+	UserEventHandler
 }
