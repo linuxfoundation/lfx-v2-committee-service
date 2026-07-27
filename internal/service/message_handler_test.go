@@ -2853,7 +2853,9 @@ func TestHandleUserDeleted(t *testing.T) {
 			assert.Equal(t, tt.wantUpdateSettingsCalls, spy.updateSettingsCalls,
 				"UpdateSettings call count mismatch")
 
-			if tt.validateSkipEnrichment && len(spy.capturedSkipEnrichment) > 0 {
+			if tt.validateSkipEnrichment {
+				require.Len(t, spy.capturedSkipEnrichment, tt.wantUpdateMemberCalls,
+					"capturedSkipEnrichment length mismatch")
 				// Check all captured skipEnrichment values are true
 				for i, val := range spy.capturedSkipEnrichment {
 					assert.True(t, val, "skipEnrichment should be true for call %d", i+1)
