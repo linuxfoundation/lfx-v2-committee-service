@@ -114,8 +114,12 @@ Run these on the changed code, scaled to the size of the change:
 - **The generated-code boundary.** `gen/` is Goa output. A hand-edit there is a
   finding; the change belongs in `cmd/committee-api/design/` followed by
   `make apigen`, with the regenerated output committed alongside the design
-  change. A design change with no regenerated output, or regenerated output with
-  no design change, is a mismatch worth raising.
+  change. A design change with no regenerated output is a mismatch worth
+  raising. The inverse needs a moment's thought first: regenerated output with
+  no design change is expected when the pinned generator or runtime moves, so
+  check whether the PR bumps them before treating it as a hand edit. What is a
+  finding is a change under `gen/` that neither a design edit nor a tool bump
+  explains.
 - **Emitted contracts.** Indexer and FGA messages are how the rest of the
   platform learns about committee state. A new indexed resource that ships
   without the indexing configuration its siblings have is silently invisible to
