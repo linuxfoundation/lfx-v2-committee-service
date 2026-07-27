@@ -14,11 +14,12 @@ description: >
 
 # Committee Service Code Review
 
-The `/copilot-code-reviewer` skill owns the reviewer's scope and signal
-discipline; this skill owns the line-level method. Read enough surrounding code
-to judge each hunk in its real context — for a handler change, the design →
-presentation → service → storage path it sits on; for a storage change, the
-writer and reader that call it and the message publishes that follow the write.
+Reviewer scope and the signal bar are owned by the `copilot-code-reviewer` skill
+(`.github/skills/copilot-code-reviewer/SKILL.md`); this skill assumes those and
+owns the line-level method. Read enough surrounding code to judge each hunk in
+its real context — for a handler change, the design → presentation → service →
+storage path it sits on; for a storage change, the writer and reader that call
+it and the message publishes that follow the write.
 
 A diff alone is not enough. For each non-trivial hunk, read the **whole changed
 function**, not just the diff lines, and grep for **callers and sibling
@@ -198,11 +199,17 @@ not a reportable security finding.
   this bites.
 - **Ownership checks on self-service flows.** Accept, decline, join, leave, and
   application submission are called by ordinary users, not admins. Each needs the
-  resolved caller identity compared against the record it is acting on, and each
-  needs the committee's membership mode checked before it proceeds. Flag a flow
-  that trusts a UID from the path or body as proof of ownership, and a mode gate
-  written as a negative or partial condition where a positive equality check is
-  needed.
+  resolved caller identity compared against the record it is acting on; flag a
+  flow that trusts a UID from the path or body as proof of ownership. The
+  membership-mode gate is a separate and narrower check: it belongs on the entry
+  paths the mode actually governs — `SubmitApplication` (`join_mode ==
+  "application"`) and `JoinCommittee` (`join_mode == "open"`) — where a gate
+  written as a negative or partial condition instead of a positive equality
+  check lets an empty or unknown `join_mode` through. Accepting or declining an
+  invite, and leaving a committee, act on records that already exist and are
+  gated by ownership alone; do not flag them for a missing mode check, and treat
+  a mode gate added to `LeaveCommittee` as a finding in its own right, since it
+  would trap members in a committee whose mode later changed.
 - **Local-development bypasses.** The auth layer supports a mock principal for
   local runs. Any change that lets such a bypass be reachable in a deployed
   configuration, or that widens what it grants, is a finding.
