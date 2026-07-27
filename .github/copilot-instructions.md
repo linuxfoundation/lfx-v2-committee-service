@@ -22,6 +22,10 @@ they are this repo's review method.
 
 ## Shared context
 
+What follows states this repo's invariants, not an inventory of its current
+shape: for any specific route, package, or contract, the code and this repo's
+docs are the authority for what it looks like today.
+
 This repo is the LFX V2 committee service, a Go service that owns committees,
 committee members and settings, committee links, folders and documents, the
 invite and application flows, working-group weekly briefs, and the operational
@@ -38,9 +42,11 @@ the source, `gen/` is produced from it by `make apigen`, and generated files are
 not hand-edited. Requests reach the service through Heimdall, which runs the
 per-route rules declared in this repo's own Helm chart — including, where
 enabled, the OpenFGA authorization checks — and mints the JWT the service then
-validates and reads its principal and email claims from. So authorization for a
-given route lives in two places that have to agree: the chart's RuleSet and the
-service's own in-handler checks.
+validates and reads its principal and email claims from. Authorization is split
+between the chart's RuleSet and the service's own in-handler checks. Every route
+is authorized; which of the two layers carries it is a per-route decision, so
+read the rule and the handler together and take a given route's shape from
+`charts/lfx-v2-committee-service/templates/ruleset.yaml`.
 
 `CLAUDE.md` at the repo root, and the files under `.claude/`, are this repo's
 guide for the humans and local agents who *write* the code; `CLAUDE.md` also

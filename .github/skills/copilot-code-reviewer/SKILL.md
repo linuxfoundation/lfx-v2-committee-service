@@ -41,17 +41,22 @@ types; `internal/domain/` holds the models and the port interfaces;
 `internal/service/` holds the use cases; `internal/infrastructure/` holds the
 NATS storage, auth, AI, M2M source clients, and the mocks; `pkg/` holds the
 shared utilities (`constants`, `errors`, `log`, `redaction`, and friends).
-Business logic that lands in the presentation layer, or HTTP transport concerns
-that leak into the use-case layer, is a layering finding even when it works.
+The invariant is the direction of dependency, not where every decision sits:
+HTTP transport concerns leaking into the use-case layer is a finding, but the
+presentation layer is not a pure adapter here — some flows deliberately keep
+their decisions there. Judge placement against the nearest sibling flow.
 
-Authorization arrives in two halves that must agree. Heimdall sits in front,
-runs the per-route rules declared in this repo's Helm chart under
+Authorization is split across two layers. Heimdall sits in front, runs the
+per-route rules declared in this repo's Helm chart under
 `charts/lfx-v2-committee-service/` — including, where enabled, the OpenFGA
 authorization checks — and mints the JWT the service validates against
 Heimdall's JWKS; the service then reads the principal and email claims from the
-request context and applies its own in-handler checks — invite ownership,
-join-mode gating, and the like. A route whose chart rule and in-handler check
-disagree is a real gap, not a style issue. Place each change against this shape.
+request context and may apply its own in-handler checks — invite ownership,
+join-mode gating, and the like. Every route is authorized; which layer carries
+it is a per-route decision, so read the chart rule and the handler together
+before judging either. Place each change against this shape — and take the
+specifics of any one route or package from the code and this repo's docs, not
+from this description.
 
 ## Your knowledge sources
 
@@ -151,10 +156,10 @@ costs the author attention; spend it only where it changes the outcome:
   not findings.
   Be equally clear about what the pipeline does *not* cover: the working-group
   weekly-brief live-LLM eval is a release gate on `v*` tags, not per-PR
-  coverage, and none of the documented conventions in this repo — contract docs
-  kept in sync, chart and code changing in lockstep, typed domain errors,
-  redaction of identifiers in logs, subject and bucket names centralized in
-  `pkg/constants` — are lint-enforced. Those remain fair game, and
+  coverage, and the documented conventions in this repo — contract docs kept in
+  sync, chart and code changing in lockstep, typed domain errors, redaction of
+  identifiers in logs, subject and bucket names centralized in `pkg/constants` —
+  are not lint-enforced today. Those remain fair game, and
   `committee-service-code-review` expects them held to.
 - **One comment per issue.** If the same defect repeats across lines or files,
   raise it once and note where else it applies.

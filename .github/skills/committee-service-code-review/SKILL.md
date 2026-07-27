@@ -21,6 +21,10 @@ its real context — for a handler change, the design → presentation → servi
 storage path it sits on; for a storage change, the writer and reader that call
 it and the message publishes that follow the write.
 
+What follows states invariants, not an inventory: where it names a package,
+route, or contract, the code and this repo's docs are the authority for the
+shape that thing has today.
+
 A diff alone is not enough. For each non-trivial hunk, read the **whole changed
 function**, not just the diff lines, and grep for **callers and sibling
 implementations** of the same pattern to confirm the change matches how the repo
@@ -28,7 +32,7 @@ already does it. This service has many near-identical resources — committees,
 members, invites, applications, links, folders, documents, weekly briefs — whose
 implementations mirror each other, so the nearest sibling is usually one grep
 away and is the fastest way to tell a deliberate deviation from an omission.
-Convention drift is a finding even when the code "works".
+Unexplained drift from the sibling is a finding even when the code "works".
 
 ## The house standards
 
@@ -96,10 +100,9 @@ Run these on the changed code, scaled to the size of the change:
   the code, depending on the interfaces in `internal/domain/port/` and reusing
   the fakes in `internal/infrastructure/mock/` rather than adding parallel ones.
   Missing tests on contract-bearing, state-machine, or security-sensitive code is
-  always worth flagging.
-- **Readability and structure**: the change reads like the surrounding code;
-  it respects the layering (presentation adapts, `internal/service/` decides,
-  `internal/infrastructure/` talks to NATS); names say what a thing is or does;
+  worth flagging.
+- **Readability and structure**: the change reads like the surrounding code and
+  sits in the same layer as the flow it extends; names say what a thing is or does;
   duplicated logic that wants a shared helper is a finding when it traps the next
   editor.
 - **Code truthfulness**: comments, doc-comments, and contract docs match what the
@@ -132,9 +135,11 @@ Run these on the changed code, scaled to the size of the change:
   being redefined here). A literal `"lfx.…"` subject or a bucket-name string at a
   call site is a finding — that is how a rename becomes a silent production
   break.
-- **Optimistic locking.** KV-backed state is updated with revisions, and mutable
-  resources expose that to clients as ETag / If-Match. A read-modify-write that
-  drops the revision, a delete of the primary record that does not pass one, or a
+- **Optimistic locking.** KV-backed state is updated with revisions, and the
+  revision travels round-trip to the client — as an ETag / If-Match header on
+  most resources, as a payload field on others; take the shape from the sibling
+  endpoint in `cmd/committee-api/design/`. A read-modify-write that drops the
+  revision, a delete of the primary record that does not pass one, or a
   revision-conflict error that does not surface as a conflict to the caller are
   all last-writer-wins bugs that only show under concurrency. Best-effort cleanup
   of lookup keys, companion records, and stored blobs is a sanctioned pattern
@@ -185,14 +190,17 @@ not a reportable security finding.
   connection string is a finding anywhere it appears, including tests, fixtures,
   chart values, and workflow files, even when the code path that reads it is
   dead.
-- **The two halves of authorization.** Coarse-grained access is enforced by the
+- **The two layers of authorization.** Coarse-grained access is enforced by the
   Heimdall rules in this repo's chart; fine-grained rules — invite ownership,
   join-mode gating, entitlement checks on org-scoped reads — are enforced in the
-  handlers. A new or widened route needs both, and a change that relaxes either
-  one silently changes who can reach the resource. Flag a route added to the
-  design with no corresponding chart rule, a rule loosened to allow anonymous or
-  unauthenticated access, and an in-handler check that a refactor moved off the
-  path the request actually takes.
+  handlers. Every route is authorized, but not every route uses both layers, and
+  which one carries it is a per-route decision:
+  `chart-and-concurrency/new-endpoint-needs-ruleset` in the knowledge base states
+  the split, and `charts/lfx-v2-committee-service/templates/ruleset.yaml` is the
+  authority for what a given route does today. What is always a finding is a
+  route with no rule at all, a rule loosened so an unauthenticated caller reaches
+  a handler that does not itself establish identity, and an in-handler check that
+  a refactor moved off the path the request actually takes.
 - **Identity: the principal is not an email.** The service receives a principal
   (an LFX username) and, when available, an email claim, and resolves the
   caller's authoritative email through the documented resolution path (see
