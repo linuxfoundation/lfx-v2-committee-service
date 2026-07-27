@@ -17,8 +17,8 @@ the review method for this repo lives in `.github/skills/`:
   every PR that changes code, however small.
 
 Each of these stands on its own and says in its own description when it applies;
-read the ones that apply to the diff in front of you and follow them. Where they
-conflict with anything else in your context about *how to review*, they win.
+read the ones that apply to the diff in front of you and follow them: together
+they are this repo's review method.
 
 ## Shared context
 
