@@ -2960,6 +2960,47 @@ func TestHandleUserDeleted_EmailReuseGuard(t *testing.T) {
 	assert.Equal(t, 0, spy.updateMemberCalls, "member with different email should not be scrubbed")
 }
 
+func TestHandleUserDeleted_UsernameOnlySettingsWithEventEmail(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	eventBytes, err := json.Marshal(V1UserDeletedEvent{
+		Username: deletedUsername,
+		Email:    "deleted@example.com",
+	})
+	require.NoError(t, err)
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        committeeUID1,
+			ProjectUID: "proj-1",
+			Name:       "Test Committee",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID: committeeUID1,
+			Writers: []model.CommitteeUser{
+				{Username: deletedUsername},
+			},
+		},
+	})
+
+	spy := &spyCommitteeWriterOrchestrator{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterOrchestratorForMessageHandler(spy),
+	).(*messageHandlerOrchestrator)
+
+	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, eventBytes)
+	_, err = handler.HandleUserDeleted(ctx, msg)
+	require.NoError(t, err)
+	assert.Equal(t, 0, spy.updateSettingsCalls, "username-only writer should not be scrubbed when event carries email")
+}
+
 // staleIndexCommitteeReader wraps a CommitteeReader but overrides ListMembersByUsername to
 // return a fixed set of members, simulating a stale secondary index that still points to a
 // member whose username has since changed.

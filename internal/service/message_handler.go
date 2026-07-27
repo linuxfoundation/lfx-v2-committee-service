@@ -643,10 +643,17 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Contex
 					"member_uid", member.UID)
 				break
 			}
-			if deletedEmail != "" && current.Email != "" && !emailMatches(deletedEmail, current.Email) {
-				slog.DebugContext(ctx, "committee member username matches but email differs — skipping reuse guard",
-					"member_uid", member.UID)
-				break
+			if deletedEmail != "" {
+				if current.Email == "" {
+					slog.DebugContext(ctx, "committee member username matches but entry is email-less — skipping",
+						"member_uid", member.UID)
+					break
+				}
+				if !emailMatches(deletedEmail, current.Email) {
+					slog.DebugContext(ctx, "committee member username matches but email differs — skipping reuse guard",
+						"member_uid", member.UID)
+					break
+				}
 			}
 
 			current.Username = ""
@@ -713,8 +720,13 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx c
 			if !usernameMatches(username, w.Username) {
 				continue
 			}
-			if deletedEmail != "" && w.Email != "" && !emailMatches(deletedEmail, w.Email) {
-				continue
+			if deletedEmail != "" {
+				if w.Email == "" {
+					continue
+				}
+				if !emailMatches(deletedEmail, w.Email) {
+					continue
+				}
 			}
 			w.Username = ""
 			changed = true
@@ -724,8 +736,13 @@ func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx c
 			if !usernameMatches(username, a.Username) {
 				continue
 			}
-			if deletedEmail != "" && a.Email != "" && !emailMatches(deletedEmail, a.Email) {
-				continue
+			if deletedEmail != "" {
+				if a.Email == "" {
+					continue
+				}
+				if !emailMatches(deletedEmail, a.Email) {
+					continue
+				}
 			}
 			a.Username = ""
 			changed = true
