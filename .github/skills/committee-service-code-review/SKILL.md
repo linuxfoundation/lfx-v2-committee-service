@@ -101,10 +101,12 @@ Run these on the changed code, scaled to the size of the change:
   `internal/infrastructure/` talks to NATS); names say what a thing is or does;
   duplicated logic that wants a shared helper is a finding when it traps the next
   editor.
-- **Code truthfulness**: comments, doc-comments, contract docs, and the PR
-  description match what the code actually does. A stale comment on a constant,
-  a contract doc describing a field the code no longer emits, or a TODO dressed
-  as done is a finding.
+- **Code truthfulness**: comments, doc-comments, and contract docs match what the
+  code actually does. A stale comment on a constant, a contract doc describing a
+  field the code no longer emits, or a TODO dressed as done is a finding. The PR
+  description is not in scope here — "the description says X but the code does Y"
+  is a class of comment the team has already rejected
+  (`docs/reviews/knowledge-base/known-false-positives.md`).
 
 ## Committee-service specifics worth a second look
 
@@ -250,7 +252,8 @@ not a reportable security finding.
 - **Do not propose rewrites of a sound approach**, and do not suggest change for
   its own sake; working, readable code needs no improvement.
 - **Know your limits.** Distinguish "this is wrong" from "this might be a problem
-  depending on context", and say which one you mean. When a judgment depends on
-  something you cannot see — the OpenFGA model, the generic fga-sync or indexer
-  envelope, a deployed chart value, another service's contract — note the
-  dependency rather than asserting a defect you cannot confirm.
+  depending on context"; only the first is worth an author's attention. When a
+  judgment depends on something you cannot see — the OpenFGA model, the generic
+  fga-sync or indexer envelope, a deployed chart value, another service's
+  contract — you cannot confirm it, so say nothing: do not assert the defect, and
+  do not ask the author to verify it for you.
