@@ -23,7 +23,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -1076,7 +1075,7 @@ func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.C
 				},
 			},
 		}
-		if pubErr := m.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, msg, false); pubErr != nil {
+		if pubErr := m.committeePublisher.UpdateAccess(ctx, msg); pubErr != nil {
 			slog.WarnContext(ctx, "failed to publish FGA invitee grant for committee invite",
 				"invite_uid", invite.UID, "committee_uid", e.committeeUID,
 				"username", redaction.Redact(e.username), "error", pubErr)

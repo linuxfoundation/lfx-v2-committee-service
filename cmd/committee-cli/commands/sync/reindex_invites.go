@@ -15,7 +15,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
@@ -300,5 +299,5 @@ func publishAccessControlMessage(ctx context.Context, rc commands.RunContext, in
 		Data:       data,
 	}
 
-	return rc.Publisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, msg, false)
+	return rc.Publisher.UpdateAccess(ctx, msg)
 }
