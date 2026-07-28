@@ -997,8 +997,9 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 	s.enrichMember(ctx, member)
 
-	// sync=true: ensures the FGA member tuple is written before this endpoint returns,
-	// so any subsequent access check on this committee sees the membership immediately.
+	// sync=true: requests synchronous member_put so that, in the normal case, the FGA
+	// tuple is written before this endpoint returns and subsequent access checks see
+	// the membership immediately. Publish errors are best-effort (logged, not fatal).
 	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, true, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
