@@ -997,7 +997,9 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 	s.enrichMember(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
+	// sync=true: the FGA member_put must be confirmed before returning so the caller
+	// can navigate immediately to the FGA-gated committee page without a 403.
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, true, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
