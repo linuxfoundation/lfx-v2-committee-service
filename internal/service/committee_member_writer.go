@@ -301,6 +301,22 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errEmailIndex
 	}
 
+	// Step 8e: Write the username→member secondary index so the user-deleted scrub can find all
+	// committee seats for a given LFID via a server-side filtered scan rather than a full bucket scan.
+	// No-op (empty key) for members with no username.
+	usernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+	if usernameIndexKey != "" {
+		keys = append(keys, usernameIndexKey)
+	}
+	if errUsernameIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member username index",
+			"error", errUsernameIndex,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errUsernameIndex
+	}
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -659,6 +675,32 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		}
 	}
 
+	// Step 7c: Reconcile the username→member secondary index when the username changes.
+	// Write the new entry first (tracked for rollback), then mark the old one stale for
+	// post-update cleanup. Members with no new username skip the write; members with no old
+	// username skip the stale-key append.
+	oldUsernameHash := existing.BuildUsernameIndexKey(ctx)
+	newUsernameHash := member.BuildUsernameIndexKey(ctx)
+	if oldUsernameHash != newUsernameHash {
+		if newUsernameHash != "" {
+			newUsernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+			if newUsernameIndexKey != "" {
+				newKeys = append(newKeys, newUsernameIndexKey)
+			}
+			if errUsernameIndex != nil {
+				slog.ErrorContext(ctx, "failed to write username index during member update",
+					"error", errUsernameIndex,
+					"member_uid", member.UID,
+				)
+				rollbackRequired = true
+				return nil, errUsernameIndex
+			}
+		}
+		if oldUsernameHash != "" {
+			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, oldUsernameHash, existing.UID))
+		}
+	}
+
 	// Step 8: Update the member in storage
 	updatedMember, errUpdate := uc.committeeWriter.UpdateMember(ctx, member, revision)
 	if errUpdate != nil {
@@ -772,6 +814,11 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 	// Build email→member secondary index key so it is cleaned up on delete.
 	if emailHash := existing.BuildEmailIndexKey(ctx); emailHash != "" {
 		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, emailHash, existing.UID))
+	}
+
+	// Build username→member secondary index key so it is cleaned up on delete.
+	if usernameHash := existing.BuildUsernameIndexKey(ctx); usernameHash != "" {
+		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existing.UID))
 	}
 
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
@@ -1200,6 +1247,12 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			// Only publish access message if username is present
 			// Without a username, there's no user identity to grant access to in FGA
 			if data.Member.Username == "" {
+				// If username was cleared on update (e.g. user-deleted scrub), revoke the old FGA tuple
+				// so the deleted identity no longer holds the member relation on this committee.
+				if action == model.ActionUpdated && data.OldMember != nil && data.OldMember.Username != "" {
+					oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
+					return uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync)
+				}
 				slog.DebugContext(ctx, "skipping access message for member without username",
 					"member_uid", data.Member.UID,
 					"action", action,

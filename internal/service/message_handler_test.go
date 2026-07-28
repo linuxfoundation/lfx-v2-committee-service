@@ -668,10 +668,11 @@ type spyCommitteeWriterOrchestrator struct {
 	updateErr        error
 	updatedCommittee *model.Committee
 
-	updateMemberCalls int
-	updateMemberErr   error
-	updateMemberErrs  []error
-	updatedMembers    []*model.CommitteeMember
+	updateMemberCalls      int
+	updateMemberErr        error
+	updateMemberErrs       []error
+	updatedMembers         []*model.CommitteeMember
+	capturedSkipEnrichment []bool
 
 	updateSettingsCalls int
 	updateSettingsErr   error
@@ -720,6 +721,7 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
+	s.capturedSkipEnrichment = append(s.capturedSkipEnrichment, skipEnrichment)
 	if len(s.updateMemberErrs) > 0 {
 		err := s.updateMemberErrs[0]
 		s.updateMemberErrs = s.updateMemberErrs[1:]
@@ -1903,6 +1905,18 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 			wantInviteCount: 1,
 			wantInviteRole:  string(inviteapi.InviteRoleView),
 		},
+		{
+			// When the scrub clears Username, classifyCommitteeUsers sees the old
+			// username-keyed entry as removed and the new email-keyed entry as added.
+			// wasInvitedInOldSettings must suppress the invite for the "added" entry
+			// because the email was already present in old settings (as an LFID user).
+			name:            "LF user: username cleared by scrub — removal email sent, no re-invite",
+			oldWriters:      []model.CommitteeUser{alice},
+			newWriters:      []model.CommitteeUser{{Username: "", Email: alice.Email, Name: alice.Name}},
+			wantEmailCount:  1, // removal email for the username-keyed entry that disappeared
+			wantInviteCount: 0, // email-only "added" entry must NOT trigger a re-invite
+			subjectContains: "removed you from",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2662,4 +2676,413 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
 	return b
+}
+
+func TestHandleUserDeleted(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	makeEvent := func(username string) []byte {
+		b, _ := json.Marshal(V1UserDeletedEvent{Username: username})
+		return b
+	}
+
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
+		h := NewMessageHandlerOrchestrator(
+			WithCommitteeReaderForMessageHandler(
+				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
+			),
+			WithCommitteeWriterOrchestratorForMessageHandler(spy),
+		)
+		return h.(*messageHandlerOrchestrator)
+	}
+
+	tests := []struct {
+		name                    string
+		data                    []byte
+		setupRepo               func(*mock.MockRepository)
+		spyMemberErrs           []error
+		wantUpdateMemberCalls   int
+		wantUpdateSettingsCalls int
+		validateMembers         func(*testing.T, []*model.CommitteeMember)
+		validateSettings        func(*testing.T, []*model.CommitteeSettings)
+		validateSkipEnrichment  bool
+	}{
+		{
+			name:                  "empty username: event discarded — no updates",
+			data:                  makeEvent(""),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name:                  "whitespace-only username: event discarded — no updates",
+			data:                  makeEvent("   "),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name:                  "invalid JSON: unmarshal error returned — no updates",
+			data:                  []byte(`not-json`),
+			setupRepo:             func(_ *mock.MockRepository) {},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name: "member match — username cleared, skipEnrichment = true",
+			data: makeEvent(deletedUsername),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-1",
+						CommitteeUID: committeeUID1,
+						Username:     deletedUsername,
+						Email:        "deleted@example.com",
+					},
+				})
+			},
+			wantUpdateMemberCalls:  1,
+			validateSkipEnrichment: true,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "", captured[0].Username, "member username should be cleared")
+				assert.Equal(t, "deleted@example.com", captured[0].Email, "member email should be unchanged")
+			},
+		},
+		{
+			name: "event username case differs from stored member — still scrubbed",
+			data: makeEvent("Deleted.User"),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-case",
+						CommitteeUID: committeeUID1,
+						Username:     "deleted.user",
+						Email:        "deleted@example.com",
+					},
+				})
+			},
+			wantUpdateMemberCalls:  1,
+			validateSkipEnrichment: true,
+			validateMembers: func(t *testing.T, captured []*model.CommitteeMember) {
+				require.Len(t, captured, 1)
+				assert.Equal(t, "", captured[0].Username)
+			},
+		},
+		{
+			data: makeEvent(deletedUsername),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-2",
+						CommitteeUID: committeeUID1,
+						Username:     "otheruser",
+						Email:        "other@example.com",
+					},
+				})
+			},
+			wantUpdateMemberCalls: 0,
+		},
+		{
+			name: "conflict retry — retries and succeeds on second attempt",
+			data: makeEvent(deletedUsername),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee 1",
+					},
+				})
+				repo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:          "member-4",
+						CommitteeUID: committeeUID1,
+						Username:     deletedUsername,
+						Email:        "deleted@example.com",
+					},
+				})
+			},
+			spyMemberErrs:          []error{errs.NewConflict("revision mismatch"), nil},
+			wantUpdateMemberCalls:  2,
+			validateSkipEnrichment: true,
+		},
+		{
+			name: "settings match — writer username cleared",
+			data: makeEvent(deletedUsername),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee",
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID: committeeUID1,
+						Writers: []model.CommitteeUser{
+							{Username: deletedUsername, Email: "deleted@example.com"},
+						},
+					},
+				})
+			},
+			wantUpdateSettingsCalls: 1,
+			validateSettings: func(t *testing.T, captured []*model.CommitteeSettings) {
+				require.Len(t, captured, 1)
+				require.Len(t, captured[0].Writers, 1)
+				assert.Equal(t, "", captured[0].Writers[0].Username, "writer username should be cleared")
+			},
+		},
+		{
+			name: "settings no match — no update",
+			data: makeEvent(deletedUsername),
+			setupRepo: func(repo *mock.MockRepository) {
+				repo.AddCommittee(&model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        committeeUID1,
+						ProjectUID: "proj-1",
+						Name:       "Test Committee",
+					},
+					CommitteeSettings: &model.CommitteeSettings{
+						UID: committeeUID1,
+						Writers: []model.CommitteeUser{
+							{Username: "other", Email: "other@example.com"},
+						},
+					},
+				})
+			},
+			wantUpdateSettingsCalls: 0,
+		},
+		{
+			name:      "nil reader — no panic, no updates",
+			data:      makeEvent(deletedUsername),
+			setupRepo: func(_ *mock.MockRepository) {},
+			// handler will have nil reader, should not panic
+			wantUpdateMemberCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			tt.setupRepo(mockRepo)
+
+			spy := &spyCommitteeWriterOrchestrator{updateMemberErrs: tt.spyMemberErrs}
+
+			var handler *messageHandlerOrchestrator
+			if tt.name == "nil reader — no panic, no updates" {
+				// Create handler without reader to test nil case
+				handler = &messageHandlerOrchestrator{
+					committeeWriterOrchestrator: spy,
+				}
+			} else {
+				handler = makeHandler(mockRepo, spy)
+			}
+
+			msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, tt.data)
+			resp, err := handler.HandleUserDeleted(ctx, msg)
+
+			// HandleUserDeleted returns nil, nil on success
+			assert.NoError(t, err, "HandleUserDeleted should not return error for this test")
+			assert.Nil(t, resp, "HandleUserDeleted should return nil response")
+
+			assert.Equal(t, tt.wantUpdateMemberCalls, spy.updateMemberCalls,
+				"UpdateMember call count mismatch")
+			assert.Equal(t, tt.wantUpdateSettingsCalls, spy.updateSettingsCalls,
+				"UpdateSettings call count mismatch")
+
+			if tt.validateSkipEnrichment {
+				require.Len(t, spy.capturedSkipEnrichment, tt.wantUpdateMemberCalls,
+					"capturedSkipEnrichment length mismatch")
+				// Check all captured skipEnrichment values are true
+				for i, val := range spy.capturedSkipEnrichment {
+					assert.True(t, val, "skipEnrichment should be true for call %d", i+1)
+				}
+			}
+
+			if tt.validateMembers != nil {
+				tt.validateMembers(t, spy.updatedMembers)
+			}
+
+			if tt.validateSettings != nil {
+				tt.validateSettings(t, spy.capturedSettings)
+			}
+		})
+	}
+}
+
+func TestHandleUserDeleted_EmailReuseGuard(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	eventBytes, err := json.Marshal(V1UserDeletedEvent{
+		Username: deletedUsername,
+		Email:    "old@example.com",
+	})
+	require.NoError(t, err)
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        committeeUID1,
+			ProjectUID: "proj-1",
+			Name:       "Test Committee",
+		},
+	})
+	mockRepo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-reuse",
+			CommitteeUID: committeeUID1,
+			Username:     deletedUsername,
+			Email:        "new@example.com",
+		},
+	})
+
+	spy := &spyCommitteeWriterOrchestrator{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterOrchestratorForMessageHandler(spy),
+	).(*messageHandlerOrchestrator)
+
+	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, eventBytes)
+	_, err = handler.HandleUserDeleted(ctx, msg)
+	require.NoError(t, err)
+	assert.Equal(t, 0, spy.updateMemberCalls, "member with different email should not be scrubbed")
+}
+
+func TestHandleUserDeleted_UsernameOnlySettingsWithEventEmail(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	eventBytes, err := json.Marshal(V1UserDeletedEvent{
+		Username: deletedUsername,
+		Email:    "deleted@example.com",
+	})
+	require.NoError(t, err)
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        committeeUID1,
+			ProjectUID: "proj-1",
+			Name:       "Test Committee",
+		},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID: committeeUID1,
+			Writers: []model.CommitteeUser{
+				{Username: deletedUsername},
+			},
+		},
+	})
+
+	spy := &spyCommitteeWriterOrchestrator{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterOrchestratorForMessageHandler(spy),
+	).(*messageHandlerOrchestrator)
+
+	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, eventBytes)
+	_, err = handler.HandleUserDeleted(ctx, msg)
+	require.NoError(t, err)
+	assert.Equal(t, 0, spy.updateSettingsCalls, "username-only writer should not be scrubbed when event carries email")
+}
+
+// staleIndexCommitteeReader wraps a CommitteeReader but overrides ListMembersByUsername to
+// return a fixed set of members, simulating a stale secondary index that still points to a
+// member whose username has since changed.
+type staleIndexCommitteeReader struct {
+	CommitteeReader
+	staleMembers []*model.CommitteeMember
+}
+
+func (r *staleIndexCommitteeReader) ListMembersByUsername(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return r.staleMembers, nil
+}
+
+// TestHandleUserDeleted_StaleIndexReuse verifies that the reuse guard (re-reading the member
+// and checking current.Username before clearing) prevents a scrub when the secondary index
+// returns a stale candidate whose username has already been reassigned to a different value.
+func TestHandleUserDeleted_StaleIndexReuse(t *testing.T) {
+	ctx := context.Background()
+
+	const deletedUsername = "deleted.user"
+	const committeeUID1 = "committee-1"
+
+	// Set up a repo where the member now carries a different username (post-reassignment).
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        committeeUID1,
+			ProjectUID: "proj-1",
+			Name:       "Test Committee",
+		},
+	})
+	mockRepo.AddCommitteeMember(committeeUID1, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-reassigned",
+			CommitteeUID: committeeUID1,
+			Username:     "otheruser", // already reassigned to a different person
+		},
+	})
+
+	// Build the real reader from the mock repo.
+	baseReader := NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo))
+
+	// Wrap it so ListMembersByUsername returns the stale index candidate, as if the
+	// index still maps "deleted.user" to "member-reassigned".
+	staleEntry := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-reassigned",
+			CommitteeUID: committeeUID1,
+			Username:     deletedUsername,
+		},
+	}
+	staleReader := &staleIndexCommitteeReader{
+		CommitteeReader: baseReader,
+		staleMembers:    []*model.CommitteeMember{staleEntry},
+	}
+
+	spy := &spyCommitteeWriterOrchestrator{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(staleReader),
+		WithCommitteeWriterOrchestratorForMessageHandler(spy),
+	).(*messageHandlerOrchestrator)
+
+	b, _ := json.Marshal(V1UserDeletedEvent{Username: deletedUsername})
+	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, b)
+	_, err := handler.HandleUserDeleted(ctx, msg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, spy.updateMemberCalls,
+		"reuse guard must skip update when re-read shows member username has been reassigned")
 }

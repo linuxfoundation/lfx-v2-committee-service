@@ -26,6 +26,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 ```go
 "lfx.mailing-list-api.committee_mailing_list.changed" // handled by internal/service/message_handler.go (updates has_mailing_list + re-index)
 "lfx.invite-service.invite_accepted"                  // published by the invite service after it processes a self-serve acceptance (enriched event embedding the invite record); handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteServiceAcceptedSubject)
+"lfx.v1-sync-helper.user.deleted"                     // published by v1-sync-helper when a merged user record is soft-deleted; handled by HandleUserDeleted to scrub the username from committee members and settings writers/auditors (pkg/constants/subjects.go: V1SyncHelperUserDeletedSubject)
 ```
 
 ### Self-consumed event subjects
