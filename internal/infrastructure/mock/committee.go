@@ -1245,12 +1245,21 @@ type MockCommitteePublisher struct {
 	mu sync.Mutex
 	// LastIndexerMessage captures the most recently published indexer message for assertions.
 	LastIndexerMessage any
+	IndexerSyncValues  []bool
+	AccessCallCount    int
+	AccessSyncValues   []bool
+	LastAccessSubject  string
+	LastAccessMessage  any
+	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
+	LastUpdateAccessMessage any
+	UpdateAccessCallCount   int
 }
 
 // Indexer simulates publishing an indexer message
 func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any, synced bool) error {
 	p.mu.Lock()
 	p.LastIndexerMessage = message
+	p.IndexerSyncValues = append(p.IndexerSyncValues, synced)
 	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
@@ -1262,10 +1271,28 @@ func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, me
 
 // Access simulates publishing an access message
 func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
+	p.mu.Lock()
+	p.AccessCallCount++
+	p.AccessSyncValues = append(p.AccessSyncValues, sync)
+	p.LastAccessSubject = subject
+	p.LastAccessMessage = message
+	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: access message published",
 		"subject", subject,
 		"message_type", "access",
 		"sync", sync,
+	)
+	return nil
+}
+
+// UpdateAccess simulates publishing an asynchronous update_access message.
+func (p *MockCommitteePublisher) UpdateAccess(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastUpdateAccessMessage = message
+	p.UpdateAccessCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: update_access message published",
+		"message_type", "access",
 	)
 	return nil
 }

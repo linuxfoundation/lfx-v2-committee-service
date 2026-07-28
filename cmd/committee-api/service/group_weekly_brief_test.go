@@ -273,6 +273,9 @@ func (p *stubPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) erro
 func (p *stubPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
 	panic("Access is not called from the handler under test")
 }
+func (p *stubPublisher) UpdateAccess(_ context.Context, _ any) error {
+	panic("UpdateAccess is not called from the handler under test")
+}
 func (p *stubPublisher) Event(_ context.Context, subject string, event any, sync bool) error {
 	p.called = true
 	p.gotSubject = subject

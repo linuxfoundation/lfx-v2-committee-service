@@ -28,6 +28,14 @@ All messages use the generic FGA message format on the following NATS subjects:
 
 Each message carries `object_type`, `operation`, and a `data` map. The sections below describe the `data` contents for each operation.
 
+### Delivery and `X-Sync`
+
+`lfx.fga-sync.update_access` is always sent with core NATS publish. Publication is asynchronous: `X-Sync: true` does not wait for fga-sync processing or OpenFGA convergence. `X-Sync` continues to request synchronous processing for applicable downstream operations, including indexer messages.
+
+For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds. A successful publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
+
+This asynchronous-only rule applies to `update_access`. The existing transport selection and payloads for `delete_access`, `member_put`, and `member_remove` are unchanged in this phase.
+
 ---
 
 ## Committee
@@ -160,7 +168,7 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 
 ### delete_access (Delete)
 
-Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Removes all FGA tuples for the `committee_invite:{uid}` object.
+The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. No current production callsite invokes this branch.
 
 ---
 
@@ -178,5 +186,5 @@ Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Re
 | Create committee invite | `committee_invite` | `lfx.fga-sync.update_access` | `invitee` relation omitted when invitee has no LFID yet |
 | Update committee invite | `committee_invite` | `lfx.fga-sync.update_access` | Same invitee-resolution logic as create |
 | Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
-| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Removes all tuples for the invite object |
+| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no current production callsite invokes it (see [delete_access](#delete_access-delete)) |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |

@@ -4,8 +4,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -670,6 +673,97 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_UpdateAccessRouting(t *testing.T) {
+	operations := []struct {
+		name             string
+		wantIndexerCalls int
+		run              func(t *testing.T, orchestrator CommitteeWriter, sync bool)
+	}{
+		{
+			name:             "create committee",
+			wantIndexerCalls: 2,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.Create(context.Background(), &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						ProjectUID: "project-1",
+						Name:       "Committee",
+						Category:   "governance",
+					},
+					CommitteeSettings: &model.CommitteeSettings{},
+				}, sync)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "update committee base",
+			wantIndexerCalls: 1,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.Update(context.Background(), &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        "committee-1",
+						ProjectUID: "project-1",
+						Name:       "Committee",
+						Category:   "technical",
+					},
+				}, 1, sync)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "update committee settings",
+			wantIndexerCalls: 1,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.UpdateSettings(context.Background(), &model.CommitteeSettings{
+					UID:                   "committee-1",
+					BusinessEmailRequired: true,
+				}, 1, sync)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, operation := range operations {
+		for _, sync := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/sync=%t", operation.name, sync), func(t *testing.T) {
+				repo := mock.NewMockRepository()
+				repo.ClearAll()
+				repo.AddProject("project-1", "test-project", "Test Project")
+				if operation.name != "create committee" {
+					repo.AddCommittee(&model.Committee{
+						CommitteeBase: model.CommitteeBase{
+							UID:        "committee-1",
+							ProjectUID: "project-1",
+							Name:       "Committee",
+							Category:   "governance",
+						},
+						CommitteeSettings: &model.CommitteeSettings{
+							UID: "committee-1",
+						},
+					})
+				}
+
+				publisher := &mock.MockCommitteePublisher{}
+				orchestrator := NewCommitteeWriterOrchestrator(
+					WithCommitteeRetriever(mock.NewMockCommitteeReader(repo)),
+					WithCommitteeWriter(NewTestMockCommitteeWriter(repo)),
+					WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+					WithCommitteePublisher(publisher),
+				)
+
+				operation.run(t, orchestrator, sync)
+
+				assert.Len(t, publisher.IndexerSyncValues, operation.wantIndexerCalls)
+				for _, indexerSync := range publisher.IndexerSyncValues {
+					assert.Equal(t, sync, indexerSync)
+				}
+				assert.Equal(t, 1, publisher.UpdateAccessCallCount)
+				assert.Equal(t, 0, publisher.AccessCallCount)
+				assert.NotNil(t, publisher.LastUpdateAccessMessage)
+			})
+		}
+	}
+}
+
 func TestCommitteeWriterOrchestrator_checkReserveSSOName(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -934,6 +1028,13 @@ func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject st
 	return nil
 }
 
+func (p *MockCommitteePublisherWithError) UpdateAccess(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
 func (p *MockCommitteePublisherWithError) Event(ctx context.Context, subject string, event any, sync bool) error {
 	// For testing purposes, we don't fail on events
 	return nil
@@ -1019,6 +1120,41 @@ func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCommitteeWriterOrchestrator_Create_PublishFailureDoesNotLogSuccess(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	repo := mock.NewMockRepository()
+	repo.ClearAll()
+	repo.AddProject("project-1", "test-project", "Test Project")
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(repo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(repo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+		WithCommitteePublisher(&MockCommitteePublisherWithError{
+			accessError: errors.New("access publishing failed"),
+		}),
+	)
+
+	result, err := orchestrator.Create(context.Background(), &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			ProjectUID: "project-1",
+			Name:       "Test Committee",
+			Category:   "governance",
+		},
+		CommitteeSettings: &model.CommitteeSettings{},
+	}, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, logs.String(), "failed to publish")
+	assert.NotContains(t, logs.String(), "messages published successfully")
 }
 
 func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
