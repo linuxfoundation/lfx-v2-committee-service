@@ -26,6 +26,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 ```go
 "lfx.mailing-list-api.committee_mailing_list.changed" // handled by internal/service/message_handler.go (updates has_mailing_list + re-index)
 "lfx.invite-service.invite_accepted"                  // published by the invite service after it processes a self-serve acceptance (enriched event embedding the invite record); handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteServiceAcceptedSubject)
+"lfx.user-email.changed"                              // consumed via durable JetStream (user-email-events stream, consumer committee-service-user-email-sync); payload: model.UserEmailEvent {type, email, timestamp}; producers: lfx-v1-sync-helper and others; alternate_email_added → promotes all email-only seats matching the address to the resolved LFID username (ListMembersByEmail + UsernameByEmail + UpdateMember); other event types are no-ops pending defined semantics
 ```
 
 ### Self-consumed event subjects
@@ -128,6 +129,17 @@ split and per-sub-resource bucketing follow the native service pattern.
   `committee-service-weekly-brief-generate` durable consumer
   (`ConsumerNameWeeklyBriefGenerate`), which runs the async brief generation
   (source gather → LLM → finalize) after a generate is requested.
+- `user-email-events` (constant `StreamNameUserEmailEvents`): durable stream that
+  captures `lfx.user-email.*`. Consumed by the `committee-service-user-email-sync`
+  durable consumer (`ConsumerNameUserEmailSync`). Payload: `model.UserEmailEvent`.
+  Provisioned by this chart; publishers include lfx-v1-sync-helper. Handler:
+  `HandleUserEmailChanged` → `reconcileUsernamesForEmail` in
+  `internal/service/message_handler.go`. For `alternate_email_added`: uses the
+  by-email secondary index (`ListMembersByEmail`) to find email-only seats, resolves
+  the LFID username once via `UsernameByEmail`, and promotes each seat via
+  `UpdateMember` (with `contextWithSkipMemberUsernameEmailResolution` + conflict
+  retry — mirrors `enrichInvitedCommitteeMember`). Other event types are no-ops
+  pending defined teardown semantics.
 
 See `charts/lfx-v2-committee-service/templates/nats-streams.yaml` and
 `charts/lfx-v2-committee-service/values.yaml` for chart wiring.

@@ -88,6 +88,11 @@ const (
 	// MailingListCommitteeChangedSubject is consumed from mailing-list-api when
 	// committee-related mailing list state changes (e.g. has_mailing_list flag).
 	MailingListCommitteeChangedSubject = "lfx.mailing-list-api.committee_mailing_list.changed"
+
+	// UserEmailChangedSubject is consumed when a user's email or LFID identity changes upstream
+	// (alternate email added/removed, LFID user created/deleted). Payload: model.UserEmailEvent.
+	// Producers: lfx-v1-sync-helper and others. Drives username re-resolution for affected members.
+	UserEmailChangedSubject = "lfx.user-email.changed"
 )
 
 // Event subjects emitted by the committee service for general consumption by any service

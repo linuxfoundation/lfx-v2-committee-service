@@ -45,6 +45,9 @@ type CommitteeMemberDataReader interface {
 	GetMemberRevision(ctx context.Context, memberUID string) (uint64, error)
 	// ListMembersByCommittee retrieves all members for a given committee UID
 	ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error)
+	// ListMembersByEmail retrieves all committee members whose normalized email matches the given
+	// address, using the by-email secondary index.
+	ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error)
 }
 
 // committeeReaderOrchestratorOption defines a function type for setting options
@@ -215,6 +218,28 @@ func (rc *committeeReaderOrchestrator) ListMembersByCommittee(ctx context.Contex
 
 	slog.DebugContext(ctx, "committee members retrieved successfully",
 		"committee_uid", committeeUID,
+		"member_count", len(members),
+	)
+
+	return members, nil
+}
+
+// ListMembersByEmail retrieves all committee members whose normalized email matches the given
+// address, using the by-email secondary index.
+func (rc *committeeReaderOrchestrator) ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "executing list committee members by email use case",
+		"email_provided", email != "",
+	)
+
+	members, err := rc.committeeReader.ListMembersByEmail(ctx, email)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members by email",
+			"error", err,
+		)
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "committee members by email retrieved successfully",
 		"member_count", len(members),
 	)
 

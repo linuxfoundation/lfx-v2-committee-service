@@ -153,6 +153,31 @@ func (c *NATSClient) StartWeeklyBriefGenerateConsumer(
 	return consumeCtx.Stop, nil
 }
 
+// StartUserEmailConsumer binds the durable consumer for the user-email-events stream and
+// starts delivering user-email change events to handler. It returns a stop function the
+// caller must invoke on shutdown. Events signal that a user's email or LFID identity changed
+// and that affected committee member seats may need their username re-resolved.
+func (c *NATSClient) StartUserEmailConsumer(
+	ctx context.Context,
+	handler func(ctx context.Context, msg port.StreamMessenger) error,
+) (func(), error) {
+	cfg := jetstream.ConsumerConfig{
+		Name:           constants.ConsumerNameUserEmailSync,
+		Durable:        constants.ConsumerNameUserEmailSync,
+		FilterSubjects: []string{constants.UserEmailChangedSubject},
+		AckPolicy:      jetstream.AckExplicitPolicy,
+		MaxDeliver:     3,
+		AckWait:        30 * time.Second,
+	}
+
+	consumeCtx, err := c.ConsumeWithJetStream(ctx, constants.StreamNameUserEmailEvents, cfg, handler)
+	if err != nil {
+		return nil, err
+	}
+
+	return consumeCtx.Stop, nil
+}
+
 // nakDelay returns an exponential backoff duration with full jitter based on the message
 // delivery attempt count. Full jitter (random in [0, cap]) prevents correlated retries
 // across concurrent service replicas.
