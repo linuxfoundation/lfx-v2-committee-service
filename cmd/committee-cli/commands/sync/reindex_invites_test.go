@@ -62,6 +62,9 @@ func (p *mockPublisher) UpdateAccess(_ context.Context, message any) error {
 	p.updateAccessMsgs = append(p.updateAccessMsgs, message)
 	return p.accessErr
 }
+func (p *mockPublisher) DeleteAccess(_ context.Context, _ any) error {
+	return p.accessErr
+}
 func (p *mockPublisher) Event(_ context.Context, _ string, _ any, _ bool) error { return nil }
 
 // newReindexRC builds a RunContext wired for reindex-invites tests.

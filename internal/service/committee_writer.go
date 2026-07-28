@@ -18,7 +18,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
@@ -1034,7 +1033,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		Data:       fgatypes.GenericDeleteData{UID: uid},
 	}
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, fgaconstants.GenericDeleteAccessSubject, deleteMsg, sync)
+		return uc.committeePublisher.DeleteAccess(ctx, deleteMsg)
 	})
 
 	// Execute all messages concurrently

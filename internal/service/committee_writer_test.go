@@ -1030,6 +1030,13 @@ func (p *MockCommitteePublisherWithError) UpdateAccess(ctx context.Context, mess
 	return nil
 }
 
+func (p *MockCommitteePublisherWithError) DeleteAccess(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
 func (p *MockCommitteePublisherWithError) Event(ctx context.Context, subject string, event any, sync bool) error {
 	// For testing purposes, we don't fail on events
 	return nil
@@ -2170,11 +2177,54 @@ func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_DeleteAccessRouting(t *testing.T) {
+	for _, sync := range []bool{true, false} {
+		t.Run(fmt.Sprintf("sync=%t", sync), func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID: "committee-1",
+				},
+			})
+
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(publisher),
+			)
+
+			err := orchestrator.Delete(context.Background(), "committee-1", 1, sync)
+
+			require.NoError(t, err)
+			assert.Equal(t, []bool{sync, sync}, publisher.IndexerSyncValues)
+			assert.Equal(t, 1, publisher.DeleteAccessCallCount)
+			assert.Zero(t, publisher.AccessCallCount)
+
+			msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "committee", msg.ObjectType)
+			assert.Equal(t, "delete_access", msg.Operation)
+			assert.Equal(t, fgatypes.GenericDeleteData{UID: "committee-1"}, msg.Data)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
 		indexerError   error
 		accessError    error
+		sync           bool
 		expectComplete bool
 	}{
 		{
@@ -2187,6 +2237,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 			name:           "indexer error fails delete",
 			indexerError:   errors.New("indexer publishing failed"),
 			accessError:    nil,
+			sync:           true,
 			expectComplete: false,
 		},
 		{
@@ -2199,6 +2250,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 			name:           "both publishing errors fail delete",
 			indexerError:   errors.New("indexer publishing failed"),
 			accessError:    errors.New("access publishing failed"),
+			sync:           true,
 			expectComplete: false,
 		},
 	}
@@ -2248,7 +2300,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			err := orchestrator.Delete(ctx, "committee-1", uint64(1), false)
+			err := orchestrator.Delete(ctx, "committee-1", uint64(1), tc.sync)
 
 			// Validate
 			if tc.expectComplete {

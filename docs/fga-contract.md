@@ -30,11 +30,15 @@ Each message carries `object_type`, `operation`, and a `data` map. The sections 
 
 ### Delivery and `X-Sync`
 
-`lfx.fga-sync.update_access` is always sent with core NATS publish. Publication is asynchronous: `X-Sync: true` does not wait for fga-sync processing or OpenFGA convergence. `X-Sync` continues to request synchronous processing for applicable downstream operations, including indexer messages.
+`lfx.fga-sync.update_access` and `lfx.fga-sync.delete_access` are always sent with core NATS publish. Publication is asynchronous: `X-Sync: true` does not wait for fga-sync processing or OpenFGA convergence. `X-Sync` continues to request synchronous processing for applicable downstream operations, including indexer messages.
 
-For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds. A successful publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
+For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds.
 
-This asynchronous-only rule applies to `update_access`. The existing transport selection and payloads for `delete_access`, `member_put`, and `member_remove` are unchanged in this phase.
+Committee deletion preserves its stricter existing error behavior: storage deletion occurs first, then an immediate NATS readiness, serialization, core-publish, or indexer error is returned to the HTTP layer. Making `delete_access` asynchronous eliminates its FGA request/reply and reply-timeout errors; synchronous indexer errors remain possible when `X-Sync: true`. The defensive committee-invite delete branch remains best-effort and logs publication failures.
+
+A successful core publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
+
+The existing transport selection and payloads for `member_put` and `member_remove` are unchanged pending LFXV2-2856.
 
 ---
 

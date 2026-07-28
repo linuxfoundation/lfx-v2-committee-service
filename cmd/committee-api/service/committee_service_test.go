@@ -21,7 +21,6 @@ import (
 	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
@@ -244,13 +243,15 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 		InviteeEmail: "invitee@example.com",
 	}
 	tests := []struct {
-		name             string
-		action           model.MessageAction
-		userReader       *mockUserReader
-		wantRelation     map[string][]string
-		wantExclusions   []string
-		wantUpdateAccess int
-		wantAccess       int
+		name              string
+		action            model.MessageAction
+		sync              bool
+		userReader        *mockUserReader
+		wantRelation      map[string][]string
+		wantExclusions    []string
+		wantUpdateAccess  int
+		wantDeleteAccess  int
+		deleteAccessError error
 	}{
 		{
 			name:             "resolved username",
@@ -274,30 +275,48 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 			wantUpdateAccess: 1,
 		},
 		{
-			name:       "defensive delete action",
-			action:     model.ActionDeleted,
-			userReader: newMockUserReader(),
-			wantAccess: 1,
+			name:             "defensive delete action with sync enabled",
+			action:           model.ActionDeleted,
+			sync:             true,
+			userReader:       newMockUserReader(),
+			wantDeleteAccess: 1,
+		},
+		{
+			name:             "defensive delete action with sync disabled",
+			action:           model.ActionDeleted,
+			sync:             false,
+			userReader:       newMockUserReader(),
+			wantDeleteAccess: 1,
+		},
+		{
+			name:              "defensive delete publish failure remains best effort",
+			action:            model.ActionDeleted,
+			sync:              true,
+			userReader:        newMockUserReader(),
+			wantDeleteAccess:  1,
+			deleteAccessError: stderrors.New("delete_access publish failed"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			publisher := &mock.MockCommitteePublisher{}
+			publisher := &mock.MockCommitteePublisher{
+				DeleteAccessError: tt.deleteAccessError,
+			}
 			svc := &committeeServicesrvc{
 				publisher:  publisher,
 				userReader: tt.userReader,
 			}
 
-			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, true)
+			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, tt.sync)
 
 			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
-			assert.Equal(t, tt.wantAccess, publisher.AccessCallCount)
+			assert.Equal(t, tt.wantDeleteAccess, publisher.DeleteAccessCallCount)
+			assert.Zero(t, publisher.AccessCallCount)
 			if tt.action == model.ActionDeleted {
-				assert.Equal(t, fgaconstants.GenericDeleteAccessSubject, publisher.LastAccessSubject)
-				assert.Equal(t, []bool{true}, publisher.AccessSyncValues)
-				msg, ok := publisher.LastAccessMessage.(fgatypes.GenericFGAMessage)
+				msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
 				require.True(t, ok)
+				assert.Equal(t, "committee_invite", msg.ObjectType)
 				assert.Equal(t, "delete_access", msg.Operation)
 				assert.Equal(t, fgatypes.GenericDeleteData{UID: invite.UID}, msg.Data)
 				return

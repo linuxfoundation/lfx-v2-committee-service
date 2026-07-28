@@ -529,6 +529,9 @@ func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
 	s.capturedUpdateAccessMsgs = append(s.capturedUpdateAccessMsgs, msg)
 	return nil
 }
+func (s *spyCommitteePublisher) DeleteAccess(_ context.Context, _ any) error {
+	return nil
+}
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
 	return nil
 }

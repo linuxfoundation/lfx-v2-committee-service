@@ -102,6 +102,9 @@ func (e *errorPublisher) Access(_ context.Context, _ string, _ any, _ bool) erro
 func (e *errorPublisher) UpdateAccess(_ context.Context, _ any) error {
 	return errors.New("access service unavailable")
 }
+func (e *errorPublisher) DeleteAccess(_ context.Context, _ any) error {
+	return errors.New("access service unavailable")
+}
 func (e *errorPublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
 	return errors.New("event service unavailable")
 }

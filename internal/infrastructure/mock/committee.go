@@ -1207,12 +1207,13 @@ type MockCommitteePublisher struct {
 	LastIndexerMessage any
 	IndexerSyncValues  []bool
 	AccessCallCount    int
-	AccessSyncValues   []bool
-	LastAccessSubject  string
-	LastAccessMessage  any
 	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
 	LastUpdateAccessMessage any
 	UpdateAccessCallCount   int
+	// LastDeleteAccessMessage captures the most recent asynchronous delete_access message.
+	LastDeleteAccessMessage any
+	DeleteAccessCallCount   int
+	DeleteAccessError       error
 }
 
 // Indexer simulates publishing an indexer message
@@ -1233,9 +1234,6 @@ func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, me
 func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
 	p.mu.Lock()
 	p.AccessCallCount++
-	p.AccessSyncValues = append(p.AccessSyncValues, sync)
-	p.LastAccessSubject = subject
-	p.LastAccessMessage = message
 	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: access message published",
 		"subject", subject,
@@ -1252,6 +1250,22 @@ func (p *MockCommitteePublisher) UpdateAccess(ctx context.Context, message any) 
 	p.UpdateAccessCallCount++
 	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: update_access message published",
+		"message_type", "access",
+	)
+	return nil
+}
+
+// DeleteAccess simulates publishing an asynchronous delete_access message.
+func (p *MockCommitteePublisher) DeleteAccess(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastDeleteAccessMessage = message
+	p.DeleteAccessCallCount++
+	err := p.DeleteAccessError
+	p.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	slog.InfoContext(ctx, "mock publisher: delete_access message published",
 		"message_type", "access",
 	)
 	return nil
