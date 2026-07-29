@@ -44,10 +44,10 @@ func enrichAuditUserIfMissing(ctx context.Context, reader port.UserReader, user 
 			enriched.Name = full
 		}
 	}
-	if enriched.Avatar == "" {
-		enriched.Avatar = meta.Picture
+	if strings.TrimSpace(enriched.Avatar) == "" {
+		enriched.Avatar = strings.TrimSpace(meta.Picture)
 	}
-	if enriched.Email == "" {
+	if strings.TrimSpace(enriched.Email) == "" {
 		enriched.Email = primaryEmailForUsername(lookupCtx, reader, user.Username)
 	}
 	return enriched

@@ -94,18 +94,36 @@ func TestJWTAuthParsePrincipalNilValidator(t *testing.T) {
 }
 
 func TestJWTAuthParsePrincipalMockMode(t *testing.T) {
-	jwtAuth := &JWTAuth{
-		validator: nil,
-		config: JWTAuthConfig{
-			MockLocalPrincipal: "test-user",
-		},
-	}
+	t.Run("principal only", func(t *testing.T) {
+		jwtAuth := &JWTAuth{
+			validator: nil,
+			config: JWTAuthConfig{
+				MockLocalPrincipal: "test-user",
+			},
+		}
 
-	principal, email, err := jwtAuth.ParsePrincipal(context.Background(), "any-token", slog.Default())
+		principal, email, err := jwtAuth.ParsePrincipal(context.Background(), "any-token", slog.Default())
 
-	require.NoError(t, err)
-	assert.Equal(t, "test-user", principal)
-	assert.Empty(t, email)
+		require.NoError(t, err)
+		assert.Equal(t, "test-user", principal)
+		assert.Empty(t, email)
+	})
+
+	t.Run("principal and email", func(t *testing.T) {
+		jwtAuth := &JWTAuth{
+			validator: nil,
+			config: JWTAuthConfig{
+				MockLocalPrincipal: "test-user",
+				MockLocalEmail:     "test-user@example.com",
+			},
+		}
+
+		principal, email, err := jwtAuth.ParsePrincipal(context.Background(), "any-token", slog.Default())
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-user", principal)
+		assert.Equal(t, "test-user@example.com", email)
+	})
 }
 
 func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {

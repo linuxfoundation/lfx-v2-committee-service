@@ -120,12 +120,22 @@ func (s *committeeServicesrvc) normalizeLegacyAuditUsers(createdBy, updatedBy *m
 
 func (s *committeeServicesrvc) normalizeAuditUsers(ctx context.Context, createdBy, updatedBy *model.CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) (*model.CommitteeUser, *model.CommitteeUser) {
 	createdBy, updatedBy = model.NormalizeLegacyAuditUsers(createdBy, updatedBy, legacyCreatedByUsername, legacyUploadedByUsername)
+
+	reuseCreatedByForUpdated := updatedBy != nil && createdBy != nil &&
+		updatedBy.Username == createdBy.Username &&
+		strings.TrimSpace(updatedBy.Name) == "" &&
+		strings.TrimSpace(updatedBy.Avatar) == "" &&
+		strings.TrimSpace(updatedBy.Email) == ""
+
 	if createdBy != nil {
 		createdBy = s.enrichAuditUserIfMissing(ctx, createdBy)
 	}
-	if updatedBy == nil && createdBy != nil {
+	switch {
+	case updatedBy == nil && createdBy != nil:
 		updatedBy = model.CloneCommitteeUser(createdBy)
-	} else if updatedBy != nil {
+	case reuseCreatedByForUpdated:
+		updatedBy = model.CloneCommitteeUser(createdBy)
+	case updatedBy != nil:
 		updatedBy = s.enrichAuditUserIfMissing(ctx, updatedBy)
 	}
 	return createdBy, updatedBy

@@ -35,6 +35,9 @@ type JWTAuthConfig struct {
 	// MockLocalPrincipal, when set via JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL, is returned
 	// instead of parsing the JWT principal.
 	MockLocalPrincipal string
+	// MockLocalEmail, when set via JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL, is returned
+	// with the mock principal.
+	MockLocalEmail string
 }
 
 var (
@@ -72,10 +75,8 @@ type JWTAuth struct {
 func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
 	// When JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL is set, return it instead of the JWT principal.
 	if j.config.MockLocalPrincipal != "" {
-		logger.InfoContext(ctx, "JWT authentication is disabled, returning mock principal",
-			"principal", j.config.MockLocalPrincipal,
-		)
-		return j.config.MockLocalPrincipal, "", nil
+		logger.DebugContext(ctx, "JWT authentication is disabled, using configured mock principal")
+		return j.config.MockLocalPrincipal, j.config.MockLocalEmail, nil
 	}
 
 	if j.validator == nil {

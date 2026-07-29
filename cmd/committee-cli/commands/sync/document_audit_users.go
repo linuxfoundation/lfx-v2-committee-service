@@ -40,8 +40,8 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 	committeeUID := fs.String("committee-uid", "", "limit migration to a single committee UID")
 	resourceType := fs.String("resource-type", "", "optional filter: folder, link, or document")
 	sleep := fs.Duration("sleep", 0, "wait between each auth-service lookup (e.g. 200ms, 1s)")
-	reindexOnly := fs.Bool("reindex-only", false, "re-publish ActionUpdated indexer messages without KV writes (recovery after a partial migration run)")
-	update := fs.Bool("update", false, "write KV changes and publish indexer messages (default is preview-only)")
+	reindexOnly := fs.Bool("reindex-only", false, "skip KV writes and only re-publish ActionUpdated indexer messages; requires --update to actually publish")
+	update := fs.Bool("update", false, "perform writes/publishes (default is preview-only); required by both migration and --reindex-only modes")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
