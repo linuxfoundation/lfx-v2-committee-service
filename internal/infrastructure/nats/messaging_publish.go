@@ -123,11 +123,14 @@ func (m *messagePublisher) Indexer(ctx context.Context, subject string, message 
 
 // Access publishes an access-control message to the given NATS subject for permission updates.
 //
-// GenericUpdateAccessSubject is guarded here regardless of sync: callers must use
-// UpdateAccess for that subject so it can never reach requestMessage.
+// GenericUpdateAccessSubject and GenericDeleteAccessSubject are guarded here
+// regardless of sync so neither can reach requestMessage.
 func (m *messagePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
 	if subject == fgaconstants.GenericUpdateAccessSubject {
 		return m.UpdateAccess(ctx, message)
+	}
+	if subject == fgaconstants.GenericDeleteAccessSubject {
+		return m.DeleteAccess(ctx, message)
 	}
 	return m.publish(ctx, subject, message, "access", sync)
 }
@@ -142,6 +145,18 @@ func (m *messagePublisher) UpdateAccess(ctx context.Context, message any) error 
 	}
 
 	return m.publishMessage(ctx, fgaconstants.GenericUpdateAccessSubject, data, messageType)
+}
+
+// DeleteAccess publishes a delete_access message asynchronously.
+func (m *messagePublisher) DeleteAccess(ctx context.Context, message any) error {
+	const messageType = "access"
+
+	data, err := m.prepareMessage(ctx, fgaconstants.GenericDeleteAccessSubject, message, messageType)
+	if err != nil {
+		return err
+	}
+
+	return m.publishMessage(ctx, fgaconstants.GenericDeleteAccessSubject, data, messageType)
 }
 
 // Event publishes a domain event to the given NATS subject for downstream consumers.

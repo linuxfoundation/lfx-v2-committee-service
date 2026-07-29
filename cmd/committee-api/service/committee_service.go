@@ -31,7 +31,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -1516,7 +1515,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 //
 // For delete it writes a delete_access message to clean up all tuples for the invite object.
 // Publishing is best-effort: failures are logged but do not fail the request.
-func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
+func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, _ bool) {
 	var msg fgatypes.GenericFGAMessage
 
 	if action == model.ActionDeleted {
@@ -1567,7 +1566,7 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 
 	var pubErr error
 	if action == model.ActionDeleted {
-		pubErr = s.publisher.Access(ctx, fgaconstants.GenericDeleteAccessSubject, msg, sync)
+		pubErr = s.publisher.DeleteAccess(ctx, msg)
 	} else {
 		pubErr = s.publisher.UpdateAccess(ctx, msg)
 	}
