@@ -10,7 +10,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 )
 
 const auditUserResolveTimeout = 2 * time.Second
@@ -64,11 +63,11 @@ func primaryEmailForUsername(ctx context.Context, reader port.UserReader, userna
 	if reader == nil {
 		return ""
 	}
-	authSub := authpkg.MapUsernameToAuthSub(username)
-	if authSub == "" {
+	username = strings.TrimSpace(username)
+	if username == "" {
 		return ""
 	}
-	userEmails, err := reader.EmailsByAuthToken(ctx, authSub)
+	userEmails, err := reader.EmailsByAuthToken(ctx, username)
 	if err != nil || userEmails == nil {
 		return ""
 	}

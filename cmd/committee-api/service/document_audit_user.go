@@ -12,7 +12,6 @@ import (
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -68,11 +67,11 @@ func (s *committeeServicesrvc) primaryEmailForUsername(ctx context.Context, user
 	if s.userReader == nil {
 		return ""
 	}
-	authSub := authpkg.MapUsernameToAuthSub(username)
-	if authSub == "" {
+	username = strings.TrimSpace(username)
+	if username == "" {
 		return ""
 	}
-	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, username)
 	if err != nil || userEmails == nil {
 		return ""
 	}

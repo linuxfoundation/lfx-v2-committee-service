@@ -249,7 +249,8 @@ The service relies on some resources and external services being spun up prior t
 |AUTH_SOURCE|the authentication service implementation to use: `jwt` (verify real JWTs) or `mock` (bypass auth for local development)|jwt|false|
 |JWKS_URL|the URL to the endpoint for verifying ID tokens and JWT access tokens||required when `AUTH_SOURCE=jwt`|
 |JWT_AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|required when `AUTH_SOURCE=jwt`|
-|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal value for local development (to avoid needing a valid JWT token); only takes effect when `AUTH_SOURCE=mock`||false|
+|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal for local development (bypasses JWT validation when set; mirrors project-service). Works with the default `AUTH_SOURCE=jwt`. Also used when `AUTH_SOURCE=mock`||false|
+|JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL|optional email returned with the mock principal for audit stamps and invite flows||false|
 
 #### 4. Development Workflow
 

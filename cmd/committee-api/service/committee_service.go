@@ -26,7 +26,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -1387,8 +1386,8 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by converting
-// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// resolveCallerEmail looks up the primary email for the authenticated caller by sending
+// their principal (LFID username or JWT sub) to auth-service via NATS
 // (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
@@ -1396,16 +1395,12 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	principal = strings.TrimSpace(principal)
 	if principal == "" {
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	authSub := authpkg.MapUsernameToAuthSub(principal)
-	if authSub == "" {
-		return "", errors.NewValidation("unable to determine user identity from token")
-	}
-
-	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, principal)
 	if err != nil {
 		// New LFID users are not yet propagated to auth-service immediately after registration.
 		// Fall back to the email claim from the Heimdall JWT (populated by Authelia's
@@ -1884,9 +1879,6 @@ func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, mem
 	}
 	if principal != "" {
 		metadataKeys = append(metadataKeys, principal)
-		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
-			metadataKeys = append(metadataKeys, authSub)
-		}
 	}
 	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
 		member.Organization.Name = strings.TrimSpace(meta.Organization)

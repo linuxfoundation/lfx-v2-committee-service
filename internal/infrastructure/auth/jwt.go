@@ -32,7 +32,8 @@ type JWTAuthConfig struct {
 	JWKSURL string
 	// Audience is the intended audience for the JWT token
 	Audience string
-	// MockLocalPrincipal is used for local development to bypass JWT validation
+	// MockLocalPrincipal, when set via JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL, is returned
+	// instead of parsing the JWT principal.
 	MockLocalPrincipal string
 }
 
@@ -69,6 +70,14 @@ type JWTAuth struct {
 // Email is present when Authelia's oidc_contextualizer resolves it; it is empty
 // for M2M or anonymous tokens.
 func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
+	// When JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL is set, return it instead of the JWT principal.
+	if j.config.MockLocalPrincipal != "" {
+		logger.InfoContext(ctx, "JWT authentication is disabled, returning mock principal",
+			"principal", j.config.MockLocalPrincipal,
+		)
+		return j.config.MockLocalPrincipal, "", nil
+	}
+
 	if j.validator == nil {
 		return "", "", errors.New("JWT validator is not set up")
 	}
