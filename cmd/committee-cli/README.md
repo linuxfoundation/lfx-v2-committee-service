@@ -147,7 +147,7 @@ Backfills `created_by` and `updated_by` user profile objects on committee link f
 
 | Flag | Default | Description |
 |---|---|---|
-| `--dry-run` | `true` | Log what would change without writing |
+| `--update` | `false` | Write KV changes and publish indexer messages (default is preview-only) |
 | `--sleep` | `0` | Pause between auth-service profile lookups (e.g. `200ms`, `1s`) |
 | `--committee-uid` | `""` | Limit migration to one committee |
 | `--resource-type` | `""` | Optional filter: `folder`, `link`, or `document` |
@@ -157,7 +157,7 @@ Backfills `created_by` and `updated_by` user profile objects on committee link f
 
 **Examples**
 
-Dry-run all document resources:
+Preview all document resources (default):
 
 ```sh
 NATS_URL=nats://localhost:4222 \
@@ -168,14 +168,14 @@ Apply for one committee with rate limiting:
 
 ```sh
 committee-cli sync document-audit-users \
-  --dry-run=false --committee-uid=<uid> --sleep=200ms
+  --update --committee-uid=<uid> --sleep=200ms
 ```
 
 Migrate documents only:
 
 ```sh
 committee-cli sync document-audit-users \
-  --dry-run=false --resource-type=document --sleep=200ms
+  --update --resource-type=document --sleep=200ms
 ```
 
 #### `sync member-cdp-org-id`

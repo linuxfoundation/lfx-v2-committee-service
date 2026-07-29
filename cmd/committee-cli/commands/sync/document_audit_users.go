@@ -41,7 +41,7 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 	resourceType := fs.String("resource-type", "", "optional filter: folder, link, or document")
 	sleep := fs.Duration("sleep", 0, "wait between each auth-service lookup (e.g. 200ms, 1s)")
 	reindexOnly := fs.Bool("reindex-only", false, "re-publish ActionUpdated indexer messages without KV writes (recovery after a partial migration run)")
-	dryRun := fs.Bool("dry-run", true, "log what would change without writing (pass --dry-run=false to write)")
+	update := fs.Bool("update", false, "write KV changes and publish indexer messages (default is preview-only)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -64,7 +64,7 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 		return errs.NewUnexpected("Publisher is not wired in RunContext")
 	}
 
-	rc.DryRun = *dryRun
+	rc.DryRun = !*update
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	runner := &documentAuditUsersRunner{
