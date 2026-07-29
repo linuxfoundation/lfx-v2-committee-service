@@ -84,7 +84,7 @@ func (d *CommitteeDocument) UnmarshalJSON(data []byte) error {
 	d.UpdatedBy = raw.UpdatedBy
 	d.CreatedAt = raw.CreatedAt
 	d.UpdatedAt = raw.UpdatedAt
-	NormalizeLegacyAuditUsers(&d.CreatedBy, &d.UpdatedBy, "", raw.UploadedByUsername)
+	d.CreatedBy, d.UpdatedBy = NormalizeLegacyAuditUsers(d.CreatedBy, d.UpdatedBy, "", raw.UploadedByUsername)
 	return nil
 }
 

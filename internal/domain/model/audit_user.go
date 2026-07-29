@@ -16,22 +16,20 @@ func CloneCommitteeUser(u *CommitteeUser) *CommitteeUser {
 
 // NormalizeLegacyAuditUsers populates CreatedBy/UpdatedBy from legacy flat username
 // fields when reading older KV records. Idempotent for records already migrated.
-func NormalizeLegacyAuditUsers(createdBy **CommitteeUser, updatedBy **CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) {
-	if createdBy == nil || updatedBy == nil {
-		return
-	}
-	if *createdBy == nil {
+func NormalizeLegacyAuditUsers(createdBy, updatedBy *CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) (*CommitteeUser, *CommitteeUser) {
+	if createdBy == nil {
 		legacy := strings.TrimSpace(legacyCreatedByUsername)
 		if legacy == "" {
 			legacy = strings.TrimSpace(legacyUploadedByUsername)
 		}
 		if legacy != "" {
-			*createdBy = &CommitteeUser{Username: legacy}
+			createdBy = &CommitteeUser{Username: legacy}
 		}
 	}
-	if *updatedBy == nil && *createdBy != nil {
-		*updatedBy = CloneCommitteeUser(*createdBy)
+	if updatedBy == nil && createdBy != nil {
+		updatedBy = CloneCommitteeUser(createdBy)
 	}
+	return createdBy, updatedBy
 }
 
 // AuditCreatorUsername returns the LFID username used for indexer tags.

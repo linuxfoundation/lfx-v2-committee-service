@@ -18,9 +18,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
-const documentAuditUserResolveTimeout = 2 * time.Second
+const auditUserResolveTimeout = 2 * time.Second
 
-// resolveRequestingUser resolves the JWT principal into a CommitteeUser for document audit fields.
+// resolveRequestingUser resolves the JWT principal into a CommitteeUser for stamping created_by/updated_by.
 func (s *committeeServicesrvc) resolveRequestingUser(ctx context.Context) *model.CommitteeUser {
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	principal = strings.TrimSpace(principal)
@@ -34,7 +34,7 @@ func (s *committeeServicesrvc) resolveRequestingUser(ctx context.Context) *model
 		return &model.CommitteeUser{Username: principal, Email: email}
 	}
 
-	lookupCtx, cancel := context.WithTimeout(ctx, documentAuditUserResolveTimeout)
+	lookupCtx, cancel := context.WithTimeout(ctx, auditUserResolveTimeout)
 	defer cancel()
 
 	meta, err := s.userReader.UserMetadataByPrincipal(lookupCtx, principal)
@@ -86,7 +86,7 @@ func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, use
 	if auditUserProfileComplete(user) {
 		return user
 	}
-	lookupCtx, cancel := context.WithTimeout(ctx, documentAuditUserResolveTimeout)
+	lookupCtx, cancel := context.WithTimeout(ctx, auditUserResolveTimeout)
 	defer cancel()
 	meta, err := s.userReader.UserMetadataByPrincipal(lookupCtx, user.Username)
 	if err != nil || meta == nil {
@@ -115,25 +115,24 @@ func auditUserProfileComplete(u *model.CommitteeUser) bool {
 		strings.TrimSpace(u.Email) != ""
 }
 
-func (s *committeeServicesrvc) normalizeLegacyDocumentAuditUsers(createdBy, updatedBy **model.CommitteeUser) {
-	model.NormalizeLegacyAuditUsers(createdBy, updatedBy, "", "")
+func (s *committeeServicesrvc) normalizeLegacyAuditUsers(createdBy, updatedBy *model.CommitteeUser) (*model.CommitteeUser, *model.CommitteeUser) {
+	return model.NormalizeLegacyAuditUsers(createdBy, updatedBy, "", "")
 }
 
-func (s *committeeServicesrvc) normalizeDocumentAuditUsers(ctx context.Context, createdBy, updatedBy **model.CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) {
-	model.NormalizeLegacyAuditUsers(createdBy, updatedBy, legacyCreatedByUsername, legacyUploadedByUsername)
-	if createdBy != nil && *createdBy != nil {
-		*createdBy = s.enrichAuditUserIfMissing(ctx, *createdBy)
+func (s *committeeServicesrvc) normalizeAuditUsers(ctx context.Context, createdBy, updatedBy *model.CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) (*model.CommitteeUser, *model.CommitteeUser) {
+	createdBy, updatedBy = model.NormalizeLegacyAuditUsers(createdBy, updatedBy, legacyCreatedByUsername, legacyUploadedByUsername)
+	if createdBy != nil {
+		createdBy = s.enrichAuditUserIfMissing(ctx, createdBy)
 	}
-	if updatedBy != nil {
-		if *updatedBy == nil && createdBy != nil && *createdBy != nil {
-			*updatedBy = model.CloneCommitteeUser(*createdBy)
-		} else if *updatedBy != nil {
-			*updatedBy = s.enrichAuditUserIfMissing(ctx, *updatedBy)
-		}
+	if updatedBy == nil && createdBy != nil {
+		updatedBy = model.CloneCommitteeUser(createdBy)
+	} else if updatedBy != nil {
+		updatedBy = s.enrichAuditUserIfMissing(ctx, updatedBy)
 	}
+	return createdBy, updatedBy
 }
 
-func (s *committeeServicesrvc) stampDocumentAuditUsers(ctx context.Context) (*model.CommitteeUser, *model.CommitteeUser) {
+func (s *committeeServicesrvc) stampAuditUsers(ctx context.Context) (*model.CommitteeUser, *model.CommitteeUser) {
 	creator := s.resolveRequestingUser(ctx)
 	if creator == nil {
 		return nil, nil

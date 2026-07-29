@@ -144,14 +144,14 @@ func TestCommitteeService_enrichAuditUserIfMissing(t *testing.T) {
 	}
 }
 
-func TestCommitteeService_stampDocumentAuditUsers(t *testing.T) {
+func TestCommitteeService_stampAuditUsers(t *testing.T) {
 	svc := &committeeServicesrvc{
 		userReader: mockReaderForPrincipalEmail("alice", "alice@lf.org").
 			withMetadata("alice", &model.UserMetadata{Name: "Alice Example"}),
 	}
 
 	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
-	created, updated := svc.stampDocumentAuditUsers(ctx)
+	created, updated := svc.stampAuditUsers(ctx)
 
 	require.NotNil(t, created)
 	require.NotNil(t, updated)
@@ -159,12 +159,13 @@ func TestCommitteeService_stampDocumentAuditUsers(t *testing.T) {
 	assert.Equal(t, "Alice Example", created.Name)
 }
 
-func TestCommitteeService_normalizeDocumentAuditUsers(t *testing.T) {
+func TestCommitteeService_normalizeAuditUsers(t *testing.T) {
 	tests := []struct {
 		name         string
 		userReader   port.UserReader
 		legacyCreate string
 		legacyUpload string
+		seedCreated  *model.CommitteeUser
 		seedUpdated  *model.CommitteeUser
 		wantUpdated  string
 	}{
@@ -178,21 +179,20 @@ func TestCommitteeService_normalizeDocumentAuditUsers(t *testing.T) {
 			name: "preserves richer updated_by when usernames match",
 			userReader: newMockUserReader().
 				withMetadata("alice", &model.UserMetadata{Name: "Alice Example"}),
-			legacyCreate: "alice",
-			seedUpdated:  &model.CommitteeUser{Username: "alice", Name: "Alice Existing", Avatar: "keep.png", Email: "keep@lf.org"},
-			wantUpdated:  "Alice Existing",
+			seedCreated: &model.CommitteeUser{Username: "alice"},
+			seedUpdated: &model.CommitteeUser{Username: "alice", Name: "Alice Existing", Avatar: "keep.png", Email: "keep@lf.org"},
+			wantUpdated: "Alice Existing",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &committeeServicesrvc{userReader: tt.userReader}
-			var createdBy, updatedBy *model.CommitteeUser
+			createdBy, updatedBy := tt.seedCreated, tt.seedUpdated
 			if tt.seedUpdated != nil {
 				updatedBy = model.CloneCommitteeUser(tt.seedUpdated)
-				createdBy = &model.CommitteeUser{Username: tt.seedUpdated.Username}
 			}
-			svc.normalizeDocumentAuditUsers(context.Background(), &createdBy, &updatedBy, tt.legacyCreate, tt.legacyUpload)
+			createdBy, updatedBy = svc.normalizeAuditUsers(context.Background(), createdBy, updatedBy, tt.legacyCreate, tt.legacyUpload)
 
 			require.NotNil(t, createdBy)
 			require.NotNil(t, updatedBy)

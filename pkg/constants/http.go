@@ -14,7 +14,7 @@ const (
 	// PrincipalContextID is the context ID for the principal (LFX username) from JWT claims
 	PrincipalContextID contextID = iota
 	// EmailContextID is the context ID for the email claim from the Heimdall JWT, populated by JWTAuth.
-	// Used as a fallback in resolveCallerEmail when auth-service returns NOT_FOUND for new users.
+	// Semantically equivalent to meeting-service's "email" context key; this service uses a private typed key.
 	EmailContextID
 )
 

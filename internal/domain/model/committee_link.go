@@ -55,7 +55,7 @@ func (l *CommitteeLink) UnmarshalJSON(data []byte) error {
 	l.UpdatedBy = raw.UpdatedBy
 	l.CreatedAt = raw.CreatedAt
 	l.UpdatedAt = raw.UpdatedAt
-	NormalizeLegacyAuditUsers(&l.CreatedBy, &l.UpdatedBy, raw.CreatedByUsername, "")
+	l.CreatedBy, l.UpdatedBy = NormalizeLegacyAuditUsers(l.CreatedBy, l.UpdatedBy, raw.CreatedByUsername, "")
 	return nil
 }
 
@@ -150,7 +150,7 @@ func (f *CommitteeLinkFolder) UnmarshalJSON(data []byte) error {
 	f.UpdatedBy = raw.UpdatedBy
 	f.CreatedAt = raw.CreatedAt
 	f.UpdatedAt = raw.UpdatedAt
-	NormalizeLegacyAuditUsers(&f.CreatedBy, &f.UpdatedBy, raw.CreatedByUsername, "")
+	f.CreatedBy, f.UpdatedBy = NormalizeLegacyAuditUsers(f.CreatedBy, f.UpdatedBy, raw.CreatedByUsername, "")
 	return nil
 }
 
