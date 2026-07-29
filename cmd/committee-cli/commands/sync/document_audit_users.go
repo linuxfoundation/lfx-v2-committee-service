@@ -159,10 +159,10 @@ func (r *documentAuditUsersRunner) migrateFolder(ctx context.Context, folder *mo
 		if r.dryRun {
 			return nil
 		}
-		if err := publishLinkFolderIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		if err := r.store.UpdateLinkFolder(ctx, fresh, revision); err != nil {
 			return err
 		}
-		return r.store.UpdateLinkFolder(ctx, fresh, revision)
+		return publishLinkFolderIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
 	})
 }
 
@@ -231,10 +231,10 @@ func (r *documentAuditUsersRunner) migrateLink(ctx context.Context, link *model.
 		if r.dryRun {
 			return nil
 		}
-		if err := publishLinkIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		if err := r.store.UpdateLink(ctx, fresh, revision); err != nil {
 			return err
 		}
-		return r.store.UpdateLink(ctx, fresh, revision)
+		return publishLinkIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
 	})
 }
 
@@ -303,10 +303,10 @@ func (r *documentAuditUsersRunner) migrateDocument(ctx context.Context, doc *mod
 		if r.dryRun {
 			return nil
 		}
-		if err := publishDocumentIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		if err := r.store.UpdateDocumentMetadata(ctx, fresh, revision); err != nil {
 			return err
 		}
-		return r.store.UpdateDocumentMetadata(ctx, fresh, revision)
+		return publishDocumentIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
 	})
 }
 
