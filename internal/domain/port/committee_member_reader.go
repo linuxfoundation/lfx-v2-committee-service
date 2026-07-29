@@ -32,4 +32,8 @@ type CommitteeMemberReader interface {
 	// address, using the by-email secondary index. The email is normalized (TrimSpace+ToLower) and
 	// SHA-256-hashed before the scan.
 	ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error)
+	// ListMembersByUsername retrieves all committee members whose normalized username matches the
+	// given LFID, using the by-username secondary index. The username is normalized
+	// (TrimSpace+ToLower) and SHA-256-hashed before the scan.
+	ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error)
 }

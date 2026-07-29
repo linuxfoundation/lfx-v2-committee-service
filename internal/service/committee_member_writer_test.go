@@ -20,6 +20,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
+	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
 
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
@@ -190,6 +192,16 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByEmail(ctx context.Context, 
 	return key, nil
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
+	return key, nil
+}
+
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
@@ -321,6 +333,10 @@ func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _
 }
 
 func (r *TestMockCommitteeReader) ListMembersByEmail(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
+}
+
+func (r *TestMockCommitteeReader) ListMembersByUsername(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, nil
 }
 
@@ -805,9 +821,16 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	indexKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s",
 		existingMember.CommitteeUID, existingMember.UID)
 	memberWriter.members[indexKey] = existingMember
-	orchestrator.committeeReader = memberWriter
 
 	ctx := context.Background()
+
+	// Pre-register the username→member secondary index key.
+	usernameHash := existingMember.BuildUsernameIndexKey(ctx)
+	usernameIndexKey := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existingMember.UID)
+	memberWriter.members[usernameIndexKey] = existingMember
+
+	orchestrator.committeeReader = memberWriter
+
 	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false, false)
 	require.NoError(t, err)
 
@@ -815,9 +838,13 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	_, primaryStillExists := memberWriter.members["member-del-idx"]
 	assert.False(t, primaryStillExists, "main member record should be deleted")
 
-	// Index key must also have been removed by the cleanup pass.
+	// Committee index key must also have been removed by the cleanup pass.
 	_, indexStillExists := memberWriter.members[indexKey]
 	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
+
+	// Username index key must also have been removed by the cleanup pass.
+	_, usernameIndexStillExists := memberWriter.members[usernameIndexKey]
+	assert.False(t, usernameIndexStillExists, "username→member index key should be cleaned up on delete")
 }
 
 // flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
@@ -2128,4 +2155,51 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 		require.NoError(t, err)
 		assert.Equal(t, "accepted-lfid", result.Username)
 	})
+}
+
+// TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple verifies that when a member's
+// username is cleared (e.g. via the user-deleted scrub), the old FGA tuple is revoked so the
+// deleted identity no longer holds the member relation on the committee.
+func TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	spy := &spyCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: spy,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	oldMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-scrubbed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "scrubbed_user",
+			FirstName: "Scrubbed", LastName: "User",
+		},
+	}
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-scrubbed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "",
+			FirstName: "Scrubbed", LastName: "User",
+		},
+	}
+
+	err := orchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+		Member:    updatedMember,
+		OldMember: oldMember,
+	}, false)
+	require.NoError(t, err)
+
+	// Exactly one FGA call: revoke the old tuple for the cleared username.
+	require.Len(t, spy.capturedAccessSubjects, 1, "expected exactly one FGA access publish when username is cleared")
+	assert.Equal(t, fgaconstants.GenericMemberRemoveSubject, spy.capturedAccessSubjects[0])
+
+	// The removal must carry the old identity, not the empty one.
+	fgaMsg, ok := spy.capturedAccessMsgs[0].(fgatypes.GenericFGAMessage)
+	require.True(t, ok, "access message should be a GenericFGAMessage")
+	memberData, ok := fgaMsg.Data.(fgatypes.GenericMemberData)
+	require.True(t, ok, "FGA message Data should be GenericMemberData")
+	assert.Equal(t, "scrubbed_user", memberData.Username, "FGA removal must reference the old username")
+	assert.Equal(t, "c-1", memberData.UID, "FGA removal must reference the correct committee UID")
 }

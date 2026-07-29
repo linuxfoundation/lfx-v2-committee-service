@@ -470,6 +470,31 @@ func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) (
 	return members, nil
 }
 
+// ListMembersByUsername retrieves all committee members whose normalized username matches the given
+// LFID, scanning all committees. Mirrors the real storage index behavior for tests.
+func (m *MockRepository) ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by username")
+
+	normalized := strings.TrimSpace(strings.ToLower(username))
+	if normalized == "" {
+		return nil, errors.NewValidation("username cannot be empty")
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if strings.TrimSpace(strings.ToLower(member.Username)) != normalized {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
 // MockCommitteeWriter implements CommitteeWriter interface
 type MockCommitteeWriter struct {
 	mock *MockRepository
@@ -803,6 +828,21 @@ func (w *MockCommitteeWriter) IndexMemberByEmail(ctx context.Context, member *mo
 		return "", nil
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
+	return key, nil
+}
+
+// IndexMemberByUsername records the by-username secondary index entry. In the mock this is a
+// no-op; it returns the key the real storage would write (empty when the member has no username)
+// so callers can track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by username",
+		"member_uid", member.UID,
+	)
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
 	return key, nil
 }
 

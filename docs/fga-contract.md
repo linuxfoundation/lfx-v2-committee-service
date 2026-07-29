@@ -38,7 +38,7 @@ Committee deletion preserves its stricter existing error behavior: storage delet
 
 A successful core publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
 
-The existing transport selection and payloads for `member_put` and `member_remove` are unchanged pending LFXV2-2856.
+The transport selection for `member_remove` is unchanged. `member_put` is normally transport-selected by the `X-Sync` header, with one exception: `AcceptInvite` always uses NATS request/reply for `member_put` (independent of `X-Sync`) so that access checks issued immediately after acceptance see the membership. Publish errors remain best-effort and do not fail the operation.
 
 ---
 

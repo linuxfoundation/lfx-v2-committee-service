@@ -110,14 +110,15 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, sub string) 
 
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
-	deleteError       error
-	deleteCalls       []deleteCall
-	updateMember      *model.CommitteeMember
-	updateMemberErr   error
-	updateMemberCalls []updateMemberCall
-	createMember      *model.CommitteeMember
-	createMemberErr   error
-	createMemberCalls []*model.CommitteeMember
+	deleteError          error
+	deleteCalls          []deleteCall
+	updateMember         *model.CommitteeMember
+	updateMemberErr      error
+	updateMemberCalls    []updateMemberCall
+	createMember         *model.CommitteeMember
+	createMemberErr      error
+	createMemberCalls    []*model.CommitteeMember
+	createMemberSyncArgs []bool
 }
 
 type updateMemberCall struct {
@@ -148,6 +149,7 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.createMemberCalls = append(m.createMemberCalls, member)
+	m.createMemberSyncArgs = append(m.createMemberSyncArgs, sync)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}
@@ -1426,6 +1428,11 @@ func TestAcceptInvite(t *testing.T) {
 				if tt.expectResult {
 					require.NotNil(t, result)
 					assert.Equal(t, "Active", result.Status)
+					// AcceptInvite must use sync=true so the FGA tuple is written
+					// before returning; verify CreateMember was called with sync=true.
+					if len(mockOrch.createMemberSyncArgs) > 0 {
+						assert.True(t, mockOrch.createMemberSyncArgs[0], "AcceptInvite must call CreateMember with sync=true")
+					}
 				}
 			}
 		})
