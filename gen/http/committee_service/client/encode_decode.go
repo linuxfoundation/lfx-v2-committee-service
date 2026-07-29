@@ -6568,15 +6568,37 @@ func unmarshalOrgCommitteeSeatResponseBodyToCommitteeserviceOrgCommitteeSeat(v *
 // from a value of type *CommitteeLinkWithReadonlyAttributesResponse.
 func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkWithReadonlyAttributes(v *CommitteeLinkWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkWithReadonlyAttributes {
 	res := &committeeservice.CommitteeLinkWithReadonlyAttributes{
-		UID:               v.UID,
-		CommitteeUID:      v.CommitteeUID,
-		FolderUID:         v.FolderUID,
-		Name:              v.Name,
-		URL:               v.URL,
-		Description:       v.Description,
-		CreatedByUsername: v.CreatedByUsername,
-		CreatedAt:         v.CreatedAt,
-		UpdatedAt:         v.UpdatedAt,
+		UID:          v.UID,
+		CommitteeUID: v.CommitteeUID,
+		FolderUID:    v.FolderUID,
+		Name:         v.Name,
+		URL:          v.URL,
+		Description:  v.Description,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+	}
+	if v.CreatedBy != nil {
+		res.CreatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.CreatedBy)
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.UpdatedBy)
+	}
+
+	return res
+}
+
+// unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser builds a value
+// of type *committeeservice.CommitteeUser from a value of type
+// *CommitteeUserResponse.
+func unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v *CommitteeUserResponse) *committeeservice.CommitteeUser {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CommitteeUser{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
 	}
 
 	return res
@@ -6588,12 +6610,17 @@ func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommi
 // type *CommitteeLinkFolderWithReadonlyAttributesResponse.
 func unmarshalCommitteeLinkFolderWithReadonlyAttributesResponseToCommitteeserviceCommitteeLinkFolderWithReadonlyAttributes(v *CommitteeLinkFolderWithReadonlyAttributesResponse) *committeeservice.CommitteeLinkFolderWithReadonlyAttributes {
 	res := &committeeservice.CommitteeLinkFolderWithReadonlyAttributes{
-		UID:               v.UID,
-		CommitteeUID:      v.CommitteeUID,
-		Name:              v.Name,
-		CreatedByUsername: v.CreatedByUsername,
-		CreatedAt:         v.CreatedAt,
-		UpdatedAt:         v.UpdatedAt,
+		UID:          v.UID,
+		CommitteeUID: v.CommitteeUID,
+		Name:         v.Name,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+	}
+	if v.CreatedBy != nil {
+		res.CreatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.CreatedBy)
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.UpdatedBy)
 	}
 
 	return res

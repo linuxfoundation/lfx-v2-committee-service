@@ -271,8 +271,10 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 	case "jwt":
 		slog.InfoContext(ctx, "initializing JWT authentication service")
 		jwtConfig := auth.JWTAuthConfig{
-			JWKSURL:  os.Getenv("JWKS_URL"),
-			Audience: os.Getenv("JWT_AUDIENCE"),
+			JWKSURL:            os.Getenv("JWKS_URL"),
+			Audience:           os.Getenv("JWT_AUDIENCE"),
+			MockLocalPrincipal: os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL"),
+			MockLocalEmail:     os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL"),
 		}
 		if jwtConfig.JWKSURL == "" || jwtConfig.Audience == "" {
 			log.Fatalf("JWT configuration incomplete: JWKS_URL and JWT_AUDIENCE are required")

@@ -290,8 +290,10 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	FileSize *int64
 	// MIME type of the file
 	ContentType *string
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -412,8 +414,10 @@ type CommitteeLinkFolderWithReadonlyAttributes struct {
 	CommitteeUID *string
 	// Folder name
 	Name *string
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -435,8 +439,10 @@ type CommitteeLinkWithReadonlyAttributes struct {
 	URL *string
 	// Optional description
 	Description *string
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)

@@ -68,11 +68,11 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 	reader := NewCommitteeReaderOrchestrator(WithCommitteeReader(mock.NewMockCommitteeReader(repo)))
 
 	doc := &model.CommitteeDocument{
-		UID:                "doc-1",
-		CommitteeUID:       "committee-1",
-		Name:               "Q1 Report",
-		FileName:           "q1-report.pdf",
-		UploadedByUsername: "uploader1",
+		UID:          "doc-1",
+		CommitteeUID: "committee-1",
+		Name:         "Q1 Report",
+		FileName:     "q1-report.pdf",
+		CreatedBy:    &model.CommitteeUser{Username: "uploader1"},
 	}
 
 	t.Run("sends one email per distinct LFID recipient", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 			emailSender:         sender,
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
-		dupDoc := &model.CommitteeDocument{UID: "d1", CommitteeUID: "c-dup", Name: "Doc", FileName: "doc.pdf", UploadedByUsername: "shared-user"}
+		dupDoc := &model.CommitteeDocument{UID: "d1", CommitteeUID: "c-dup", Name: "Doc", FileName: "doc.pdf", CreatedBy: &model.CommitteeUser{Username: "shared-user"}}
 		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, dupDoc))
 		resp, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
 
@@ -196,7 +196,7 @@ func TestHandleCommitteeDocumentCreated(t *testing.T) {
 			emailSender:         sender,
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
-		noEmailDoc := &model.CommitteeDocument{UID: "d1", CommitteeUID: "c-noemail", Name: "Doc", FileName: "doc.pdf", UploadedByUsername: "uploader"}
+		noEmailDoc := &model.CommitteeDocument{UID: "d1", CommitteeUID: "c-noemail", Name: "Doc", FileName: "doc.pdf", CreatedBy: &model.CommitteeUser{Username: "uploader"}}
 		msg := newMockTransportMessenger(constants.CommitteeDocumentCreatedSubject, buildDocumentCreatedPayload(t, noEmailDoc))
 		_, err := h.HandleCommitteeDocumentCreated(context.Background(), msg)
 
@@ -263,7 +263,7 @@ func TestHandleCommitteeLinkCreated(t *testing.T) {
 			emailSender:         sender,
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
-		link := &model.CommitteeLink{UID: "l1", CommitteeUID: "committee-2", Name: "LFX", URL: "https://lfx.linuxfoundation.org", CreatedByUsername: "writer2"}
+		link := &model.CommitteeLink{UID: "l1", CommitteeUID: "committee-2", Name: "LFX", URL: "https://lfx.linuxfoundation.org", CreatedBy: &model.CommitteeUser{Username: "writer2"}}
 		msg := newMockTransportMessenger(constants.CommitteeLinkCreatedSubject, buildLinkCreatedPayload(t, link))
 		_, err := h.HandleCommitteeLinkCreated(context.Background(), msg)
 
@@ -280,7 +280,7 @@ func TestHandleCommitteeLinkCreated(t *testing.T) {
 			emailSender:         sender,
 			lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
 		}
-		link := &model.CommitteeLink{UID: "l2", CommitteeUID: "committee-2", Name: "Bad Link", URL: "javascript:alert(1)", CreatedByUsername: "writer2"}
+		link := &model.CommitteeLink{UID: "l2", CommitteeUID: "committee-2", Name: "Bad Link", URL: "javascript:alert(1)", CreatedBy: &model.CommitteeUser{Username: "writer2"}}
 		msg := newMockTransportMessenger(constants.CommitteeLinkCreatedSubject, buildLinkCreatedPayload(t, link))
 		_, err := h.HandleCommitteeLinkCreated(context.Background(), msg)
 

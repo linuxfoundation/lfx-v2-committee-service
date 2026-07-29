@@ -26,7 +26,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -1387,8 +1386,8 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by converting
-// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// resolveCallerEmail looks up the primary email for the authenticated caller by sending
+// their principal (LFID username or JWT sub) to auth-service via NATS
 // (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
@@ -1396,16 +1395,12 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	principal = strings.TrimSpace(principal)
 	if principal == "" {
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	authSub := authpkg.MapUsernameToAuthSub(principal)
-	if authSub == "" {
-		return "", errors.NewValidation("unable to determine user identity from token")
-	}
-
-	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, principal)
 	if err != nil {
 		// New LFID users are not yet propagated to auth-service immediately after registration.
 		// Fall back to the email claim from the Heimdall JWT (populated by Authelia's
@@ -1884,9 +1879,6 @@ func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, mem
 	}
 	if principal != "" {
 		metadataKeys = append(metadataKeys, principal)
-		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
-			metadataKeys = append(metadataKeys, authSub)
-		}
 	}
 	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
 		member.Organization.Name = strings.TrimSpace(meta.Organization)
@@ -2221,6 +2213,7 @@ func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *commit
 		if p.FolderUID != nil && (l.FolderUID == nil || *l.FolderUID != *p.FolderUID) {
 			continue
 		}
+		l.CreatedBy, l.UpdatedBy = s.normalizeLegacyAuditUsers(l.CreatedBy, l.UpdatedBy)
 		result = append(result, domainLinkToGoa(l))
 	}
 	return result, nil
@@ -2234,16 +2227,17 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		URL:               p.URL,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description
@@ -2267,6 +2261,8 @@ func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committe
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	link.CreatedBy, link.UpdatedBy = s.normalizeAuditUsers(ctx, link.CreatedBy, link.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkResult{
@@ -2306,6 +2302,7 @@ func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *
 
 	result := make([]*committeeservice.CommitteeLinkFolderWithReadonlyAttributes, 0, len(folders))
 	for _, f := range folders {
+		f.CreatedBy, f.UpdatedBy = s.normalizeLegacyAuditUsers(f.CreatedBy, f.UpdatedBy)
 		result = append(result, domainFolderToGoa(f))
 	}
 	return result, nil
@@ -2319,6 +2316,8 @@ func (s *committeeServicesrvc) GetCommitteeLinkFolder(ctx context.Context, p *co
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	folder.CreatedBy, folder.UpdatedBy = s.normalizeAuditUsers(ctx, folder.CreatedBy, folder.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkFolderResult{
@@ -2335,15 +2334,16 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 
 	created, err := s.linkWriter.CreateLinkFolder(ctx, folder, p.XSync)
@@ -2384,16 +2384,14 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		FolderUID:    l.FolderUID,
 		Name:         &name,
 		URL:          &url,
+		CreatedBy:    committeeUserToGoa(l.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(l.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if l.Description != "" {
 		desc := l.Description
 		res.Description = &desc
-	}
-	if l.CreatedByUsername != "" {
-		v := l.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2410,12 +2408,10 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		UID:          &uid,
 		CommitteeUID: &committeeUID,
 		Name:         &name,
+		CreatedBy:    committeeUserToGoa(f.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(f.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
-	}
-	if f.CreatedByUsername != "" {
-		v := f.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2426,8 +2422,8 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *committeeservice.UploadCommitteeDocumentPayload) (res *committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.upload-committee-document", "committee_uid", p.UID)
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
@@ -2443,9 +2439,10 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 
 	doc := &model.CommitteeDocument{
-		CommitteeUID:       p.UID,
-		Name:               p.Name,
-		UploadedByUsername: principal,
+		CommitteeUID: p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
@@ -2471,6 +2468,8 @@ func (s *committeeServicesrvc) GetCommitteeDocument(ctx context.Context, p *comm
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	doc.CreatedBy, doc.UpdatedBy = s.normalizeAuditUsers(ctx, doc.CreatedBy, doc.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeDocumentResult{
@@ -2536,16 +2535,14 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 		FileName:     &fileName,
 		FileSize:     &fileSize,
 		ContentType:  &contentType,
+		CreatedBy:    committeeUserToGoa(d.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(d.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if d.Description != "" {
 		v := d.Description
 		res.Description = &v
-	}
-	if d.UploadedByUsername != "" {
-		v := d.UploadedByUsername
-		res.UploadedByUsername = &v
 	}
 	if d.FolderUID != nil {
 		res.FolderUID = d.FolderUID

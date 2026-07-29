@@ -11,7 +11,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -90,8 +89,9 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 	return body, nil
 }
 
-// EmailsByAuthToken retrieves all email addresses for a user by sending their Auth0 subject
-// (auth0|{userID}) as auth_token to the NATS subject lfx.auth-service.user_emails.read.
+// EmailsByAuthToken retrieves all email addresses for a user by sending their principal
+// (LFID username, JWT principal, or provider-qualified sub) as auth_token to the NATS
+// subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
 	if authToken == "" {
 		return nil, errors.NewValidation("auth token must not be empty")
@@ -150,13 +150,11 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 
 // UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
 //
-// A bare LFID username is mapped to its deterministic "auth0|" sub before the request so auth-service
-// resolves it with a cheap get-by-id rather than a rate-limited Auth0 user search; already-qualified
-// principals pass through unchanged. Returned errors always redact the original principal, never the
-// derived sub. A genuine "no such user" reply (see isUserMissError) is a NotFound miss; other failures
-// surface as Unexpected so callers can tell an auth-service outage apart from an absent user.
+// The principal is sent as-is (trimmed): LFID username, JWT principal, or provider-qualified sub.
+// A genuine "no such user" reply (see isUserMissError) is a NotFound miss; other failures surface
+// as Unexpected so callers can tell an auth-service outage apart from an absent user.
 func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
-	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(auth.AuthSubLookupKey(principal)))
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(strings.TrimSpace(principal)))
 	if err != nil {
 		return nil, err
 	}

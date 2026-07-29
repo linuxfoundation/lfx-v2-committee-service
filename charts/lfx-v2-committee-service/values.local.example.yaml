@@ -18,6 +18,13 @@ image:
 
 app:
   environment:
+    # JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL — bypass JWT validation and stamp this
+    # username on writes (mirrors lfx-v2-project-service). Works with AUTH_SOURCE=jwt.
+    JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL:
+      value: ""
+    # JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL — optional email paired with the mock principal.
+    JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL:
+      value: ""
     # ORG_SEAT_PAGE_TOKEN_HMAC_KEY signs the Org Lens committee-seat pagination
     # cursor (LFXV2-1865). There is no in-repo fallback, so the org-seat read
     # endpoint returns 503 until this is set. Provide any stable random string for

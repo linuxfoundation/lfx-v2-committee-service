@@ -3123,6 +3123,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             description:
                 type: string
                 description: Optional description
@@ -3159,14 +3161,16 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
-            uploaded_by_username:
-                type: string
-                description: LF username of the uploader (auto-populated from JWT)
-                example: alexlee
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             content_type: application/pdf
             created_at: "2023-01-15T10:30:00Z"
+            created_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             description: Technical architecture decisions for Q1 2025
             file_name: architecture-decisions-q1-2025.pdf
             file_size: 204800
@@ -3174,7 +3178,10 @@ definitions:
             name: Architecture Decision Record
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
-            uploaded_by_username: alexlee
+            updated_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
     CommitteeFullWithReadonlyAttributes:
         title: CommitteeFullWithReadonlyAttributes
         type: object
@@ -3539,10 +3546,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_username:
-                type: string
-                description: LF username of the user who created the folder (auto-populated from JWT)
-                example: alexlee
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             name:
                 type: string
                 description: Folder name
@@ -3558,14 +3563,23 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
         description: A folder for organizing committee links.
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_username: alexlee
+            created_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             name: Meeting Notes
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
+            updated_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
     CommitteeLinkWithReadonlyAttributes:
         title: CommitteeLinkWithReadonlyAttributes
         type: object
@@ -3580,10 +3594,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_username:
-                type: string
-                description: LF username of the user who added the link (auto-populated from JWT)
-                example: alexlee
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             description:
                 type: string
                 description: Optional description
@@ -3609,6 +3621,8 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
             url:
                 type: string
                 description: The URL this link points to
@@ -3618,12 +3632,19 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_username: alexlee
+            created_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             description: Confluence wiki — architecture decisions log
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Technical Architecture Decision Records
             uid: c1d2e3f4-a5b6-7890-cdef-123456789012
             updated_at: "2023-06-20T14:45:30Z"
+            updated_by:
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             url: https://confluence.example.com/architecture-decisions
     CommitteeMemberFullWithReadonlyAttributes:
         title: CommitteeMemberFullWithReadonlyAttributes

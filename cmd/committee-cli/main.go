@@ -107,7 +107,7 @@ func run() error {
 	}
 	defer func() { _ = client.Close() }()
 
-	storage := nats.NewStorage(client)
+	storage := nats.NewStorageBackend(client)
 	publisher := nats.NewMessagePublisher(client)
 	userReader := nats.NewUserRequest(client)
 
@@ -125,6 +125,7 @@ func run() error {
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       storage,
 		CommitteeInviteWriter:       storage,
+		DocumentAuditSync:           storage,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
 		Args:                        parsed.SubArgs,

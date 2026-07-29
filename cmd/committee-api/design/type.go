@@ -400,6 +400,26 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	})
 })
 
+// ResourceAuditUserAttributes adds created_by and updated_by user profile objects.
+func ResourceAuditUserAttributes() {
+	dsl.Attribute("created_by", CommitteeUserType, "User who created this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "alexlee",
+			"name":     "Alex Lee",
+			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "alexlee",
+			"name":     "Alex Lee",
+			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+}
+
 // WritersAttribute is the DSL attribute for committee writers.
 func WritersAttribute() {
 	dsl.Attribute("writers", dsl.ArrayOf(CommitteeUserType), "Users who can edit/modify this committee", func() {
@@ -1117,9 +1137,7 @@ var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-
 		dsl.MaxLength(200)
 		dsl.Example("Meeting Notes")
 	})
-	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
@@ -1152,9 +1170,7 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 		dsl.MaxLength(2000)
 		dsl.Example("Confluence wiki — architecture decisions log")
 	})
-	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
@@ -1396,9 +1412,7 @@ var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-
 	dsl.Attribute("content_type", dsl.String, "MIME type of the file", func() {
 		dsl.Example("application/pdf")
 	})
-	dsl.Attribute("uploaded_by_username", dsl.String, "LF username of the uploader (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })

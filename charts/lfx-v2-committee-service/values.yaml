@@ -474,6 +474,13 @@ app:
     # JWT_AUDIENCE — mirrors .Values.app.audience (used by ruleset.yaml).
     JWT_AUDIENCE:
       value: lfx-v2-committee-service
+    # JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL — when set, overrides the JWT principal
+    # for identity resolution (audit stamps, auth-service lookups). Local dev only.
+    JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL:
+      value: ""
+    # JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL — optional email paired with the mock principal.
+    JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL:
+      value: ""
     # EMAILS_ENABLED gates outbound role-notification emails to LFID users.
     EMAILS_ENABLED:
       value: "false"

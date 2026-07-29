@@ -449,18 +449,18 @@ func setupUserMetadataByPrincipalTest(t *testing.T, responder func(key string) [
 	}
 }
 
-// Asserts what lands on the wire (the derived sub), so reverting the request payload to the raw
-// principal is caught — the response-handling branches are covered separately below.
-func TestMessageRequest_UserMetadataByPrincipal_SendsDerivedSub(t *testing.T) {
+// Asserts what lands on the wire (trimmed principal), so reverting the request payload to an
+// unnormalized value is caught — the response-handling branches are covered separately below.
+func TestMessageRequest_UserMetadataByPrincipal_SendsPrincipal(t *testing.T) {
 	tests := []struct {
 		name      string
 		principal string
 		wantKey   string
 	}{
-		{name: "bare LFID is mapped to its deterministic auth0| sub", principal: "alice", wantKey: "auth0|alice"},
+		{name: "bare LFID is sent as-is", principal: "alice", wantKey: "alice"},
 		{name: "already-qualified auth0 principal passes through unchanged", principal: "auth0|abc123", wantKey: "auth0|abc123"},
 		{name: "non-auth0 provider principal passes through unchanged", principal: "oidc|okta|xyz", wantKey: "oidc|okta|xyz"},
-		{name: "principal is trimmed before lookup", principal: "  alice  ", wantKey: "auth0|alice"},
+		{name: "principal is trimmed before lookup", principal: "  alice  ", wantKey: "alice"},
 	}
 
 	for _, tt := range tests {

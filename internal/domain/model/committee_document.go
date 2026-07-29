@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -36,17 +37,75 @@ var AllowedDocumentContentTypes = map[string]bool{
 // CommitteeDocument represents a file attachment associated with a committee.
 // Metadata is stored in NATS KV; file data is stored in NATS Object Store.
 type CommitteeDocument struct {
-	UID                string    `json:"uid"`
-	CommitteeUID       string    `json:"committee_uid"`
-	FolderUID          *string   `json:"folder_uid,omitempty"`
-	Name               string    `json:"name"`
-	Description        string    `json:"description,omitempty"`
-	FileName           string    `json:"file_name"`
-	FileSize           int64     `json:"file_size"`
-	ContentType        string    `json:"content_type"`
-	UploadedByUsername string    `json:"uploaded_by_username,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	UID          string         `json:"uid"`
+	CommitteeUID string         `json:"committee_uid"`
+	FolderUID    *string        `json:"folder_uid,omitempty"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	FileName     string         `json:"file_name"`
+	FileSize     int64          `json:"file_size"`
+	ContentType  string         `json:"content_type"`
+	CreatedBy    *CommitteeUser `json:"created_by,omitempty"`
+	UpdatedBy    *CommitteeUser `json:"updated_by,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+type committeeDocumentJSON struct {
+	UID                string         `json:"uid"`
+	CommitteeUID       string         `json:"committee_uid"`
+	FolderUID          *string        `json:"folder_uid,omitempty"`
+	Name               string         `json:"name"`
+	Description        string         `json:"description,omitempty"`
+	FileName           string         `json:"file_name"`
+	FileSize           int64          `json:"file_size"`
+	ContentType        string         `json:"content_type"`
+	CreatedBy          *CommitteeUser `json:"created_by,omitempty"`
+	UpdatedBy          *CommitteeUser `json:"updated_by,omitempty"`
+	UploadedByUsername string         `json:"uploaded_by_username,omitempty"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+func (d *CommitteeDocument) UnmarshalJSON(data []byte) error {
+	var raw committeeDocumentJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	d.UID = raw.UID
+	d.CommitteeUID = raw.CommitteeUID
+	d.FolderUID = raw.FolderUID
+	d.Name = raw.Name
+	d.Description = raw.Description
+	d.FileName = raw.FileName
+	d.FileSize = raw.FileSize
+	d.ContentType = raw.ContentType
+	d.CreatedBy = raw.CreatedBy
+	d.UpdatedBy = raw.UpdatedBy
+	d.CreatedAt = raw.CreatedAt
+	d.UpdatedAt = raw.UpdatedAt
+	d.CreatedBy, d.UpdatedBy = NormalizeLegacyAuditUsers(d.CreatedBy, d.UpdatedBy, "", raw.UploadedByUsername)
+	return nil
+}
+
+func (d *CommitteeDocument) MarshalJSON() ([]byte, error) {
+	if d == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(&committeeDocumentJSON{
+		UID:          d.UID,
+		CommitteeUID: d.CommitteeUID,
+		FolderUID:    d.FolderUID,
+		Name:         d.Name,
+		Description:  d.Description,
+		FileName:     d.FileName,
+		FileSize:     d.FileSize,
+		ContentType:  d.ContentType,
+		CreatedBy:    d.CreatedBy,
+		UpdatedBy:    d.UpdatedBy,
+		CreatedAt:    d.CreatedAt,
+		UpdatedAt:    d.UpdatedAt,
+	})
 }
 
 // BuildIndexKey returns a SHA-256 hash of committeeUID|name for document name uniqueness enforcement.
@@ -85,8 +144,8 @@ func (d *CommitteeDocument) Tags() []string {
 		tags = append(tags, fmt.Sprintf("content_type:%s", d.ContentType))
 	}
 
-	if d.UploadedByUsername != "" {
-		tags = append(tags, fmt.Sprintf("uploaded_by:%s", d.UploadedByUsername))
+	if username := AuditCreatorUsername(d.CreatedBy); username != "" {
+		tags = append(tags, fmt.Sprintf("uploaded_by:%s", username))
 	}
 
 	return tags

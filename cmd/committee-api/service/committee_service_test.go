@@ -7,6 +7,7 @@ import (
 	"context"
 	stderrors "errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
@@ -30,9 +30,9 @@ func testCtx(principal string) context.Context {
 	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
 }
 
-// mockReaderForPrincipalEmail maps the principal's Auth0 sub to the caller's email for EmailsByAuthToken.
+// mockReaderForPrincipalEmail maps the principal to the caller's email for EmailsByAuthToken.
 func mockReaderForPrincipalEmail(principal, email string) *mockUserReader {
-	return newMockUserReader(authpkg.MapUsernameToAuthSub(principal), email)
+	return newMockUserReader(strings.TrimSpace(principal), email)
 }
 
 // mockUserReader is a simple in-memory UserReader for tests.
@@ -2822,10 +2822,9 @@ func TestOrgSeatFromMember_AvatarUsername(t *testing.T) {
 
 func TestEnrichMemberOrganization_AuthServiceMetadata(t *testing.T) {
 	principal := "user@corp.com"
-	authSub := authpkg.MapUsernameToAuthSub(principal)
 	reader := &metadataByKeyReader{
 		metadata: map[string]*model.UserMetadata{
-			authSub: {Organization: "Example Corp"},
+			principal: {Organization: "Example Corp"},
 		},
 	}
 	svc := &committeeServicesrvc{userReader: reader}
