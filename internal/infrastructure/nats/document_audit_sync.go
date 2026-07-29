@@ -29,16 +29,21 @@ func (s *storage) ListAllLinkFolders(ctx context.Context, committeeUID string) (
 		return nil, errs.NewUnexpected("failed to list keys from committee folders bucket", errKeys)
 	}
 	folders := make([]*model.CommitteeLinkFolder, 0)
+	var readFailures int
 	for key := range keys.Keys() {
 		if strings.HasPrefix(key, "lookup/") {
 			continue
 		}
 		folder := &model.CommitteeLinkFolder{}
 		if _, err := s.get(ctx, constants.KVBucketNameCommitteeFolders, key, folder, false); err != nil {
+			readFailures++
 			slog.WarnContext(ctx, "failed to get folder during list, skipping", "key", key, "error", err)
 			continue
 		}
 		folders = append(folders, folder)
+	}
+	if readFailures > 0 {
+		return folders, errs.NewUnexpected(fmt.Sprintf("%d folder(s) failed to read during list", readFailures))
 	}
 	return folders, nil
 }
@@ -53,16 +58,21 @@ func (s *storage) ListAllLinks(ctx context.Context, committeeUID string) ([]*mod
 		return nil, errs.NewUnexpected("failed to list keys from committee links bucket", errKeys)
 	}
 	links := make([]*model.CommitteeLink, 0)
+	var readFailures int
 	for key := range keys.Keys() {
 		if strings.HasPrefix(key, "lookup/") {
 			continue
 		}
 		link := &model.CommitteeLink{}
 		if _, err := s.get(ctx, constants.KVBucketNameCommitteeLinks, key, link, false); err != nil {
+			readFailures++
 			slog.WarnContext(ctx, "failed to get link during list, skipping", "key", key, "error", err)
 			continue
 		}
 		links = append(links, link)
+	}
+	if readFailures > 0 {
+		return links, errs.NewUnexpected(fmt.Sprintf("%d link(s) failed to read during list", readFailures))
 	}
 	return links, nil
 }
@@ -74,12 +84,14 @@ func (s *storage) ListAllDocuments(ctx context.Context, committeeUID string) ([]
 		return nil, errs.NewUnexpected("failed to list keys from committee documents bucket", errKeys)
 	}
 	docs := make([]*model.CommitteeDocument, 0)
+	var readFailures int
 	for key := range keys.Keys() {
 		if strings.HasPrefix(key, "lookup/") {
 			continue
 		}
 		doc := &model.CommitteeDocument{}
 		if _, err := s.get(ctx, constants.KVBucketNameCommitteeDocuments, key, doc, false); err != nil {
+			readFailures++
 			slog.WarnContext(ctx, "failed to get document during list, skipping", "key", key, "error", err)
 			continue
 		}
@@ -87,6 +99,9 @@ func (s *storage) ListAllDocuments(ctx context.Context, committeeUID string) ([]
 			continue
 		}
 		docs = append(docs, doc)
+	}
+	if readFailures > 0 {
+		return docs, errs.NewUnexpected(fmt.Sprintf("%d document(s) failed to read during list", readFailures))
 	}
 	return docs, nil
 }

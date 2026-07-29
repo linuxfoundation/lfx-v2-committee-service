@@ -14,19 +14,19 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 )
 
-type auditUserMockReader struct {
+type testAuditUserReader struct {
 	metadata map[string]*model.UserMetadata
 }
 
-func (m *auditUserMockReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
+func (m *testAuditUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
-func (m *auditUserMockReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
+func (m *testAuditUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
 	return nil, nil
 }
 
-func (m *auditUserMockReader) UserMetadataByPrincipal(_ context.Context, principal string) (*model.UserMetadata, error) {
+func (m *testAuditUserReader) UserMetadataByPrincipal(_ context.Context, principal string) (*model.UserMetadata, error) {
 	if meta, ok := m.metadata[principal]; ok {
 		return meta, nil
 	}
@@ -34,90 +34,143 @@ func (m *auditUserMockReader) UserMetadataByPrincipal(_ context.Context, princip
 }
 
 func TestParseDocumentResourceType(t *testing.T) {
-	t.Run("empty means all", func(t *testing.T) {
-		folders, links, docs, err := parseDocumentResourceType("")
-		require.NoError(t, err)
-		assert.True(t, folders)
-		assert.True(t, links)
-		assert.True(t, docs)
-	})
-
-	t.Run("folder only", func(t *testing.T) {
-		folders, links, docs, err := parseDocumentResourceType("folder")
-		require.NoError(t, err)
-		assert.True(t, folders)
-		assert.False(t, links)
-		assert.False(t, docs)
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		_, _, _, err := parseDocumentResourceType("bad")
-		assert.Error(t, err)
-	})
-}
-
-func TestDocumentAuditUsersRunner_applyAuditUsers_skipsEnriched(t *testing.T) {
-	runner := &documentAuditUsersRunner{
-		stats: commands.NewStats(),
+	tests := []struct {
+		name        string
+		in          string
+		wantFolders bool
+		wantLinks   bool
+		wantDocs    bool
+		wantErr     bool
+	}{
+		{name: "empty means all", wantFolders: true, wantLinks: true, wantDocs: true},
+		{name: "folder only", in: "folder", wantFolders: true},
+		{name: "invalid", in: "bad", wantErr: true},
 	}
-	err := runner.applyAuditUsers(context.Background(), freshAuditResource{
-		resourceType: "folder",
-		uid:          "f1",
-		committeeUID: "c1",
-		createdBy:    &model.CommitteeUser{Username: "alice", Name: "Alice Example"},
-	}, func(*model.CommitteeUser) error {
-		t.Fatal("apply should not be called")
-		return nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, runner.stats.Skipped)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			folders, links, docs, err := parseDocumentResourceType(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFolders, folders)
+			assert.Equal(t, tt.wantLinks, links)
+			assert.Equal(t, tt.wantDocs, docs)
+		})
+	}
 }
 
-func TestDocumentAuditUsersRunner_applyAuditUsers_dryRun(t *testing.T) {
-	runner := &documentAuditUsersRunner{
-		userReader: &auditUserMockReader{
-			metadata: map[string]*model.UserMetadata{
-				"alice": {Name: "Alice Example"},
-			},
+func TestDocumentAuditUsersRunner_applyAuditUsers(t *testing.T) {
+	reader := &testAuditUserReader{
+		metadata: map[string]*model.UserMetadata{
+			"alice": {Name: "Alice Example"},
+			"bob":   {Name: "Bob Example"},
 		},
-		dryRun: true,
-		stats:  commands.NewStats(),
 	}
-	err := runner.applyAuditUsers(context.Background(), freshAuditResource{
-		resourceType: "link",
-		uid:          "l1",
-		committeeUID: "c1",
-		createdBy:    &model.CommitteeUser{Username: "alice"},
-	}, func(*model.CommitteeUser) error {
-		t.Fatal("apply should not be called in dry-run")
-		return nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, runner.stats.Updated)
+
+	tests := []struct {
+		name        string
+		runner      *documentAuditUsersRunner
+		resource    freshAuditResource
+		wantSkipped bool
+		wantUpdated bool
+		wantFailed  bool
+		wantApplied bool
+	}{
+		{
+			name:   "skips enriched records",
+			runner: &documentAuditUsersRunner{stats: commands.NewStats()},
+			resource: freshAuditResource{
+				resourceType: "folder",
+				uid:          "f1",
+				committeeUID: "c1",
+				createdBy:    &model.CommitteeUser{Username: "alice", Name: "Alice Example"},
+			},
+			wantSkipped: true,
+		},
+		{
+			name: "dry run counts updated",
+			runner: &documentAuditUsersRunner{
+				userReader: reader,
+				dryRun:     true,
+				stats:      commands.NewStats(),
+			},
+			resource: freshAuditResource{
+				resourceType: "link",
+				uid:          "l1",
+				committeeUID: "c1",
+				createdBy:    &model.CommitteeUser{Username: "alice"},
+			},
+			wantUpdated: true,
+		},
+		{
+			name: "writes enriched profile",
+			runner: &documentAuditUsersRunner{
+				userReader: reader,
+				dryRun:     false,
+				stats:      commands.NewStats(),
+			},
+			resource: freshAuditResource{
+				resourceType: "document",
+				uid:          "d1",
+				committeeUID: "c1",
+				createdBy:    &model.CommitteeUser{Username: "alice"},
+			},
+			wantUpdated: true,
+			wantApplied: true,
+		},
+		{
+			name: "migrates distinct updated_by independently",
+			runner: &documentAuditUsersRunner{
+				userReader: reader,
+				dryRun:     false,
+				stats:      commands.NewStats(),
+			},
+			resource: freshAuditResource{
+				resourceType: "link",
+				uid:          "l2",
+				committeeUID: "c1",
+				createdBy:    &model.CommitteeUser{Username: "alice", Name: "Alice Example"},
+				updatedBy:    &model.CommitteeUser{Username: "bob"},
+			},
+			wantUpdated: true,
+			wantApplied: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			applied := false
+			err := tt.runner.applyAuditUsers(context.Background(), tt.resource, func(createdBy, updatedBy *model.CommitteeUser) error {
+				applied = true
+				if tt.resource.updatedBy != nil && model.AuditUserNeedsMigration(tt.resource.updatedBy) {
+					require.NotNil(t, updatedBy)
+					assert.Equal(t, "bob", updatedBy.Username)
+					assert.Equal(t, "Bob Example", updatedBy.Name)
+					return nil
+				}
+				require.NotNil(t, createdBy)
+				assert.Equal(t, "Alice Example", createdBy.Name)
+				return nil
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantApplied, applied)
+			if tt.wantSkipped {
+				assert.Equal(t, 1, tt.runner.stats.Skipped)
+			}
+			if tt.wantUpdated {
+				assert.Equal(t, 1, tt.runner.stats.Updated)
+			}
+			if tt.wantFailed {
+				assert.Equal(t, 1, tt.runner.stats.Failed)
+			}
+		})
+	}
 }
 
-func TestDocumentAuditUsersRunner_applyAuditUsers_writes(t *testing.T) {
-	var applied bool
-	runner := &documentAuditUsersRunner{
-		userReader: &auditUserMockReader{
-			metadata: map[string]*model.UserMetadata{
-				"alice": {Name: "Alice Example"},
-			},
-		},
-		dryRun: false,
-		stats:  commands.NewStats(),
-	}
-	err := runner.applyAuditUsers(context.Background(), freshAuditResource{
-		resourceType: "document",
-		uid:          "d1",
-		committeeUID: "c1",
-		createdBy:    &model.CommitteeUser{Username: "alice"},
-	}, func(profile *model.CommitteeUser) error {
-		applied = true
-		assert.Equal(t, "Alice Example", profile.Name)
-		return nil
-	})
-	require.NoError(t, err)
-	assert.True(t, applied)
-	assert.Equal(t, 1, runner.stats.Updated)
+func TestDocumentAuditUsersRunner_throttle(t *testing.T) {
+	runner := &documentAuditUsersRunner{sleep: 0}
+	require.NoError(t, runner.throttle(context.Background()))
 }

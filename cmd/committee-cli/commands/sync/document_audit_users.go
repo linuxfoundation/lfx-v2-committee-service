@@ -84,7 +84,7 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 
 	runner.stats.Log(ctx, "sync document-audit-users")
 	if runner.stats.Failed > 0 {
-		return fmt.Errorf("%d resource(s) failed to migrate", runner.stats.Failed)
+		return errs.NewUnexpected(fmt.Sprintf("%d resource(s) failed to migrate", runner.stats.Failed))
 	}
 	return nil
 }
@@ -121,7 +121,7 @@ func (r *documentAuditUsersRunner) run(ctx context.Context, committeeUID string,
 func (r *documentAuditUsersRunner) migrateFolders(ctx context.Context, committeeUID string) error {
 	folders, err := r.store.ListAllLinkFolders(ctx, committeeUID)
 	if err != nil {
-		return fmt.Errorf("list folders: %w", err)
+		return errs.NewUnexpected("list folders", err)
 	}
 	for _, folder := range folders {
 		r.stats.Total++
@@ -153,9 +153,9 @@ func (r *documentAuditUsersRunner) migrateFolder(ctx context.Context, folder *mo
 		name:         fresh.Name,
 		createdBy:    fresh.CreatedBy,
 		updatedBy:    fresh.UpdatedBy,
-	}, func(profile *model.CommitteeUser) error {
-		fresh.CreatedBy = profile
-		fresh.UpdatedBy = model.CloneCommitteeUser(profile)
+	}, func(createdBy, updatedBy *model.CommitteeUser) error {
+		fresh.CreatedBy = createdBy
+		fresh.UpdatedBy = updatedBy
 		if r.dryRun {
 			return nil
 		}
@@ -193,7 +193,7 @@ func (r *documentAuditUsersRunner) reindexFolder(ctx context.Context, folder *mo
 func (r *documentAuditUsersRunner) migrateLinks(ctx context.Context, committeeUID string) error {
 	links, err := r.store.ListAllLinks(ctx, committeeUID)
 	if err != nil {
-		return fmt.Errorf("list links: %w", err)
+		return errs.NewUnexpected("list links", err)
 	}
 	for _, link := range links {
 		r.stats.Total++
@@ -225,9 +225,9 @@ func (r *documentAuditUsersRunner) migrateLink(ctx context.Context, link *model.
 		name:         fresh.Name,
 		createdBy:    fresh.CreatedBy,
 		updatedBy:    fresh.UpdatedBy,
-	}, func(profile *model.CommitteeUser) error {
-		fresh.CreatedBy = profile
-		fresh.UpdatedBy = model.CloneCommitteeUser(profile)
+	}, func(createdBy, updatedBy *model.CommitteeUser) error {
+		fresh.CreatedBy = createdBy
+		fresh.UpdatedBy = updatedBy
 		if r.dryRun {
 			return nil
 		}
@@ -265,7 +265,7 @@ func (r *documentAuditUsersRunner) reindexLink(ctx context.Context, link *model.
 func (r *documentAuditUsersRunner) migrateDocuments(ctx context.Context, committeeUID string) error {
 	docs, err := r.store.ListAllDocuments(ctx, committeeUID)
 	if err != nil {
-		return fmt.Errorf("list documents: %w", err)
+		return errs.NewUnexpected("list documents", err)
 	}
 	for _, doc := range docs {
 		r.stats.Total++
@@ -297,9 +297,9 @@ func (r *documentAuditUsersRunner) migrateDocument(ctx context.Context, doc *mod
 		name:         fresh.Name,
 		createdBy:    fresh.CreatedBy,
 		updatedBy:    fresh.UpdatedBy,
-	}, func(profile *model.CommitteeUser) error {
-		fresh.CreatedBy = profile
-		fresh.UpdatedBy = model.CloneCommitteeUser(profile)
+	}, func(createdBy, updatedBy *model.CommitteeUser) error {
+		fresh.CreatedBy = createdBy
+		fresh.UpdatedBy = updatedBy
 		if r.dryRun {
 			return nil
 		}
@@ -346,24 +346,47 @@ type freshAuditResource struct {
 func (r *documentAuditUsersRunner) applyAuditUsers(
 	ctx context.Context,
 	res freshAuditResource,
-	apply func(*model.CommitteeUser) error,
+	apply func(createdBy, updatedBy *model.CommitteeUser) error,
 ) error {
-	if !model.AuditUserNeedsMigration(res.createdBy) {
+	createdNeeds := model.AuditUserNeedsMigration(res.createdBy)
+	updatedNeeds := res.updatedBy != nil && model.AuditUserNeedsMigration(res.updatedBy)
+	if !createdNeeds && !updatedNeeds {
 		r.stats.Skipped++
 		return nil
 	}
 
-	username := model.AuditCreatorUsername(res.createdBy)
-	profile := internalservice.ResolveAuditUserProfile(ctx, r.userReader, username)
-	if profile == nil || model.AuditUserNeedsMigration(profile) {
-		slog.WarnContext(ctx, "failed to resolve audit user profile for migration",
-			"resource_type", res.resourceType,
-			"resource_uid", res.uid,
-			"committee_uid", res.committeeUID,
-			"username", redaction.Redact(username),
-		)
-		r.stats.Failed++
-		return nil
+	var newCreated, newUpdated *model.CommitteeUser
+
+	if createdNeeds {
+		profile, ok := r.resolveAuditProfile(ctx, res, model.AuditCreatorUsername(res.createdBy))
+		if err := r.throttle(ctx); err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		newCreated = profile
+	} else {
+		newCreated = res.createdBy
+	}
+
+	switch {
+	case updatedNeeds && res.updatedBy != nil &&
+		strings.TrimSpace(res.updatedBy.Username) == model.AuditCreatorUsername(newCreated):
+		newUpdated = model.CloneCommitteeUser(newCreated)
+	case updatedNeeds && res.updatedBy != nil:
+		profile, ok := r.resolveAuditProfile(ctx, res, strings.TrimSpace(res.updatedBy.Username))
+		if err := r.throttle(ctx); err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		newUpdated = profile
+	case res.updatedBy != nil:
+		newUpdated = res.updatedBy
+	case newCreated != nil:
+		newUpdated = model.CloneCommitteeUser(newCreated)
 	}
 
 	slog.InfoContext(ctx, "document audit user drift detected",
@@ -371,20 +394,15 @@ func (r *documentAuditUsersRunner) applyAuditUsers(
 		"resource_uid", res.uid,
 		"committee_uid", res.committeeUID,
 		"name", res.name,
-		"username", redaction.Redact(username),
-		"resolved_name", redaction.Redact(profile.Name),
 		"dry_run", r.dryRun,
 	)
 
 	if r.dryRun {
 		r.stats.Updated++
-		if r.sleep > 0 {
-			return documentAuditSleep(ctx, r.sleep)
-		}
 		return nil
 	}
 
-	if err := apply(profile); err != nil {
+	if err := apply(newCreated, newUpdated); err != nil {
 		slog.WarnContext(ctx, "failed to migrate document audit users",
 			"resource_type", res.resourceType,
 			"resource_uid", res.uid,
@@ -396,10 +414,29 @@ func (r *documentAuditUsersRunner) applyAuditUsers(
 	}
 
 	r.stats.Updated++
-	if r.sleep > 0 {
-		return documentAuditSleep(ctx, r.sleep)
-	}
 	return nil
+}
+
+func (r *documentAuditUsersRunner) resolveAuditProfile(ctx context.Context, res freshAuditResource, username string) (*model.CommitteeUser, bool) {
+	profile := internalservice.ResolveAuditUserProfile(ctx, r.userReader, username)
+	if profile == nil || model.AuditUserNeedsMigration(profile) {
+		slog.WarnContext(ctx, "failed to resolve audit user profile for migration",
+			"resource_type", res.resourceType,
+			"resource_uid", res.uid,
+			"committee_uid", res.committeeUID,
+			"username", redaction.Redact(username),
+		)
+		r.stats.Failed++
+		return nil, false
+	}
+	return profile, true
+}
+
+func (r *documentAuditUsersRunner) throttle(ctx context.Context) error {
+	if r.sleep <= 0 {
+		return nil
+	}
+	return documentAuditSleep(ctx, r.sleep)
 }
 
 func parseDocumentResourceType(raw string) (folders, links, documents bool, err error) {
@@ -415,7 +452,7 @@ func parseDocumentResourceType(raw string) (folders, links, documents bool, err 
 	case "document":
 		return false, false, true, nil
 	default:
-		return false, false, false, fmt.Errorf("invalid --resource-type %q: want folder, link, or document", raw)
+		return false, false, false, errs.NewValidation(fmt.Sprintf("invalid --resource-type %q: want folder, link, or document", raw))
 	}
 }
 

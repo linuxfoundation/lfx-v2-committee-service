@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
@@ -38,16 +39,17 @@ func (s *committeeServicesrvc) resolveRequestingUser(ctx context.Context) *model
 
 	meta, err := s.userReader.UserMetadataByPrincipal(lookupCtx, principal)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to resolve user profile for audit stamp; stamping username/email only",
-			"username", redaction.Redact(principal), "error", err)
+		ctx = log.AppendCtx(ctx, slog.String("username", redaction.Redact(principal)))
+		slog.WarnContext(ctx, "failed to resolve user profile for audit stamp; stamping username/email only", "error", err)
 		return &model.CommitteeUser{Username: principal, Email: email}
 	}
 
 	user := &model.CommitteeUser{Username: principal}
 	if meta != nil {
-		user.Name = meta.Name
-		if user.Name == "" {
-			user.Name = strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
+		if name := strings.TrimSpace(meta.Name); name != "" {
+			user.Name = name
+		} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			user.Name = full
 		}
 		user.Avatar = meta.Picture
 	}
@@ -78,7 +80,10 @@ func (s *committeeServicesrvc) primaryEmailForUsername(ctx context.Context, user
 }
 
 func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, user *model.CommitteeUser) *model.CommitteeUser {
-	if user == nil || strings.TrimSpace(user.Username) == "" || strings.TrimSpace(user.Name) != "" || s.userReader == nil {
+	if user == nil || strings.TrimSpace(user.Username) == "" || s.userReader == nil {
+		return user
+	}
+	if auditUserProfileComplete(user) {
 		return user
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, documentAuditUserResolveTimeout)
@@ -88,10 +93,12 @@ func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, use
 		return user
 	}
 	enriched := model.CloneCommitteeUser(user)
-	if meta.Name != "" {
-		enriched.Name = meta.Name
-	} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
-		enriched.Name = full
+	if strings.TrimSpace(enriched.Name) == "" {
+		if name := strings.TrimSpace(meta.Name); name != "" {
+			enriched.Name = name
+		} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			enriched.Name = full
+		}
 	}
 	if enriched.Avatar == "" {
 		enriched.Avatar = meta.Picture
@@ -100,6 +107,12 @@ func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, use
 		enriched.Email = s.primaryEmailForUsername(lookupCtx, user.Username)
 	}
 	return enriched
+}
+
+func auditUserProfileComplete(u *model.CommitteeUser) bool {
+	return strings.TrimSpace(u.Name) != "" &&
+		strings.TrimSpace(u.Avatar) != "" &&
+		strings.TrimSpace(u.Email) != ""
 }
 
 func (s *committeeServicesrvc) normalizeLegacyDocumentAuditUsers(createdBy, updatedBy **model.CommitteeUser) {
@@ -111,10 +124,10 @@ func (s *committeeServicesrvc) normalizeDocumentAuditUsers(ctx context.Context, 
 	if createdBy != nil && *createdBy != nil {
 		*createdBy = s.enrichAuditUserIfMissing(ctx, *createdBy)
 	}
-	if updatedBy != nil && createdBy != nil && *createdBy != nil {
-		if *updatedBy == nil || (*updatedBy).Username == (*createdBy).Username {
+	if updatedBy != nil {
+		if *updatedBy == nil && createdBy != nil && *createdBy != nil {
 			*updatedBy = model.CloneCommitteeUser(*createdBy)
-		} else {
+		} else if *updatedBy != nil {
 			*updatedBy = s.enrichAuditUserIfMissing(ctx, *updatedBy)
 		}
 	}

@@ -25,7 +25,10 @@ func ResolveAuditUserProfile(ctx context.Context, reader port.UserReader, userna
 }
 
 func enrichAuditUserIfMissing(ctx context.Context, reader port.UserReader, user *model.CommitteeUser) *model.CommitteeUser {
-	if user == nil || strings.TrimSpace(user.Username) == "" || strings.TrimSpace(user.Name) != "" || reader == nil {
+	if user == nil || strings.TrimSpace(user.Username) == "" || reader == nil {
+		return user
+	}
+	if auditUserProfileComplete(user) {
 		return user
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, auditUserResolveTimeout)
@@ -35,10 +38,12 @@ func enrichAuditUserIfMissing(ctx context.Context, reader port.UserReader, user 
 		return user
 	}
 	enriched := model.CloneCommitteeUser(user)
-	if meta.Name != "" {
-		enriched.Name = meta.Name
-	} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
-		enriched.Name = full
+	if strings.TrimSpace(enriched.Name) == "" {
+		if name := strings.TrimSpace(meta.Name); name != "" {
+			enriched.Name = name
+		} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			enriched.Name = full
+		}
 	}
 	if enriched.Avatar == "" {
 		enriched.Avatar = meta.Picture
@@ -47,6 +52,12 @@ func enrichAuditUserIfMissing(ctx context.Context, reader port.UserReader, user 
 		enriched.Email = primaryEmailForUsername(lookupCtx, reader, user.Username)
 	}
 	return enriched
+}
+
+func auditUserProfileComplete(u *model.CommitteeUser) bool {
+	return strings.TrimSpace(u.Name) != "" &&
+		strings.TrimSpace(u.Avatar) != "" &&
+		strings.TrimSpace(u.Email) != ""
 }
 
 func primaryEmailForUsername(ctx context.Context, reader port.UserReader, username string) string {

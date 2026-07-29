@@ -141,7 +141,7 @@ NATS_URL=nats://localhost:4222 \
 
 #### `sync document-audit-users`
 
-Backfills `created_by` and `updated_by` user profile objects on committee link folders, links, and document metadata stored in NATS KV, then publishes indexer `ActionUpdated` messages so OpenSearch picks up display names for the Shared By column.
+Backfills `created_by` and `updated_by` user profile objects on committee link folders, links, and document metadata stored in NATS KV, then publishes indexer `ActionUpdated` messages so OpenSearch carries display names ahead of the BFF Shared By mapping follow-up.
 
 **Subcommand flags**
 
