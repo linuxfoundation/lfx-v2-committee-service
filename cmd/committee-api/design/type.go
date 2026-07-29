@@ -407,6 +407,7 @@ func ResourceAuditUserAttributes() {
 			"username": "alexlee",
 			"name":     "Alex Lee",
 			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
 		})
 	})
 	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
@@ -414,6 +415,7 @@ func ResourceAuditUserAttributes() {
 			"username": "alexlee",
 			"name":     "Alex Lee",
 			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
 		})
 	})
 }
