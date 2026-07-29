@@ -274,7 +274,8 @@ _(none)_
 | `file_name` | string | Original uploaded file name |
 | `file_size` | int | File size in bytes |
 | `content_type` | string | Uploaded MIME type |
-| `uploaded_by_username` | string (optional) | Username of the uploader |
+| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the document. Same shape as `created_by`; identical to `created_by` on upload |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -287,9 +288,9 @@ _(none)_
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find documents belonging to a committee |
 | `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find documents within a folder |
 | `content_type:{value}` | `content_type:application/pdf` | Find documents by content type |
-| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find documents by uploader (LFID username, from `uploaded_by_username`) |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find documents by uploader (username from `created_by.username`) |
 
-> Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty.
+> Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty. Legacy KV records with only `uploaded_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 
@@ -459,7 +460,8 @@ _(none)_
 | `name` | string | Link display name |
 | `url` | string | Link URL |
 | `description` | string (optional) | Link description |
-| `created_by_username` | string (optional) | Username of the user who created the link |
+| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the link. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -471,8 +473,9 @@ _(none)_
 | `committee_link_uid:{uid}` | `committee_link_uid:a1b2c3d4-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find links belonging to a committee |
 | `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find links within a folder |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find links by creator (username from `created_by.username`) |
 
-> `folder_uid` tag is only emitted when `folder_uid` is set.
+> `folder_uid` tag is only emitted when `folder_uid` is set. Legacy KV records with only `created_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 
@@ -518,7 +521,8 @@ _(none)_
 | `uid` | string | Folder unique identifier |
 | `committee_uid` | string | UID of the owning committee |
 | `name` | string | Folder name |
-| `created_by_username` | string (optional) | Username of the user who created the folder |
+| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the folder. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -529,6 +533,9 @@ _(none)_
 | `{uid}` | `f0a1b2c3-...` | Direct lookup by UID |
 | `committee_link_folder_uid:{uid}` | `committee_link_folder_uid:f0a1b2c3-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find folders belonging to a committee |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find folders by creator (username from `created_by.username`) |
+
+> Legacy KV records with only `created_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 

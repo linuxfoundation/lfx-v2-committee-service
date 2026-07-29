@@ -139,6 +139,44 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-invites --committee-uid=abc-123
 ```
 
+#### `sync document-audit-users`
+
+Backfills `created_by` and `updated_by` user profile objects on committee link folders, links, and document metadata stored in NATS KV, then publishes indexer `ActionUpdated` messages so OpenSearch picks up display names for the Shared By column.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dry-run` | `true` | Log what would change without writing |
+| `--sleep` | `0` | Pause between auth-service profile lookups (e.g. `200ms`, `1s`) |
+| `--committee-uid` | `""` | Limit migration to one committee |
+| `--resource-type` | `""` | Optional filter: `folder`, `link`, or `document` |
+
+**Exit code:** `0` on success, `1` on failure.
+
+**Examples**
+
+Dry-run all document resources:
+
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync document-audit-users
+```
+
+Apply for one committee with rate limiting:
+
+```sh
+committee-cli sync document-audit-users \
+  --dry-run=false --committee-uid=<uid> --sleep=200ms
+```
+
+Migrate documents only:
+
+```sh
+committee-cli sync document-audit-users \
+  --dry-run=false --resource-type=document --sleep=200ms
+```
+
 #### `sync member-cdp-org-id`
 
 Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** from OpenSearch (`object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).

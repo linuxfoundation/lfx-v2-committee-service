@@ -39,10 +39,11 @@ type RunContext struct {
 	CommitteeInviteWriter port.CommitteeInviteWriter
 	// Publisher provides direct access to indexer and access-control messaging (e.g. reindex
 	// subcommands that need to publish without going through the writer orchestrator).
-	Publisher  port.CommitteePublisher
-	UserReader port.UserReader
-	DryRun     bool
-	Args       []string // remaining args after command + subcommand, for subcommand flag parsing
+	Publisher         port.CommitteePublisher
+	UserReader        port.UserReader
+	DocumentAuditSync port.DocumentAuditSyncStorage
+	DryRun            bool
+	Args              []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

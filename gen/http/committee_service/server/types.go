@@ -1068,8 +1068,10 @@ type CreateCommitteeLinkResponseBody struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1093,8 +1095,10 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1120,8 +1124,10 @@ type UploadCommitteeDocumentResponseBody struct {
 	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2790,8 +2796,10 @@ type CommitteeLinkWithReadonlyAttributesResponseBody struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2813,12 +2821,26 @@ type CommitteeLinkWithReadonlyAttributesResponse struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeUserResponse is used to define fields on response body types.
+type CommitteeUserResponse struct {
+	// URL to the user's avatar image; empty when none.
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// The user's email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Display name of the user
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User identifier (LF ID / sub)
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 }
 
 // CommitteeLinkFolderWithReadonlyAttributesResponseBody is used to define
@@ -2830,8 +2852,10 @@ type CommitteeLinkFolderWithReadonlyAttributesResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2847,8 +2871,10 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2874,8 +2900,10 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -4146,15 +4174,20 @@ func NewJoinCommitteeResponseBody(res *committeeservice.CommitteeMemberFullWithR
 // service.
 func NewGetCommitteeLinkResponseBody(res *committeeservice.GetCommitteeLinkResult) *GetCommitteeLinkResponseBody {
 	body := &GetCommitteeLinkResponseBody{
-		UID:               res.CommitteeLink.UID,
-		CommitteeUID:      res.CommitteeLink.CommitteeUID,
-		FolderUID:         res.CommitteeLink.FolderUID,
-		Name:              res.CommitteeLink.Name,
-		URL:               res.CommitteeLink.URL,
-		Description:       res.CommitteeLink.Description,
-		CreatedByUsername: res.CommitteeLink.CreatedByUsername,
-		CreatedAt:         res.CommitteeLink.CreatedAt,
-		UpdatedAt:         res.CommitteeLink.UpdatedAt,
+		UID:          res.CommitteeLink.UID,
+		CommitteeUID: res.CommitteeLink.CommitteeUID,
+		FolderUID:    res.CommitteeLink.FolderUID,
+		Name:         res.CommitteeLink.Name,
+		URL:          res.CommitteeLink.URL,
+		Description:  res.CommitteeLink.Description,
+		CreatedAt:    res.CommitteeLink.CreatedAt,
+		UpdatedAt:    res.CommitteeLink.UpdatedAt,
+	}
+	if res.CommitteeLink.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLink.CreatedBy)
+	}
+	if res.CommitteeLink.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLink.UpdatedBy)
 	}
 	return body
 }
@@ -4175,15 +4208,20 @@ func NewListCommitteeLinksResponseBody(res []*committeeservice.CommitteeLinkWith
 // service.
 func NewCreateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithReadonlyAttributes) *CreateCommitteeLinkResponseBody {
 	body := &CreateCommitteeLinkResponseBody{
-		UID:               res.UID,
-		CommitteeUID:      res.CommitteeUID,
-		FolderUID:         res.FolderUID,
-		Name:              res.Name,
-		URL:               res.URL,
-		Description:       res.Description,
-		CreatedByUsername: res.CreatedByUsername,
-		CreatedAt:         res.CreatedAt,
-		UpdatedAt:         res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		URL:          res.URL,
+		Description:  res.Description,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4193,12 +4231,17 @@ func NewCreateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithR
 // "committee-service" service.
 func NewGetCommitteeLinkFolderResponseBody(res *committeeservice.GetCommitteeLinkFolderResult) *GetCommitteeLinkFolderResponseBody {
 	body := &GetCommitteeLinkFolderResponseBody{
-		UID:               res.CommitteeLinkFolder.UID,
-		CommitteeUID:      res.CommitteeLinkFolder.CommitteeUID,
-		Name:              res.CommitteeLinkFolder.Name,
-		CreatedByUsername: res.CommitteeLinkFolder.CreatedByUsername,
-		CreatedAt:         res.CommitteeLinkFolder.CreatedAt,
-		UpdatedAt:         res.CommitteeLinkFolder.UpdatedAt,
+		UID:          res.CommitteeLinkFolder.UID,
+		CommitteeUID: res.CommitteeLinkFolder.CommitteeUID,
+		Name:         res.CommitteeLinkFolder.Name,
+		CreatedAt:    res.CommitteeLinkFolder.CreatedAt,
+		UpdatedAt:    res.CommitteeLinkFolder.UpdatedAt,
+	}
+	if res.CommitteeLinkFolder.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLinkFolder.CreatedBy)
+	}
+	if res.CommitteeLinkFolder.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLinkFolder.UpdatedBy)
 	}
 	return body
 }
@@ -4219,12 +4262,17 @@ func NewListCommitteeLinkFoldersResponseBody(res []*committeeservice.CommitteeLi
 // "committee-service" service.
 func NewCreateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *CreateCommitteeLinkFolderResponseBody {
 	body := &CreateCommitteeLinkFolderResponseBody{
-		UID:               res.UID,
-		CommitteeUID:      res.CommitteeUID,
-		Name:              res.Name,
-		CreatedByUsername: res.CreatedByUsername,
-		CreatedAt:         res.CreatedAt,
-		UpdatedAt:         res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		Name:         res.Name,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4234,17 +4282,22 @@ func NewCreateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLin
 // "committee-service" service.
 func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocumentWithReadonlyAttributes) *UploadCommitteeDocumentResponseBody {
 	body := &UploadCommitteeDocumentResponseBody{
-		UID:                res.UID,
-		CommitteeUID:       res.CommitteeUID,
-		FolderUID:          res.FolderUID,
-		Name:               res.Name,
-		Description:        res.Description,
-		FileName:           res.FileName,
-		FileSize:           res.FileSize,
-		ContentType:        res.ContentType,
-		UploadedByUsername: res.UploadedByUsername,
-		CreatedAt:          res.CreatedAt,
-		UpdatedAt:          res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		Description:  res.Description,
+		FileName:     res.FileName,
+		FileSize:     res.FileSize,
+		ContentType:  res.ContentType,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4254,17 +4307,22 @@ func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocum
 // service.
 func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocumentResult) *GetCommitteeDocumentResponseBody {
 	body := &GetCommitteeDocumentResponseBody{
-		UID:                res.CommitteeDocument.UID,
-		CommitteeUID:       res.CommitteeDocument.CommitteeUID,
-		FolderUID:          res.CommitteeDocument.FolderUID,
-		Name:               res.CommitteeDocument.Name,
-		Description:        res.CommitteeDocument.Description,
-		FileName:           res.CommitteeDocument.FileName,
-		FileSize:           res.CommitteeDocument.FileSize,
-		ContentType:        res.CommitteeDocument.ContentType,
-		UploadedByUsername: res.CommitteeDocument.UploadedByUsername,
-		CreatedAt:          res.CommitteeDocument.CreatedAt,
-		UpdatedAt:          res.CommitteeDocument.UpdatedAt,
+		UID:          res.CommitteeDocument.UID,
+		CommitteeUID: res.CommitteeDocument.CommitteeUID,
+		FolderUID:    res.CommitteeDocument.FolderUID,
+		Name:         res.CommitteeDocument.Name,
+		Description:  res.CommitteeDocument.Description,
+		FileName:     res.CommitteeDocument.FileName,
+		FileSize:     res.CommitteeDocument.FileSize,
+		ContentType:  res.CommitteeDocument.ContentType,
+		CreatedAt:    res.CommitteeDocument.CreatedAt,
+		UpdatedAt:    res.CommitteeDocument.UpdatedAt,
+	}
+	if res.CommitteeDocument.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.CreatedBy)
+	}
+	if res.CommitteeDocument.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.UpdatedBy)
 	}
 	return body
 }

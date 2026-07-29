@@ -2221,6 +2221,7 @@ func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *commit
 		if p.FolderUID != nil && (l.FolderUID == nil || *l.FolderUID != *p.FolderUID) {
 			continue
 		}
+		s.normalizeDocumentAuditUsers(ctx, &l.CreatedBy, &l.UpdatedBy, "", "")
 		result = append(result, domainLinkToGoa(l))
 	}
 	return result, nil
@@ -2234,16 +2235,17 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampDocumentAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		URL:               p.URL,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description
@@ -2267,6 +2269,8 @@ func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committe
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	s.normalizeDocumentAuditUsers(ctx, &link.CreatedBy, &link.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkResult{
@@ -2306,6 +2310,7 @@ func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *
 
 	result := make([]*committeeservice.CommitteeLinkFolderWithReadonlyAttributes, 0, len(folders))
 	for _, f := range folders {
+		s.normalizeDocumentAuditUsers(ctx, &f.CreatedBy, &f.UpdatedBy, "", "")
 		result = append(result, domainFolderToGoa(f))
 	}
 	return result, nil
@@ -2319,6 +2324,8 @@ func (s *committeeServicesrvc) GetCommitteeLinkFolder(ctx context.Context, p *co
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	s.normalizeDocumentAuditUsers(ctx, &folder.CreatedBy, &folder.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkFolderResult{
@@ -2335,15 +2342,16 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampDocumentAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 
 	created, err := s.linkWriter.CreateLinkFolder(ctx, folder, p.XSync)
@@ -2384,16 +2392,14 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		FolderUID:    l.FolderUID,
 		Name:         &name,
 		URL:          &url,
+		CreatedBy:    committeeUserToGoa(l.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(l.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if l.Description != "" {
 		desc := l.Description
 		res.Description = &desc
-	}
-	if l.CreatedByUsername != "" {
-		v := l.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2410,12 +2416,10 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		UID:          &uid,
 		CommitteeUID: &committeeUID,
 		Name:         &name,
+		CreatedBy:    committeeUserToGoa(f.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(f.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
-	}
-	if f.CreatedByUsername != "" {
-		v := f.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2426,8 +2430,8 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *committeeservice.UploadCommitteeDocumentPayload) (res *committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.upload-committee-document", "committee_uid", p.UID)
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampDocumentAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
@@ -2443,9 +2447,10 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 
 	doc := &model.CommitteeDocument{
-		CommitteeUID:       p.UID,
-		Name:               p.Name,
-		UploadedByUsername: principal,
+		CommitteeUID: p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
@@ -2471,6 +2476,8 @@ func (s *committeeServicesrvc) GetCommitteeDocument(ctx context.Context, p *comm
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	s.normalizeDocumentAuditUsers(ctx, &doc.CreatedBy, &doc.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeDocumentResult{
@@ -2536,16 +2543,14 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 		FileName:     &fileName,
 		FileSize:     &fileSize,
 		ContentType:  &contentType,
+		CreatedBy:    committeeUserToGoa(d.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(d.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if d.Description != "" {
 		v := d.Description
 		res.Description = &v
-	}
-	if d.UploadedByUsername != "" {
-		v := d.UploadedByUsername
-		res.UploadedByUsername = &v
 	}
 	if d.FolderUID != nil {
 		res.FolderUID = d.FolderUID

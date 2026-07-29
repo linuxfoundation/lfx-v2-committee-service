@@ -22,16 +22,17 @@ func TestDocumentReaderOrchestrator_GetDocumentMetadata(t *testing.T) {
 	committeeUID := uuid.New().String()
 	documentUID := uuid.New().String()
 	testDoc := &model.CommitteeDocument{
-		UID:                documentUID,
-		CommitteeUID:       committeeUID,
-		Name:               "Architecture Overview",
-		Description:        "High-level architecture document",
-		FileName:           "arch.pdf",
-		FileSize:           1024,
-		ContentType:        "application/pdf",
-		UploadedByUsername: "user-1",
-		CreatedAt:          time.Now().Add(-24 * time.Hour),
-		UpdatedAt:          time.Now(),
+		UID:          documentUID,
+		CommitteeUID: committeeUID,
+		Name:         "Architecture Overview",
+		Description:  "High-level architecture document",
+		FileName:     "arch.pdf",
+		FileSize:     1024,
+		ContentType:  "application/pdf",
+		CreatedBy:    &model.CommitteeUser{Username: "user-1"},
+		UpdatedBy:    &model.CommitteeUser{Username: "user-1"},
+		CreatedAt:    time.Now().Add(-24 * time.Hour),
+		UpdatedAt:    time.Now(),
 	}
 
 	tests := []struct {
@@ -59,7 +60,7 @@ func TestDocumentReaderOrchestrator_GetDocumentMetadata(t *testing.T) {
 				assert.Equal(t, "arch.pdf", doc.FileName)
 				assert.Equal(t, int64(1024), doc.FileSize)
 				assert.Equal(t, "application/pdf", doc.ContentType)
-				assert.Equal(t, "user-1", doc.UploadedByUsername)
+				assert.Equal(t, "user-1", model.AuditCreatorUsername(doc.CreatedBy))
 				assert.False(t, doc.CreatedAt.IsZero())
 				assert.Equal(t, uint64(1), revision)
 			},

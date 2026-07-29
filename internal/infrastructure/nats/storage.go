@@ -1171,9 +1171,14 @@ func (s *storage) IsReady(ctx context.Context) error {
 	return s.client.IsReady(ctx)
 }
 
-// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
-func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
+// NewStorageBackend creates the concrete NATS storage implementation.
+func NewStorageBackend(client *NATSClient) *storage {
 	return &storage{
 		client: client,
 	}
+}
+
+// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
+func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
+	return NewStorageBackend(client)
 }
