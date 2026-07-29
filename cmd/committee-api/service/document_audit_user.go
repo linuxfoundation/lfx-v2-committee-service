@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
 const documentAuditUserResolveTimeout = 2 * time.Second
@@ -38,7 +39,7 @@ func (s *committeeServicesrvc) resolveRequestingUser(ctx context.Context) *model
 	meta, err := s.userReader.UserMetadataByPrincipal(lookupCtx, principal)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to resolve user profile for audit stamp; stamping username/email only",
-			"username", principal, "error", err)
+			"username", redaction.Redact(principal), "error", err)
 		return &model.CommitteeUser{Username: principal, Email: email}
 	}
 
@@ -99,6 +100,10 @@ func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, use
 		enriched.Email = s.primaryEmailForUsername(lookupCtx, user.Username)
 	}
 	return enriched
+}
+
+func (s *committeeServicesrvc) normalizeLegacyDocumentAuditUsers(createdBy, updatedBy **model.CommitteeUser) {
+	model.NormalizeLegacyAuditUsers(createdBy, updatedBy, "", "")
 }
 
 func (s *committeeServicesrvc) normalizeDocumentAuditUsers(ctx context.Context, createdBy, updatedBy **model.CommitteeUser, legacyCreatedByUsername, legacyUploadedByUsername string) {

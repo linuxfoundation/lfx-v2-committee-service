@@ -101,7 +101,7 @@ func (s *storage) UpdateLink(ctx context.Context, link *model.CommitteeLink, rev
 		return errs.NewUnexpected("failed to marshal link", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Update(ctx, link.UID, linkBytes, revision); errUpdate != nil {
-		if strings.Contains(errUpdate.Error(), "wrong last sequence") {
+		if isJetStreamCASConflict(errUpdate) {
 			return errs.NewConflict("link has been modified since it was last read")
 		}
 		return errs.NewUnexpected("failed to update link", errUpdate)
@@ -119,7 +119,7 @@ func (s *storage) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeL
 		return errs.NewUnexpected("failed to marshal folder", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Update(ctx, folder.UID, folderBytes, revision); errUpdate != nil {
-		if strings.Contains(errUpdate.Error(), "wrong last sequence") {
+		if isJetStreamCASConflict(errUpdate) {
 			return errs.NewConflict("folder has been modified since it was last read")
 		}
 		return errs.NewUnexpected("failed to update folder", errUpdate)
@@ -137,7 +137,7 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 		return errs.NewUnexpected("failed to marshal document", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeDocuments].Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
-		if strings.Contains(errUpdate.Error(), "wrong last sequence") {
+		if isJetStreamCASConflict(errUpdate) {
 			return errs.NewConflict("document has been modified since it was last read")
 		}
 		return errs.NewUnexpected("failed to update document metadata", errUpdate)

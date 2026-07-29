@@ -17,6 +17,7 @@ import (
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
@@ -39,6 +40,7 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 	committeeUID := fs.String("committee-uid", "", "limit migration to a single committee UID")
 	resourceType := fs.String("resource-type", "", "optional filter: folder, link, or document")
 	sleep := fs.Duration("sleep", 0, "wait between each auth-service lookup (e.g. 200ms, 1s)")
+	reindexOnly := fs.Bool("reindex-only", false, "re-publish ActionUpdated indexer messages without KV writes (recovery after a partial migration run)")
 	dryRun := fs.Bool("dry-run", true, "log what would change without writing (pass --dry-run=false to write)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
@@ -66,12 +68,13 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
 	runner := &documentAuditUsersRunner{
-		store:      rc.DocumentAuditSync,
-		userReader: rc.UserReader,
-		publisher:  rc.Publisher,
-		dryRun:     rc.DryRun,
-		sleep:      *sleep,
-		stats:      commands.NewStats(),
+		store:       rc.DocumentAuditSync,
+		userReader:  rc.UserReader,
+		publisher:   rc.Publisher,
+		dryRun:      rc.DryRun,
+		reindexOnly: *reindexOnly,
+		sleep:       *sleep,
+		stats:       commands.NewStats(),
 	}
 	runner.stats.DryRun = rc.DryRun
 
@@ -87,12 +90,13 @@ func (s *documentAuditUsersSubcommand) Run(ctx context.Context, rc commands.RunC
 }
 
 type documentAuditUsersRunner struct {
-	store      port.DocumentAuditSyncStorage
-	userReader port.UserReader
-	publisher  port.CommitteePublisher
-	dryRun     bool
-	sleep      time.Duration
-	stats      *commands.Stats
+	store       port.DocumentAuditSyncStorage
+	userReader  port.UserReader
+	publisher   port.CommitteePublisher
+	dryRun      bool
+	reindexOnly bool
+	sleep       time.Duration
+	stats       *commands.Stats
 }
 
 func (r *documentAuditUsersRunner) run(ctx context.Context, committeeUID string, folders, links, documents bool) error {
@@ -121,6 +125,12 @@ func (r *documentAuditUsersRunner) migrateFolders(ctx context.Context, committee
 	}
 	for _, folder := range folders {
 		r.stats.Total++
+		if r.reindexOnly {
+			if err := r.reindexFolder(ctx, folder); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := r.migrateFolder(ctx, folder); err != nil {
 			return err
 		}
@@ -149,11 +159,35 @@ func (r *documentAuditUsersRunner) migrateFolder(ctx context.Context, folder *mo
 		if r.dryRun {
 			return nil
 		}
-		if err := r.store.UpdateLinkFolder(ctx, fresh, revision); err != nil {
+		if err := publishLinkFolderIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
 			return err
 		}
-		return publishLinkFolderIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
+		return r.store.UpdateLinkFolder(ctx, fresh, revision)
 	})
+}
+
+func (r *documentAuditUsersRunner) reindexFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error {
+	fresh, _, err := r.store.GetLinkFolder(ctx, folder.CommitteeUID, folder.UID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to re-read folder before reindex",
+			"folder_uid", folder.UID, "committee_uid", folder.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	if r.dryRun {
+		slog.InfoContext(ctx, "dry-run: would reindex folder",
+			"folder_uid", fresh.UID, "committee_uid", fresh.CommitteeUID)
+		r.stats.Updated++
+		return nil
+	}
+	if err := publishLinkFolderIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		slog.WarnContext(ctx, "failed to reindex folder",
+			"folder_uid", fresh.UID, "committee_uid", fresh.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	r.stats.Updated++
+	return nil
 }
 
 func (r *documentAuditUsersRunner) migrateLinks(ctx context.Context, committeeUID string) error {
@@ -163,6 +197,12 @@ func (r *documentAuditUsersRunner) migrateLinks(ctx context.Context, committeeUI
 	}
 	for _, link := range links {
 		r.stats.Total++
+		if r.reindexOnly {
+			if err := r.reindexLink(ctx, link); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := r.migrateLink(ctx, link); err != nil {
 			return err
 		}
@@ -191,11 +231,35 @@ func (r *documentAuditUsersRunner) migrateLink(ctx context.Context, link *model.
 		if r.dryRun {
 			return nil
 		}
-		if err := r.store.UpdateLink(ctx, fresh, revision); err != nil {
+		if err := publishLinkIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
 			return err
 		}
-		return publishLinkIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
+		return r.store.UpdateLink(ctx, fresh, revision)
 	})
+}
+
+func (r *documentAuditUsersRunner) reindexLink(ctx context.Context, link *model.CommitteeLink) error {
+	fresh, _, err := r.store.GetLink(ctx, link.CommitteeUID, link.UID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to re-read link before reindex",
+			"link_uid", link.UID, "committee_uid", link.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	if r.dryRun {
+		slog.InfoContext(ctx, "dry-run: would reindex link",
+			"link_uid", fresh.UID, "committee_uid", fresh.CommitteeUID)
+		r.stats.Updated++
+		return nil
+	}
+	if err := publishLinkIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		slog.WarnContext(ctx, "failed to reindex link",
+			"link_uid", fresh.UID, "committee_uid", fresh.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	r.stats.Updated++
+	return nil
 }
 
 func (r *documentAuditUsersRunner) migrateDocuments(ctx context.Context, committeeUID string) error {
@@ -205,6 +269,12 @@ func (r *documentAuditUsersRunner) migrateDocuments(ctx context.Context, committ
 	}
 	for _, doc := range docs {
 		r.stats.Total++
+		if r.reindexOnly {
+			if err := r.reindexDocument(ctx, doc); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := r.migrateDocument(ctx, doc); err != nil {
 			return err
 		}
@@ -233,11 +303,35 @@ func (r *documentAuditUsersRunner) migrateDocument(ctx context.Context, doc *mod
 		if r.dryRun {
 			return nil
 		}
-		if err := r.store.UpdateDocumentMetadata(ctx, fresh, revision); err != nil {
+		if err := publishDocumentIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
 			return err
 		}
-		return publishDocumentIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh)
+		return r.store.UpdateDocumentMetadata(ctx, fresh, revision)
 	})
+}
+
+func (r *documentAuditUsersRunner) reindexDocument(ctx context.Context, doc *model.CommitteeDocument) error {
+	fresh, _, err := r.store.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to re-read document before reindex",
+			"document_uid", doc.UID, "committee_uid", doc.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	if r.dryRun {
+		slog.InfoContext(ctx, "dry-run: would reindex document",
+			"document_uid", fresh.UID, "committee_uid", fresh.CommitteeUID)
+		r.stats.Updated++
+		return nil
+	}
+	if err := publishDocumentIndexerMessage(ctx, r.publisher, model.ActionUpdated, fresh); err != nil {
+		slog.WarnContext(ctx, "failed to reindex document",
+			"document_uid", fresh.UID, "committee_uid", fresh.CommitteeUID, "error", err)
+		r.stats.Failed++
+		return nil
+	}
+	r.stats.Updated++
+	return nil
 }
 
 type freshAuditResource struct {
@@ -261,8 +355,14 @@ func (r *documentAuditUsersRunner) applyAuditUsers(
 
 	username := model.AuditCreatorUsername(res.createdBy)
 	profile := internalservice.ResolveAuditUserProfile(ctx, r.userReader, username)
-	if profile == nil {
-		r.stats.Skipped++
+	if profile == nil || model.AuditUserNeedsMigration(profile) {
+		slog.WarnContext(ctx, "failed to resolve audit user profile for migration",
+			"resource_type", res.resourceType,
+			"resource_uid", res.uid,
+			"committee_uid", res.committeeUID,
+			"username", redaction.Redact(username),
+		)
+		r.stats.Failed++
 		return nil
 	}
 
@@ -271,8 +371,8 @@ func (r *documentAuditUsersRunner) applyAuditUsers(
 		"resource_uid", res.uid,
 		"committee_uid", res.committeeUID,
 		"name", res.name,
-		"username", username,
-		"resolved_name", profile.Name,
+		"username", redaction.Redact(username),
+		"resolved_name", redaction.Redact(profile.Name),
 		"dry_run", r.dryRun,
 	)
 
@@ -331,7 +431,11 @@ func documentAuditSleep(ctx context.Context, d time.Duration) error {
 }
 
 func publishLinkIndexerMessage(ctx context.Context, publisher port.CommitteePublisher, action model.MessageAction, link *model.CommitteeLink) error {
-	indexerMessage := model.CommitteeIndexerMessage{Action: action}
+	tags := link.Tags()
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action: action,
+		Tags:   tags,
+	}
 	parentRefs := []string{fmt.Sprintf("committee:%s", link.CommitteeUID)}
 	if link.FolderUID != nil && *link.FolderUID != "" {
 		parentRefs = append(parentRefs, fmt.Sprintf("committee_link_folder:%s", *link.FolderUID))
@@ -345,7 +449,7 @@ func publishLinkIndexerMessage(ctx context.Context, publisher port.CommitteePubl
 		SortName:             link.Name,
 		NameAndAliases:       []string{link.Name},
 		ParentRefs:           parentRefs,
-		Tags:                 link.Tags(),
+		Tags:                 tags,
 		Fulltext:             fmt.Sprintf("%s %s %s", link.Name, link.Description, link.URL),
 	}
 	built, err := indexerMessage.Build(ctx, link)
@@ -356,7 +460,11 @@ func publishLinkIndexerMessage(ctx context.Context, publisher port.CommitteePubl
 }
 
 func publishLinkFolderIndexerMessage(ctx context.Context, publisher port.CommitteePublisher, action model.MessageAction, folder *model.CommitteeLinkFolder) error {
-	indexerMessage := model.CommitteeIndexerMessage{Action: action}
+	tags := folder.Tags()
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action: action,
+		Tags:   tags,
+	}
 	indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 		ObjectID:             folder.UID,
 		AccessCheckObject:    fmt.Sprintf("committee:%s", folder.CommitteeUID),
@@ -366,7 +474,7 @@ func publishLinkFolderIndexerMessage(ctx context.Context, publisher port.Committ
 		SortName:             folder.Name,
 		NameAndAliases:       []string{folder.Name},
 		ParentRefs:           []string{fmt.Sprintf("committee:%s", folder.CommitteeUID)},
-		Tags:                 folder.Tags(),
+		Tags:                 tags,
 		Fulltext:             folder.Name,
 	}
 	built, err := indexerMessage.Build(ctx, folder)
@@ -377,7 +485,11 @@ func publishLinkFolderIndexerMessage(ctx context.Context, publisher port.Committ
 }
 
 func publishDocumentIndexerMessage(ctx context.Context, publisher port.CommitteePublisher, action model.MessageAction, doc *model.CommitteeDocument) error {
-	indexerMessage := model.CommitteeIndexerMessage{Action: action}
+	tags := doc.Tags()
+	indexerMessage := model.CommitteeIndexerMessage{
+		Action: action,
+		Tags:   tags,
+	}
 	indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 		ObjectID:             doc.UID,
 		AccessCheckObject:    fmt.Sprintf("committee:%s", doc.CommitteeUID),
@@ -387,7 +499,7 @@ func publishDocumentIndexerMessage(ctx context.Context, publisher port.Committee
 		SortName:             doc.Name,
 		NameAndAliases:       []string{doc.Name},
 		ParentRefs:           []string{fmt.Sprintf("committee:%s", doc.CommitteeUID)},
-		Tags:                 doc.Tags(),
+		Tags:                 tags,
 		Fulltext:             fmt.Sprintf("%s %s %s", doc.Name, doc.Description, doc.FileName),
 	}
 	built, err := indexerMessage.Build(ctx, doc)

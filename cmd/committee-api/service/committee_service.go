@@ -2221,7 +2221,7 @@ func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *commit
 		if p.FolderUID != nil && (l.FolderUID == nil || *l.FolderUID != *p.FolderUID) {
 			continue
 		}
-		s.normalizeDocumentAuditUsers(ctx, &l.CreatedBy, &l.UpdatedBy, "", "")
+		s.normalizeLegacyDocumentAuditUsers(&l.CreatedBy, &l.UpdatedBy)
 		result = append(result, domainLinkToGoa(l))
 	}
 	return result, nil
@@ -2310,7 +2310,7 @@ func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *
 
 	result := make([]*committeeservice.CommitteeLinkFolderWithReadonlyAttributes, 0, len(folders))
 	for _, f := range folders {
-		s.normalizeDocumentAuditUsers(ctx, &f.CreatedBy, &f.UpdatedBy, "", "")
+		s.normalizeLegacyDocumentAuditUsers(&f.CreatedBy, &f.UpdatedBy)
 		result = append(result, domainFolderToGoa(f))
 	}
 	return result, nil

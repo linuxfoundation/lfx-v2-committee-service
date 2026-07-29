@@ -151,6 +151,7 @@ Backfills `created_by` and `updated_by` user profile objects on committee link f
 | `--sleep` | `0` | Pause between auth-service profile lookups (e.g. `200ms`, `1s`) |
 | `--committee-uid` | `""` | Limit migration to one committee |
 | `--resource-type` | `""` | Optional filter: `folder`, `link`, or `document` |
+| `--reindex-only` | `false` | Re-publish indexer messages without KV writes (recovery after partial migration) |
 
 **Exit code:** `0` on success, `1` on failure.
 
