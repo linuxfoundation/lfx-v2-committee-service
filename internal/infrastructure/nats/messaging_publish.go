@@ -121,42 +121,38 @@ func (m *messagePublisher) Indexer(ctx context.Context, subject string, message 
 	return m.publish(ctx, subject, message, "indexer", sync)
 }
 
-// Access publishes an access-control message to the given NATS subject for permission updates.
-//
-// GenericUpdateAccessSubject and GenericDeleteAccessSubject are guarded here
-// regardless of sync so neither can reach requestMessage.
-func (m *messagePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
-	if subject == fgaconstants.GenericUpdateAccessSubject {
-		return m.UpdateAccess(ctx, message)
+// publishAccessAsync marshals and core-publishes an FGA access message to subject.
+// UpdateAccess, DeleteAccess, MemberPut, and MemberRemove all share this shape; only
+// the subject differs.
+func (m *messagePublisher) publishAccessAsync(ctx context.Context, subject string, message any) error {
+	const messageType = "access"
+
+	data, err := m.prepareMessage(ctx, subject, message, messageType)
+	if err != nil {
+		return err
 	}
-	if subject == fgaconstants.GenericDeleteAccessSubject {
-		return m.DeleteAccess(ctx, message)
-	}
-	return m.publish(ctx, subject, message, "access", sync)
+
+	return m.publishMessage(ctx, subject, data, messageType)
 }
 
 // UpdateAccess publishes an update_access message asynchronously.
 func (m *messagePublisher) UpdateAccess(ctx context.Context, message any) error {
-	const messageType = "access"
-
-	data, err := m.prepareMessage(ctx, fgaconstants.GenericUpdateAccessSubject, message, messageType)
-	if err != nil {
-		return err
-	}
-
-	return m.publishMessage(ctx, fgaconstants.GenericUpdateAccessSubject, data, messageType)
+	return m.publishAccessAsync(ctx, fgaconstants.GenericUpdateAccessSubject, message)
 }
 
 // DeleteAccess publishes a delete_access message asynchronously.
 func (m *messagePublisher) DeleteAccess(ctx context.Context, message any) error {
-	const messageType = "access"
+	return m.publishAccessAsync(ctx, fgaconstants.GenericDeleteAccessSubject, message)
+}
 
-	data, err := m.prepareMessage(ctx, fgaconstants.GenericDeleteAccessSubject, message, messageType)
-	if err != nil {
-		return err
-	}
+// MemberPut publishes a member_put message asynchronously.
+func (m *messagePublisher) MemberPut(ctx context.Context, message any) error {
+	return m.publishAccessAsync(ctx, fgaconstants.GenericMemberPutSubject, message)
+}
 
-	return m.publishMessage(ctx, fgaconstants.GenericDeleteAccessSubject, data, messageType)
+// MemberRemove publishes a member_remove message asynchronously.
+func (m *messagePublisher) MemberRemove(ctx context.Context, message any) error {
+	return m.publishAccessAsync(ctx, fgaconstants.GenericMemberRemoveSubject, message)
 }
 
 // Event publishes a domain event to the given NATS subject for downstream consumers.

@@ -270,14 +270,17 @@ type stubPublisher struct {
 func (p *stubPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) error {
 	panic("Indexer is not called from the handler under test")
 }
-func (p *stubPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
-	panic("Access is not called from the handler under test")
-}
 func (p *stubPublisher) UpdateAccess(_ context.Context, _ any) error {
 	panic("UpdateAccess is not called from the handler under test")
 }
 func (p *stubPublisher) DeleteAccess(_ context.Context, _ any) error {
 	panic("DeleteAccess is not called from the handler under test")
+}
+func (p *stubPublisher) MemberPut(_ context.Context, _ any) error {
+	panic("MemberPut is not called from the handler under test")
+}
+func (p *stubPublisher) MemberRemove(_ context.Context, _ any) error {
+	panic("MemberRemove is not called from the handler under test")
 }
 func (p *stubPublisher) Event(_ context.Context, subject string, event any, sync bool) error {
 	p.called = true

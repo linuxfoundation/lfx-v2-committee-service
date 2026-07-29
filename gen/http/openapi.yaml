@@ -34,7 +34,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -175,7 +175,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -259,7 +259,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -328,7 +328,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -623,7 +623,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -777,7 +777,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -957,7 +957,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1108,7 +1108,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1171,7 +1171,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1530,7 +1530,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1607,7 +1607,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1730,7 +1730,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1876,7 +1876,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1939,7 +1939,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -2108,7 +2108,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -2202,7 +2202,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -2338,7 +2338,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -3168,6 +3168,7 @@ definitions:
             content_type: application/pdf
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3179,6 +3180,7 @@ definitions:
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3570,6 +3572,7 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3577,6 +3580,7 @@ definitions:
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3633,6 +3637,7 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3642,6 +3647,7 @@ definitions:
             uid: c1d2e3f4-a5b6-7890-cdef-123456789012
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee

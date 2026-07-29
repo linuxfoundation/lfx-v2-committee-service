@@ -96,13 +96,16 @@ type errorPublisher struct{}
 func (e *errorPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) error {
 	return errors.New("indexer unavailable")
 }
-func (e *errorPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
-	return errors.New("access service unavailable")
-}
 func (e *errorPublisher) UpdateAccess(_ context.Context, _ any) error {
 	return errors.New("access service unavailable")
 }
 func (e *errorPublisher) DeleteAccess(_ context.Context, _ any) error {
+	return errors.New("access service unavailable")
+}
+func (e *errorPublisher) MemberPut(_ context.Context, _ any) error {
+	return errors.New("access service unavailable")
+}
+func (e *errorPublisher) MemberRemove(_ context.Context, _ any) error {
 	return errors.New("access service unavailable")
 }
 func (e *errorPublisher) Event(_ context.Context, _ string, _ any, _ bool) error {

@@ -507,12 +507,12 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
-	// capturedAccessSubjects records the NATS subject for each Access call.
-	capturedAccessSubjects []string
-	// capturedAccessMsgs records the raw message value for each Access call.
-	capturedAccessMsgs []any
 	// capturedUpdateAccessMsgs records messages sent through the asynchronous-only operation.
 	capturedUpdateAccessMsgs []any
+	// capturedMemberPutMsgs records messages sent through the asynchronous-only member_put operation.
+	capturedMemberPutMsgs []any
+	// capturedMemberRemoveMsgs records messages sent through the asynchronous-only member_remove operation.
+	capturedMemberRemoveMsgs []any
 }
 
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
@@ -520,16 +520,19 @@ func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any
 	s.lastSubject = subject
 	return nil
 }
-func (s *spyCommitteePublisher) Access(_ context.Context, subject string, msg any, _ bool) error {
-	s.capturedAccessSubjects = append(s.capturedAccessSubjects, subject)
-	s.capturedAccessMsgs = append(s.capturedAccessMsgs, msg)
-	return nil
-}
 func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
 	s.capturedUpdateAccessMsgs = append(s.capturedUpdateAccessMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) DeleteAccess(_ context.Context, _ any) error {
+	return nil
+}
+func (s *spyCommitteePublisher) MemberPut(_ context.Context, msg any) error {
+	s.capturedMemberPutMsgs = append(s.capturedMemberPutMsgs, msg)
+	return nil
+}
+func (s *spyCommitteePublisher) MemberRemove(_ context.Context, msg any) error {
+	s.capturedMemberRemoveMsgs = append(s.capturedMemberRemoveMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
@@ -2455,7 +2458,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				require.Len(t, pub.capturedUpdateAccessMsgs, 1, "expected one FGA access publish for the pending invite")
-				assert.Empty(t, pub.capturedAccessSubjects)
+				assert.Empty(t, pub.capturedMemberPutMsgs)
+				assert.Empty(t, pub.capturedMemberRemoveMsgs)
 				msg, ok := pub.capturedUpdateAccessMsgs[0].(fgatypes.GenericFGAMessage)
 				require.True(t, ok)
 				data, ok := msg.Data.(fgatypes.GenericAccessData)
@@ -2489,7 +2493,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				assert.Len(t, pub.capturedUpdateAccessMsgs, 2, "expected one FGA publish per pending invite")
-				assert.Empty(t, pub.capturedAccessSubjects)
+				assert.Empty(t, pub.capturedMemberPutMsgs)
+				assert.Empty(t, pub.capturedMemberRemoveMsgs)
 			},
 		},
 		{
@@ -2508,7 +2513,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				require.Len(t, pub.capturedUpdateAccessMsgs, 1, "accepted invite should still get FGA invitee grant")
-				assert.Empty(t, pub.capturedAccessSubjects)
+				assert.Empty(t, pub.capturedMemberPutMsgs)
+				assert.Empty(t, pub.capturedMemberRemoveMsgs)
 			},
 		},
 		{
@@ -2527,7 +2533,8 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				assert.Empty(t, pub.capturedUpdateAccessMsgs, "invite for different email must not trigger FGA publish")
-				assert.Empty(t, pub.capturedAccessSubjects)
+				assert.Empty(t, pub.capturedMemberPutMsgs)
+				assert.Empty(t, pub.capturedMemberRemoveMsgs)
 			},
 		},
 	}

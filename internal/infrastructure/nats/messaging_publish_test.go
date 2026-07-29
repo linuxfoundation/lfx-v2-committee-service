@@ -71,6 +71,16 @@ func TestMessagePublisher_AccessCommandsPublishWithoutReply(t *testing.T) {
 			subject: fgaconstants.GenericDeleteAccessSubject,
 			publish: publisher.DeleteAccess,
 		},
+		{
+			name:    "member_put",
+			subject: fgaconstants.GenericMemberPutSubject,
+			publish: publisher.MemberPut,
+		},
+		{
+			name:    "member_remove",
+			subject: fgaconstants.GenericMemberRemoveSubject,
+			publish: publisher.MemberRemove,
+		},
 	}
 
 	for _, tt := range tests {
@@ -107,131 +117,62 @@ func TestMessagePublisher_AccessCommandsPublishWithoutReply(t *testing.T) {
 	}
 }
 
-func TestMessagePublisher_AccessGuardsUpdateAccessSubject(t *testing.T) {
-	tests := []struct {
-		name string
-		sync bool
+// TestMessagePublisher_AccessMethodsErrors covers the shared readiness, serialization,
+// and core-publish failure paths for UpdateAccess, DeleteAccess, MemberPut, and
+// MemberRemove, which all funnel through the same publishAccessAsync helper.
+func TestMessagePublisher_AccessMethodsErrors(t *testing.T) {
+	methods := []struct {
+		name    string
+		publish func(*messagePublisher) func(context.Context, any) error
 	}{
-		{name: "sync=true cannot reach requestMessage", sync: true},
-		{name: "sync=false behaves as UpdateAccess", sync: false},
+		{name: "UpdateAccess", publish: func(p *messagePublisher) func(context.Context, any) error { return p.UpdateAccess }},
+		{name: "DeleteAccess", publish: func(p *messagePublisher) func(context.Context, any) error { return p.DeleteAccess }},
+		{name: "MemberPut", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberPut }},
+		{name: "MemberRemove", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberRemove }},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := &publisherClientStub{}
-			publisher := &messagePublisher{client: client}
-
-			err := publisher.Access(context.Background(), fgaconstants.GenericUpdateAccessSubject, "payload", tt.sync)
-
-			require.NoError(t, err)
-			assert.Equal(t, 1, client.published, "Access must route GenericUpdateAccessSubject through publishWithSpan regardless of sync")
-			assert.Zero(t, client.requested, "Access must never reach requestWithSpan for GenericUpdateAccessSubject")
-		})
-	}
-}
-
-func TestMessagePublisher_AccessGuardsDeleteAccessSubject(t *testing.T) {
-	tests := []struct {
-		name string
-		sync bool
-	}{
-		{name: "sync=true cannot reach requestMessage", sync: true},
-		{name: "sync=false behaves as DeleteAccess", sync: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := &publisherClientStub{}
-			publisher := &messagePublisher{client: client}
-
-			err := publisher.Access(context.Background(), fgaconstants.GenericDeleteAccessSubject, "payload", tt.sync)
-
-			require.NoError(t, err)
-			assert.Equal(t, 1, client.published, "Access must route GenericDeleteAccessSubject through publishWithSpan regardless of sync")
-			assert.Zero(t, client.requested, "Access must never reach requestWithSpan for GenericDeleteAccessSubject")
-		})
-	}
-}
-
-func TestMessagePublisher_UpdateAccessErrors(t *testing.T) {
 	tests := []struct {
 		name          string
-		client        *publisherClientStub
+		newClient     func() *publisherClientStub
 		message       any
 		wantError     string
 		wantPublished int
 	}{
 		{
 			name:      "client not ready",
-			client:    &publisherClientStub{readyErr: errors.New("disconnected")},
+			newClient: func() *publisherClientStub { return &publisherClientStub{readyErr: errors.New("disconnected")} },
 			message:   "payload",
 			wantError: "NATS client is not ready",
 		},
 		{
 			name:      "message cannot be serialized",
-			client:    &publisherClientStub{},
+			newClient: func() *publisherClientStub { return &publisherClientStub{} },
 			message:   make(chan int),
 			wantError: "failed to marshal message",
 		},
 		{
 			name:          "core publish fails",
-			client:        &publisherClientStub{publishErr: errors.New("publish failed")},
+			newClient:     func() *publisherClientStub { return &publisherClientStub{publishErr: errors.New("publish failed")} },
 			message:       "payload",
 			wantError:     "failed to publish message",
 			wantPublished: 1,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			publisher := &messagePublisher{client: tt.client}
+	for _, method := range methods {
+		t.Run(method.name, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					client := tt.newClient()
+					publisher := &messagePublisher{client: client}
 
-			err := publisher.UpdateAccess(context.Background(), tt.message)
+					err := method.publish(publisher)(context.Background(), tt.message)
 
-			require.ErrorContains(t, err, tt.wantError)
-			assert.Equal(t, tt.wantPublished, tt.client.published)
-		})
-	}
-}
-
-func TestMessagePublisher_DeleteAccessErrors(t *testing.T) {
-	tests := []struct {
-		name          string
-		client        *publisherClientStub
-		message       any
-		wantError     string
-		wantPublished int
-	}{
-		{
-			name:      "client not ready",
-			client:    &publisherClientStub{readyErr: errors.New("disconnected")},
-			message:   "payload",
-			wantError: "NATS client is not ready",
-		},
-		{
-			name:      "message cannot be serialized",
-			client:    &publisherClientStub{},
-			message:   make(chan int),
-			wantError: "failed to marshal message",
-		},
-		{
-			name:          "core publish fails",
-			client:        &publisherClientStub{publishErr: errors.New("publish failed")},
-			message:       "payload",
-			wantError:     "failed to publish message",
-			wantPublished: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			publisher := &messagePublisher{client: tt.client}
-
-			err := publisher.DeleteAccess(context.Background(), tt.message)
-
-			require.ErrorContains(t, err, tt.wantError)
-			assert.Equal(t, tt.wantPublished, tt.client.published)
-			assert.Zero(t, tt.client.requested)
+					require.ErrorContains(t, err, tt.wantError)
+					assert.Equal(t, tt.wantPublished, client.published)
+					assert.Zero(t, client.requested)
+				})
+			}
 		})
 	}
 }

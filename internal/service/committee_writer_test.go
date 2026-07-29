@@ -757,7 +757,8 @@ func TestCommitteeWriterOrchestrator_UpdateAccessRouting(t *testing.T) {
 					assert.Equal(t, sync, indexerSync)
 				}
 				assert.Equal(t, 1, publisher.UpdateAccessCallCount)
-				assert.Equal(t, 0, publisher.AccessCallCount)
+				assert.Equal(t, 0, publisher.MemberPutCallCount)
+				assert.Equal(t, 0, publisher.MemberRemoveCallCount)
 				assert.NotNil(t, publisher.LastUpdateAccessMessage)
 			})
 		}
@@ -1021,13 +1022,6 @@ func (p *MockCommitteePublisherWithError) Indexer(ctx context.Context, subject s
 	return nil
 }
 
-func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject string, message any, sync bool) error {
-	if p.accessError != nil {
-		return p.accessError
-	}
-	return nil
-}
-
 func (p *MockCommitteePublisherWithError) UpdateAccess(ctx context.Context, message any) error {
 	if p.accessError != nil {
 		return p.accessError
@@ -1036,6 +1030,20 @@ func (p *MockCommitteePublisherWithError) UpdateAccess(ctx context.Context, mess
 }
 
 func (p *MockCommitteePublisherWithError) DeleteAccess(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
+func (p *MockCommitteePublisherWithError) MemberPut(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
+func (p *MockCommitteePublisherWithError) MemberRemove(ctx context.Context, message any) error {
 	if p.accessError != nil {
 		return p.accessError
 	}
@@ -2213,7 +2221,8 @@ func TestCommitteeWriterOrchestrator_DeleteAccessRouting(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, []bool{sync, sync}, publisher.IndexerSyncValues)
 			assert.Equal(t, 1, publisher.DeleteAccessCallCount)
-			assert.Zero(t, publisher.AccessCallCount)
+			assert.Zero(t, publisher.MemberPutCallCount)
+			assert.Zero(t, publisher.MemberRemoveCallCount)
 
 			msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
 			require.True(t, ok)
