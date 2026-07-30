@@ -18,26 +18,31 @@ test is broken.
 **Pattern:** the test asserts something that is true by construction, so the
 suite stays green when the behaviour regresses.
 
-**Detect:** when the diff adds a parameter, claim, or field to a call that a
-mock or spy records, check both that the fake **captures** the new value and
-that a test **asserts** it. Then flag these four shapes:
+**Detect:** each shape has its own trigger. Evaluate all four; they do not
+share a precondition.
 
-1. An assertion that reads a value **back off the same object the test set it
-   on**, without the code under test standing between the write and the read —
+1. **Read-back assertion** — trigger: any new or changed assertion. Flag one
+   that reads a value **back off the same object the test set it on**, with no
+   code under test standing between the write and the read —
    `c := Claims{Email: "a@b.c"}; assert.Equal(t, "a@b.c", c.Email)`. A normal
    table-driven expectation (`tt.want`) is **not** this shape: there the value
    travels through the code under test, which is free to get it wrong. The
    question is whether the production code could make the assertion fail, not
    whether the test authored the expected value.
-2. A mock that receives the new argument and drops it, so nothing can assert it.
-3. A fake whose own behaviour prevents the guarded branch from ever being
-   reached, so the branch under test is never executed and its assertions never
-   run. This is the PR #161 shape below: a fake repository that scans current
-   records could not return the stale record the guard exists to reject.
-4. An assertion wrapped in `if len(spy.calls) > 0 { ... }` — vacuous when the
-   call never happens, which is exactly the regression it should catch.
+2. **Dropped argument** — trigger: the diff adds a parameter, claim, or field to
+   a call that a mock or spy records. Require the fake to **capture** the new
+   value and a test to **assert** it; a fake that receives it and drops it means
+   nothing can assert it.
+3. **Fake blocks the branch** — trigger: the diff adds or changes a guard,
+   branch, or early return. Read the fake the test drives it with and ask
+   whether that fake can even produce the input the guard exists to reject. This
+   is the PR #161 shape below: a fake repository that scans current records
+   could never return the stale record, so the new guard was never executed.
+4. **Call-count guard** — trigger: any assertion wrapped in
+   `if len(spy.calls) > 0 { ... }`. Vacuous when the call never happens, which
+   is exactly the regression it should catch.
 
-Shapes 1 and 4 are read off the test; shapes 2 and 3 need the fake read
+Shapes 1 and 4 are read off the test alone; shapes 2 and 3 need the fake read
 alongside it.
 
 **Evidence:** `copilot-pull-request-reviewer`, four PRs, acted on every time.
