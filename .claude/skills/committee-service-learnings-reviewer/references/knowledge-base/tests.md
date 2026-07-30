@@ -22,10 +22,18 @@ whose behaviour prevents the guarded branch from ever being reached.
 
 **Detect:** when the diff adds a parameter, claim, or field to a call that a
 mock or spy records, check both that the fake **captures** the new value and
-that a test **asserts** it. Flag an assertion whose expected value the test
-assigned earlier in the same function. Flag an assertion wrapped in
-`if len(spy.calls) > 0 { ... }` — it is vacuous when the call never happens,
-which is exactly the regression it should catch.
+that a test **asserts** it. Then flag these three shapes:
+
+1. An assertion that reads a value **back off the same object the test set it
+   on**, without the code under test standing between the write and the read —
+   `c := Claims{Email: "a@b.c"}; assert.Equal(t, "a@b.c", c.Email)`. A normal
+   table-driven expectation (`tt.want`) is **not** this shape: there the value
+   travels through the code under test, which is free to get it wrong. The
+   question is whether the production code could make the assertion fail, not
+   whether the test authored the expected value.
+2. A mock that receives the new argument and drops it, so nothing can assert it.
+3. An assertion wrapped in `if len(spy.calls) > 0 { ... }` — vacuous when the
+   call never happens, which is exactly the regression it should catch.
 
 **Evidence:** `copilot-pull-request-reviewer`, four PRs, acted on every time.
 
