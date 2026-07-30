@@ -15,14 +15,12 @@ test is broken.
 
 ## `tests/assertion-cannot-fail` — High
 
-**Pattern:** the test asserts something that is true by construction. The three
-shapes seen on this repo: an assertion on a value the test itself assigned; a
-mock or spy that discards the very argument the change introduced; and a fake
-whose behaviour prevents the guarded branch from ever being reached.
+**Pattern:** the test asserts something that is true by construction, so the
+suite stays green when the behaviour regresses.
 
 **Detect:** when the diff adds a parameter, claim, or field to a call that a
 mock or spy records, check both that the fake **captures** the new value and
-that a test **asserts** it. Then flag these three shapes:
+that a test **asserts** it. Then flag these four shapes:
 
 1. An assertion that reads a value **back off the same object the test set it
    on**, without the code under test standing between the write and the read —
@@ -32,8 +30,15 @@ that a test **asserts** it. Then flag these three shapes:
    question is whether the production code could make the assertion fail, not
    whether the test authored the expected value.
 2. A mock that receives the new argument and drops it, so nothing can assert it.
-3. An assertion wrapped in `if len(spy.calls) > 0 { ... }` — vacuous when the
+3. A fake whose own behaviour prevents the guarded branch from ever being
+   reached, so the branch under test is never executed and its assertions never
+   run. This is the PR #161 shape below: a fake repository that scans current
+   records could not return the stale record the guard exists to reject.
+4. An assertion wrapped in `if len(spy.calls) > 0 { ... }` — vacuous when the
    call never happens, which is exactly the regression it should catch.
+
+Shapes 1 and 4 are read off the test; shapes 2 and 3 need the fake read
+alongside it.
 
 **Evidence:** `copilot-pull-request-reviewer`, four PRs, acted on every time.
 
@@ -73,8 +78,9 @@ each time, and repo-specific — it keys on this repo's own fake layer
 `cmd/committee-api/service/committee_service_test.go`), not on generic testing
 advice.
 
-**Failure message:** This assertion cannot fail — it checks a value the test
-supplied, an argument the mock discards, or a branch the fake prevents reaching.
+**Failure message:** This assertion cannot fail — it reads back a value the test
+set, checks an argument the mock discards, sits behind a branch the fake
+prevents reaching, or hides inside a call-count guard.
 
 **Fix:** capture the new argument in the fake, assert it unconditionally, and
 assert the call count separately so a missing call fails rather than skips.
