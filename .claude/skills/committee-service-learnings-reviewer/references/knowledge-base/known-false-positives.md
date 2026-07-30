@@ -21,9 +21,18 @@ re-audited in the last mining pass and all seven were confirmed worth keeping.
 **Pattern matched:** a finding asserting that the patch cannot build — an
 undefined symbol, a constant that does not exist, a type error.
 
-**Why false:** compilability is decided by the build, which runs on every PR
-and on `make build` locally. A reviewer asserting a compile failure is
-asserting against evidence that already exists and disagrees.
+**Why false:** compilability is not this reviewer's to decide. A reviewer here
+has read-only tools and no shell, so it cannot build and cannot know — and the
+repo owns the question mechanically: `/committee-service-preflight` runs
+`make build` and `make build-cli` before any PR, and CI runs them after.
+
+**Note the ordering.** The original finding below was raised at PR time against
+green CI, so it contradicted evidence that already existed. A local pre-PR
+review usually runs *before* any build has been attempted on the commit, so
+there is no green build to point at. That does not make the claim reviewable —
+it makes it premature. Drop it here; preflight answers it minutes later, and
+either passes or names the exact compiler error. If preflight fails, fix the
+build rather than re-litigating this entry.
 
 **Evidence:** PR #139, thread `r3494956878`: *"the pointer-kind constant is
 `reflect.Ptr` (there is no `reflect.Pointer` kind). As written this will not

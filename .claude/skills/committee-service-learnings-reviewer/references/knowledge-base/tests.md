@@ -46,7 +46,11 @@ share a precondition.
    could never return the stale record, so the new guard was never executed.
 4. **Call-count guard** — trigger: any assertion wrapped in
    `if len(spy.calls) > 0 { ... }`. Vacuous when the call never happens, which
-   is exactly the regression it should catch.
+   is exactly the regression it should catch. **Not a finding** when something
+   earlier in the same test already fails if the call is missing — a
+   `require.Len(t, spy.calls, 1)`, a `require.NoError` on a path that cannot
+   succeed without the call, or an unconditional assertion on the same spy. The
+   defect is an assertion that *silently* skips, not the `if` itself.
 
 Shapes 1 and 4 are read off the test alone; shapes 2 and 3 need the fake read
 alongside it.
