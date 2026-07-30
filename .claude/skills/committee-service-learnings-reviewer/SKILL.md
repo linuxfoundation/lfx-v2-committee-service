@@ -5,12 +5,12 @@ name: committee-service-learnings-reviewer
 description: >
   Repo-owned `repo_learnings` review brain for lfx-v2-committee-service, loaded
   by the `lfx-local-review/v1` launcher through the `local-learnings-review`
-  discovery alias. Matches one pre-PR patch against this skill's local
-  empirical knowledge base under `references/knowledge-base/` — patterns
+  discovery alias. Matches one pre-PR patch against the repo's canonical
+  empirical knowledge base at `docs/reviews/knowledge-base/` — patterns
   extracted from real PR review threads on this repo, each carrying the
   reviewer thread, the developer's fixing commit, and current-code status.
   Every finding quotes a pattern entry; unsourced findings are dropped, and
-  the local known-false-positive floor is applied last. Returns a v1
+  the known-false-positive floor is applied last. Returns a v1
   review-result for role "repo_learnings". Not a skill a developer invokes by
   hand.
 allowed-tools: Read, Glob, Grep
@@ -25,10 +25,17 @@ patch against the **empirical** review surface of `lfx-v2-committee-service` —
 the shapes that reviewers on this repo have actually flagged and that
 developers actually fixed.
 
-Your authority is the knowledge base in
-[`references/knowledge-base/`](references/knowledge-base/), next to this file
-and versioned with it. **Every finding must quote a pattern entry.** No quote,
-no finding — regardless of how real the problem looks.
+Your authority is the repo's canonical empirical knowledge base at
+**`docs/reviews/knowledge-base/`**, resolved inside the snapshot you are given.
+**Every finding must quote a pattern entry.** No quote, no finding — regardless
+of how real the problem looks.
+
+That directory is the single KB for this repo; there is deliberately no second
+copy under this skill tree. It is **also read by the GitHub PR review surface**
+(`.github/skills/committee-service-code-review/SKILL.md`), which treats its
+false-positive file as a posting floor. You never write to it — you have
+read-only tools — but be aware that its entries are shared truth rather than a
+local scratch pad.
 
 ## Your lane, and the lanes that are not yours
 
@@ -56,19 +63,20 @@ the repository at the target commit.
 
 ## Step 1 — load the routed pattern files
 
+All paths below are relative to `docs/reviews/knowledge-base/` inside the
+snapshot.
+
 **Always read:**
 
-- `references/knowledge-base/README.md` — scope, provenance, and what this KB
-  deliberately does not carry.
-- `references/knowledge-base/known-false-positives.md` — the floor, applied
-  last in Step 3.
-- `references/knowledge-base/logging-errors-secrets.md` — PII and redaction
-  shapes reach almost any Go change here.
-- `references/knowledge-base/tests.md` — always, **including when the patch
-  touches no test file**. One of its shapes triggers on a production guard whose
-  test cannot exercise it, where the defect is the missing test; routing this
-  file on "the patch touches a `*_test.go`" would scope that shape out of the
-  diffs it exists for.
+- `README.md` — scope, provenance, the two quarantined contradictions, and what
+  this KB deliberately does not carry.
+- `known-false-positives.md` — the floor, applied last in Step 3.
+- `logging-errors-secrets.md` — PII and redaction shapes reach almost any Go
+  change here.
+- `tests.md` — always, **including when the patch touches no test file**. One of
+  its shapes triggers on a production guard whose test cannot exercise it, where
+  the defect is the missing test; routing this file on "the patch touches a
+  `*_test.go`" would scope that shape out of the diffs it exists for.
 
 **Read by touched path** — read only the rows that match; lean toward reading
 when a row is borderline. Do not blanket-read.
@@ -84,15 +92,23 @@ when a row is borderline. Do not blanket-read.
 Every entry uses this shape:
 
 ```text
-## `<category>/<pattern-id>` — Critical | High | Should-fix
+## `<category>/<pattern-id>` — Critical | Important
 
 **Pattern:** what it looks like.
 **Detect:** the operational rule — this is what you evaluate.
-**Evidence:** reviewer, PR, thread id, the quoted finding, the developer's
-fixing commit, and its status in current code.
+**Empirical citation:** reviewer, PR, file:line, thread id, the quoted finding,
+the developer's fixing commit, and its status in current code.
+**Revised <date>:** present on entries re-audited against current code — states
+what changed and why, and often names a live violation or an explicit carve-out.
 **Failure message:** what to say.
 **Fix:** how to fix it.
 ```
+
+**Read the whole entry, not just `Detect:`.** Many entries carry an explicit
+exclusion — a documented accepted trade-off, a correct-by-convention shape, an
+idempotent branch the ordering rule does not govern. Those exclusions are part of
+the rule. Firing on a shape the entry tells you to skip is a false positive that
+quotes a real pattern, which is the worst kind.
 
 If a routed pattern file cannot be read, return `INCOMPLETE` with an `error`
 whose `message` names the file. Never review with a missing pattern file and
@@ -110,35 +126,36 @@ For each entry in every loaded file except `known-false-positives.md`:
    span of that entry's `Pattern:` or `Detect:` text.
 4. If you cannot quote the entry, drop the finding.
 
-Severity comes from the entry's header — `Critical`, `High`, `Should-fix` map
-to the three contract severities directly. Do not raise or lower it on
-intuition.
+Severity comes from the entry's header. This KB labels entries `Critical` or
+`Important`; map them to the contract severities as
+**`Critical` → `critical`** and **`Important` → `high`**. Do not raise or lower a
+severity on intuition, and do not invent a third label the entry does not carry.
 
 ## Step 3 — apply the false-positive floor, last
 
-Walk `references/knowledge-base/known-false-positives.md` and drop every
-surviving finding that matches an entry there. **The floor wins even over a
-quotable pattern match.** That file also names the legacy floor in
-`docs/reviews/knowledge-base/known-false-positives.md`, which still applies;
-read it when a finding looks like it might land on a legacy rejection.
+Walk `known-false-positives.md` and drop every surviving finding that matches an
+entry there. **The floor wins even over a quotable pattern match.**
 
-## The shared knowledge base is legacy, and read-only
+Two parts of that file are easy to misread, so read them properly:
 
-`docs/reviews/knowledge-base/**` is the repo's older KB. It is **also read by
-the GitHub PR review surface**, so it is frozen for this local cycle: consult
-it for continuity, never treat it as refreshed truth, and never propose edits
-to it from this role.
+- The **carve-in** under the generic "add-a-test" entry. A bare request for
+  coverage is floored; a test that *cannot fail* is not. Do not use the generic
+  entry to drop a `tests/*` match.
+- The entries that **narrow themselves**. The version-speculation entry does not
+  cover dependency-version inconsistency; the generated-OpenAPI entry does not
+  cover a genuinely stale generated document. Check the boundary before dropping.
 
-Its known drift is recorded in this skill's
-`references/knowledge-base/README.md` — several of its entries cite files that
-no longer exist, and a few of its `Detect:` clauses now fire on
-correct-by-convention code. When a legacy entry and a local entry describe the
-same shape, **the local entry wins**, because the local one carries
-current-code verification.
+## Two quarantined contradictions — no finding either way
+
+The KB README records two unresolved contradictions in the repo's own rule
+surface: the `committee-service-dev` layering self-contradiction, and whether
+`.claude/skills/**` counts as maintained documentation. Until a human rules, you
+**neither emit nor suppress** findings that depend on either. Treat them as out
+of scope rather than deciding them by implication.
 
 ## What never becomes a finding
 
-- Anything you cannot quote from a local pattern entry.
+- Anything you cannot quote from a KB pattern entry.
 - Anything below confidence 80.
 - Nits, style, formatting, naming.
 - The lanes listed at the top.
@@ -175,7 +192,7 @@ explanation, no second object, no repeated marker.
         "excerpt": "indicesToDelete := []string{\n\tfmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, existing.CommitteeUID, existing.UID),\n}"
       },
       "knowledge_base": {
-        "source": ".claude/skills/committee-service-learnings-reviewer/references/knowledge-base/nats-storage-kv.md",
+        "source": "docs/reviews/knowledge-base/nats-storage-kv.md",
         "pattern": "nats-storage-kv/new-secondary-index-needs-backfill-and-cleanup",
         "detect": "a diff adds a KVLookupMembersBy*Prefix constant or a Build*IndexKey method without appending the key to indicesToDelete in DeleteMember",
         "quote": "Adding a persistent secondary key also requires deletion cleanup, or every deleted record with that attribute leaves an orphaned index key indefinitely."

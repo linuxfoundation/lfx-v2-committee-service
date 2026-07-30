@@ -16,15 +16,45 @@ messages — especially `internal/service/**`, `internal/infrastructure/nats/**`
 message without `redaction.RedactEmail` / `redaction.Redact`. The committee member, invite, subscriber,
 and notification flows all redact identifiers; new code on those paths must too.
 
+**Three further shapes** were raised and fixed in the 2026-07 window and are part of this entry:
+
+1. **Redaction removed.** The diff deletes a `redaction.Redact` / `redaction.RedactEmail` wrapper from a log
+   or error argument. This is a finding on its own — the line still compiles and now leaks.
+2. **Rendered email subject logged.** Distinct from a NATS subject, which is safe: current notification
+   subjects embed the recipient's resolved display name.
+3. **`principal` logged unredacted at the Goa handler layer**, including in `cmd/committee-api/service/**` —
+   the LFID username is PII wherever it appears.
+
 **Detect:** grep changed files for `slog.*Context(` calls and `errors.New*`/`fmt.Errorf` whose args include
-`.Email`, `.InviteeEmail`, `.ApplicantUID`, `.Username`, `principal`, or a recipient email, without a
-`redaction.` wrapper.
+`.Email`, `.InviteeEmail`, `.ApplicantEmail`, `.Username`, `principal`, or a recipient email, without a
+`redaction.` wrapper. Then check the three shapes above — in particular, read the diff for a `redaction.`
+wrapper *disappearing*, which no "identifier appears in a log" rule can catch.
+
+**Scope includes `internal/infrastructure/mock/**`.** At the time of mining the mock layer was the only
+surface with raw-identifier hits: a full sweep of `internal/`, `cmd/`, `scripts/`, and `pkg/` found three,
+all in `internal/infrastructure/mock/committee.go` (`:668`, `:769`, `:779`). Production code was clean.
 
 **Empirical citation:** PR #16 `cmd/committee-api/service/committee_service.go:232` (CodeRabbit) — "Avoid logging PII (email/username) at request handling — redact or remove." Recurs PR #91 `committee_subscriber.go:47` ("Remove raw user identifiers from logs"), PR #91 `message_handler.go:513` ("Remove recipient email addresses from logs"), PR #44 `messaging_request.go:53` (Copilot, "The error message exposes the email address in plain text ... use `redaction.RedactEmail()`"), PR #61 `committee_application.go:50` ("Redact `applicant_uid` before logging it").
 
-**Failure message:** Raw email/username/principal logged or put in an error message without `pkg/redaction`.
+**Revised 2026-07-30 — Detect corrected and three shapes added.** `pkg/redaction.Redact`/`RedactEmail` have
+111 non-test call sites and the PR #16 site is fixed (`committee_service.go:69-75` logs only `len(token)`).
+Two corrections: the Detect list named `.ApplicantUID`, but the model field carrying PII is
+`.ApplicantEmail`; and the entry did not state whether the mock layer was in scope — it is, and it was the
+only surface with hits.
 
-**Fix:** wrap with `redaction.RedactEmail(...)` for emails and `redaction.Redact(...)` for usernames/subs/principals in both log fields and error message strings.
+New shapes, all `copilot-pull-request-reviewer`, all acted on:
+
+- PR #152 thread `r3589754533` — commit `6f9c231` had *deleted* `redaction.RedactEmail` from send-success
+  logs: "This change removes the existing email redaction … the warning would leak that address; restore
+  `RedactEmail`." Restored in `a4ec014`.
+- PR #152 thread `r3589685368` — "`req.Subject` is not safe log metadata: current notification subjects embed
+  a user's resolved display name." Fixed in `a4ec014` by dropping the field; verified at `main@bd39fe9` —
+  no rendered subject is logged in `internal/infrastructure/nats/email_sender.go`.
+- PR #156 thread `r3632379416` — "This emits the caller's unredacted LFID username at info level." Fixed.
+
+**Failure message:** Raw email/username/principal logged or put in an error message without `pkg/redaction`, an existing redaction removed, or a rendered email subject logged.
+
+**Fix:** wrap with `redaction.RedactEmail(...)` for emails and `redaction.Redact(...)` for usernames/subs/principals in both log fields and error message strings; restore any redaction the diff removed; and drop rendered email subjects from log arguments entirely rather than redacting them.
 
 ---
 
@@ -40,6 +70,20 @@ variable, `NATS_URL`, `Authorization`, `Bearer `, or token vars. In chart change
 `values.yaml` not sourced via `valueFrom`.
 
 **Empirical citation:** PR #78 `scripts/migrations/migrate_join_mode_to_base/main.go:65` (CodeRabbit) — "Do not log the raw NATS URL." (recurs `reindex_committees/main.go:88`, PR #89 `migrate_counsel_role/main.go:65`, PR #87 `cmd/committee-cli/main.go:90` "Don't include raw `NATS_URL` in connection errors"). Hardcoded token PR #78 `reindex_committees/main.go:45` (Copilot, "This hard-codes an Authorization header value ... read a bearer token from an env var"). Chart-secret PR #98 `providers.go:529` (jordane, "Best practice is to not use a secret here, but to use a keypair").
+
+**Revised 2026-07-30 — citations repointed; the invariant is broadly violated today.** Both cited scripts
+(`migrate_join_mode_to_base/`, `reindex_committees/`) have been deleted, so those citations no longer
+resolve. The fixes that did land are narrow: `migrate_counsel_role/main.go:63` redacts the flag and
+`cmd/committee-cli/main.go:106` no longer embeds the URL. The redaction never propagated — **13 live
+violations at `main@bd39fe9`**:
+
+- `internal/infrastructure/nats/client.go:65`, `:73`, `:92`, `:100`, `:225`, `:312` log `ConnectedUrl()` raw;
+- four migration scripts log `*natsURL` and/or `ConnectedUrl()` raw —
+  `migrate_writers_auditors_to_user_objects:78,92`, `migrate_member_visibility:76,93`,
+  `migrate_show_meeting_attendees:76,93`, `migrate_counsel_role:79`.
+
+The chart half is upheld: every secret in `values.yaml` uses `valueFrom.secretKeyRef`. Treat a match in
+`client.go` or a migration script as confirmed by this census rather than speculative.
 
 **Failure message:** Raw NATS URL / bearer token / secret logged, embedded in an error, or placed directly in chart values.
 
@@ -79,9 +123,19 @@ used to branch logic; flag case-sensitive `"not found"` checks.
 
 **Empirical citation:** PR #89 `scripts/migrations/migrate_counsel_role/main.go:125` (Copilot) — "Skip/updated classification is driven by matching substrings in err.Error() ('not counsel'), which is brittle ... Consider using a sentinel error (e.g., var ErrNotCounsel = errors.New(...)) and checking it with errors.Is." Recurs PR #45 `models.go:49` ("The case-sensitive check for 'not found' may lead to inconsistent error handling ... use a case-insensitive check") and PR #78 `migrate_join_mode_to_base/main.go:129` ("Use a sentinel error instead of matching error text").
 
+**Revised 2026-07-30 — all three citations repointed.** Every originally cited site is deleted or relocated,
+but the pattern is empirically alive: **7 current hits at `main@bd39fe9`, all driving control flow**. The
+migration-script instance this entry was built from was fixed in one script and then **re-introduced in
+three others**: `migrate_show_meeting_attendees:137`, `migrate_member_visibility:137`,
+`migrate_writers_auditors_to_user_objects:135`. Quote those as the live examples.
+
+**Two accepted variants — not findings.** `internal/infrastructure/nats/models.go:121` and
+`group_weekly_brief_storage.go:295` are compatibility fallbacks with documented rationale. Text matching
+there is a deliberate interop decision, not brittleness.
+
 **Failure message:** Control flow branches on `err.Error()` substring matching — brittle to message changes/wrapping.
 
-**Fix:** define a sentinel error and branch with `errors.Is`/`errors.As`; if string matching is unavoidable, lower-case both sides.
+**Fix:** define a sentinel error and branch with `errors.Is`/`errors.As`; if string matching is unavoidable, lower-case both sides and say in a comment why the sentinel is not available.
 
 ---
 

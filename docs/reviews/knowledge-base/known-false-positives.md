@@ -45,6 +45,17 @@ discipline for the `lfx-skills:lfx-committee-service-code-reviewer` subagent.
 
 **Source:** the committee-service code-reviewer / general-reviewer scope split; playbook §2 hard gate "Repo-specific, not generic."
 
+**Carve-in — what "generic add-a-test" does NOT excuse.** Added 2026-07-30, because 13 Copilot findings in
+the 2026-07 window were test-related and most were substantive and acted on. This entry must not be used to
+drop them.
+
+**A test that cannot fail is a finding, not generic advice** — an assertion on a value the test itself
+assigned, a mock that discards the argument under test, a fake whose behaviour prevents the guarded branch
+from being reached, or an assertion wrapped in an `if len(spy.calls) > 0` guard. Those have their own entry at
+[`tests/assertion-cannot-fail`](tests.md), and this floor does not reach them. The same carve-in applies to
+[`tests/no-external-service-dependency`](tests.md): "this test skips in CI" is a coverage defect with a
+mechanical detect rule, not a request for more tests.
+
 ---
 
 ## Review-automation quirks
@@ -67,6 +78,32 @@ discipline for the `lfx-skills:lfx-committee-service-code-reviewer` subagent.
 
 **Why false:** these are point-in-time bot guesses (e.g., PR #1 "Go 1.24 does not exist", PR #55 OTel version notes) that go stale immediately and are governed by `go.mod` + the Makefile-pinned toolchain, which CI validates. Not a durable review pattern.
 
+**Narrowed 2026-07-30 — what this entry does NOT cover.** *Dependency-version consistency* findings are real
+and are not dropped here. Two were valid in the 2026-07 window and were fixed: the `go.mod` pseudo-version
+pins (PR #153, fixed in `fa3044e`) and the semconv version drift between two importers (fixed in `ca05b3e`).
+This entry covers point-in-time guesses about which release *exists*, not inconsistency between versions the
+repo actually declares. Those two route to `/committee-service-pr-readiness` and
+`/committee-service-preflight` respectively rather than to a review brain.
+
+### "This will not compile" / "this symbol does not exist"
+
+**Pattern matched:** a finding asserting that the patch cannot build — an undefined symbol, a constant that
+does not exist, a type error.
+
+**Why false:** compilability is not a review brain's to decide. A reviewer here has read-only tools and no
+shell, so it cannot build and cannot know — and the repo owns the question mechanically:
+`/committee-service-preflight` runs `make build` and `make build-cli` before any PR, and CI runs them after.
+
+**Note the ordering.** The original finding was raised at PR time against green CI, so it contradicted
+evidence that already existed. A local pre-PR review usually runs *before* any build has been attempted on the
+commit, so there is no green build to point at. That does not make the claim reviewable — it makes it
+premature. Drop it here; preflight answers it minutes later, and either passes or names the exact compiler
+error. If preflight fails, fix the build rather than re-litigating this entry.
+
+**Evidence:** PR #139 thread `r3494956878` — "the pointer-kind constant is `reflect.Ptr` (there is no
+`reflect.Pointer` kind). As written this will not compile." The author declined, correctly —
+`reflect.Pointer` has been the canonical constant since Go 1.18, and CI was green.
+
 ---
 
 ## Chart-replica defaults
@@ -76,6 +113,40 @@ discipline for the `lfx-skills:lfx-committee-service-code-reviewer` subagent.
 **Pattern matched:** "defaulting KV bucket `replicas` to 3 prevents creation on single-node/local clusters" or "replicaCount changed from 3 to 1 affects all environments".
 
 **Why false (conditional):** the team intentionally sets HA-oriented defaults (3) in the committed chart and overrides to 1 locally via `values.local.yaml`; deployed values live in `lfx-v2-argocd`. The bots raise this on most chart PRs (#63, #64) and the resolution is environment override, not a code change. Only valid if a PR demonstrably lowers the committed production default without an override path — author's call.
+
+---
+
+## Generated code
+
+### Goa-generated OpenAPI naming and example nits under `gen/**`
+
+**Pattern matched:** a finding about a deduplicated request-body schema name, a generated operation id, or
+`example:` versus `default:` in the generated OpenAPI document.
+
+**Why false:** `gen/` is never hand-edited, so such a finding is either a design-level change or nothing at
+all. Cosmetic naming in a generated spec is not worth diverging the design for.
+
+**Evidence:** PR #139, three threads — `r3499924649`, `r3499924693`, `r3499924729`. The author declined the
+schema-naming half as inherent Goa behaviour ("Goa deduplicates the schema and re-uses one across endpoints")
+and fixed only the example half, at the design level.
+
+**Boundary:** a generated document that is *stale* — missing an endpoint, or inconsistent with the design after
+a change — is **not** covered here. That is a code-reviewer matter under the generated-code boundary rule.
+
+---
+
+## Deliberately NOT an entry here — needs a human decision
+
+The PR #161 reply asserting that "`.claude/skills/` is internal Claude Code skill infrastructure, not
+maintained documentation for this repo" is **not** recorded as a false positive.
+
+Adding it would suppress a rule that `.claude/skills/committee-service-dev/SKILL.md` line 156 states, and that
+the same maintainer's commit `ceab5a1` obeyed 21 minutes after the finding, citing the convention in its commit
+message. The contradiction is real and unresolved; a floor entry would resolve it by stealth, in the direction
+of whichever side wrote the reply.
+
+Reviewers therefore refuse to emit **or** suppress findings on that rule until a human rules. See the
+README's quarantine section.
 
 ---
 
