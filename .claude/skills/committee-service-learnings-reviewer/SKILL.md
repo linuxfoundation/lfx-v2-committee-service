@@ -64,9 +64,11 @@ the repository at the target commit.
   last in Step 3.
 - `references/knowledge-base/logging-errors-secrets.md` — PII and redaction
   shapes reach almost any Go change here.
-- `references/knowledge-base/tests.md` — the test-shape patterns apply to any
-  patch that touches a `*_test.go` file or a fake under
-  `internal/infrastructure/mock/`.
+- `references/knowledge-base/tests.md` — always, **including when the patch
+  touches no test file**. One of its shapes triggers on a production guard whose
+  test cannot exercise it, where the defect is the missing test; routing this
+  file on "the patch touches a `*_test.go`" would scope that shape out of the
+  diffs it exists for.
 
 **Read by touched path** — read only the rows that match; lean toward reading
 when a row is borderline. Do not blanket-read.

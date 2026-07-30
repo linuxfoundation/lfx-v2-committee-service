@@ -54,7 +54,7 @@ entry wins** — it is the one carrying current-code verification.
 | [`goa-presentation.md`](goa-presentation.md) | 1 | `cmd/committee-api/design/**`, `cmd/committee-api/service/**`, `cmd/committee-api/http.go` |
 | [`invite-application-flows.md`](invite-application-flows.md) | 1 | invite/application/join/leave handlers, invite/application models, `docs/invite-application-flows.md` |
 | [`logging-errors-secrets.md`](logging-errors-secrets.md) | 1 | any `.go` that logs or builds an error |
-| [`tests.md`](tests.md) | 2 | any `*_test.go`, or a fake under `internal/infrastructure/mock/` |
+| [`tests.md`](tests.md) | 2 | **always** — one shape triggers on a production guard with no test that can exercise it |
 | [`known-false-positives.md`](known-false-positives.md) | 2 + a carve-in | always — applied LAST |
 
 **9 patterns** across 7 category files, plus the local false-positive floor.

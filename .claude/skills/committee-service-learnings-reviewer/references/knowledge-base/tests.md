@@ -8,8 +8,14 @@ Local empirical patterns about tests that *exist* but cannot fail. This is not
 here. These are shapes where the suite stays green while the behaviour under
 test is broken.
 
-**Read when** the patch touches any `*_test.go`, or a fake under
-`internal/infrastructure/mock/`.
+**Read always** — including for patches that touch no test file at all.
+
+That is deliberate. Shape 3 below triggers on a **production** change: a new
+guard or early return whose test drives it through a fake that cannot produce
+the input the guard rejects. There, the defect is the *absence* of a capable
+test, and routing this file on "the patch touches a `*_test.go`" would scope it
+out of exactly the diffs it is written for. Shapes 1, 2 and 4 do need a test or
+fake in the patch; read them past when there is none.
 
 ---
 
