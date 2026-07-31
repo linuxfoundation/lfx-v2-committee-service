@@ -136,21 +136,26 @@ All paths below are relative to `docs/reviews/knowledge-base/`.
   the defect is the missing test; routing this file on "the change touches a
   `*_test.go`" would scope that shape out of the diffs it exists for.
 
-**Read by touched path** — read only the rows that match; lean toward reading
-when a row is borderline. Do not blanket-read.
+**Read by touched path.** Route from the category files' own headers, not from a
+copy of them. Read the `**Read when:**` line at the top of each of these five
+files — five single-line reads — then load in full every file whose header names a
+path this change touches. Skip the rest; do not blanket-read.
 
-| Pattern file | Read when the change touches |
-|---|---|
-| `nats-storage-kv.md` | `internal/infrastructure/nats/**`, `internal/service/*writer.go`, `internal/service/*reader.go`, `cmd/committee-api/service/committee_service.go` (handler-level existence guards), `internal/infrastructure/mock/**`, `pkg/constants/storage.go`, or `cmd/committee-cli/commands/sync/**` |
-| `indexer-fga-contracts.md` | `internal/service/*writer.go`, `internal/service/message_handler.go`, `internal/domain/model/committee_*.go` (`Tags()`/`Build`), `internal/infrastructure/nats/messaging_publish.go`, `pkg/constants/subjects.go`, `docs/indexer-contract.md`, `docs/fga-contract.md`, or `scripts/migrations/**` |
-| `chart-and-concurrency.md` | `charts/lfx-v2-committee-service/**`, `pkg/constants/storage.go`, `pkg/constants/subjects.go`, `cmd/committee-api/design/**`, `cmd/committee-api/service/{committee_handler,providers}.go`, `internal/infrastructure/nats/{client,stream_consumer}.go`, `pkg/concurrent/**`, or any file launching goroutines or using `errgroup` |
-| `goa-presentation.md` | `cmd/committee-api/service/**`, `cmd/committee-api/design/**`, or `cmd/committee-api/http.go` |
-| `invite-application-flows.md` | `cmd/committee-api/service/committee_service.go` (invite / application / join / leave handlers), `internal/domain/model/committee_{invite,application}.go`, `internal/service/message_handler.go` (invite-accepted handling), or `docs/invite-application-flows.md` |
+- `nats-storage-kv.md`
+- `indexer-fga-contracts.md`
+- `chart-and-concurrency.md`
+- `goa-presentation.md`
+- `invite-application-flows.md`
 
-**Each category file's own `Read when:` line is authoritative.** This table is a
-fast index, and an index can drift from what it indexes. If a file's header names
-a path this table omits, the header wins — read the file. When you add or widen a
-pattern, widen the header first and mirror it here, never the reverse.
+There is deliberately **no routing table here**. A table is a second copy of those
+headers, and a copy drifts: a path missing from it silently makes every entry in
+that file unreachable, including Critical ones, and a reviewer that never opens
+the file cannot notice the omission. A declaration that the header "wins" does not
+help either — it cannot fire, because the reviewer never got there. Reading the
+headers costs five lines and cannot go stale.
+
+When you add or widen a pattern, widen its file's `Read when:` header in the same
+change. That header is the routing.
 
 Every entry uses this shape:
 
