@@ -5,11 +5,15 @@ pattern file) originally produced them. This list is the floor — even a quotab
 it matches a known false positive.
 
 Consumed by two surfaces. The repo-owned local learnings brain
-(`.claude/skills/committee-service-learnings-reviewer/SKILL.md`) applies this file as its floor, and the
-repo-owned code brain follows the same floor discipline. The GitHub PR review surface
+(`.claude/skills/committee-service-learnings-reviewer/SKILL.md`) applies this file as its floor, reading it
+at the reviewed commit's pre-change base. The GitHub PR review surface
 (`.github/skills/committee-service-code-review/SKILL.md`) also consumes this directory and treats this
 file as a posting floor, by human-approved design. A change here therefore changes what both surfaces
 report.
+
+The repo-owned **code** brain does not read this file. It is gated by a different rule — every finding must
+quote a verbatim rule from the repo's written surface — so it has no floor step, and this file makes no
+promise about what it emits.
 
 ---
 

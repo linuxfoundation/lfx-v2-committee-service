@@ -63,7 +63,9 @@ Run `make apigen` after editing any file under `cmd/committee-api/design/`. Neve
 
 The learnings brain reads the repo's canonical empirical knowledge base at `docs/reviews/knowledge-base/` — the single KB for this repo, deliberately not duplicated under the skill tree. That directory is **also read by the GitHub PR review surface** (`.github/skills/committee-service-code-review/SKILL.md`, which treats its `known-false-positives.md` as a posting floor), so an edit there changes what the PR bot posts as well as what local review flags. That is intended: one path, one truth. Keep `Detect:` clauses narrow, and re-verify citations against current code when you touch an entry.
 
-One consequence worth knowing before you argue with a finding: **the false-positive floor is read at the pre-change base, not at your commit.** A waiver you add in the same change cannot suppress a finding about that change, and a waiver you delete still applies. Widening the floor is a separate, deliberate commit.
+One consequence worth knowing before you argue with a finding: **the false-positive floor is read at the pre-change base, not at your commit.** A waiver you add in the same change cannot suppress a finding about that change, and a waiver you delete still applies.
+
+That extends further than it first looks, and a separate commit on the same branch does not escape it. Post-commit mode bases each commit on its parent, so a later commit does see a waiver an earlier one added — but the pre-PR **branch sweep** reads the floor at the merge-base with `origin/main`, so it ignores every waiver added anywhere on the branch. **To widen the floor for your own work, land the widening on `main` first.** Otherwise the sweep will keep reporting the finding, and the honest options are to fix it or to document it as a trade-off — not to add a waiver the sweep cannot see.
 
 ### Post-commit (pre-PR phase, after every commit)
 

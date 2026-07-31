@@ -141,11 +141,16 @@ when a row is borderline. Do not blanket-read.
 
 | Pattern file | Read when the change touches |
 |---|---|
-| `nats-storage-kv.md` | `internal/infrastructure/nats/**`, `internal/service/*writer.go`, `internal/service/*reader.go`, `pkg/constants/storage.go`, `internal/infrastructure/mock/**`, or `cmd/committee-cli/commands/sync/**` |
-| `indexer-fga-contracts.md` | `internal/service/*writer.go`, `internal/infrastructure/nats/messaging_publish.go`, `pkg/constants/subjects.go`, `docs/indexer-contract.md`, `docs/fga-contract.md`, or `scripts/migrations/**` |
-| `chart-and-concurrency.md` | `charts/lfx-v2-committee-service/**`, `pkg/constants/subjects.go`, `cmd/committee-api/service/{committee_handler,providers}.go`, or `cmd/committee-api/design/**` |
-| `goa-presentation.md` | `cmd/committee-api/design/**`, `cmd/committee-api/service/**`, or `cmd/committee-api/http.go` |
-| `invite-application-flows.md` | invite / application / join / leave handlers, `internal/domain/model/committee_{invite,application}.go`, or `docs/invite-application-flows.md` |
+| `nats-storage-kv.md` | `internal/infrastructure/nats/**`, `internal/service/*writer.go`, `internal/service/*reader.go`, `cmd/committee-api/service/committee_service.go` (handler-level existence guards), `internal/infrastructure/mock/**`, `pkg/constants/storage.go`, or `cmd/committee-cli/commands/sync/**` |
+| `indexer-fga-contracts.md` | `internal/service/*writer.go`, `internal/service/message_handler.go`, `internal/domain/model/committee_*.go` (`Tags()`/`Build`), `internal/infrastructure/nats/messaging_publish.go`, `pkg/constants/subjects.go`, `docs/indexer-contract.md`, `docs/fga-contract.md`, or `scripts/migrations/**` |
+| `chart-and-concurrency.md` | `charts/lfx-v2-committee-service/**`, `pkg/constants/storage.go`, `pkg/constants/subjects.go`, `cmd/committee-api/design/**`, `cmd/committee-api/service/{committee_handler,providers}.go`, `internal/infrastructure/nats/{client,stream_consumer}.go`, `pkg/concurrent/**`, or any file launching goroutines or using `errgroup` |
+| `goa-presentation.md` | `cmd/committee-api/service/**`, `cmd/committee-api/design/**`, or `cmd/committee-api/http.go` |
+| `invite-application-flows.md` | `cmd/committee-api/service/committee_service.go` (invite / application / join / leave handlers), `internal/domain/model/committee_{invite,application}.go`, `internal/service/message_handler.go` (invite-accepted handling), or `docs/invite-application-flows.md` |
+
+**Each category file's own `Read when:` line is authoritative.** This table is a
+fast index, and an index can drift from what it indexes. If a file's header names
+a path this table omits, the header wins — read the file. When you add or widen a
+pattern, widen the header first and mirror it here, never the reverse.
 
 Every entry uses this shape:
 

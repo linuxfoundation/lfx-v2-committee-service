@@ -7,7 +7,8 @@ message the indexer or fga-sync silently drops or mis-processes, so cost-of-miss
 even at one occurrence.
 
 **Read when:** any file under `internal/service/*writer.go`, `internal/service/message_handler.go`,
-`internal/domain/model/committee_*.go` (Tags/Build), `pkg/constants/subjects.go`, `docs/indexer-contract.md`,
+`internal/domain/model/committee_*.go` (Tags/Build), `internal/infrastructure/nats/messaging_publish.go`,
+`pkg/constants/subjects.go`, `docs/indexer-contract.md`,
 `docs/fga-contract.md`, or migration scripts under `scripts/migrations/**` that publish to index/fga subjects.
 
 ---
