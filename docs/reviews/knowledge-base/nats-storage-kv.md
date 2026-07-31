@@ -70,8 +70,10 @@ confirm a `GetBase(ctx, uid)` (or equivalent existence check) precedes the stora
 **Revised 2026-07-30 — scope narrowed, citations superseded.** The invariant is upheld, but all three cited
 handlers (`ListInvites`, `ListApplications`, `ListCommitteeDocuments`) no longer exist. The two surviving
 list handlers both guard, and are the current reference implementations:
-`ListCommitteeLinks` (`committee_service.go:2208` → `GetBase:2211`) and `ListCommitteeLinkFolders`
-(`:2296` → `:2299`). The `Get*` exclusion above was added in the same pass. The PR #71/#61 threads are
+`ListCommitteeLinks` (`committee_service.go:2199` → its `GetBase` existence check at `:2202`) and
+`ListCommitteeLinkFolders` (`:2291` → `:2294`). **Corrected 2026-07-31:** these were previously cited as
+`:2208`/`:2211` and `:2296`/`:2299`, which resolve to a `wrapError` return and a slice initialization — anchor
+on the function name and its `GetBase` call, not on those numbers. The `Get*` exclusion above was added in the same pass. The PR #71/#61 threads are
 retained as provenance.
 
 **Failure message:** Sub-resource `List*` handler does not verify the committee exists first — non-existent UID returns 200 + empty instead of 404.

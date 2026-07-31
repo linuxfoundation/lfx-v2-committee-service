@@ -21,12 +21,23 @@ being lost rather than owned. They are empirical findings from merged PRs and th
 release tag exists at or before that commit — most often a first-party `github.com/linuxfoundation/*` module
 pinned mid-development and never moved to the tag once it shipped.
 
-**Detect:** in `go.mod`, flag a version matching `v<major>.<minor>.<patch>-0.<14-digit timestamp>-<12-hex>`
-where the base version is **not** `v0.0.0` — for example
-`v0.1.10-0.20260716124858-8a4848f0064c`. That form means "an untagged commit *before* `v0.1.10`", so the tag
-it names already exists and the pin is strictly behind it. Treat `github.com/linuxfoundation/*` requirements
-as the highest-value case, since those releases are cut by this org and a pin usually just outlived its
-reason.
+**Detect — two steps, and the second is mandatory.**
+
+1. In `go.mod`, find a version matching `v<major>.<minor>.<patch>-0.<14-digit timestamp>-<12-hex>` where the
+   base version is **not** `v0.0.0` — for example `v0.1.10-0.20260716124858-8a4848f0064c`.
+2. **Verify independently that a release tag at or above that version actually exists.** Run
+   `go list -m -versions <module>` (or `git ls-remote --tags <repo>`) and check for a real `v0.1.10` or later.
+   Report only if such a tag exists.
+
+**Do not infer tag existence from the version string — the string does not carry it.** Go builds a
+pseudo-version from the *latest tag reachable from the commit*, incrementing the patch: a commit after tag
+`v0.1.9` is named `v0.1.10-0.<timestamp>-<sha>` **whether or not `v0.1.10` was ever tagged**. So the `v0.1.10`
+in that string is a sort key derived from `v0.1.9`, not a claim that `v0.1.10` is released. Skipping step 2
+flags every legitimate pin to an unreleased commit and tells the developer to switch to a tag that does not
+exist — a fabricated remedy, which is worse than missing the finding.
+
+Treat `github.com/linuxfoundation/*` requirements as the highest-value case, since those releases are cut by
+this org and a pin usually just outlived its reason — but they get step 2 like everything else.
 
 **Empirical citation:** PR #153 — the requirement
 `github.com/linuxfoundation/lfx-v2-invite-service v0.1.10-0.20260716124858-8a4848f0064c`, fixed in `fa3044e`
