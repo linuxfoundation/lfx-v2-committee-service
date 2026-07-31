@@ -110,14 +110,15 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, sub string) 
 
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
-	deleteError       error
-	deleteCalls       []deleteCall
-	updateMember      *model.CommitteeMember
-	updateMemberErr   error
-	updateMemberCalls []updateMemberCall
-	createMember      *model.CommitteeMember
-	createMemberErr   error
-	createMemberCalls []*model.CommitteeMember
+	deleteError          error
+	deleteCalls          []deleteCall
+	updateMember         *model.CommitteeMember
+	updateMemberErr      error
+	updateMemberCalls    []updateMemberCall
+	createMember         *model.CommitteeMember
+	createMemberErr      error
+	createMemberCalls    []*model.CommitteeMember
+	createMemberSyncArgs []bool
 }
 
 type updateMemberCall struct {
@@ -148,6 +149,7 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.createMemberCalls = append(m.createMemberCalls, member)
+	m.createMemberSyncArgs = append(m.createMemberSyncArgs, sync)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}
@@ -1428,6 +1430,15 @@ func TestAcceptInvite(t *testing.T) {
 					require.NotNil(t, result)
 					assert.Equal(t, "Active", result.Status)
 				}
+			}
+
+			// AcceptInvite must always pass sync=false to CreateMember (LFXV2-2856): membership
+			// FGA publishing is asynchronous-only, and a regression to sync=true would reintroduce
+			// the request/reply indexer timeout this change removed. The idempotent "already
+			// accepted" path short-circuits before calling CreateMember, so it has no args to check.
+			if len(mockOrch.createMemberSyncArgs) > 0 {
+				last := mockOrch.createMemberSyncArgs[len(mockOrch.createMemberSyncArgs)-1]
+				assert.False(t, last, "AcceptInvite must call CreateMember with sync=false")
 			}
 		})
 	}
