@@ -6,7 +6,9 @@ it matches a known false positive.
 
 Consumed by two surfaces. The repo-owned local learnings brain
 (`.claude/skills/committee-service-learnings-reviewer/SKILL.md`) applies this file as its floor, reading it
-at the reviewed commit's pre-change base. The GitHub PR review surface
+at **both** the reviewed commit and its pre-change base and suppressing only where the two agree — so a
+waiver added by the change under review cannot excuse it, and a waiver the change removes stops applying
+immediately. The GitHub PR review surface
 (`.github/skills/committee-service-code-review/SKILL.md`) also consumes this directory and treats this
 file as a posting floor, by human-approved design. A change here therefore changes what both surfaces
 report.

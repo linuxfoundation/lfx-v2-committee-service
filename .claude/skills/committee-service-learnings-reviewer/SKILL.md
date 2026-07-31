@@ -10,7 +10,8 @@ description: >
   from real PR review threads on this repo, each carrying the reviewer thread, the
   developer's fixing commit, and current-code status. Every finding quotes a
   pattern entry; unsourced findings are dropped, and the known-false-positive
-  floor is applied last, read at the pre-change base. Returns an ordinary
+  floor is applied last, suppressing only where the pre-change base and the
+  reviewed commit both cover the finding. Returns an ordinary
   Markdown review. Not a skill a developer invokes by hand.
 ---
 <!-- Copyright The Linux Foundation and each contributor to LFX. -->
@@ -197,47 +198,93 @@ Severity comes from the entry's header: `Critical` or `Important`. Use those two
 words directly. Do not raise or lower a severity on intuition, and do not invent
 a third label the entry does not carry. Confidence floor is **80**.
 
-## Step 3 — apply the false-positive floor, last, read at `base_sha`
+## Step 3 — apply the false-positive floor, last, at both revisions
 
 The floor is `docs/reviews/knowledge-base/known-false-positives.md`, and you read
-it **from `base_sha`, never from `target_sha`.**
+it at **both `base_sha` and `target_sha`**, suppressing a finding only when
+**both** floors would suppress that exact finding. Ordinary pattern files are
+unaffected — those stay at `target_sha` (Step 1). Only the floor is read twice.
 
-This is not a detail. Reading it at the target would let a change that adds a
-waiver suppress a finding *about that same change* — the reviewed change
-approving itself. Reading at base also means a waiver deleted in the range still
-applies, which is the correct pre-change state.
+Neither revision alone is sufficient, because each has a hole:
 
-Distinguish "absent" from "wrong type" from "unreadable". Do not treat one failed
-read as absence.
+- **Target alone** would let a change that adds a waiver suppress a finding
+  *about that same change* — the reviewed change approving itself.
+- **Base alone** would let a waiver the change *removes* go on suppressing.
+  Removing a waiver means "start flagging this again", and base-only reading
+  ignores that for the whole life of the branch, including the final sweep, whose
+  base is still the merge-base. A defect introduced by this very range would stay
+  hidden all the way to PR-open.
 
-**If `base_sha` is `none`** — a root commit — there is nothing to look up. The
-floor is empty. Do not attempt a lookup, and do not treat the absence of a base as
-a problem.
+| The range… | base floor | target floor | result |
+|---|---|---|---|
+| **adds** a waiver | does not suppress | suppresses | **not suppressed** |
+| **removes** a waiver | suppresses | does not suppress | **not suppressed** |
+| leaves it unchanged | suppresses | suppresses | **suppressed** |
 
-**Otherwise**, in this order:
+Newly widened and newly narrowed coverage behave the same way: they cannot hide a
+candidate unless the unchanged overlap still suppresses it at both revisions.
 
-1. `git ls-tree <base_sha> -- docs/reviews/knowledge-base/known-false-positives.md`
-   - **nonzero exit** → `INCOMPLETE — <reason>`. The host verified the base before
-     launch, so a failure here is a genuine read problem, not absence.
-   - **exit 0, empty output** → the floor is legitimately absent, so it is empty.
-     Normal at the file's first introduction.
+**When a newly added waiver starts applying** — recorded precisely, so nobody
+reads the delay as a defect and "fixes" it, and nobody mistakes the later case
+for a loophole:
+
+- It **cannot** suppress anything in a range whose base predates it. That covers
+  the commit that adds the waiver, whose first parent lacks it, and the final
+  cumulative branch sweep, whose merge-base predates the branch. This is the
+  property that matters: the cumulative branch range can never approve itself.
+- It **can** apply to a later post-commit review whose first parent already
+  contains it. That is correct, not a leak — relative to that delta the waiver is
+  pre-existing, both revisions carry it, and it suppresses a finding about a
+  change other than the one that introduced it. It still cannot suppress anything
+  in the cumulative branch range.
+- **After merge**, future branches inherit it at both revisions and it applies
+  normally.
+
+Distinguish "absent" from "wrong type" from "unreadable", at each revision
+independently. Do not treat one failed read as absence.
+
+**If a revision has no commit** — a root commit's base, reported as
+`base_sha: none` — there is nothing to look up and that floor is **empty**. Do not
+attempt a lookup, and do not treat it as a problem. An empty floor suppresses
+nothing, so by the rule above nothing is suppressed.
+
+**Otherwise**, for each of `<base_sha>` and `<target_sha>` in turn, in this order:
+
+1. `git ls-tree <rev> -- docs/reviews/knowledge-base/known-false-positives.md`
+   - **nonzero exit** → `INCOMPLETE — <reason>`. The host verified both revisions
+     before launch, so a failure here is a genuine read problem, not absence.
+   - **exit 0, empty output** → that floor is legitimately absent, so it is empty.
+     Normal at the file's first introduction, and at a root base.
    - **exit 0, an entry** → require mode exactly `100644` and type exactly
      `blob`. Anything else — a symlink (`120000`), an executable (`100755`), a
      submodule (`160000`), a `tree` — is `INCOMPLETE — <reason>`. Do not follow a
-     symlink out of the pinned revision.
+     symlink out of the revision you are reading.
 2. Read it **by the object ID that `ls-tree` printed**, not by path:
    `git cat-file blob <object-sha>`. The path was already resolved in step 1;
    re-resolving it invites reading a different object than the one you checked.
    - unreadable → `INCOMPLETE — <reason>`
    - empty content → a valid empty floor
-   - otherwise apply it
+   - otherwise, use it as that revision's floor
 
-**Never fall forward to the target floor** after any base-floor problem. An
-unreadable base floor means you cannot apply a floor, not that you should use a
-different one.
+**Say which revision failed.** An ambiguous or failed read produces
+`INCOMPLETE — <reason>` naming the revision — "base floor at `<base_sha>` is a
+symlink, not a blob", not a bare "floor unreadable" — so a developer knows which
+side to look at.
 
-Then drop every surviving finding that matches a floor entry. **The floor wins
-even over a quotable pattern match.**
+**Never substitute one floor for the other.** If the base floor cannot be read, do
+not fall forward to the target floor, or the reverse. An unreadable floor means you
+cannot apply the rule, not that you should apply half of it.
+
+**Then decide per candidate, semantically — never by comparing the two files.** For
+each surviving finding, ask separately "would the base floor suppress *this
+finding*?" and "would the target floor suppress *this finding*?", and drop it only
+if both answers are yes. When both do, **the floor wins even over a quotable
+pattern match.**
+
+Do **not** diff the two floors or compare their Markdown byte for byte. Those are
+different questions with different answers: if the base carries a broad pattern and
+the target narrows it, a candidate matching the narrow one is genuinely suppressed
+by both, and a byte or line comparison would miss that.
 
 Two parts of that file are easy to misread, so read them properly:
 
@@ -272,15 +319,17 @@ scope rather than deciding them by implication.
 Return ordinary Markdown. No JSON, no machine markers, no gate vocabulary
 (`clean`, `approved`, `needs-human`, `agentic:*`).
 
-Name what you reviewed and which base you read the floor from, then group findings
-by severity. Every finding carries a repo-relative path with real line numbers, a
-verbatim excerpt, and the verbatim pattern quote with its file and entry id.
+Name what you reviewed and which revisions you read the floor at, then group
+findings by severity. Every finding carries a repo-relative path with real line
+numbers, a verbatim excerpt, and the verbatim pattern quote with its file and
+entry id.
 
 ```markdown
 ## Empirical Pattern Review — `repo_learnings`
 
 **Reviewed**: `<target_sha>` (post-commit) — or `<base_sha>..<target_sha>` (branch)
-**Floor**: `known-false-positives.md` at `<base_sha>` — or "empty (root commit)"
+**Floor**: `known-false-positives.md` at `<base_sha>` ∩ `<target_sha>` — name a
+revision whose floor was empty, e.g. "base empty (root commit)"
 **Files reviewed**: <list>
 **Overall assessment**: <one or two sentences>
 

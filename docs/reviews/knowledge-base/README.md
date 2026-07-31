@@ -25,9 +25,25 @@ Either consumer reads the category files routed by changed-file path, matches ea
 against the diff, and emits only findings it can quote — then applies `known-false-positives.md` as the floor.
 
 The two consumers differ in **which revision they read the floor from**. Local review reads the pattern files
-at the commit under review, but the floor at that commit's **pre-change base** — so a waiver added in the same
-change cannot suppress a finding about that change, and a waiver deleted in it still applies. Widen the floor
-in a separate, deliberate commit.
+at the commit under review, but reads the floor at **two** revisions — the pre-change base and the commit
+itself — and suppresses a finding only when **both** floors would suppress that exact finding. Each revision
+alone has a hole, and requiring both closes each with the other:
+
+| The reviewed range… | base floor | target floor | result |
+| --- | --- | --- | --- |
+| **adds** a waiver | does not suppress | suppresses | **not suppressed** — a change cannot approve itself |
+| **removes** a waiver | suppresses | does not suppress | **not suppressed** — removal means "flag this again" |
+| leaves it unchanged | suppresses | suppresses | **suppressed** |
+
+Widening and narrowing behave the same way: they cannot hide a finding unless the unchanged overlap still
+suppresses it at both revisions. Coverage is judged per finding, semantically — the two floors are never
+diffed or byte-compared.
+
+Which reviewed range a **newly added** waiver reaches depends on that range's base. It cannot suppress
+anything in the commit that adds it. It *can* suppress in a later commit's review, whose parent already
+carries it — that is correct, not a leak, since the finding belongs to a different change. And it never
+suppresses anything in the cumulative pre-PR branch sweep, whose base is the merge-base with `main` and so
+predates the whole branch. **To widen the floor for work in progress, land the widening on `main` first.**
 
 Because the PR surface shares this KB, a change here changes what the PR bot posts. That is intended: one
 path, one truth. It also means an entry whose `Detect` is too broad costs real reviewer noise on every PR, so
