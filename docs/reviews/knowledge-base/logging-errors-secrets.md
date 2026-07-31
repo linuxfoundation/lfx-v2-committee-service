@@ -8,8 +8,8 @@ single occurrence.
 messages — especially `internal/service/**`, `internal/infrastructure/nats/**`,
 `cmd/committee-api/service/**`, `cmd/committee-cli/**`, and `scripts/migrations/**`. **Also read on any
 change under `charts/lfx-v2-committee-service/**` (notably `values.yaml`)**, because
-`secrets-in-logs-or-charts` below inspects chart values for inline secrets — a chart-only change would
-otherwise never reach that half of the rule.
+`secrets-in-logs-or-charts` below inspects both `values.yaml` and the chart templates for inline secrets — a
+chart-only change would otherwise never reach that half of the rule.
 
 ---
 
@@ -72,12 +72,23 @@ New shapes, all `copilot-pull-request-reviewer`, all acted on:
 
 **Pattern:** a raw NATS URL, bearer token, or secret is logged or embedded in an error message. Migration
 scripts and the CLI repeatedly logged `NATS_URL`; connection-error messages embedded it. Also: a hardcoded
-`Authorization` bearer in a migration script, or chart values that put secrets directly in `values.yaml`
-instead of `valueFrom`/keypair.
+`Authorization` bearer in a migration script, or a secret committed directly into the chart — in `values.yaml`
+or in a template under `charts/lfx-v2-committee-service/templates/**` — instead of `valueFrom`/keypair.
 
 **Detect:** grep changed Go for `slog`/`fmt.Errorf` args or string concatenation containing a NATS URL
-variable, `NATS_URL`, `Authorization`, `Bearer `, or token vars. In chart changes, flag secret literals in
-`values.yaml` not sourced via `valueFrom`.
+variable, `NATS_URL`, `Authorization`, `Bearer `, or token vars.
+
+In chart changes, inspect **both** `values.yaml` **and** anything under
+`charts/lfx-v2-committee-service/templates/**`:
+
+- in `values.yaml`, flag a secret literal not sourced via `valueFrom`;
+- in a template, flag a literal credential, token or password wherever it lands — an `env:` entry with a
+  literal `value:` for a secret-shaped key, a `stringData:`/`data:` block with an inlined credential, or a
+  URL with embedded credentials. A template can introduce an inline secret without `values.yaml` changing at
+  all, so `values.yaml` alone is not the whole surface.
+
+The fix in both cases is indirection: `valueFrom.secretKeyRef` (or an equivalent external reference), never a
+literal committed to the chart.
 
 **Empirical citation:** PR #78 `scripts/migrations/migrate_join_mode_to_base/main.go:65` (CodeRabbit) — "Do not log the raw NATS URL." (recurs `reindex_committees/main.go:88`, PR #89 `migrate_counsel_role/main.go:65`, PR #87 `cmd/committee-cli/main.go:90` "Don't include raw `NATS_URL` in connection errors"). Hardcoded token PR #78 `reindex_committees/main.go:45` (Copilot, "This hard-codes an Authorization header value ... read a bearer token from an env var"). Chart-secret PR #98 `providers.go:529` (jordane, "Best practice is to not use a secret here, but to use a keypair").
 
@@ -92,12 +103,14 @@ violations at `main@bd39fe9`**:
   `migrate_writers_auditors_to_user_objects:78,92`, `migrate_member_visibility:76,93`,
   `migrate_show_meeting_attendees:76,93`, `migrate_counsel_role:79`.
 
-The chart half is upheld: every secret in `values.yaml` uses `valueFrom.secretKeyRef`. Treat a match in
-`client.go` or a migration script as confirmed by this census rather than speculative.
+The chart half is upheld at `main@bd39fe9` on both surfaces: every secret in `values.yaml` uses
+`valueFrom.secretKeyRef`, and no file under `charts/lfx-v2-committee-service/templates/**` carries a literal
+credential (the only `token` match is prose in a `ruleset.yaml` comment). Treat a match in `client.go` or a
+migration script as confirmed by this census rather than speculative.
 
-**Failure message:** Raw NATS URL / bearer token / secret logged, embedded in an error, or placed directly in chart values.
+**Failure message:** Raw NATS URL / bearer token / secret logged, embedded in an error, or placed directly in chart values or a chart template.
 
-**Fix:** omit the URL/token from logs and error messages; read tokens from env/flags; in charts use `valueFrom`/secret keypair rather than inline secret values.
+**Fix:** omit the URL/token from logs and error messages; read tokens from env/flags; in charts — `values.yaml` and templates alike — use `valueFrom`/secret keypair rather than an inline secret value.
 
 ---
 
