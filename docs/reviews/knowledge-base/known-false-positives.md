@@ -149,20 +149,33 @@ this entry.
 
 ## Generated code
 
-### Goa-generated OpenAPI naming and example nits under `gen/**`
+### Goa-generated schema and operation-id naming under `gen/**`
 
-**Pattern matched:** a finding about a deduplicated request-body schema name, a generated operation id, or
-`example:` versus `default:` in the generated OpenAPI document.
+**Pattern matched:** a finding about a **deduplicated request-body schema name** or a **generated operation
+id** in the generated OpenAPI document. Those two shapes only.
 
-**Why false:** `gen/` is never hand-edited, so such a finding is either a design-level change or nothing at
-all. Cosmetic naming in a generated spec is not worth diverging the design for.
+**Why false:** these names are Goa's own output, not authored text. `gen/` is never hand-edited, and the
+naming is inherent to how Goa deduplicates and re-uses a schema across endpoints — so the finding asks either
+for a design change that buys nothing or for an edit to a generated file. Cosmetic naming in a generated spec
+is not worth diverging the design for.
 
 **Evidence:** PR #139, three threads — `r3499924649`, `r3499924693`, `r3499924729`. The author declined the
-schema-naming half as inherent Goa behaviour ("Goa deduplicates the schema and re-uses one across endpoints")
-and fixed only the example half, at the design level.
+schema-naming half as inherent Goa behaviour ("Goa deduplicates the schema and re-uses one across endpoints").
+
+**Narrowed 2026-07-31 — `example:` / `default:` is NO LONGER floored.** This entry previously also suppressed
+`example:` versus `default:` inconsistencies in the generated document. That was wrong, and this entry's own
+evidence said so: of the three PR #139 threads, the author **accepted and fixed the example half at the design
+level**. A finding that was accepted and fixed is not a false positive, and flooring it hid a real
+documentation defect — a generated spec whose `example:` contradicts its `default:` misleads every API
+consumer that reads it.
+
+**So, mechanically:** an `example:`/`default:` inconsistency **is a valid finding** and must be reported. Do
+not suppress it here. Report it against the **Goa design source** under `cmd/committee-api/design/`, which is
+where the accepted fix landed — never as an edit to the generated document, which regeneration would discard.
+The generated file is evidence of the defect, not its location.
 
 **Boundary:** a generated document that is *stale* — missing an endpoint, or inconsistent with the design after
-a change — is **not** covered here. That is a code-reviewer matter under the generated-code boundary rule.
+a change — is **not** covered here either. That is a code-reviewer matter under the generated-code boundary rule.
 
 ---
 
