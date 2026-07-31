@@ -24,6 +24,11 @@ Two consumers read this directory, and both benefit from it being current:
 Either consumer reads the category files routed by changed-file path, matches each entry's `**Detect:**` rule
 against the diff, and emits only findings it can quote — then applies `known-false-positives.md` as the floor.
 
+The two consumers differ in **which revision they read the floor from**. Local review reads the pattern files
+at the commit under review, but the floor at that commit's **pre-change base** — so a waiver added in the same
+change cannot suppress a finding about that change, and a waiver deleted in it still applies. Widen the floor
+in a separate, deliberate commit.
+
 Because the PR surface shares this KB, a change here changes what the PR bot posts. That is intended: one
 path, one truth. It also means an entry whose `Detect` is too broad costs real reviewer noise on every PR, so
 prefer narrowing a clause over leaving it aspirational.

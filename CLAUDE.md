@@ -55,30 +55,34 @@ Run `make apigen` after editing any file under `cmd/committee-api/design/`. Neve
 
 ## Work cycle — post-commit and pre-PR reviews
 
-> **CRITICAL — while the branch is pre-PR, post-commit review is mandatory.** After every commit on the local branch, run **`/lfx-skills:lfx-local-review`**. It runs three reviewers in parallel against a snapshot of the commit — the central `general` brain plus this repo's own `repo_code` and `repo_learnings` brains — on headless Pi (GPT-5.6 Sol) when Pi is available, and on Claude subagents otherwise. Before opening a PR, every run must end `COMPLETE_NO_FINDINGS` (or its findings explicitly documented as trade-offs), the **full-branch sweep** must end the same way if the branch has more than one commit (`--mode branch`), AND `/committee-service-pr-readiness` must clear every Critical finding before `/committee-service-preflight` runs.
+> **CRITICAL — while the branch is pre-PR, post-commit review is mandatory.** After every commit on the local branch, run **`/lfx-skills:lfx-local-review`**. It runs three reviewers in parallel — the central `general` brain plus this repo's own `repo_code` and `repo_learnings` brains — on headless Pi when Pi is available, and on Claude subagents otherwise, and returns their ordinary Markdown reports. Before opening a PR, drain every report, run the **full-branch sweep** if the branch has more than one commit, AND let `/committee-service-pr-readiness` clear every Critical finding before `/committee-service-preflight` runs.
 >
 > **Once the PR is open, do NOT run local review on iteration commits.** CodeRabbit + Copilot auto-trigger on every push and own the audit surface from that point. Local review is pre-PR insurance only, and it stops at PR-open.
 
-**This repo owns its two review brains.** They live at `.claude/skills/committee-service-code-reviewer/SKILL.md` and `.claude/skills/committee-service-learnings-reviewer/SKILL.md`, and the launcher finds them through the `local-code-review` and `local-learnings-review` discovery aliases beside them. The learnings brain reads the repo's canonical empirical knowledge base at `docs/reviews/knowledge-base/` — the single KB for this repo, deliberately not duplicated under the skill tree. That directory is **also read by the GitHub PR review surface** (`.github/skills/committee-service-code-review/SKILL.md`, which treats its `known-false-positives.md` as a posting floor), so an edit there changes what the PR bot posts as well as what local review flags. That is intended: one path, one truth. Keep `Detect:` clauses narrow, and re-verify citations against current code when you touch an entry.
+**This repo owns two of the three review brains.** They live at `.claude/skills/committee-service-code-reviewer/SKILL.md` and `.claude/skills/committee-service-learnings-reviewer/SKILL.md`, and the host finds them through the `local-code-review` and `local-learnings-review` discovery aliases beside them. The `general` brain is central and carries no repo-specific rules.
+
+The learnings brain reads the repo's canonical empirical knowledge base at `docs/reviews/knowledge-base/` — the single KB for this repo, deliberately not duplicated under the skill tree. That directory is **also read by the GitHub PR review surface** (`.github/skills/committee-service-code-review/SKILL.md`, which treats its `known-false-positives.md` as a posting floor), so an edit there changes what the PR bot posts as well as what local review flags. That is intended: one path, one truth. Keep `Detect:` clauses narrow, and re-verify citations against current code when you touch an entry.
+
+One consequence worth knowing before you argue with a finding: **the false-positive floor is read at the pre-change base, not at your commit.** A waiver you add in the same change cannot suppress a finding about that change, and a waiver you delete still applies. Widening the floor is a separate, deliberate commit.
 
 ### Post-commit (pre-PR phase, after every commit)
 
 1. **Commit your work.** `git commit -s -S`.
-2. **Run `/lfx-skills:lfx-local-review`** — post-commit mode, which reviews `HEAD^..HEAD`. No arguments needed.
-3. **Keep working if you want.** The launcher snapshots the target commit into a temporary detached worktree before any reviewer starts, so further edits to your tree cannot change what is under review. The run itself is in-session: it produces one `lfx-local-review/v1` summary and nothing is written to disk for later.
-4. **Report the rendered summary in full and unedited.** It carries the aggregate state, the harness and model actually used, and the resolved path and digest of all three brains. On a fallback run it leads with a skipped-Pi notice — leave that at the top. A run where Pi was skipped is honest evidence, but it is not *cross-model* evidence.
-5. **`INCOMPLETE` is not a pass.** Any incomplete role makes the whole run incomplete. Recovery is a complete rerun of the **same** harness — never a partial rerun, never a switch to the other harness, and never coaching a reviewer into a valid payload.
-6. **Roll every `critical` and `high` finding, and every reasonable `should-fix`, into the next commit.**
+2. **Run `/lfx-skills:lfx-local-review`** — post-commit mode, which reviews the new commit against its first parent. No arguments needed. Run it from inside the repo, or pass a resolved `--repo <path>`; never a bare repo name.
+3. **Relay all three reports in full and unedited.** They are ordinary Markdown, one per role. On a fallback run, say plainly that Pi was skipped and this was a same-model review — honest evidence, but not the *cross-model* check Pi provides.
+4. **An incomplete cycle is not a pass, and one reviewer can spoil it.** If any reviewer's report starts `INCOMPLETE — <reason>`, or the host reports a failed or empty child, **the whole cycle is incomplete** — successful siblings do not rescue it. Resolve the cause and rerun the **complete trio under one harness**. Never rerun a single role, never mix Pi and Claude evidence in one cycle, and never render a failed child as "no findings".
+5. **Address every real Critical and reasonable Important finding in this session**, then commit the fixes as their own signed conventional commits — `fix(<scope>): ...` or `fix: ...` — rather than amending. Reviewers report; you fix.
+6. **Rerun the complete trio after each fix commit.**
 
 ### Pre-PR (sweep cumulative state, then open)
 
 When the work is done and no more code commits are planned:
 
-1. **If the last post-commit run had findings:** add a fix commit and run local review again on the new state, until it comes back `COMPLETE_NO_FINDINGS` or the remainder is documented as a trade-off.
-2. **Full-branch sweep — only if the branch has more than one commit.** Run **`/lfx-skills:lfx-local-review` in branch mode** (`--mode branch`, base `origin/main`; pass `--base <ref>` for a different base). Note that the launcher never fetches — refresh `origin/main` yourself first, or the sweep silently describes a stale base. Address any new findings, then re-run the sweep until clean.
+1. **Drain the post-commit reports.** If the last run had findings, fix them, commit, and rerun the trio until the reports are clean or the remainder is explicitly documented as a trade-off.
+2. **Full-branch sweep — only if the branch has more than one commit.** Run **`/lfx-skills:lfx-local-review branch`**. The host fetches `origin` once and pins the merge-base with `origin/main` before any reviewer starts, so branch mode needs network while post-commit mode does not. Address any new findings with further signed fix commits, then re-run the sweep until clean.
 3. **Run `/committee-service-pr-readiness [base-branch]`** for branch, JIRA, conventional commits, rebase, DCO+GPG, diff size, and protected files.
 4. **Run `/committee-service-preflight [base-branch]`** for working tree, license headers, formatting, lint, API/CLI builds, tests, protected files, commit verification, and PR change summary.
-5. **Only then push and open the PR.**
+5. **Only then push and open the PR.** Reviewers may run useful builds, tests and linters, but only this session edits, commits, or cleans up anything they leave behind.
 
 ### Post-PR iteration (responding to bot feedback on an open PR)
 
