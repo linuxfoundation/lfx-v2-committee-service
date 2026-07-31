@@ -74,7 +74,21 @@ staged or unstaged work.
 - **`mode`** — `post-commit` or `branch`.
 - **`extra: <free text>`** — an optional priority hint from the caller.
 
-Post-commit mode reviews exactly one commit:
+Post-commit mode reviews exactly one commit. When `base_sha` is present — it is
+`target_sha`'s first parent — diff against it explicitly:
+
+```bash
+git diff --stat <base_sha>..<target_sha>
+git diff <base_sha>..<target_sha>
+```
+
+Use the diff, not `git show`, so a **merge** commit is compared against its first
+parent. `git show` renders a merge as a combined diff, which can print a stat with
+no patch for files inherited unchanged from one side — a mandatory post-merge
+review would then receive nothing to review while real first-parent changes sat
+in the range.
+
+For a **root** commit (`base_sha: none`) there is nothing to diff against:
 
 ```bash
 git show --stat -p <target_sha>
@@ -212,7 +226,11 @@ Everything else in those files remains fully enforceable.
 - Anything in the four lanes listed at the top.
 - Anything you are not at least **80** confident is real.
 - Nits, formatting, naming preferences, and speculative improvements.
-- Anything about code the change does not touch.
+- Anything about code the change does not touch. This does **not** shield a
+  missing companion update: where a rule requires a doc, chart or reference to
+  move with the code, the evidence is the changed line and the finding is that
+  the required companion is absent from the change. Cite the changed line, quote
+  the rule, and name the file that should have moved with it.
 
 ## Severity
 
@@ -260,10 +278,19 @@ code, and the verbatim rule quote with the file it came from.
 
 ### Important (N)
 
-- **`docs/fga-contract.md:113`** (conf 85) — behaviour changed without the
-  contract doc. _Rule_ (`CLAUDE.md`): "Update the contract in the same PR as any
-  behavior change." _Fix:_ update the trigger table in this change.
+- **`internal/service/committee_member_writer.go:1254`** (conf 85) — emits
+  `member_remove` on a username-clearing update, but the change does not update
+  the contract doc that describes the trigger.
+  _Code:_ `msg, err := model.NewFGAMessage(constants.ActionMemberRemove, existing)`
+  _Rule_ (`CLAUDE.md`): "Update the contract in the same PR as any behavior
+  change."
+  _Fix:_ update the `member_remove` trigger table in `docs/fga-contract.md` in
+  this change.
 ```
+
+Note what that example cites: the **changed** line is the evidence, and the
+missing companion update is the finding. Do not cite an untouched doc as if it
+were the changed code.
 
 Use `### No findings` when nothing clears the bar, and say plainly that the
 review completed. That is a good outcome — report it honestly rather than

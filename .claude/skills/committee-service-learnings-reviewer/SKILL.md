@@ -78,7 +78,20 @@ against staged or unstaged work.
 - **`mode`** — `post-commit` or `branch`.
 - **`extra: <free text>`** — an optional priority hint from the caller.
 
-Post-commit mode matches exactly one commit:
+Post-commit mode matches exactly one commit. When `base_sha` is present — it is
+`target_sha`'s first parent — diff against it explicitly:
+
+```bash
+git diff --stat <base_sha>..<target_sha>
+git diff <base_sha>..<target_sha>
+```
+
+Use the diff, not `git show`, so a **merge** commit is compared against its first
+parent. `git show` renders a merge as a combined diff, which can print a stat with
+no patch for files inherited unchanged from one side — you would then match against
+nothing while real first-parent changes sat in the range.
+
+For a **root** commit (`base_sha: none`) there is nothing to diff against:
 
 ```bash
 git show --stat -p <target_sha>
@@ -273,9 +286,12 @@ verbatim excerpt, and the verbatim pattern quote with its file and entry id.
 ### Important (N)
 
 - **`cmd/committee-api/service/committee_service_test.go:1433`** (conf 85) —
-  assertion hidden behind a call-count guard. _Pattern_ (`tests.md`,
-  `tests/assertion-cannot-fail`): "Vacuous when the call never happens, which is
-  exactly the regression it should catch." _Fix:_ assert the call count separately.
+  assertion hidden behind a call-count guard.
+  _Code:_ `if len(mockOrch.createMemberSyncArgs) > 0 {`
+  _Pattern_ (`tests.md`, `tests/assertion-cannot-fail`): "Vacuous when the call
+  never happens, which is exactly the regression it should catch."
+  _Fix:_ assert the call count separately with `require.Len`, so a missing call
+  fails rather than skips.
 ```
 
 Use `### No findings` when nothing clears the bar, and say plainly that the review
