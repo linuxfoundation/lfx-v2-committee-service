@@ -166,7 +166,14 @@ are the convenience, not the anchor.
 
 **Failure message:** Uniqueness/identity key, presence check, or identity comparison uses un-normalized email/username — case/whitespace variants dupe or mismatch.
 
-**Fix:** apply `strings.TrimSpace` to username and `strings.ToLower(strings.TrimSpace(...))` to email before keying; trim before the presence check so whitespace-only values are treated as absent; and route identity comparisons through `usernameMatches`/`emailMatches` rather than a bare `EqualFold`.
+**Fix:** apply `strings.TrimSpace` to username and `strings.ToLower(strings.TrimSpace(...))` to email before keying; trim before the presence check so whitespace-only values are treated as absent; and normalize both sides of an identity comparison rather than relying on a bare `EqualFold`.
+
+**On the helpers — do not prescribe a call that will not compile.** `usernameMatches` and `emailMatches` are the
+reference implementations of that normalization, but they are **unexported**, in `internal/service`
+(`message_handler.go:570` and `:580`). The live violations above are in `cmd/committee-api/service` — the same
+package *name*, a different package — so they cannot call them. Within `internal/service`, call them. From any
+other package, either apply the same normalization inline or promote a shared exported helper; cite them as the
+normalization to match, never as a function the caller can already reach.
 
 ---
 
