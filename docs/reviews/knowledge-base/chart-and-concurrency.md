@@ -36,12 +36,21 @@ whose ruleset uses `allow_all` when an OpenFGA relation is expected.
 ## `chart-and-concurrency/new-bucket-or-env-needs-chart` — Critical
 
 **Pattern:** a new KV bucket / Object Store / stream constant (`pkg/constants/storage.go`) is added without
-creating it in the chart (`templates/nats-kv-buckets.yaml` + `values.yaml`), or a new env var read in
+creating it in the chart (the template owning that resource type + `values.yaml`), or a new env var read in
 `providers.go` is not declared in the chart `deployment.yaml`/`values.yaml`. The bucket won't exist at
 runtime, or the env var won't be wired.
 
-**Detect:** when the diff adds a `KVBucketName*`/`StreamName*`/Object-Store constant, check
-`templates/nats-kv-buckets.yaml` (and `nats-streams.yaml`) + `values.yaml` are also changed. When
+**Detect:** when the diff adds a storage constant, check the template that owns **that resource type**,
+plus `values.yaml`. This chart has one template per type, so the mapping is exact:
+
+| Constant added in `pkg/constants/storage.go` | Template that must also change |
+| --- | --- |
+| `KVBucketName*` | `templates/nats-kv-buckets.yaml` |
+| `StreamName*` | `templates/nats-streams.yaml` |
+| `ObjectStoreName*` | `templates/nats-object-stores.yaml` |
+
+Do not report a missing `nats-kv-buckets.yaml` edit for an Object Store or stream constant — the resource
+would be created correctly and the finding would be wrong. When
 `providers.go` reads a new `env.*`/`os.Getenv` value, check that it is declared under **`values.yaml`
 → `app.environment`** — this chart declares env there and nowhere else, because `deployment.yaml` is a
 generic range loop over that map. Pointing a reviewer at `deployment.yaml` produces a wrong finding.
@@ -61,7 +70,7 @@ are retained as provenance.
 
 **Failure message:** New KV bucket / stream / env var added in code but not wired in the service Helm chart.
 
-**Fix:** add the bucket/stream to `templates/nats-kv-buckets.yaml`/`nats-streams.yaml` + `values.yaml`, and any new env var to `values.yaml` → `app.environment`; prefer `valueFrom` over inline secrets.
+**Fix:** add the resource to the template that owns its type — `nats-kv-buckets.yaml`, `nats-streams.yaml`, or `nats-object-stores.yaml` per the Detect table — plus its `values.yaml` entry; and any new env var to `values.yaml` → `app.environment`; prefer `valueFrom` over inline secrets.
 
 ---
 

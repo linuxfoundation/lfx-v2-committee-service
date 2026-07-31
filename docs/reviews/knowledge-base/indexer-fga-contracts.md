@@ -85,7 +85,12 @@ PR #160 thread `r3658684364` (prose contradicting the trigger table two sections
 `r3658684324` (*"`nats.Conn.PublishMsg` has no broker acknowledgement and may only enqueue data in the
 client buffer"*) — the last verified fixed at `docs/fga-contract.md:39`.
 
-**Live violation at `main@bd39fe9`, quote it when the area is touched:**
+**Live violation at `main@bd39fe9` — an illustration, not a standing finding.** Report it **only** when
+the diff itself changes the username-clearing emission path or the contradictory parts of
+`docs/fga-contract.md`. Do not revive it against an unrelated edit that merely happens to touch the same
+file or the FGA area: a pre-existing drift is not something that change introduced, and reporting it there
+buries whether the patch under review made anything worse. The brain's own exclusion — "anything about code
+the change does not touch" — governs.
 `internal/service/committee_member_writer.go:1254` emits `member_remove` when an update clears the
 username, while `docs/fga-contract.md:113` and the trigger table at `:189` still describe `member_remove`
 as delete-only and say updates with an empty username are skipped. Copilot raised exactly this on PR #161
