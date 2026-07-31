@@ -100,8 +100,15 @@ mechanical detect rule, not a request for more tests.
 and are not dropped here. Two were valid in the 2026-07 window and were fixed: the `go.mod` pseudo-version
 pins (PR #153, fixed in `fa3044e`) and the semconv version drift between two importers (fixed in `ca05b3e`).
 This entry covers point-in-time guesses about which release *exists*, not inconsistency between versions the
-repo actually declares. Those two route to `/committee-service-pr-readiness` and
-`/committee-service-preflight` respectively rather than to a review brain.
+repo actually declares. Both of those are active entries in
+[`dependencies-and-build.md`](dependencies-and-build.md) — `pseudo-version-pins-unreleased-commit` and
+`versioned-import-path-drift`.
+
+**Corrected 2026-07-31.** This block previously routed those two findings to
+`/committee-service-pr-readiness` and `/committee-service-preflight`. That was false: readiness is a PR-shape
+check that treats `go.mod` only as a protected path and, per `CLAUDE.md`, does not audit code, while preflight
+builds, formats and lints but never compares declared versions across importers. Naming a gate that does not
+perform the check dropped both findings while making this file look like it had routed them.
 
 ### Unsupported toolchain / stdlib / dependency API-existence speculation
 

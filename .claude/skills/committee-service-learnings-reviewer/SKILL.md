@@ -134,7 +134,7 @@ All paths below are relative to `docs/reviews/knowledge-base/`.
 
 **Read by touched path.** Route from the category files' own headers, not from a
 copy of them. Read the **`Read when:` header block** at the top of each of these
-five files — it is short, but it is not always one line, and a file may add a
+six files — it is short, but it is not always one line, and a file may add a
 paragraph declaring a trigger no path list can express (`indexer-fga-contracts.md`
 does, for the subject-literal sweep over any changed Go file). Read to the end of
 that block, then load in full every file whose header names a path this change
@@ -146,6 +146,12 @@ not blanket-read.
 - `chart-and-concurrency.md`
 - `goa-presentation.md`
 - `invite-application-flows.md`
+- `dependencies-and-build.md`
+
+This list is the set of files whose headers you read — **not** a copy of what those
+headers say. When a category file is added to `docs/reviews/knowledge-base/`, add it
+here in the same change, or it becomes unreachable no matter how good its entries
+are.
 
 There is deliberately **no routing table here**. A table is a second copy of those
 headers, and a copy drifts: a path missing from it silently makes every entry in

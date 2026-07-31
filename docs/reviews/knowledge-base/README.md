@@ -119,10 +119,11 @@ the routing fact lives in exactly one place.
 | [`goa-presentation.md`](goa-presentation.md) | 6 |
 | [`logging-errors-secrets.md`](logging-errors-secrets.md) | 5 |
 | [`chart-and-concurrency.md`](chart-and-concurrency.md) | 5 |
+| [`dependencies-and-build.md`](dependencies-and-build.md) | 2 |
 | [`tests.md`](tests.md) | 2 |
 | [`known-false-positives.md`](known-false-positives.md) | 10 (floor filter) + a carve-in |
 
-**37 patterns** across 7 category files, plus the false-positive floor. Kept sharp rather than exhaustive.
+**39 patterns** across 8 category files, plus the false-positive floor. Kept sharp rather than exhaustive.
 
 ## Highest-value patterns
 
@@ -171,10 +172,17 @@ Kept as context so a future pass does not re-litigate them. None is a pattern:
   themselves, fixed by prose edits. Valuable, but not committee-service code shapes.
 - **Findings against deleted code**, e.g. the PR #148 threads on `pkg/orgid` and the m2m `b2b_org_resolver`,
   superseded in later commits.
-- **Routed to the mechanical gates, not here.** `go.mod` pseudo-version pins (PR #153) belong in
-  `/committee-service-pr-readiness`; dependency-version consistency such as the semconv drift, and `gen/`
-  regenerated with `goa gen -o .` instead of `make apigen` (PR #143), belong in
-  `/committee-service-preflight`.
+- **Routed to the mechanical gates, not here.** `gen/` regenerated with `goa gen -o .` instead of
+  `make apigen` (PR #143) belongs in `/committee-service-preflight`, which owns the design/generated drift
+  check.
+
+  **Corrected 2026-07-31 — two findings were wrongly excluded from this list.** It previously also routed
+  `go.mod` pseudo-version pins (PR #153) to `/committee-service-pr-readiness` and the semconv version drift to
+  `/committee-service-preflight`. Neither gate performs those checks: readiness is a PR-shape check that
+  treats `go.mod` only as a protected path and does not audit code, and preflight builds, formats and lints
+  but never compares declared versions across importers. So both findings were **lost, not routed**. They are
+  now active entries in [`dependencies-and-build.md`](dependencies-and-build.md). The lesson is recorded as a
+  maintenance rule below: excluding a finding by naming an owner requires that the owner actually check it.
 
 ## Maintenance
 
@@ -193,6 +201,14 @@ inspects *any* changed file of a kind rather than a fixed path — as `subject-l
 numbers rot on every unrelated insertion above them, and a rotted number is worse than none, because it
 resolves to real code that says something else and makes the entry look wrong. Where a claim needs a count,
 give the command that produces it.
+
+**Excluding a finding by naming an owner requires that the owner actually perform the check.** "Routed to
+`<gate>`, not here" reads as coverage and functions as deletion when the named gate does not do it. Before
+writing that sentence, open the gate's own skill and confirm the check is in its scope; if it is not, the
+finding belongs here as an entry, or is explicitly recorded as valid-but-unowned. Two entries were lost this
+way — `go.mod` pseudo-version pins attributed to a readiness gate that `CLAUDE.md` says does not audit code,
+and semconv drift attributed to a preflight that never compares declared versions. A wrong owner is worse
+than no owner, because no owner at least reads as an open gap.
 
 **Re-verify retained entries against the current tree, not just newly promoted ones.** The 2026-07-30 pass
 found 14 of 30 entries needing revision — mostly rotted citations and `Detect` clauses that had drifted into
