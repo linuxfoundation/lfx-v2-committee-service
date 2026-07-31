@@ -55,31 +55,39 @@ Run `make apigen` after editing any file under `cmd/committee-api/design/`. Neve
 
 ## Work cycle — post-commit and pre-PR reviews
 
-> **CRITICAL — while the branch is pre-PR, post-commit review is mandatory.** After every commit on the local branch, launch `lfx-skills:lfx-general-code-reviewer`, `lfx-skills:lfx-committee-service-code-reviewer`, AND `lfx-skills:lfx-committee-service-learnings-reviewer` subagents via the Agent tool (`run_in_background: true`) — then keep working while they run. If Claude displays plugin agents without the `lfx-skills:` namespace, use the equivalent displayed reviewer names. Before opening a PR, every running review must return clean (or remaining findings explicitly documented as trade-offs), the **full-branch sweep** must run clean if the branch has more than one commit (`branch` arg), AND `/committee-service-pr-readiness` must clear every Critical finding before `/committee-service-preflight` runs.
+> **CRITICAL — while the branch is pre-PR, post-commit review is mandatory.** After every commit on the local branch, run **`/lfx-skills:lfx-local-review`**. It runs three reviewers in parallel — the central `general` brain plus this repo's own `repo_code` and `repo_learnings` brains — on headless Pi when Pi is available, and on Claude subagents otherwise, and returns their ordinary Markdown reports. It reviews **`HEAD^..HEAD`** by default — the newest commit against its first parent, and nothing else; a caller may supply a direct base range instead. Before opening a PR, drain every report AND let `/committee-service-pr-readiness` clear every Critical finding before `/committee-service-preflight` runs.
 >
-> **Once the PR is open, do NOT invoke these pre-PR reviewers on iteration commits.** CodeRabbit + Copilot auto-trigger on every push and own the audit surface from that point. The general and committee-service reviewers are pre-PR insurance only.
+> **Once the PR is open, do NOT run local review on iteration commits.** CodeRabbit + Copilot auto-trigger on every push and own the audit surface from that point. Local review is pre-PR insurance only, and it stops at PR-open.
 
-### Post-commit (pre-PR phase, after every commit, asynchronous)
+**This repo owns two of the three review brains.** They live at `.claude/skills/committee-service-code-reviewer/SKILL.md` and `.claude/skills/committee-service-learnings-reviewer/SKILL.md`, and the host finds them through the `local-code-review` and `local-learnings-review` discovery aliases beside them. The `general` brain is central and carries no repo-specific rules.
 
-1. **Commit your work.** `git commit -s -S`. Do not wait for any prior review to finish.
-2. **Immediately launch all three reviewer subagents in parallel.**
-   - General reviewer: `subagent_type: lfx-skills:lfx-general-code-reviewer`, `run_in_background: true`.
-   - Committee-service reviewer: `subagent_type: lfx-skills:lfx-committee-service-code-reviewer`, `run_in_background: true`.
-   - Committee-service learnings reviewer: `subagent_type: lfx-skills:lfx-committee-service-learnings-reviewer`, `run_in_background: true` — empirical-pattern matching against `docs/reviews/knowledge-base/` (patterns sampled from past PR review comments on this repo).
-3. **Post-commit mode prompt for all reviewers (exact):** `target repo: lfx-v2-committee-service\n\nReview the latest commit.` Append `extra: <focus>` on a new line only when there is a priority hint to add. Do NOT pass `branch` here. If this work cycle is launched from the LFX workspace parent, the `target repo:` line is required so each reviewer operates in this repo.
-4. **Keep working.** Start the next commit while the reviewers run. Do not block on them.
-5. **When reviews return:** roll every Critical finding and every reasonable Important finding from either reviewer into the next commit.
+**This repo also owns the Claude-fallback launch table**, at `.claude/skills/local-review-fallback/SKILL.md` (aliased as `.agents/skills/local-review-fallback`). When the host reports Pi unavailable, that skill launches the three reviewers as Claude subagents in one parallel batch, passing the host's pins through unchanged. It is a launch table only — every review criterion, severity and floor rule stays in the selected reviewer skills, so do not add review guidance there.
 
-### Pre-PR (drain the queue, sweep cumulative state, then open)
+The learnings brain reads the repo's canonical empirical knowledge base at `docs/reviews/knowledge-base/` — the single KB for this repo, deliberately not duplicated under the skill tree. That directory is **also read by the GitHub PR review surface** (`.github/skills/committee-service-code-review/SKILL.md`, which treats its `known-false-positives.md` as a posting floor), so an edit there changes what the PR bot posts as well as what local review flags. That is intended: one path, one truth. Keep `Detect:` clauses narrow, and re-verify citations against current code when you touch an entry.
+
+A change can never waive a finding about itself. The false-positive floor must suppress at both `base_sha` and `target_sha`, and a commit that adds waiver coverage does not carry it at its base. A waiver can apply to a later range whose supplied base already carries it.
+
+### Post-commit (pre-PR phase, after every commit)
+
+1. **Commit your work.** `git commit -s -S`.
+2. **Run `/lfx-skills:lfx-local-review`** from inside this repo — exactly that, with no arguments. It reviews `HEAD^..HEAD`. Pass a direct base range only when you deliberately need a different one.
+3. **Relay all three reports in full and unedited.** They are ordinary Markdown, one per role. If the run used the Claude Opus fallback, say so when you report it. It is not the intended Pi/GitHub-Copilot cross-model review.
+4. **An incomplete cycle is not a pass, and one reviewer can spoil it.** If any reviewer's report starts `INCOMPLETE — <reason>`, or the host reports a failed or empty child, **the whole cycle is incomplete** — successful siblings do not rescue it. Resolve the cause and rerun the **complete trio under one harness**. Never rerun a single role, never mix Pi and Claude evidence in one cycle, and never render a failed child as "no findings".
+5. **Address every real Critical and reasonable Important finding in this session**, then commit the fixes as their own signed conventional commits — `fix(<scope>): ...` or `fix: ...` — rather than amending. Reviewers report; you fix.
+6. **Rerun the complete trio after each fix commit.**
+
+### Pre-PR (drain, then open)
 
 When the work is done and no more code commits are planned:
 
-1. **Wait for every running review to complete.**
-2. **If any returned review flags Critical or reasonable Important:** add a fix commit, launch both reviewers again on the new state, wait, and loop until clean or explicitly documented as a trade-off.
-3. **Full-branch sweep — only if the branch has more than one commit.** Launch `lfx-skills:lfx-general-code-reviewer`, `lfx-skills:lfx-committee-service-code-reviewer`, and `lfx-skills:lfx-committee-service-learnings-reviewer` again with prompt **`target repo: lfx-v2-committee-service\nbranch\n\nReview the branch's diff against origin/main.`**. Address any new findings, then re-run the sweep until clean.
-4. **Run `/committee-service-pr-readiness [base-branch]`** for branch, JIRA, conventional commits, rebase, DCO+GPG, diff size, and protected files.
-5. **Run `/committee-service-preflight [base-branch]`** for working tree, license headers, formatting, lint, API/CLI builds, tests, protected files, commit verification, and PR change summary.
-6. **Only then push and open the PR.**
+1. **Drain the post-commit reports.** If the last run had findings, fix them, commit, and rerun the complete trio on the new commit until the reports are clean or the remainder is explicitly documented as a trade-off. Local review looks at one commit at a time; there is no cumulative pass, so the way the whole branch gets covered is that every commit on it was reviewed when it landed.
+2. **Run `/committee-service-pr-readiness [base-branch]`** for branch, JIRA, conventional commits, rebase, DCO+GPG, diff size, and protected files.
+
+   **If that rebase changes previously reviewed content — you resolved a conflict, or the rebase otherwise altered what a commit contains — the resulting content is not covered by the earlier per-commit reviews.** Those reviews read the pre-rebase commits; the resolutions did not exist yet. Cover them with **one** local review run whose target is the current `HEAD` and whose `base_sha` you supply explicitly, chosen so the range spans the rebased result. It still reviews exactly `git diff <base_sha> <target_sha>` and nothing else.
+
+   This is the ordinary caller-supplied range the command already accepts, used after a content-changing rebase. It is **not** a new mode, not an automatic `main`/`origin` lookup, not a fetch, not a merge-base derivation, and not a cumulative branch gate — you pick the base and pass it. A rebase that only replays commits unchanged needs no extra review.
+3. **Run `/committee-service-preflight [base-branch]`** for working tree, license headers, formatting, lint, API/CLI builds, tests, protected files, commit verification, and PR change summary.
+4. **Only then push and open the PR.** Reviewers may run useful builds, tests and linters, but only this session edits, commits, or cleans up anything they leave behind.
 
 ### Post-PR iteration (responding to bot feedback on an open PR)
 
