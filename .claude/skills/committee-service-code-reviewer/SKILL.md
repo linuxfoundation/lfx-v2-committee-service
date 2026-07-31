@@ -281,7 +281,7 @@ code, and the verbatim rule quote with the file it came from.
 - **`internal/service/committee_member_writer.go:1254`** (conf 85) — emits
   `member_remove` on a username-clearing update, but the change does not update
   the contract doc that describes the trigger.
-  _Code:_ `msg, err := model.NewFGAMessage(constants.ActionMemberRemove, existing)`
+  _Code:_ `return uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync)`
   _Rule_ (`CLAUDE.md`): "Update the contract in the same PR as any behavior
   change."
   _Fix:_ update the `member_remove` trigger table in `docs/fga-contract.md` in
