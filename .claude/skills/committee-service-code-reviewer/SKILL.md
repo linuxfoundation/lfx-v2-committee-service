@@ -5,7 +5,8 @@ name: committee-service-code-reviewer
 description: >
   Repo-owned `repo_code` review brain for lfx-v2-committee-service, loaded by
   the `lfx-local-review` host through the `local-code-review` discovery alias.
-  Audits one pinned commit or branch range against this repo's written rule
+  Audits one pinned commit range — normally a commit against its first parent —
+  against this repo's written rule
   surface — CLAUDE.md, the committee-service-dev skill and its Goa/NATS
   references, the committee-owned indexer/FGA/invite contract docs, the Heimdall
   RuleSet, and the Makefile. Every finding quotes a verbatim rule from a file in
@@ -67,15 +68,14 @@ staged or unstaged work.
 
 - **`target repo`** — absolute path to the repository. Work inside it.
 - **`target_sha`** — the commit under review.
-- **`base_sha`** — the pre-change base: `target_sha`'s first parent in
-  post-commit mode, the merge-base with the local `origin/main` in branch mode. A
-  **root** commit has none, reported as `base_sha: none`, which is normal.
-- **`origin_main_sha`** — branch mode only.
-- **`mode`** — `post-commit` or `branch`.
+- **`base_sha`** — the pre-change base, supplied by the host. Normally
+  `target_sha`'s first parent; the caller may supply a different base directly. A
+  **root** commit has none, reported as `base_sha: none`, which is normal. You
+  never fetch, and never derive this yourself.
 - **`extra: <free text>`** — an optional priority hint from the caller.
 
-Post-commit mode reviews exactly one commit. When `base_sha` is present — it is
-`target_sha`'s first parent — diff against it explicitly:
+Review exactly the supplied range. When `base_sha` is present, diff against it
+explicitly:
 
 ```bash
 git diff --stat <base_sha>..<target_sha>
@@ -88,17 +88,11 @@ no patch for files inherited unchanged from one side — a mandatory post-merge
 review would then receive nothing to review while real first-parent changes sat
 in the range.
 
-For a **root** commit (`base_sha: none`) there is nothing to diff against:
+For a **root** commit (`base_sha: none`) there is nothing to diff against — review
+the tree it introduces:
 
 ```bash
 git show --stat -p <target_sha>
-```
-
-Branch mode reviews the cumulative range:
-
-```bash
-git diff --stat <base_sha>..<target_sha>
-git diff <base_sha>..<target_sha>
 ```
 
 Read supporting code **and every rule you quote** at the pinned revision —
@@ -262,7 +256,7 @@ code, and the verbatim rule quote with the file it came from.
 ```markdown
 ## Repo Convention Review — `repo_code`
 
-**Reviewed**: `<target_sha>` (post-commit) — or `<base_sha>..<target_sha>` (branch)
+**Reviewed**: `<base_sha>..<target_sha>` — or `<target_sha>` (root commit, no base)
 **Files reviewed**: <list>
 **Overall assessment**: <one or two sentences>
 

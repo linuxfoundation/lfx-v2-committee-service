@@ -5,7 +5,8 @@ name: committee-service-learnings-reviewer
 description: >
   Repo-owned `repo_learnings` review brain for lfx-v2-committee-service, loaded
   by the `lfx-local-review` host through the `local-learnings-review` discovery
-  alias. Matches one pinned commit or branch range against the repo's canonical
+  alias. Matches one pinned commit range — normally a commit against its first
+  parent — against the repo's canonical
   empirical knowledge base at `docs/reviews/knowledge-base/` — patterns extracted
   from real PR review threads on this repo, each carrying the reviewer thread, the
   developer's fixing commit, and current-code status. Every finding quotes a
@@ -72,15 +73,14 @@ against staged or unstaged work.
 
 - **`target repo`** — absolute path to the repository. Work inside it.
 - **`target_sha`** — the commit under review.
-- **`base_sha`** — the pre-change base: `target_sha`'s first parent in
-  post-commit mode, the merge-base with the local `origin/main` in branch mode. A
-  **root** commit has none, reported as `base_sha: none`, which is normal.
-- **`origin_main_sha`** — branch mode only.
-- **`mode`** — `post-commit` or `branch`.
+- **`base_sha`** — the pre-change base, supplied by the host. Normally
+  `target_sha`'s first parent; the caller may supply a different base directly. A
+  **root** commit has none, reported as `base_sha: none`, which is normal. You
+  never fetch, and never derive this yourself.
 - **`extra: <free text>`** — an optional priority hint from the caller.
 
-Post-commit mode matches exactly one commit. When `base_sha` is present — it is
-`target_sha`'s first parent — diff against it explicitly:
+Match exactly the supplied range. When `base_sha` is present, diff against it
+explicitly:
 
 ```bash
 git diff --stat <base_sha>..<target_sha>
@@ -92,17 +92,11 @@ parent. `git show` renders a merge as a combined diff, which can print a stat wi
 no patch for files inherited unchanged from one side — you would then match against
 nothing while real first-parent changes sat in the range.
 
-For a **root** commit (`base_sha: none`) there is nothing to diff against:
+For a **root** commit (`base_sha: none`) there is nothing to diff against — match
+against the tree it introduces:
 
 ```bash
 git show --stat -p <target_sha>
-```
-
-Branch mode matches the cumulative range:
-
-```bash
-git diff --stat <base_sha>..<target_sha>
-git diff <base_sha>..<target_sha>
 ```
 
 Read supporting code at the pinned revision — `git show <target_sha>:<path>`,
@@ -216,9 +210,8 @@ Neither revision alone is sufficient, because each has a hole:
   *about that same change* — the reviewed change approving itself.
 - **Base alone** would let a waiver the change *removes* go on suppressing.
   Removing a waiver means "start flagging this again", and base-only reading
-  ignores that for the whole life of the branch, including the final sweep, whose
-  base is still the merge-base. A defect introduced by this very range would stay
-  hidden all the way to PR-open.
+  ignores that, so a defect introduced by this very range would go unreported by
+  the one review that looks at it.
 
 | The range… | base floor | target floor | result |
 |---|---|---|---|
@@ -233,17 +226,16 @@ candidate unless the unchanged overlap still suppresses it at both revisions.
 reads the delay as a defect and "fixes" it, and nobody mistakes the later case
 for a loophole:
 
-- It **cannot** suppress anything in a range whose base predates it. That covers
-  the commit that adds the waiver, whose first parent lacks it, and the final
-  cumulative branch sweep, whose merge-base predates the branch. This is the
-  property that matters: the cumulative branch range can never approve itself.
-- It **can** apply to a later post-commit review whose first parent already
-  contains it. That is correct, not a leak — relative to that delta the waiver is
-  pre-existing, both revisions carry it, and it suppresses a finding about a
-  change other than the one that introduced it. It still cannot suppress anything
-  in the cumulative branch range.
-- **After merge**, future branches inherit it at both revisions and it applies
-  normally.
+- It **cannot** suppress anything in a range whose supplied base predates it —
+  which includes the commit that adds it, whose first parent lacks it. This is the
+  property that matters: a change can never waive a finding about itself.
+- It **can** apply to a later range whose supplied base already carries it. That is
+  correct, not a leak — relative to that range the waiver is pre-existing, both
+  revisions carry it, and it suppresses a finding about a change other than the one
+  that introduced it.
+
+Both cases follow from one question — does the *supplied* base carry it? — so you
+never need to reason about how the base was chosen.
 
 Distinguish "absent" from "wrong type" from "unreadable", at each revision
 independently. Do not treat one failed read as absence.
@@ -332,7 +324,7 @@ entry id.
 ```markdown
 ## Empirical Pattern Review — `repo_learnings`
 
-**Reviewed**: `<target_sha>` (post-commit) — or `<base_sha>..<target_sha>` (branch)
+**Reviewed**: `<base_sha>..<target_sha>` — or `<target_sha>` (root commit, no base)
 **Floor**: `known-false-positives.md` at `<base_sha>` ∩ `<target_sha>` — name a
 revision whose floor was empty, e.g. "base empty (root commit)"
 **Files reviewed**: <list>
