@@ -139,9 +139,13 @@ All paths below are relative to `docs/reviews/knowledge-base/`.
   `*_test.go`" would scope that shape out of the diffs it exists for.
 
 **Read by touched path.** Route from the category files' own headers, not from a
-copy of them. Read the `**Read when:**` line at the top of each of these five
-files — five single-line reads — then load in full every file whose header names a
-path this change touches. Skip the rest; do not blanket-read.
+copy of them. Read the **`Read when:` header block** at the top of each of these
+five files — it is short, but it is not always one line, and a file may add a
+paragraph declaring a trigger no path list can express (`indexer-fga-contracts.md`
+does, for the subject-literal sweep over any changed Go file). Read to the end of
+that block, then load in full every file whose header names a path this change
+touches, or whose header declares a condition this change meets. Skip the rest; do
+not blanket-read.
 
 - `nats-storage-kv.md`
 - `indexer-fga-contracts.md`

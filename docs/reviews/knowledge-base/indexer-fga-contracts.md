@@ -8,8 +8,13 @@ even at one occurrence.
 
 **Read when:** any file under `internal/service/*writer.go`, `internal/service/message_handler.go`,
 `internal/domain/model/committee_*.go` (Tags/Build), `internal/infrastructure/nats/messaging_publish.go`,
-`pkg/constants/subjects.go`, `docs/indexer-contract.md`,
+`pkg/constants/subjects.go`, `cmd/committee-api/service/error.go` and `pkg/errors/**` (the documented HTTP
+status ↔ error-type `wrapError` mapping that `contract-doc-out-of-sync` checks), `docs/indexer-contract.md`,
 `docs/fga-contract.md`, or migration scripts under `scripts/migrations/**` that publish to index/fga subjects.
+
+**Also read on any changed `.go` file, regardless of path.** `subject-literal-must-use-constant` greps every
+changed Go file for hardcoded `lfx.*` subject or bucket-name literals, so no path list can gate it. Route
+this file whenever the diff contains Go, and evaluate that one entry even when nothing above matches.
 
 ---
 

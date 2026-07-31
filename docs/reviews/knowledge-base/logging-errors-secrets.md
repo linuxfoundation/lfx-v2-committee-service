@@ -36,8 +36,12 @@ all in `internal/infrastructure/mock/committee.go` (`:668`, `:769`, `:779`). Pro
 
 **Empirical citation:** PR #16 `cmd/committee-api/service/committee_service.go:232` (CodeRabbit) — "Avoid logging PII (email/username) at request handling — redact or remove." Recurs PR #91 `committee_subscriber.go:47` ("Remove raw user identifiers from logs"), PR #91 `message_handler.go:513` ("Remove recipient email addresses from logs"), PR #44 `messaging_request.go:53` (Copilot, "The error message exposes the email address in plain text ... use `redaction.RedactEmail()`"), PR #61 `committee_application.go:50` ("Redact `applicant_uid` before logging it").
 
-**Revised 2026-07-30 — Detect corrected and three shapes added.** `pkg/redaction.Redact`/`RedactEmail` have
-111 non-test call sites and the PR #16 site is fixed (`committee_service.go:69-75` logs only `len(token)`).
+**Revised 2026-07-30 — Detect corrected and three shapes added.** `pkg/redaction.Redact`/`RedactEmail` are
+used pervasively — **120 non-test call sites at `main@bd39fe9`** across `cmd/`, `internal/`, `pkg/` and
+`scripts/` (`git grep -n 'redaction\.Redact\|redaction\.RedactEmail' bd39fe9 -- cmd internal pkg scripts`,
+excluding `_test.go`) — and the PR #16 site is fixed (`committee_service.go:69-75` logs only `len(token)`).
+The point of the number is "this is the house convention, not an occasional courtesy"; re-run the command
+rather than trusting the figure if you need it exact. **Corrected 2026-07-31: previously stated as 111.**
 Two corrections: the Detect list named `.ApplicantUID`, but the model field carrying PII is
 `.ApplicantEmail`; and the entry did not state whether the mock layer was in scope — it is, and it was the
 only surface with hits.
@@ -124,10 +128,20 @@ used to branch logic; flag case-sensitive `"not found"` checks.
 **Empirical citation:** PR #89 `scripts/migrations/migrate_counsel_role/main.go:125` (Copilot) — "Skip/updated classification is driven by matching substrings in err.Error() ('not counsel'), which is brittle ... Consider using a sentinel error (e.g., var ErrNotCounsel = errors.New(...)) and checking it with errors.Is." Recurs PR #45 `models.go:49` ("The case-sensitive check for 'not found' may lead to inconsistent error handling ... use a case-insensitive check") and PR #78 `migrate_join_mode_to_base/main.go:129` ("Use a sentinel error instead of matching error text").
 
 **Revised 2026-07-30 — all three citations repointed.** Every originally cited site is deleted or relocated,
-but the pattern is empirically alive: **7 current hits at `main@bd39fe9`, all driving control flow**. The
-migration-script instance this entry was built from was fixed in one script and then **re-introduced in
-three others**: `migrate_show_meeting_attendees:137`, `migrate_member_visibility:137`,
-`migrate_writers_auditors_to_user_objects:135`. Quote those as the live examples.
+but the pattern is empirically alive. The migration-script instance this entry was built from was fixed in
+one script and then **re-introduced in three others** — all verified at `main@bd39fe9`:
+`migrate_show_meeting_attendees/main.go:137` and `migrate_member_visibility/main.go:137`
+(`strings.Contains(err.Error(), "already has field")`), and
+`migrate_writers_auditors_to_user_objects/main.go:135` (`"already migrated"`). Two more outside the
+migrations: `cmd/committee-api/http.go:183` (`"request body too large"`) and
+`internal/infrastructure/nats/group_weekly_brief_storage.go:295` (`"wrong last sequence"` — the
+optimistic-lock probe). Quote whichever matches the diff.
+
+**Corrected 2026-07-31.** This previously claimed "7 current hits, all driving control flow". Both halves
+were wrong: `bd39fe9` has 8 `err.Error()` uses outside tests, and two of them
+(`internal/infrastructure/nats/client.go:135` and `:163`) are `span.SetStatus(codes.Error, err.Error())` —
+telemetry, which never drives control flow and is **not** this pattern. Named sites replace the aggregate,
+because a count is the part that rots while the examples stay checkable.
 
 **Two accepted variants — not findings.** `internal/infrastructure/nats/models.go:121` and
 `group_weekly_brief_storage.go:295` are compatibility fallbacks with documented rationale. Text matching

@@ -6,7 +6,9 @@ guards before reads, secondary-index (lookup-key) reservation and rollback, and 
 These are data-integrity patterns — cost-of-miss promotes them.
 
 **Read when:** any file under `internal/infrastructure/nats/**`, `internal/service/*writer.go`,
-`internal/service/*reader.go`, `cmd/committee-api/service/committee_service.go` (handler-level existence
+`internal/service/*reader.go`, `internal/service/message_handler.go` (read-modify-write conflict retries,
+and the `usernameMatches`/`emailMatches` normalization helpers),
+`cmd/committee-api/service/committee_service.go` (handler-level existence
 guards), `internal/infrastructure/mock/**` (mock semantics must mirror storage),
 `pkg/constants/storage.go`, or `cmd/committee-cli/commands/sync/**` (secondary-index backfills).
 
@@ -150,9 +152,15 @@ without `TrimSpace` against an email or username is a finding. The helpers to re
 comparison rather than raw strings. PR #161 added the `usernameMatches`/`emailMatches` helpers named above,
 which reuse the index normalization.
 
-**Residual live violations** — `strings.EqualFold` **without** `TrimSpace` at `AcceptInvite:954`,
-`DeclineInvite:1045`, and `LeaveCommittee:1347`. Copilot flagged this shape on PR #150 and no fix landed, so
-it is current. This is what the comparison-guard extension exists to catch.
+**Residual live violations** — `strings.EqualFold` **without** `TrimSpace` in
+`cmd/committee-api/service/committee_service.go` at `AcceptInvite:952`, `DeclineInvite:1043`, and
+`LeaveCommittee:1345` (verified at `main@bd39fe9`). Copilot flagged this shape on PR #150 and no fix landed,
+so it is current. This is what the comparison-guard extension exists to catch.
+
+**Corrected 2026-07-31.** These were previously cited as `:954`, `:1045`, `:1347` — `ec86a8f` line numbers,
+not `bd39fe9` as the entry claimed. The file was not named either, so the numbers could not be checked
+without guessing the file. Function names are given first here because they survive line drift; the numbers
+are the convenience, not the anchor.
 
 **Failure message:** Uniqueness/identity key, presence check, or identity comparison uses un-normalized email/username — case/whitespace variants dupe or mismatch.
 

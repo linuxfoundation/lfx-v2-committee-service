@@ -8,6 +8,7 @@ this service (worker pools, goroutines, JetStream consumers, RNG).
 **Read when:** any file under `charts/lfx-v2-committee-service/**`, `pkg/constants/storage.go`,
 `pkg/constants/subjects.go`, `cmd/committee-api/design/**` (new endpoints), `cmd/committee-api/service/providers.go`
 (env vars and subscriptions), `cmd/committee-api/service/committee_handler.go` (inbound dispatch),
+`internal/service/message_handler.go` (the total-members recount path),
 `internal/infrastructure/nats/client.go` / `stream_consumer.go`, `pkg/concurrent/**`, or any
 file launching goroutines / using `errgroup`.
 
@@ -40,8 +41,9 @@ creating it in the chart (the template owning that resource type + `values.yaml`
 `providers.go` is not declared in the chart `deployment.yaml`/`values.yaml`. The bucket won't exist at
 runtime, or the env var won't be wired.
 
-**Detect:** when the diff adds a storage constant, check the template that owns **that resource type**,
-plus `values.yaml`. This chart has one template per type, so the mapping is exact:
+**Detect:** when the diff adds a `KVBucketName*`, `StreamName*`, or `ObjectStoreName*` constant — and only
+those three prefixes — check the template that owns **that resource type**, plus `values.yaml`. This chart
+has one template per type, so the mapping is exact:
 
 | Constant added in `pkg/constants/storage.go` | Template that must also change |
 | --- | --- |
@@ -68,7 +70,7 @@ undeclared in the chart** — `AUTH_SOURCE`, `LFX_ENVIRONMENT`, `LFX_SELF_SERVE_
 `NATS_MAX_RECONNECT`, `NATS_RECONNECT_WAIT`, `NATS_TIMEOUT`, `REPOSITORY_SOURCE`. The PR #97/#61/#98 threads
 are retained as provenance.
 
-**Failure message:** New KV bucket / stream / env var added in code but not wired in the service Helm chart.
+**Failure message:** New KV bucket / Object Store / stream / env var added in code but not wired in the service Helm chart.
 
 **Fix:** add the resource to the template that owns its type — `nats-kv-buckets.yaml`, `nats-streams.yaml`, or `nats-object-stores.yaml` per the Detect table — plus its `values.yaml` entry; and any new env var to `values.yaml` → `app.environment`; prefer `valueFrom` over inline secrets.
 

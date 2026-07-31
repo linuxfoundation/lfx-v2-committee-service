@@ -76,6 +76,13 @@ This KB has been built in two passes. Both used the same promotion gate.
   entries sourced from those reviewers are unaffected.
 - **Evidence baseline:** `origin/main@ec86a8f`, with every claim re-verified against `origin/main@bd39fe9`
   (PRs #162 and #165 landed in between); line numbers in pass-2 text are from `bd39fe9`.
+- **Corrected 2026-07-31 — that last claim was not true everywhere.** Three entries carried `ec86a8f` line
+  numbers while their own prose said `bd39fe9`: the `EqualFold` sites in `nats-storage-kv.md`, the
+  `CreateMember`-ordering lines in `invite-application-flows.md`, and the `Redact` census in
+  `logging-errors-secrets.md`. The claims themselves were correct — the *anchors* were off by two lines,
+  which is worse than being wrong, because the numbers resolve to real code that says something else. All
+  are repaired and each carries a dated `Corrected` note. Eight other current-code claims were spot-checked
+  at `bd39fe9` and were accurate, so this was a re-anchoring miss on a subset, not a bad pass.
 - **Re-audit result:** all 30 pass-1 entries were re-checked against current code. **None was obsolete and
   none was dropped.** 16 were retained unchanged; 14 were revised in place and carry a dated
   `**Revised …**` block stating what changed and why. Revisions were of three kinds: citations that had rotted
@@ -158,6 +165,18 @@ Kept as context so a future pass does not re-litigate them. None is a pattern:
 Re-run the playbook research against newly merged PRs periodically. Promote a candidate only if it clears the
 gate; demote bot nitpicks unless they recur or were acted on. Move team-rejected findings to
 `known-false-positives.md` (and remove them from the category file).
+
+**A category file's `Read when:` header must cover every path its own `Detect:` clauses inspect.** Routing
+reads those headers and skips files whose header does not match, so a path named by a `Detect:` but missing
+from the header makes that entry unreachable — silently, and for every entry in the file if the header misses
+the only path they share. When you add or widen a `Detect:`, update the header in the same edit. If an entry
+inspects *any* changed file of a kind rather than a fixed path — as `subject-literal-must-use-constant` does
+— say so explicitly in the header, because no path list can express it.
+
+**Prefer anchors that survive edits.** Cite the function or symbol first and the line number second: line
+numbers rot on every unrelated insertion above them, and a rotted number is worse than none, because it
+resolves to real code that says something else and makes the entry look wrong. Where a claim needs a count,
+give the command that produces it.
 
 **Re-verify retained entries against the current tree, not just newly promoted ones.** The 2026-07-30 pass
 found 14 of 30 entries needing revision — mostly rotted citations and `Detect` clauses that had drifted into

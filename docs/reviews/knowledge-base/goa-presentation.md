@@ -23,6 +23,20 @@ aren't preceded by a nil/empty guard.
 
 **Empirical citation:** PR #14 `cmd/committee-api/service/committee_member_service.go:70` (CodeRabbit) — "Create returns (nil, nil) — high risk of runtime failure or incorrect 200 OK" (recurs at :99/:134/:164 and `committee_service.go:233/261`). Nil-deref recurs PR #6 `committee_service.go:82` (CodeRabbit, "Nil-UID will panic – validate incoming request"), PR #41 `committee_service_response.go:172` (jordane, "we're dereferencing base without checking it ... not safe to use unless this has been done"), PR #97 `committee_service.go:1457` ("Guard against nil `Claim` output before dereference").
 
+**Revised 2026-07-31 — primary citation's file is gone; entry stays active.** PR #14's
+`cmd/committee-api/service/committee_member_service.go` **no longer exists at `main@bd39fe9`**, so the `:70`
+/ `:99` / `:134` / `:164` line references cannot be resolved. The thread is retained as provenance — it is
+real history and the shape it describes is real — but do not send a reviewer looking for that file. The
+recurrence citations (`committee_service.go:233/261`, PR #6 `:82`, PR #41 `committee_service_response.go:172`,
+PR #97 `:1457`) are unaffected: they are anchored to their own PRs, which is what a provenance citation is for.
+
+**No live violation at `main@bd39fe9`.** Every `return nil, nil` under `cmd/committee-api/service/` is
+either in `_test.go`, in `providers.go` wiring, or in an internal helper where a nil pair is the correct
+answer (`stampAuditUsers` returns `nil, nil` when there is no requesting user). The Detect stays as written
+— the path is live code and the shape would be a Critical if reintroduced — but nothing currently matches,
+so do not report one on the strength of a bare `return nil, nil` without checking it is a Goa service method
+that owes a result.
+
 **Failure message:** Goa service method returns `(nil, nil)` (misleading 200) or dereferences a payload pointer without a nil guard (panic risk).
 
 **Fix:** return a concrete result or a typed `pkg/errors` value; validate required pointer fields (UID, etc.) and return `errors.NewValidation` before dereferencing.

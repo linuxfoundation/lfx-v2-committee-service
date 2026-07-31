@@ -6,7 +6,9 @@ data-integrity / authorization patterns — cost-of-miss promotes them at a sing
 
 **Read when:** `cmd/committee-api/service/committee_service.go` (invite/application/join/leave handlers),
 `internal/domain/model/committee_invite.go`, `internal/domain/model/committee_application.go`,
-`internal/service/message_handler.go` (invite-accepted handling), or `docs/invite-application-flows.md`.
+`internal/service/message_handler.go` (invite-accepted handling),
+`internal/infrastructure/nats/messaging_request.go` / `models.go` (auth-service reply mapping —
+`auth-service-failure-not-validation` inspects these directly), or `docs/invite-application-flows.md`.
 
 ---
 
@@ -28,9 +30,15 @@ don't.
 **Empirical citation:** PR #64 `cmd/committee-api/service/committee_service.go:477` (Copilot) — "`AcceptInvite` updates the invite status to `accepted` before creating the committee member. If `CreateMember` fails ... the invite remains permanently accepted and the user can't retry, leaving the system inconsistent." Endorsed by `docs/invite-application-flows.md`: "Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry."
 
 **Revised 2026-07-30 — exemption added.** The ordering is upheld in both handlers at `main@bd39fe9`
-(`AcceptInvite`: `CreateMember:1003` → error check → `Status = "accepted":1009`; `ApproveApplication`:
-`:1223` → `:1229`). The exemption above was added because PR #150 introduced an idempotent already-accepted
-branch that the original Detect wording flagged. The PR #64 thread is retained as provenance.
+(`AcceptInvite`: `CreateMember:1001` → error check → `Status = "accepted":1007`; `ApproveApplication`:
+`:1221` → `:1227`, all in `cmd/committee-api/service/committee_service.go`). The exemption above was added
+because PR #150 introduced an idempotent already-accepted branch that the original Detect wording flagged.
+The PR #64 thread is retained as provenance.
+
+**Corrected 2026-07-31.** Previously cited as `:1003`/`:1009` and `:1223`/`:1229` — `ec86a8f` numbers, while
+the sentence claimed `bd39fe9`. At `bd39fe9` those lines are `return nil, wrapError(...)` and
+`if err := s.storage.UpdateInvite(...)`, so a reviewer checking the claim would have found the wrong
+statements and reasonably concluded the entry was wrong about the ordering.
 
 **Failure message:** Invite/application marked terminal before the committee member is created — a member-create failure strands the record unrecoverably.
 
