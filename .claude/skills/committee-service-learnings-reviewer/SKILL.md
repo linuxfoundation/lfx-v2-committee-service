@@ -121,8 +121,9 @@ make the **first line** of your Markdown exactly `INCOMPLETE — <reason>`.
 
 ## Step 1 — load the routed pattern files, at `target_sha`
 
-Ordinary pattern files are read at **`target_sha`**. Only the false-positive floor
-comes from the base — see Step 3.
+Ordinary pattern files are read at **`target_sha`** only. The false-positive floor
+is the one exception: it is read at **both `base_sha` and `target_sha`** — see
+Step 3.
 
 All paths below are relative to `docs/reviews/knowledge-base/`.
 
