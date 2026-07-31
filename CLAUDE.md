@@ -71,7 +71,7 @@ A change can never waive a finding about itself. The false-positive floor must s
 
 1. **Commit your work.** `git commit -s -S`.
 2. **Run `/lfx-skills:lfx-local-review`** from inside this repo — exactly that, with no arguments. It reviews `HEAD^..HEAD`. Pass a direct base range only when you deliberately need a different one.
-3. **Relay all three reports in full and unedited.** They are ordinary Markdown, one per role. On a fallback run, say plainly that Pi was skipped and this was a same-model review — honest evidence, but not the *cross-model* check Pi provides.
+3. **Relay all three reports in full and unedited.** They are ordinary Markdown, one per role. If the run used the Claude Opus fallback, say so when you report it. It is not the intended Pi/GitHub-Copilot cross-model review.
 4. **An incomplete cycle is not a pass, and one reviewer can spoil it.** If any reviewer's report starts `INCOMPLETE — <reason>`, or the host reports a failed or empty child, **the whole cycle is incomplete** — successful siblings do not rescue it. Resolve the cause and rerun the **complete trio under one harness**. Never rerun a single role, never mix Pi and Claude evidence in one cycle, and never render a failed child as "no findings".
 5. **Address every real Critical and reasonable Important finding in this session**, then commit the fixes as their own signed conventional commits — `fix(<scope>): ...` or `fix: ...` — rather than amending. Reviewers report; you fix.
 6. **Rerun the complete trio after each fix commit.**
