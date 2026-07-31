@@ -19,4 +19,4 @@ Give every subagent the same `target repo`, `target_sha`, `base_sha` (or `none`)
 
 Tell each subagent: **Load the named skill and follow it exactly. Review only the supplied range and return an ordinary Markdown review.**
 
-If any subagent errors, returns nothing or does not return a review, report a role-labelled Claude fallback failure and rerun all three. Never combine Pi and Claude roles in one cycle.
+If any subagent errors, returns nothing or does not return a review, report a role-labelled Claude fallback failure and **stop** — do not rerun from here. The whole cycle is incomplete; the host reruns the complete trio once the cause is resolved. Never combine Pi and Claude roles in one cycle.

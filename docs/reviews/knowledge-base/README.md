@@ -21,8 +21,17 @@ Two consumers read this directory, and both benefit from it being current:
 - **The GitHub PR review surface** — `.github/skills/committee-service-code-review/SKILL.md` names this
   directory directly and treats `known-false-positives.md` as its posting floor.
 
-Either consumer reads the category files routed by changed-file path, matches each entry's `**Detect:**` rule
-against the diff, and emits only findings it can quote — then applies `known-false-positives.md` as the floor.
+Both consumers route the category files by changed-file path and apply `known-false-positives.md` last, as the
+floor. They differ in **how binding the KB is**:
+
+- **Local review** is *gated* by this directory. The learnings brain emits only findings it can quote from an
+  entry here; an unsourced finding is dropped. The KB is its whole rulebook.
+- **The GitHub PR surface** uses this directory as *one input among several*. Its own instruction is to "use
+  the category files as a checklist of known shapes and the false-positive file as a floor", and its generic
+  quality dimensions keep running alongside. It can and does post findings with no entry here.
+
+So a missing KB entry means missing **local** coverage. It does not mean the PR surface will stay silent, and
+absence of an entry is not evidence that a shape is acceptable.
 
 The two consumers differ in **which revision they read the floor from**. Local review reads the pattern files
 at the commit under review, but reads the floor at **two** revisions — the pre-change base and the commit
@@ -41,9 +50,8 @@ diffed or byte-compared.
 
 Which reviewed range a **newly added** waiver reaches depends on that range's base. It cannot suppress
 anything in the commit that adds it. It *can* suppress in a later commit's review, whose parent already
-carries it — that is correct, not a leak, since the finding belongs to a different change. And it never
-suppresses anything in the cumulative pre-PR branch sweep, whose base is the merge-base with `main` and so
-predates the whole branch. **To widen the floor for work in progress, land the widening on `main` first.**
+carries it — that is correct, not a leak, since the finding belongs to a different change. There is no
+cumulative branch pass to reason about: local review looks at one supplied range at a time.
 
 Because the PR surface shares this KB, a change here changes what the PR bot posts. That is intended: one
 path, one truth. It also means an entry whose `Detect` is too broad costs real reviewer noise on every PR, so
@@ -74,8 +82,10 @@ This KB has been built in two passes. Both used the same promotion gate.
 - **Scope note:** the 46 in-window `coderabbitai` threads and all in-window human-reviewer threads were
   excluded from pass 2 so its provenance stays uniform. That is not a judgement on their quality, and pass-1
   entries sourced from those reviewers are unaffected.
-- **Evidence baseline:** `origin/main@ec86a8f`, with every claim re-verified against `origin/main@bd39fe9`
-  (PRs #162 and #165 landed in between); line numbers in pass-2 text are from `bd39fe9`.
+- **Evidence baseline:** `origin/main@ec86a8f`, re-verified against `origin/main@bd39fe9` (PRs #162 and #165
+  landed in between); line numbers in pass-2 text are from `bd39fe9`. **That re-verification was incomplete
+  as first shipped** — it checked the claims but not every line anchor, and three entries kept `ec86a8f`
+  numbers. See the correction immediately below; it is the re-audit that closed the gap, not this bullet.
 - **Corrected 2026-07-31 — that last claim was not true everywhere.** Three entries carried `ec86a8f` line
   numbers while their own prose said `bd39fe9`: the `EqualFold` sites in `nats-storage-kv.md`, the
   `CreateMember`-ordering lines in `invite-application-flows.md`, and the `Redact` census in
@@ -95,16 +105,22 @@ cost-of-miss, or acted-on authority). Every entry carries a real `PR #N file:lin
 
 ## Categories
 
-| File | Patterns | Read when |
-| --- | --- | --- |
-| [`indexer-fga-contracts.md`](indexer-fga-contracts.md) | 6 | indexer/FGA emission code, `Tags()`/`Build`, `pkg/constants/subjects.go`, `messaging_publish.go`, `docs/indexer-contract.md`, `docs/fga-contract.md`, migration scripts publishing to index/fga subjects |
-| [`nats-storage-kv.md`](nats-storage-kv.md) | 7 | `internal/infrastructure/nats/**`, `*writer.go`/`*reader.go`, handler-level existence guards, `internal/infrastructure/mock/**`, `pkg/constants/storage.go`, `cmd/committee-cli/commands/sync/**` |
-| [`invite-application-flows.md`](invite-application-flows.md) | 6 | invite/application/join/leave handlers, invite/application models, invite-accepted handling, caller-identity resolution, `docs/invite-application-flows.md` |
-| [`goa-presentation.md`](goa-presentation.md) | 6 | `cmd/committee-api/service/**`, `cmd/committee-api/design/**`, `cmd/committee-api/http.go` |
-| [`logging-errors-secrets.md`](logging-errors-secrets.md) | 5 | any `.go` that logs, returns/builds errors, or handles tokens — service, nats infra, presentation, CLI, migrations |
-| [`chart-and-concurrency.md`](chart-and-concurrency.md) | 5 | `charts/lfx-v2-committee-service/**`, `pkg/constants/{storage,subjects}.go`, new endpoints, `providers.go` env vars and subscriptions, `committee_handler.go`, goroutine/consumer code |
-| [`tests.md`](tests.md) | 2 | **always** — one shape triggers on a production guard with no test that can exercise it |
-| [`known-false-positives.md`](known-false-positives.md) | 10 (floor filter) + a carve-in | always — applied LAST to drop findings |
+**Each file's own `**Read when:**` header is the authoritative routing trigger — read it there, not here.**
+This table deliberately carries no routing column. A second copy of those triggers drifts, and the drifting
+copy is the one a reviewer happens to read: a trigger narrower than the file's own header silently makes
+every entry in it unreachable, Criticals included. That is the exact failure this KB is built to avoid, so
+the routing fact lives in exactly one place.
+
+| File | Patterns |
+| --- | --- |
+| [`indexer-fga-contracts.md`](indexer-fga-contracts.md) | 6 |
+| [`nats-storage-kv.md`](nats-storage-kv.md) | 7 |
+| [`invite-application-flows.md`](invite-application-flows.md) | 6 |
+| [`goa-presentation.md`](goa-presentation.md) | 6 |
+| [`logging-errors-secrets.md`](logging-errors-secrets.md) | 5 |
+| [`chart-and-concurrency.md`](chart-and-concurrency.md) | 5 |
+| [`tests.md`](tests.md) | 2 |
+| [`known-false-positives.md`](known-false-positives.md) | 10 (floor filter) + a carve-in |
 
 **37 patterns** across 7 category files, plus the false-positive floor. Kept sharp rather than exhaustive.
 

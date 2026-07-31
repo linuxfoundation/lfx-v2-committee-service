@@ -147,7 +147,13 @@ Also: a settings/sub-resource indexer publish uses the wrong subject constant.
 
 **Failure message:** NATS subject / KV bucket literal hardcoded at a call site (or wrong subject constant for the object type).
 
-**Fix:** reference the `pkg/constants` subject/bucket symbol; if a new subject/bucket is introduced, add it to `pkg/constants` and update `references/nats-messaging.md`.
+**Fix:** reference the `pkg/constants` subject/bucket symbol; if a new subject/bucket is introduced, add it to `pkg/constants`.
+
+**Scope:** this rule stops at `pkg/constants`. The further obligation to update
+`references/nats-messaging.md` alongside a subject or bucket change is **quarantined** — see the README's
+quarantined contradictions — so do **not** emit a finding for a missing `nats-messaging.md` update, and do
+not treat its absence as approval either. `chart-and-concurrency.md` states the same boundary; both defer to
+the human decision rather than to each other.
 
 ---
 

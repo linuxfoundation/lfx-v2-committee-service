@@ -13,6 +13,14 @@ immediately. The GitHub PR review surface
 file as a posting floor, by human-approved design. A change here therefore changes what both surfaces
 report.
 
+**"A change cannot approve itself" is a local-review property only — do not read it as a property of this
+file.** The GitHub PR surface has no base/target intersection step: it applies this floor as it stands at the
+PR head, so **an entry added by a PR takes effect against that same PR** and can suppress findings about the
+change that introduced it. Reviewers of a PR that edits this file should therefore judge the new entry on its
+own merits and not assume a mechanism blocked its self-application. Closing that hole would require a change
+under `.github/**`, which is outside this directory's ownership; it is recorded here as a known limitation
+rather than silently implied to be handled.
+
 The repo-owned **code** brain does not read this file. It is gated by a different rule — every finding must
 quote a verbatim rule from the repo's written surface — so it has no floor step, and this file makes no
 promise about what it emits.

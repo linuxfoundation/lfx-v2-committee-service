@@ -128,7 +128,7 @@ reading when a row is borderline:
 | Touched paths | Also read |
 |---|---|
 | `cmd/committee-api/design/**`, `gen/**` | `.claude/skills/committee-service-dev/references/goa-patterns.md`, `Makefile`, `cmd/committee-api/README.md` |
-| `cmd/committee-api/service/**`, `cmd/committee-api/http.go` | `references/goa-patterns.md`, `cmd/committee-api/service/error.go` |
+| `cmd/committee-api/service/**`, `cmd/committee-api/http.go` | `.claude/skills/committee-service-dev/references/goa-patterns.md`, `cmd/committee-api/service/error.go` |
 | `internal/service/*writer.go`, `internal/domain/model/committee_*.go`, `pkg/constants/subjects.go` | `docs/indexer-contract.md`, `docs/fga-contract.md` |
 | invite / application / join / leave handlers, `internal/domain/model/committee_{invite,application}.go` | `docs/invite-application-flows.md` |
 | `internal/infrastructure/nats/**`, `pkg/constants/{subjects,storage}.go` | `.claude/skills/committee-service-dev/references/nats-messaging.md`, `docs/nats-request-reply.md` |

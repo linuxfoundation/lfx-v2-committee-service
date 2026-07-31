@@ -6,7 +6,10 @@ single occurrence.
 
 **Read when:** any `.go` file that logs (`slog.*Context`, `log.*`), returns errors, or builds error
 messages — especially `internal/service/**`, `internal/infrastructure/nats/**`,
-`cmd/committee-api/service/**`, `cmd/committee-cli/**`, and `scripts/migrations/**`.
+`cmd/committee-api/service/**`, `cmd/committee-cli/**`, and `scripts/migrations/**`. **Also read on any
+change under `charts/lfx-v2-committee-service/**` (notably `values.yaml`)**, because
+`secrets-in-logs-or-charts` below inspects chart values for inline secrets — a chart-only change would
+otherwise never reach that half of the rule.
 
 ---
 
@@ -37,9 +40,12 @@ all in `internal/infrastructure/mock/committee.go` (`:668`, `:769`, `:779`). Pro
 **Empirical citation:** PR #16 `cmd/committee-api/service/committee_service.go:232` (CodeRabbit) — "Avoid logging PII (email/username) at request handling — redact or remove." Recurs PR #91 `committee_subscriber.go:47` ("Remove raw user identifiers from logs"), PR #91 `message_handler.go:513` ("Remove recipient email addresses from logs"), PR #44 `messaging_request.go:53` (Copilot, "The error message exposes the email address in plain text ... use `redaction.RedactEmail()`"), PR #61 `committee_application.go:50` ("Redact `applicant_uid` before logging it").
 
 **Revised 2026-07-30 — Detect corrected and three shapes added.** `pkg/redaction.Redact`/`RedactEmail` are
-used pervasively — **120 non-test call sites at `main@bd39fe9`** across `cmd/`, `internal/`, `pkg/` and
-`scripts/` (`git grep -n 'redaction\.Redact\|redaction\.RedactEmail' bd39fe9 -- cmd internal pkg scripts`,
-excluding `_test.go`) — and the PR #16 site is fixed (`committee_service.go:69-75` logs only `len(token)`).
+used pervasively — **120 matching lines at `main@bd39fe9`** across `cmd/`, `internal/`, `pkg/` and
+`scripts/`, which is **121 call expressions**: `cmd/committee-api/service/committee_service.go:1750` carries
+both `RedactEmail` and `Redact` on one line. Reproduce with
+`git grep -n 'redaction\.Redact\|redaction\.RedactEmail' bd39fe9 -- cmd internal pkg scripts | wc -l`; the
+command counts *lines*, not calls, and needs no `_test.go` filter because that path set contains no test-file
+matches. The PR #16 site is fixed (`committee_service.go:69-75` logs only `len(token)`).
 The point of the number is "this is the house convention, not an occasional courtesy"; re-run the command
 rather than trusting the figure if you need it exact. **Corrected 2026-07-31: previously stated as 111.**
 Two corrections: the Detect list named `.ApplicantUID`, but the model field carrying PII is
