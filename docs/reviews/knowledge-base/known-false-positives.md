@@ -4,8 +4,12 @@ Findings that match any pattern below MUST be dropped, regardless of which sourc
 pattern file) originally produced them. This list is the floor — even a quotable pattern doesn't survive if
 it matches a known false positive.
 
-Used by the `lfx-skills:lfx-committee-service-learnings-reviewer` subagent (Step 4), and relevant filter
-discipline for the `lfx-skills:lfx-committee-service-code-reviewer` subagent.
+Consumed by two surfaces. The repo-owned local learnings brain
+(`.claude/skills/committee-service-learnings-reviewer/SKILL.md`) applies this file as its floor, and the
+repo-owned code brain follows the same floor discipline. The GitHub PR review surface
+(`.github/skills/committee-service-code-review/SKILL.md`) also consumes this directory and treats this
+file as a posting floor, by human-approved design. A change here therefore changes what both surfaces
+report.
 
 ---
 
@@ -85,24 +89,37 @@ This entry covers point-in-time guesses about which release *exists*, not incons
 repo actually declares. Those two route to `/committee-service-pr-readiness` and
 `/committee-service-preflight` respectively rather than to a review brain.
 
-### "This will not compile" / "this symbol does not exist"
+### Unsupported toolchain / stdlib / dependency API-existence speculation
 
-**Pattern matched:** a finding asserting that the patch cannot build — an undefined symbol, a constant that
-does not exist, a type error.
+**Pattern matched:** a claim that a **toolchain, stdlib, or third-party dependency** API does not exist —
+an absent symbol, constant, kind, or method attributed to that external surface — asserted **without
+proof quoted from a named frozen source in the snapshot** (`go.mod`, `go.sum`, the module or vendored
+source, the Makefile-pinned toolchain version).
 
-**Why false:** compilability is not a review brain's to decide. A reviewer here has read-only tools and no
-shell, so it cannot build and cannot know — and the repo owns the question mechanically:
-`/committee-service-preflight` runs `make build` and `make build-cli` before any PR, and CI runs them after.
+**Explicitly NOT floored — these survive and must be reported.** A **source-cited static contradiction**
+is a finding, not speculation: an undefined symbol, a declaration the patch never adds, an
+argument/signature mismatch, or an internal type contradiction that you can demonstrate by quoting the
+two conflicting locations from the patch and the snapshot. Mechanical build ownership does not erase a
+statically provable local-review finding. Cite both locations and report it.
 
-**Note the ordering.** The original finding was raised at PR time against green CI, so it contradicted
-evidence that already existed. A local pre-PR review usually runs *before* any build has been attempted on the
-commit, so there is no green build to point at. That does not make the claim reviewable — it makes it
-premature. Drop it here; preflight answers it minutes later, and either passes or names the exact compiler
-error. If preflight fails, fix the build rather than re-litigating this entry.
+**Why false:** the originating case was an error of exactly this kind. PR #139 thread `r3494956878`
+asserted "the pointer-kind constant is `reflect.Ptr` (there is no `reflect.Pointer` kind). As written
+this will not compile." The author declined, correctly — `reflect.Pointer` has been the canonical
+constant since Go 1.18. The claim was speculation about an external API's existence, offered without
+quoting the pinned toolchain that would have settled it. And the build stage owns the question for the
+exact target: `/committee-service-preflight` runs `make build` and `make build-cli` on the commit under
+review before any PR, and CI runs them after.
 
-**Evidence:** PR #139 thread `r3494956878` — "the pointer-kind constant is `reflect.Ptr` (there is no
-`reflect.Pointer` kind). As written this will not compile." The author declined, correctly —
-`reflect.Pointer` has been the canonical constant since Go 1.18, and CI was green.
+**Evidence discipline.** Do not settle an existence question by network lookup — no module proxy,
+registry, or documentation fetch. Establish it from a named frozen source in the snapshot. And any appeal
+to a green build must name the **exact target** it passed on: a green build on another commit, another
+branch, or a different make target is not evidence about this one.
+
+**Note the ordering.** A local pre-PR review often runs *before* any build has been attempted on the
+commit, so there may be no green build for this target to point at. That does not make external-API
+speculation reviewable — it makes it premature. Drop it here; the build stage answers it minutes later,
+and either passes or names the exact compiler error. If it fails, fix the build rather than re-litigating
+this entry.
 
 ---
 
