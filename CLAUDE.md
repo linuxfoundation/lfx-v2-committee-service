@@ -82,6 +82,10 @@ When the work is done and no more code commits are planned:
 
 1. **Drain the post-commit reports.** If the last run had findings, fix them, commit, and rerun the complete trio on the new commit until the reports are clean or the remainder is explicitly documented as a trade-off. Local review looks at one commit at a time; there is no cumulative pass, so the way the whole branch gets covered is that every commit on it was reviewed when it landed.
 2. **Run `/committee-service-pr-readiness [base-branch]`** for branch, JIRA, conventional commits, rebase, DCO+GPG, diff size, and protected files.
+
+   **If that rebase changes previously reviewed content — you resolved a conflict, or the rebase otherwise altered what a commit contains — the resulting content is not covered by the earlier per-commit reviews.** Those reviews read the pre-rebase commits; the resolutions did not exist yet. Cover them with **one** local review run whose target is the current `HEAD` and whose `base_sha` you supply explicitly, chosen so the range spans the rebased result. It still reviews exactly `git diff <base_sha> <target_sha>` and nothing else.
+
+   This is the ordinary caller-supplied range the command already accepts, used after a content-changing rebase. It is **not** a new mode, not an automatic `main`/`origin` lookup, not a fetch, not a merge-base derivation, and not a cumulative branch gate — you pick the base and pass it. A rebase that only replays commits unchanged needs no extra review.
 3. **Run `/committee-service-preflight [base-branch]`** for working tree, license headers, formatting, lint, API/CLI builds, tests, protected files, commit verification, and PR change summary.
 4. **Only then push and open the PR.** Reviewers may run useful builds, tests and linters, but only this session edits, commits, or cleans up anything they leave behind.
 
