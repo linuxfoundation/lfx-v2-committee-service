@@ -1330,27 +1330,30 @@ func TestRevokeInvite_NotFound(t *testing.T) {
 
 func TestAcceptInvite(t *testing.T) {
 	tests := []struct {
-		name         string
-		seedStatus   string
-		seedMember   *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
-		principal    string
-		inviteeEmail string // overrides principal for invite InviteeEmail; defaults to principal when empty
-		expectError  bool
-		expectResult bool // false means nil result is acceptable
+		name                     string
+		seedStatus               string
+		seedMember               *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
+		principal                string
+		inviteeEmail             string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expectError              bool
+		expectResult             bool // false means nil result is acceptable
+		expectCreateMemberCalled bool // whether AcceptInvite reaches the CreateMember call at all
 	}{
 		{
-			name:         "successful accept of pending invite",
-			seedStatus:   "pending",
-			principal:    "accept@example.com",
-			expectError:  false,
-			expectResult: true,
+			name:                     "successful accept of pending invite",
+			seedStatus:               "pending",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
-			name:         "successful accept of previously declined invite",
-			seedStatus:   "declined",
-			principal:    "accept@example.com",
-			expectError:  false,
-			expectResult: true,
+			name:                     "successful accept of previously declined invite",
+			seedStatus:               "declined",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
 			name:       "already accepted invite returns success (idempotent) — member found",
@@ -1434,11 +1437,14 @@ func TestAcceptInvite(t *testing.T) {
 
 			// AcceptInvite must always pass sync=false to CreateMember (LFXV2-2856): membership
 			// FGA publishing is asynchronous-only, and a regression to sync=true would reintroduce
-			// the request/reply indexer timeout this change removed. The idempotent "already
-			// accepted" path short-circuits before calling CreateMember, so it has no args to check.
-			if len(mockOrch.createMemberSyncArgs) > 0 {
-				last := mockOrch.createMemberSyncArgs[len(mockOrch.createMemberSyncArgs)-1]
-				assert.False(t, last, "AcceptInvite must call CreateMember with sync=false")
+			// the request/reply indexer timeout this change removed. Idempotent/error paths
+			// short-circuit before reaching CreateMember, so assert the call happens exactly when
+			// expected rather than only inspecting the last recorded arg.
+			if tt.expectCreateMemberCalled {
+				require.Len(t, mockOrch.createMemberSyncArgs, 1)
+				assert.False(t, mockOrch.createMemberSyncArgs[0], "AcceptInvite must call CreateMember with sync=false")
+			} else {
+				assert.Empty(t, mockOrch.createMemberSyncArgs, "AcceptInvite must not call CreateMember on this path")
 			}
 		})
 	}
