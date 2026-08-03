@@ -24,12 +24,13 @@ import (
 
 // NATSClient wraps the NATS connection and provides access control operations
 type NATSClient struct {
-	conn     *nats.Conn
-	config   Config
-	kvMu     sync.RWMutex
-	kvStore  map[string]jetstream.KeyValue
-	objStore map[string]jetstream.ObjectStore
-	timeout  time.Duration
+	conn        *nats.Conn
+	config      Config
+	kvMu        sync.RWMutex
+	kvStore     map[string]jetstream.KeyValue
+	kvStoreLazy map[string]jetstream.KeyValue
+	objStore    map[string]jetstream.ObjectStore
+	timeout     time.Duration
 }
 
 // NATSClientInterface defines the interface for NATS operations
@@ -88,19 +89,22 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 // GetOrBindKVStore returns the KV handle for bucketName. If the bucket was
 // absent at startup (e.g. a pod that booted before the bucket was provisioned),
 // it attempts to bind on first access so the pod self-heals without a restart.
+//
+// Lazy handles are kept in kvStoreLazy, separate from the startup-populated
+// kvStore. kvStore is written only during NewClient (single-threaded) so the
+// 50+ call sites that read it directly remain race-free. kvStoreLazy is always
+// accessed under kvMu. The NATS bind call itself runs outside the lock so
+// concurrent cache-hit lookups are never blocked by an in-flight bind.
 func (c *NATSClient) GetOrBindKVStore(ctx context.Context, bucketName string) (jetstream.KeyValue, error) {
 	c.kvMu.RLock()
-	kv, ok := c.kvStore[bucketName]
+	kv, ok := c.kvStoreLazy[bucketName]
 	c.kvMu.RUnlock()
 	if ok {
 		return kv, nil
 	}
 
-	c.kvMu.Lock()
-	defer c.kvMu.Unlock()
-	if kv, ok = c.kvStore[bucketName]; ok {
-		return kv, nil
-	}
+	// Bind outside the lock — js.KeyValue is a network call and must not hold
+	// kvMu while it waits, which would block concurrent cache-hit lookups.
 	js, err := jetstream.New(c.conn)
 	if err != nil {
 		return nil, errors.NewServiceUnavailable("failed to create JetStream client", err)
@@ -109,10 +113,16 @@ func (c *NATSClient) GetOrBindKVStore(ctx context.Context, bucketName string) (j
 	if err != nil {
 		return nil, errors.NewServiceUnavailable(fmt.Sprintf("%s bucket not initialized", bucketName), err)
 	}
-	if c.kvStore == nil {
-		c.kvStore = make(map[string]jetstream.KeyValue)
+
+	c.kvMu.Lock()
+	defer c.kvMu.Unlock()
+	if existing, ok := c.kvStoreLazy[bucketName]; ok {
+		return existing, nil
 	}
-	c.kvStore[bucketName] = kv
+	if c.kvStoreLazy == nil {
+		c.kvStoreLazy = make(map[string]jetstream.KeyValue)
+	}
+	c.kvStoreLazy[bucketName] = kv
 	slog.InfoContext(ctx, "weekly-brief KV bucket bound on first access", "bucket", bucketName)
 	return kv, nil
 }
