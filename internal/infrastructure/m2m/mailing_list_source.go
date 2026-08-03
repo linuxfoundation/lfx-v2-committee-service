@@ -84,7 +84,7 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 	}
 	u.Path = appendPath(u.Path, "/query/resources")
 	q := u.Query()
-	q.Set("version", "1")
+	q.Set("v", "1")
 	q.Set("type", m.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
 	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
