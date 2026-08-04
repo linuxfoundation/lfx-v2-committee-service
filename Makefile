@@ -112,6 +112,14 @@ test: ## Run tests
 	@echo "Running tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 
+.PHONY: eval-prompt-dir
+eval-prompt-dir: ## Write chart-default prompt files to a temp dir and print the path
+	@dir=$$(mktemp -d) && \
+	yq '.weeklyBriefPrompts.promptVersion' charts/lfx-v2-committee-service/values.yaml > "$$dir/prompt_version" && \
+	yq '.weeklyBriefPrompts.systemPrompt' charts/lfx-v2-committee-service/values.yaml > "$$dir/system_prompt" && \
+	yq '.weeklyBriefPrompts.userPromptTemplate' charts/lfx-v2-committee-service/values.yaml > "$$dir/user_prompt_template" && \
+	echo "$$dir"
+
 .PHONY: eval-live
 eval-live: ## Run the live-LLM weekly-brief eval suite (requires LITELLM_* env vars)
 	@echo "Running live-LLM weekly-brief eval suite..."
