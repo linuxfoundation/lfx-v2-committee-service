@@ -619,16 +619,26 @@ func memberNames(members []*model.CommitteeMember) []string {
 	return out
 }
 
-// memberLabel returns a non-PII identifier for a member to cite in the prompt.
-// Member claims are "usernames + counts only" — deliberately never names or
-// email addresses, so PII is not leaked into the AI prompt or the generated
-// brief. Falls back to the opaque UID when no username is set.
+// memberLabel returns a human-readable identifier for a member to cite in the
+// brief. Priority: display name (FirstName + LastName) → Username → "a new
+// member". The raw UID is never returned — it would leak an internal identifier
+// into mailing-list output (LFXV2-2990).
 func memberLabel(m *model.CommitteeMember) string {
 	if m == nil {
 		return ""
 	}
-	if m.Username != "" {
+	first := strings.TrimSpace(m.FirstName)
+	last := strings.TrimSpace(m.LastName)
+	switch {
+	case first != "" && last != "":
+		return first + " " + last
+	case first != "":
+		return first
+	case last != "":
+		return last
+	case m.Username != "":
 		return m.Username
+	default:
+		return "a new member"
 	}
-	return m.UID
 }

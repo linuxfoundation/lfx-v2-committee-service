@@ -487,3 +487,58 @@ func TestNewGenerator_PanicsOnMissingDeps(t *testing.T) {
 	}()
 	_ = NewGroupWeeklyBriefGeneratorOrchestrator()
 }
+
+// TestMemberLabel verifies that memberLabel never returns a raw UID and always
+// produces a human-readable label (LFXV2-2990).
+func TestMemberLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		m    *model.CommitteeMember
+		want string
+	}{
+		{
+			name: "first and last name",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-1", FirstName: "Jane", LastName: "Doe", Username: "jdoe"}},
+			want: "Jane Doe",
+		},
+		{
+			name: "first name only",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-2", FirstName: "Jane"}},
+			want: "Jane",
+		},
+		{
+			name: "last name only",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3", LastName: "Doe"}},
+			want: "Doe",
+		},
+		{
+			name: "username only",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-4", Username: "jdoe"}},
+			want: "jdoe",
+		},
+		{
+			name: "no name fields — degrades gracefully, never emits UID",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "3f311bb3-76b9-48ab-be02-b27f37269260"}},
+			want: "a new member",
+		},
+		{
+			name: "nil member",
+			m:    nil,
+			want: "",
+		},
+		{
+			name: "whitespace-only names fall through to username",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-5", FirstName: "  ", LastName: "\t", Username: "jdoe"}},
+			want: "jdoe",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := memberLabel(tc.m)
+			assert.Equal(t, tc.want, got)
+			if tc.m != nil {
+				assert.NotEqual(t, tc.m.UID, got, "memberLabel must never return the raw UID")
+			}
+		})
+	}
+}
