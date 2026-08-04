@@ -142,14 +142,18 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if ne $promptDir "" }}
           volumeMounts:
             - name: weekly-brief-prompts
-              mountPath: {{ .Values.weeklyBriefPrompts.promptDir | quote }}
+              mountPath: {{ $promptDir | quote }}
               readOnly: true
+          {{- end }}
+      {{- if ne $promptDir "" }}
       volumes:
         - name: weekly-brief-prompts
           configMap:
             name: {{ .Chart.Name }}-weekly-brief-prompts
+      {{- end }}
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
