@@ -66,8 +66,11 @@ jobs:
         # workflow-level env: block. LITELLM_API_KEY is exported into
         # $GITHUB_ENV by the preceding aws-secretsmanager-get-secrets
         # step (sourced from /cloudops/managed-secrets/litellm/lfx-one-cicd
-        # in AWS Secrets Manager). Missing values are a hard failure —
-        # the live test calls t.Fatalf rather than silently skipping
-        # under -tags=live, so a green run can't appear without anything
-        # actually executing.
+        # in AWS Secrets Manager). WEEKLY_BRIEF_PROMPT_DIR points at the
+        # checked-in eval fixture prompts (same text as the chart defaults).
+        # Missing values are a hard failure — the live test calls t.Fatalf
+        # rather than silently skipping under -tags=live, so a green run
+        # can't appear without anything actually executing.
+        env:
+          WEEKLY_BRIEF_PROMPT_DIR: evals/weekly-brief/fixtures/prompts
         run: make eval-live

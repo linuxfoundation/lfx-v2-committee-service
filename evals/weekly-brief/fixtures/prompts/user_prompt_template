@@ -1,0 +1,8 @@
+Committee: {{.CommitteeName}} ({{.CommitteeID}})
+Project: {{.ProjectName}}
+Period: {{.PeriodStart}} to {{.PeriodEnd}}
+
+Claims:
+{{- range .Claims}}
+- id={{.ID}} summary="{{.Summary}}" sources={{.FormattedSources}}
+{{- end}}
