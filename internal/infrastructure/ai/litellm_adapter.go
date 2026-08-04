@@ -67,22 +67,24 @@ type LiteLLMAdapter struct {
 	// wait on the wall clock. Defaults to time.Sleep.
 	sleep func(time.Duration)
 
-	// Prompt config loaded from the ConfigMap directory at startup. When
-	// PromptDir is empty or the files are absent, the adapter falls back to the
-	// hardcoded constants so local dev and CI work without the ConfigMap.
+	// Prompt config loaded from the ConfigMap directory at startup.
+	// If loading fails, promptLoadErr is set and GenerateWeeklyBrief returns
+	// it immediately — the rest of the service continues running normally.
 	loadedSystemPrompt   string
 	loadedUserPromptTmpl *template.Template
 	loadedPromptVersion  string
+	promptLoadErr        error
 }
 
 // NewLiteLLMAdapter constructs a live adapter. It does NOT validate that
 // required env vars are present — that is the caller's responsibility (see
 // providers.go) so wiring code can decide whether to fail fast.
 //
-// When cfg.PromptDir is set and the expected files are present the adapter
-// loads the prompt template from the ConfigMap-mounted directory; otherwise it
-// falls back to the hardcoded defaults so local dev and CI work without the
-// ConfigMap volume.
+// Prompt loading: cfg.PromptDir must point to the ConfigMap-mounted directory
+// containing system_prompt, user_prompt_template, and prompt_version. If the
+// directory is missing or the files can't be read, the adapter starts without
+// failing the service — but GenerateWeeklyBrief will return an error on every
+// call until the prompt is available. Set WEEKLY_BRIEF_PROMPT_DIR to fix it.
 func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 60 * time.Second
@@ -94,54 +96,47 @@ func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 		backoff:     defaultRetryBackoff,
 		sleep:       time.Sleep,
 	}
-	a.loadPromptsFromDir(cfg.PromptDir)
+	a.promptLoadErr = a.loadPromptsFromDir(cfg.PromptDir)
 	return a
 }
 
-// loadPromptsFromDir attempts to read the three prompt files from dir. On any
-// error (empty dir, missing file, template parse failure) it logs a warning
-// and leaves the loaded fields empty so callers fall back to the hardcoded
-// defaults. This keeps the service start-up resilient to a misconfigured or
-// absent ConfigMap.
-func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) {
+// loadPromptsFromDir reads the three prompt files from dir and stores them on
+// the adapter. Returns a non-nil error when the directory is unset, a file is
+// missing, or the template fails to parse. The caller stores the error and
+// surfaces it lazily in GenerateWeeklyBrief — the service keeps running but
+// brief generation is disabled until the prompt is available.
+func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 	if dir == "" {
-		return
+		return fmt.Errorf("weekly-brief prompt: WEEKLY_BRIEF_PROMPT_DIR is not set; " +
+			"set it to the ConfigMap mount path (e.g. /etc/weekly-brief-prompts)")
 	}
 
 	readFile := func(name string) (string, error) {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("weekly-brief prompt: could not read %s from %s: %w", name, dir, err)
 		}
 		return strings.TrimRight(string(data), "\n"), nil
 	}
 
 	version, err := readFile("prompt_version")
 	if err != nil {
-		slog.Warn("weekly-brief prompt: could not read prompt_version from ConfigMap dir; using compiled-in defaults",
-			"dir", dir, "err", err)
-		return
+		return err
 	}
 
 	systemPrompt, err := readFile("system_prompt")
 	if err != nil {
-		slog.Warn("weekly-brief prompt: could not read system_prompt from ConfigMap dir; using compiled-in defaults",
-			"dir", dir, "err", err)
-		return
+		return err
 	}
 
 	userPromptRaw, err := readFile("user_prompt_template")
 	if err != nil {
-		slog.Warn("weekly-brief prompt: could not read user_prompt_template from ConfigMap dir; using compiled-in defaults",
-			"dir", dir, "err", err)
-		return
+		return err
 	}
 
 	tmpl, err := template.New("user_prompt").Parse(userPromptRaw)
 	if err != nil {
-		slog.Warn("weekly-brief prompt: failed to parse user_prompt_template; using compiled-in defaults",
-			"dir", dir, "err", err)
-		return
+		return fmt.Errorf("weekly-brief prompt: failed to parse user_prompt_template in %s: %w", dir, err)
 	}
 
 	a.loadedPromptVersion = version
@@ -149,36 +144,26 @@ func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) {
 	a.loadedUserPromptTmpl = tmpl
 	slog.Info("weekly-brief prompt: loaded from ConfigMap dir",
 		"dir", dir, "prompt_version", version)
+	return nil
 }
 
-// PromptVersion implements port.AIAdapter. It returns the version string from
-// the loaded ConfigMap template, or "v1" (the compiled-in default) when no
-// external template is loaded.
+// PromptVersion implements port.AIAdapter. Returns the version string from the
+// loaded ConfigMap template, or "unknown" when the prompt failed to load.
 func (a *LiteLLMAdapter) PromptVersion() string {
 	if a.loadedPromptVersion != "" {
 		return a.loadedPromptVersion
 	}
-	return defaultPromptVersion
+	return "unknown"
 }
 
-// systemPrompt returns the active system prompt: the ConfigMap-loaded value
-// when available, otherwise the compiled-in constant.
+// systemPrompt returns the ConfigMap-loaded system prompt.
 func (a *LiteLLMAdapter) systemPrompt() string {
-	if a.loadedSystemPrompt != "" {
-		return a.loadedSystemPrompt
-	}
-	return weeklyBriefSystemPrompt
+	return a.loadedSystemPrompt
 }
 
-// buildUserPrompt renders the user-role message from the active template.
-// When no external template is loaded it delegates to the compiled-in
-// buildPrompt function to preserve existing behaviour exactly.
+// buildUserPrompt renders the user-role message from the loaded template.
 func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, error) {
-	if a.loadedUserPromptTmpl == nil {
-		return buildPrompt(in), nil
-	}
-
-	// Sort claims for deterministic output — mirrors the compiled-in buildPrompt.
+	// Sort claims for deterministic output.
 	claims := append([]port.ClaimEvidence(nil), in.Claims...)
 	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
 
@@ -333,6 +318,9 @@ type briefPayload struct {
 
 // GenerateWeeklyBrief implements port.AIAdapter.
 func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.WeeklyBriefInput) (port.WeeklyBrief, error) {
+	if a.promptLoadErr != nil {
+		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: prompt template not loaded: %w", a.promptLoadErr)
+	}
 	if a.cfg.BaseURL == "" || a.cfg.APIKey == "" || a.cfg.Model == "" {
 		return port.WeeklyBrief{}, fmt.Errorf(
 			"litellm adapter: missing required configuration (LITELLM_BASE_URL=%q, LITELLM_API_KEY set=%t, LITELLM_MODEL=%q)",
@@ -573,43 +561,4 @@ func extractJSONObject(content string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// defaultPromptVersion is the prompt version label used when no external
-// ConfigMap template is loaded. It matches the compile-time default so briefs
-// generated in local dev / CI carry the same version tag as production briefs
-// that use the same (unmodified) prompt text.
-const defaultPromptVersion = "v1"
-
-// weeklyBriefSystemPrompt is the compiled-in fallback system prompt. It is
-// used when cfg.PromptDir is empty or the ConfigMap files are absent. Edit
-// the equivalent key in charts/.../values.yaml for production changes — this
-// constant should only change when the fallback default itself needs updating.
-const weeklyBriefSystemPrompt = `You are a writing assistant that produces concise weekly briefs for open-source committee working groups.
-Respond ONLY with a JSON object matching this schema:
-{
-  "claim_ids": ["string", ...],   // at least one claim id, taken from the supplied claims
-  "source_refs": [{"type": "string", "id": "string"}, ...],  // at least one
-  "brief_text": "string"           // two paragraphs separated by a blank line
-}
-Do not include any prose outside the JSON object.`
-
-func buildPrompt(in port.WeeklyBriefInput) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Committee: %s (%s)\nProject: %s\nPeriod: %s to %s\n\nClaims:\n",
-		in.CommitteeName, in.CommitteeID, in.ProjectName, in.PeriodStart, in.PeriodEnd)
-
-	claims := append([]port.ClaimEvidence(nil), in.Claims...)
-	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
-	for _, c := range claims {
-		fmt.Fprintf(&b, "- id=%s summary=%q sources=", c.ID, c.Summary)
-		for i, s := range c.Sources {
-			if i > 0 {
-				b.WriteString(",")
-			}
-			fmt.Fprintf(&b, "%s:%s", s.Type, s.ID)
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
 }

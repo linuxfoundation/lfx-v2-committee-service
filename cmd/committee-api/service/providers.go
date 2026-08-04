@@ -325,9 +325,14 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 				cfg.BaseURL, cfg.APIKey != "", cfg.Model,
 			)
 		}
+		adapter := ai.NewLiteLLMAdapter(cfg)
+		if cfg.PromptDir == "" {
+			slog.WarnContext(ctx, "weekly-brief prompt template not loaded: WEEKLY_BRIEF_PROMPT_DIR is unset; "+
+				"brief generation will fail until it is set to the ConfigMap mount path")
+		}
 		slog.InfoContext(ctx, "initializing live LiteLLM AI adapter",
 			"ai_source", aiSource, "model", cfg.Model, "prompt_dir", cfg.PromptDir)
-		return ai.NewLiteLLMAdapter(cfg)
+		return adapter
 	default:
 		log.Fatalf("unsupported AI adapter implementation: %s (expected one of: fake, live)", aiSource)
 	}

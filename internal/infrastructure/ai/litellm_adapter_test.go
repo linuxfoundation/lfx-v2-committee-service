@@ -8,12 +8,34 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 )
+
+// makeTestPromptDir writes the three ConfigMap prompt files into a temp
+// directory and returns its path. The test binary registers cleanup via t.
+func makeTestPromptDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"prompt_version": "test-v1",
+		"system_prompt":  "You are a test assistant. Respond with valid JSON only.",
+		"user_prompt_template": "Committee: {{.CommitteeName}} ({{.CommitteeID}})\n" +
+			"Period: {{.PeriodStart}} to {{.PeriodEnd}}\n" +
+			"Claims:\n{{- range .Claims}}\n- id={{.ID}} summary=\"{{.Summary}}\"\n{{- end}}",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("write prompt file %s: %v", name, err)
+		}
+	}
+	return dir
+}
 
 // roundTripFunc adapts a function to http.RoundTripper so tests can serve canned
 // chat-completions responses without any network I/O.
@@ -28,9 +50,10 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 func newTestAdapter(t *testing.T, reply func(attempt int, req chatRequest) string) *LiteLLMAdapter {
 	t.Helper()
 	a := NewLiteLLMAdapter(LiteLLMConfig{
-		BaseURL: "https://litellm.test.invalid",
-		APIKey:  "test-key",
-		Model:   "claude-sonnet-4-6",
+		BaseURL:   "https://litellm.test.invalid",
+		APIKey:    "test-key",
+		Model:     "claude-sonnet-4-6",
+		PromptDir: makeTestPromptDir(t),
 	})
 	a.backoff = 0
 	a.sleep = func(time.Duration) {}
@@ -137,7 +160,7 @@ func TestLiteLLMAdapter_RequestUsesStructuredOutput(t *testing.T) {
 // just from message content.
 func TestLiteLLMAdapter_ToolCallArgumentsRecovers(t *testing.T) {
 	t.Parallel()
-	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m"})
+	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m", PromptDir: makeTestPromptDir(t)})
 	a.backoff = 0
 	a.sleep = func(time.Duration) {}
 	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -265,7 +288,7 @@ func TestLiteLLMAdapter_RetryRecovers(t *testing.T) {
 // assistant/user turn, and that the upstream error body never reaches the prompt.
 func TestLiteLLMAdapter_HTTPErrorRetriesWithoutNudge(t *testing.T) {
 	t.Parallel()
-	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m"})
+	a := NewLiteLLMAdapter(LiteLLMConfig{BaseURL: "https://litellm.test.invalid", APIKey: "k", Model: "m", PromptDir: makeTestPromptDir(t)})
 	a.backoff = 0
 	a.sleep = func(time.Duration) {}
 
