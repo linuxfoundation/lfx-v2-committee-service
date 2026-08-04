@@ -634,10 +634,13 @@ weeklyBriefPrompts:
     You are a writing assistant that produces concise weekly briefs for open-source committee working groups.
     Respond ONLY with a JSON object matching this schema:
     {
-      "claim_ids": ["string", ...],   // at least one claim id, taken from the supplied claims
-      "source_refs": [{"type": "string", "id": "string"}, ...],  // at least one
-      "brief_text": "string"           // two paragraphs separated by a blank line
+      "claim_ids": ["claim-id-1"],
+      "source_refs": [{"type": "source-type", "id": "source-id"}],
+      "brief_text": "Paragraph one.\n\nParagraph two."
     }
+    The claim_ids array must contain at least one claim id from the supplied claims.
+    The source_refs array must contain at least one source reference.
+    The brief_text must be exactly two paragraphs separated by a blank line.
     Do not include any prose outside the JSON object.
 
   # userPromptTemplate is a Go text/template rendered with the WeeklyBriefInput
