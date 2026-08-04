@@ -72,5 +72,6 @@ jobs:
         # t.Fatalf rather than silently skipping under -tags=live, so a green
         # run can't appear without anything actually executing.
         run: |
-          export WEEKLY_BRIEF_PROMPT_DIR=$(make eval-prompt-dir)
+          WEEKLY_BRIEF_PROMPT_DIR=$(make eval-prompt-dir)
+          export WEEKLY_BRIEF_PROMPT_DIR
           make eval-live
