@@ -114,6 +114,11 @@ spec:
             - name: OTEL_PROPAGATORS
               value: {{ $otelPropagators | quote }}
             {{- end }}
+            {{- $promptDir := .Values.weeklyBriefPrompts.promptDir | toString | trim }}
+            {{- if ne $promptDir "" }}
+            - name: WEEKLY_BRIEF_PROMPT_DIR
+              value: {{ $promptDir | quote }}
+            {{- end }}
           ports:
             - containerPort: {{ .Values.service.port }}
               name: web
@@ -139,7 +144,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: weekly-brief-prompts
-              mountPath: /etc/weekly-brief-prompts
+              mountPath: {{ .Values.weeklyBriefPrompts.promptDir | quote }}
               readOnly: true
       volumes:
         - name: weekly-brief-prompts

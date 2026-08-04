@@ -102,34 +102,39 @@ func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 
 // loadPromptsFromDir reads the three prompt files from dir and stores them on
 // the adapter. Returns a non-nil error when the directory is unset, a file is
-// missing, or the template fails to parse. The caller stores the error and
-// surfaces it lazily in GenerateWeeklyBrief — the service keeps running but
-// brief generation is disabled until the prompt is available.
+// missing, a required value is empty, or the template fails to parse or execute.
+// The caller stores the error and surfaces it lazily in GenerateWeeklyBrief —
+// the service keeps running but brief generation is disabled until the prompt is
+// available.
 func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 	if dir == "" {
 		return fmt.Errorf("weekly-brief prompt: WEEKLY_BRIEF_PROMPT_DIR is not set; " +
 			"set it to the ConfigMap mount path (e.g. /etc/weekly-brief-prompts)")
 	}
 
-	readFile := func(name string) (string, error) {
+	readRequired := func(name string) (string, error) {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return "", fmt.Errorf("weekly-brief prompt: could not read %s from %s: %w", name, dir, err)
 		}
-		return strings.TrimRight(string(data), "\n"), nil
+		val := strings.TrimRight(string(data), "\n")
+		if strings.TrimSpace(val) == "" {
+			return "", fmt.Errorf("weekly-brief prompt: %s in %s is empty; it must contain non-whitespace content", name, dir)
+		}
+		return val, nil
 	}
 
-	version, err := readFile("prompt_version")
+	version, err := readRequired("prompt_version")
 	if err != nil {
 		return err
 	}
 
-	systemPrompt, err := readFile("system_prompt")
+	systemPrompt, err := readRequired("system_prompt")
 	if err != nil {
 		return err
 	}
 
-	userPromptRaw, err := readFile("user_prompt_template")
+	userPromptRaw, err := readRequired("user_prompt_template")
 	if err != nil {
 		return err
 	}
@@ -137,6 +142,34 @@ func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 	tmpl, err := template.New("user_prompt").Parse(userPromptRaw)
 	if err != nil {
 		return fmt.Errorf("weekly-brief prompt: failed to parse user_prompt_template in %s: %w", dir, err)
+	}
+
+	// Dry-run execute with a representative input to catch field-name typos
+	// (e.g. {{.CommitteeNam}}) that parse without error but fail at Execute time.
+	// A broken template detected at startup beats a silent ai_error on every brief.
+	type dryRunClaim struct {
+		ID               string
+		Summary          string
+		FormattedSources string
+	}
+	dryRunData := struct {
+		CommitteeID   string
+		CommitteeName string
+		ProjectName   string
+		PeriodStart   string
+		PeriodEnd     string
+		Claims        []dryRunClaim
+	}{
+		CommitteeID:   "00000000-0000-0000-0000-000000000000",
+		CommitteeName: "Example Working Group",
+		ProjectName:   "Example Project",
+		PeriodStart:   "2024-01-01T00:00:00Z",
+		PeriodEnd:     "2024-01-07T23:59:59Z",
+		Claims:        []dryRunClaim{{ID: "claim-1", Summary: "Example claim summary", FormattedSources: "meeting:abc123"}},
+	}
+	var dryBuf strings.Builder
+	if err := tmpl.Execute(&dryBuf, dryRunData); err != nil {
+		return fmt.Errorf("weekly-brief prompt: user_prompt_template in %s fails dry-run execute (check field names): %w", dir, err)
 	}
 
 	a.loadedPromptVersion = version
@@ -180,7 +213,7 @@ func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, erro
 		}
 		cd[i] = claimData{
 			ID:               c.ID,
-			Summary:          c.Summary,
+			Summary:          sanitizeClaimSummary(c.Summary),
 			FormattedSources: strings.Join(parts, ","),
 		}
 	}
@@ -405,6 +438,22 @@ func truncateForPrompt(s string) string {
 // maxErrorBodyBytes caps how much of an upstream non-2xx body we keep in the
 // returned error, which is also surfaced in retry logs/telemetry.
 const maxErrorBodyBytes = 512
+
+// sanitizeClaimSummary removes newlines and escapes double-quotes in a claim
+// summary before it is interpolated into the prompt template. The compiled-in
+// buildPrompt used fmt %q quoting, which added surrounding quotes and escaped
+// internal ones. The external template keeps the summary inside a
+// summary="..." field, so a raw double-quote could break out of that boundary
+// and inject additional prompt structure (CWE-74). Replacing " with ' preserves
+// readability while maintaining the field delimiter invariant.
+func sanitizeClaimSummary(s string) string {
+	return strings.NewReplacer(
+		"\r\n", " ",
+		"\r", " ",
+		"\n", " ",
+		`"`, `'`,
+	).Replace(s)
+}
 
 // truncateForError trims surrounding whitespace and caps an upstream error body
 // to maxErrorBodyBytes runes so a large proxy/HTML page can't bloat errors/logs.

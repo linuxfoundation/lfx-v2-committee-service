@@ -11,6 +11,7 @@
 // otherwise the test binary rejects it as an unknown flag:
 //
 //	LITELLM_BASE_URL=... LITELLM_API_KEY=... LITELLM_MODEL=... \
+//	  WEEKLY_BRIEF_PROMPT_DIR=/path/to/prompt/dir \
 //	  go test -tags=live -run TestWeeklyBriefEvalLive ./evals/weekly-brief/...
 
 package weeklybriefeval
@@ -36,6 +37,7 @@ func TestWeeklyBriefEvalLive(t *testing.T) {
 	baseURL := os.Getenv("LITELLM_BASE_URL")
 	apiKey := os.Getenv("LITELLM_API_KEY")
 	modelName := os.Getenv("LITELLM_MODEL")
+	promptDir := os.Getenv("WEEKLY_BRIEF_PROMPT_DIR")
 	var missing []string
 	if baseURL == "" {
 		missing = append(missing, "LITELLM_BASE_URL")
@@ -46,15 +48,19 @@ func TestWeeklyBriefEvalLive(t *testing.T) {
 	if modelName == "" {
 		missing = append(missing, "LITELLM_MODEL")
 	}
+	if promptDir == "" {
+		missing = append(missing, "WEEKLY_BRIEF_PROMPT_DIR")
+	}
 	if len(missing) > 0 {
 		t.Fatalf("live eval requires %v to be set — these must be provided when running with -tags=live", missing)
 	}
 
 	adapter := ai.NewLiteLLMAdapter(ai.LiteLLMConfig{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
-		Model:   modelName,
-		Timeout: 120 * time.Second,
+		BaseURL:   baseURL,
+		APIKey:    apiKey,
+		Model:     modelName,
+		Timeout:   120 * time.Second,
+		PromptDir: promptDir,
 	})
 
 	cases := []struct {

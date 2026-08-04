@@ -539,13 +539,11 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
-    # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt
-    # ConfigMap is mounted. The live LiteLLM adapter reads system_prompt,
-    # user_prompt_template, and prompt_version from files in this directory.
-    # When unset or the directory is absent the adapter falls back to the
-    # hardcoded defaults compiled into the binary.
-    WEEKLY_BRIEF_PROMPT_DIR:
-      value: "/etc/weekly-brief-prompts"
+    # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt ConfigMap
+    # is mounted. Injected by the Deployment template from
+    # weeklyBriefPrompts.promptDir so the env var and the volume mountPath always
+    # stay in sync. Do not override this key independently; override
+    # weeklyBriefPrompts.promptDir instead to change the path for an environment.
     # ORG_SEAT_PAGE_TOKEN_HMAC_KEY — HMAC signing key for the Org Lens
     # committee-seat pagination cursor (LFXV2-1865). It is the SOLE source of the
     # key; there is no in-repo fallback for any environment (a public key would
@@ -622,6 +620,12 @@ app:
 # the version stored on each generated brief can be traced back to the exact
 # prompt text that produced it, enabling rollback if quality regresses.
 weeklyBriefPrompts:
+  # promptDir is the directory where the ConfigMap is mounted inside the pod.
+  # This value drives BOTH the volumeMount mountPath in the Deployment AND the
+  # WEEKLY_BRIEF_PROMPT_DIR env var, so overriding this key in an ArgoCD values
+  # file keeps the two in sync automatically.
+  promptDir: "/etc/weekly-brief-prompts"
+
   # promptVersion is persisted on each generated brief for regression tracing.
   # Bump this (e.g. "v2", "v3") whenever systemPrompt or userPromptTemplate
   # changes — in this file OR in the lfx-v2-argocd per-environment override.
