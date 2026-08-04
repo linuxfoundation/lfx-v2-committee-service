@@ -11,8 +11,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -21,10 +24,11 @@ import (
 // LiteLLMConfig is the runtime configuration for the live LiteLLM adapter.
 // All fields are sourced from environment variables in providers.go.
 type LiteLLMConfig struct {
-	BaseURL string        // LITELLM_BASE_URL, e.g. https://litellm.example.com
-	APIKey  string        // LITELLM_API_KEY
-	Model   string        // LITELLM_MODEL, e.g. "anthropic/claude-sonnet-4"
-	Timeout time.Duration // optional, default 60s
+	BaseURL   string        // LITELLM_BASE_URL, e.g. https://litellm.example.com
+	APIKey    string        // LITELLM_API_KEY
+	Model     string        // LITELLM_MODEL, e.g. "anthropic/claude-sonnet-4"
+	Timeout   time.Duration // optional, default 60s
+	PromptDir string        // WEEKLY_BRIEF_PROMPT_DIR — directory containing prompt files from the ConfigMap
 }
 
 // Robustness defaults for the live adapter. The model occasionally replies with
@@ -62,22 +66,161 @@ type LiteLLMAdapter struct {
 	// sleep is the pause primitive between attempts; injectable so tests don't
 	// wait on the wall clock. Defaults to time.Sleep.
 	sleep func(time.Duration)
+
+	// Prompt config loaded from the ConfigMap directory at startup. When
+	// PromptDir is empty or the files are absent, the adapter falls back to the
+	// hardcoded constants so local dev and CI work without the ConfigMap.
+	loadedSystemPrompt   string
+	loadedUserPromptTmpl *template.Template
+	loadedPromptVersion  string
 }
 
 // NewLiteLLMAdapter constructs a live adapter. It does NOT validate that
 // required env vars are present — that is the caller's responsibility (see
 // providers.go) so wiring code can decide whether to fail fast.
+//
+// When cfg.PromptDir is set and the expected files are present the adapter
+// loads the prompt template from the ConfigMap-mounted directory; otherwise it
+// falls back to the hardcoded defaults so local dev and CI work without the
+// ConfigMap volume.
 func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 60 * time.Second
 	}
-	return &LiteLLMAdapter{
+	a := &LiteLLMAdapter{
 		cfg:         cfg,
 		client:      &http.Client{Timeout: cfg.Timeout},
 		maxAttempts: defaultMaxAttempts,
 		backoff:     defaultRetryBackoff,
 		sleep:       time.Sleep,
 	}
+	a.loadPromptsFromDir(cfg.PromptDir)
+	return a
+}
+
+// loadPromptsFromDir attempts to read the three prompt files from dir. On any
+// error (empty dir, missing file, template parse failure) it logs a warning
+// and leaves the loaded fields empty so callers fall back to the hardcoded
+// defaults. This keeps the service start-up resilient to a misconfigured or
+// absent ConfigMap.
+func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) {
+	if dir == "" {
+		return
+	}
+
+	readFile := func(name string) (string, error) {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimRight(string(data), "\n"), nil
+	}
+
+	version, err := readFile("prompt_version")
+	if err != nil {
+		slog.Warn("weekly-brief prompt: could not read prompt_version from ConfigMap dir; using compiled-in defaults",
+			"dir", dir, "err", err)
+		return
+	}
+
+	systemPrompt, err := readFile("system_prompt")
+	if err != nil {
+		slog.Warn("weekly-brief prompt: could not read system_prompt from ConfigMap dir; using compiled-in defaults",
+			"dir", dir, "err", err)
+		return
+	}
+
+	userPromptRaw, err := readFile("user_prompt_template")
+	if err != nil {
+		slog.Warn("weekly-brief prompt: could not read user_prompt_template from ConfigMap dir; using compiled-in defaults",
+			"dir", dir, "err", err)
+		return
+	}
+
+	tmpl, err := template.New("user_prompt").Parse(userPromptRaw)
+	if err != nil {
+		slog.Warn("weekly-brief prompt: failed to parse user_prompt_template; using compiled-in defaults",
+			"dir", dir, "err", err)
+		return
+	}
+
+	a.loadedPromptVersion = version
+	a.loadedSystemPrompt = systemPrompt
+	a.loadedUserPromptTmpl = tmpl
+	slog.Info("weekly-brief prompt: loaded from ConfigMap dir",
+		"dir", dir, "prompt_version", version)
+}
+
+// PromptVersion implements port.AIAdapter. It returns the version string from
+// the loaded ConfigMap template, or "v1" (the compiled-in default) when no
+// external template is loaded.
+func (a *LiteLLMAdapter) PromptVersion() string {
+	if a.loadedPromptVersion != "" {
+		return a.loadedPromptVersion
+	}
+	return defaultPromptVersion
+}
+
+// systemPrompt returns the active system prompt: the ConfigMap-loaded value
+// when available, otherwise the compiled-in constant.
+func (a *LiteLLMAdapter) systemPrompt() string {
+	if a.loadedSystemPrompt != "" {
+		return a.loadedSystemPrompt
+	}
+	return weeklyBriefSystemPrompt
+}
+
+// buildUserPrompt renders the user-role message from the active template.
+// When no external template is loaded it delegates to the compiled-in
+// buildPrompt function to preserve existing behaviour exactly.
+func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, error) {
+	if a.loadedUserPromptTmpl == nil {
+		return buildPrompt(in), nil
+	}
+
+	// Sort claims for deterministic output — mirrors the compiled-in buildPrompt.
+	claims := append([]port.ClaimEvidence(nil), in.Claims...)
+	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
+
+	type claimData struct {
+		ID               string
+		Summary          string
+		FormattedSources string
+	}
+	cd := make([]claimData, len(claims))
+	for i, c := range claims {
+		parts := make([]string, len(c.Sources))
+		for j, s := range c.Sources {
+			parts[j] = s.Type + ":" + s.ID
+		}
+		cd[i] = claimData{
+			ID:               c.ID,
+			Summary:          c.Summary,
+			FormattedSources: strings.Join(parts, ","),
+		}
+	}
+
+	data := struct {
+		CommitteeID   string
+		CommitteeName string
+		ProjectName   string
+		PeriodStart   string
+		PeriodEnd     string
+		Claims        []claimData
+	}{
+		CommitteeID:   in.CommitteeID,
+		CommitteeName: in.CommitteeName,
+		ProjectName:   in.ProjectName,
+		PeriodStart:   in.PeriodStart,
+		PeriodEnd:     in.PeriodEnd,
+		Claims:        cd,
+	}
+
+	var buf strings.Builder
+	if err := a.loadedUserPromptTmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("weekly-brief prompt: template execution failed: %w", err)
+	}
+	return buf.String(), nil
 }
 
 // chatRequest is the OpenAI/LiteLLM-compatible chat-completions payload. We pin
@@ -201,9 +344,13 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 	// corrective turn (see below) so the next attempt is nudged back to valid
 	// JSON even under deterministic (temperature 0) decoding, where a plain
 	// re-send would otherwise reproduce the same malformed reply verbatim.
+	userPrompt, err := a.buildUserPrompt(in)
+	if err != nil {
+		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: %w", err)
+	}
 	messages := []chatMessage{
-		{Role: "system", Content: weeklyBriefSystemPrompt},
-		{Role: "user", Content: buildPrompt(in)},
+		{Role: "system", Content: a.systemPrompt()},
+		{Role: "user", Content: userPrompt},
 	}
 
 	attempts := a.maxAttempts
@@ -428,6 +575,16 @@ func extractJSONObject(content string) (string, bool) {
 	return "", false
 }
 
+// defaultPromptVersion is the prompt version label used when no external
+// ConfigMap template is loaded. It matches the compile-time default so briefs
+// generated in local dev / CI carry the same version tag as production briefs
+// that use the same (unmodified) prompt text.
+const defaultPromptVersion = "v1"
+
+// weeklyBriefSystemPrompt is the compiled-in fallback system prompt. It is
+// used when cfg.PromptDir is empty or the ConfigMap files are absent. Edit
+// the equivalent key in charts/.../values.yaml for production changes — this
+// constant should only change when the fallback default itself needs updating.
 const weeklyBriefSystemPrompt = `You are a writing assistant that produces concise weekly briefs for open-source committee working groups.
 Respond ONLY with a JSON object matching this schema:
 {

@@ -313,9 +313,10 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 		return ai.NewFakeAdapter()
 	case "live":
 		cfg := ai.LiteLLMConfig{
-			BaseURL: os.Getenv("LITELLM_BASE_URL"),
-			APIKey:  os.Getenv("LITELLM_API_KEY"),
-			Model:   os.Getenv("LITELLM_MODEL"),
+			BaseURL:   os.Getenv("LITELLM_BASE_URL"),
+			APIKey:    os.Getenv("LITELLM_API_KEY"),
+			Model:     os.Getenv("LITELLM_MODEL"),
+			PromptDir: os.Getenv("WEEKLY_BRIEF_PROMPT_DIR"),
 		}
 		if cfg.BaseURL == "" || cfg.APIKey == "" || cfg.Model == "" {
 			log.Fatalf(
@@ -325,7 +326,7 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 			)
 		}
 		slog.InfoContext(ctx, "initializing live LiteLLM AI adapter",
-			"ai_source", aiSource, "model", cfg.Model)
+			"ai_source", aiSource, "model", cfg.Model, "prompt_dir", cfg.PromptDir)
 		return ai.NewLiteLLMAdapter(cfg)
 	default:
 		log.Fatalf("unsupported AI adapter implementation: %s (expected one of: fake, live)", aiSource)

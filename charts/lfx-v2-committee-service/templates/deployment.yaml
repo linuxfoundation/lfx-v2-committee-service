@@ -133,6 +133,14 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: weekly-brief-prompts
+              mountPath: /etc/weekly-brief-prompts
+              readOnly: true
+      volumes:
+        - name: weekly-brief-prompts
+          configMap:
+            name: {{ .Chart.Name }}-weekly-brief-prompts
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}

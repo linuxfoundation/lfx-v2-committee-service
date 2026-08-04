@@ -539,6 +539,13 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
+    # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt
+    # ConfigMap is mounted. The live LiteLLM adapter reads system_prompt,
+    # user_prompt_template, and prompt_version from files in this directory.
+    # When unset or the directory is absent the adapter falls back to the
+    # hardcoded defaults compiled into the binary.
+    WEEKLY_BRIEF_PROMPT_DIR:
+      value: "/etc/weekly-brief-prompts"
     # ORG_SEAT_PAGE_TOKEN_HMAC_KEY — HMAC signing key for the Org Lens
     # committee-seat pagination cursor (LFXV2-1865). It is the SOLE source of the
     # key; there is no in-repo fallback for any environment (a public key would
@@ -596,3 +603,62 @@ app:
     # Comma-separated list of: "tracecontext", "baggage", "jaeger"
     # (default: "tracecontext,baggage")
     propagators: "tracecontext,baggage,jaeger"
+
+# weeklyBriefPrompts holds the DEFAULT prompt templates shipped with the chart.
+# These values apply to every environment that does not override them.
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  DO NOT edit this block to change the prompt in a specific environment. │
+# │  Per-environment overrides belong in lfx-v2-argocd:                     │
+# │    values/dev/lfx-v2-committee-service.yaml     ← dev experiments       │
+# │    values/staging/lfx-v2-committee-service.yaml ← staging validation    │
+# │    values/prod/lfx-v2-committee-service.yaml    ← production            │
+# │  ArgoCD syncs a ConfigMap-only change without a binary redeploy.        │
+# │  Edit this file only when you want to change the baseline default that  │
+# │  all environments inherit.                                               │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# promptVersion MUST be incremented on every substantive prompt edit so that
+# the version stored on each generated brief can be traced back to the exact
+# prompt text that produced it, enabling rollback if quality regresses.
+weeklyBriefPrompts:
+  # promptVersion is persisted on each generated brief for regression tracing.
+  # Bump this (e.g. "v2", "v3") whenever systemPrompt or userPromptTemplate
+  # changes — in this file OR in the lfx-v2-argocd per-environment override.
+  promptVersion: "v1"
+
+  # systemPrompt is sent as the "system" role message in every LiteLLM chat
+  # completion call. To change this for a specific environment only, override
+  # weeklyBriefPrompts.systemPrompt in lfx-v2-argocd values/<env>/... instead.
+  systemPrompt: |
+    You are a writing assistant that produces concise weekly briefs for open-source committee working groups.
+    Respond ONLY with a JSON object matching this schema:
+    {
+      "claim_ids": ["string", ...],   // at least one claim id, taken from the supplied claims
+      "source_refs": [{"type": "string", "id": "string"}, ...],  // at least one
+      "brief_text": "string"           // two paragraphs separated by a blank line
+    }
+    Do not include any prose outside the JSON object.
+
+  # userPromptTemplate is a Go text/template rendered with the WeeklyBriefInput
+  # data before being sent as the "user" role message. To change this for a
+  # specific environment only, override weeklyBriefPrompts.userPromptTemplate
+  # in lfx-v2-argocd values/<env>/... instead.
+  #
+  # Available fields:
+  #   .CommitteeID    — committee UUID
+  #   .CommitteeName  — human-readable committee name
+  #   .ProjectName    — parent project name
+  #   .PeriodStart    — reporting window start (RFC3339)
+  #   .PeriodEnd      — reporting window end (RFC3339)
+  #   .Claims         — slice of claims; each has .ID, .Summary, .FormattedSources
+  # Claims are pre-sorted by ID before the template is executed.
+  userPromptTemplate: |
+    Committee: {{.CommitteeName}} ({{.CommitteeID}})
+    Project: {{.ProjectName}}
+    Period: {{.PeriodStart}} to {{.PeriodEnd}}
+
+    Claims:
+    {{- range .Claims}}
+    - id={{.ID}} summary="{{.Summary}}" sources={{.FormattedSources}}
+    {{- end}}
