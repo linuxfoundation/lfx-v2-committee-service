@@ -27,12 +27,13 @@ import (
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
 type TestMockCommitteeMemberWriter struct {
 	*mock.MockRepository
-	members           map[string]*model.CommitteeMember
-	keys              map[string]string // uniqueness keys
-	customRevisions   map[string]uint64 // for testing revision conflicts
-	indexedKeys       []string          // keys written by IndexMemberByCommittee
-	orgIndexErr       error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
-	uniqueMemberCalls int               // incremented on every UniqueMember call
+	members            map[string]*model.CommitteeMember
+	keys               map[string]string // uniqueness keys
+	customRevisions    map[string]uint64 // for testing revision conflicts
+	indexedKeys        []string          // keys written by IndexMemberByCommittee
+	orgIndexErr        error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
+	uniqueMemberCalls  int               // incremented on every UniqueMember call
+	rejectCancelledCtx bool              // when set, DeleteMember/GetMemberRevision return ctx.Err() if ctx is already done
 
 	mu          sync.Mutex // guards deletedKeys (DeleteMember may run in a background cleanup goroutine)
 	deletedKeys []string   // keys passed to DeleteMember (for asserting rollback / async stale cleanup)
@@ -126,6 +127,9 @@ func (w *TestMockCommitteeMemberWriter) UpdateMember(ctx context.Context, member
 }
 
 func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+	if w.rejectCancelledCtx && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if _, exists := w.members[uid]; !exists {
 		return errs.NewNotFound("member not found")
 	}
@@ -203,6 +207,9 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByUsername(ctx context.Contex
 }
 
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
+	if w.rejectCancelledCtx && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
 		// Check if we have a custom revision set
@@ -959,6 +966,69 @@ func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
 	_, stillExists := memberWriter.members[member.UID]
 	assert.False(t, stillExists, "primary member record must be rolled back when the org index write fails")
 	assert.True(t, memberWriter.wasDeleted(member.UID), "rollback must delete the primary member record")
+}
+
+// TestCreateMember_RollbackSurvivesCancelledContext is the regression test for the bug fixed in
+// LFXV2-2984: when the HTTP client times out, the server-side request context is cancelled
+// mid-flight. Before the fix, CreateMember's rollback defer passed that cancelled context to
+// deleteMemberKeys, causing NATS KV cleanup to fail immediately and leaving orphaned uniqueness
+// keys that permanently blocked future creates with 409 Conflict. The fix uses a detached
+// context.WithTimeout(context.Background(), …) for rollback so cleanup always runs regardless of
+// caller-context state.
+//
+// The test simulates the cancelled-caller-context scenario: the request context is cancelled
+// before CreateMember is called, IndexMemberByOrganization is forced to fail (so rollback fires),
+// and DeleteMember / GetMemberRevision are configured to reject a cancelled context. Under the old
+// code the rollback would propagate the cancelled context and the uniqueness key would not be
+// cleaned up. Under the fixed code the detached cleanup context is alive and the key is removed.
+func TestCreateMember_RollbackSurvivesCancelledContext(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Route reads through the writer so rollback's GetMemberRevision/DeleteMember see written records.
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{UID: "committee-ctx-cancel", Name: "Ctx Cancel Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-ctx-cancel",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Force a write failure at the org-index step (after both UniqueMember and CreateMember succeed),
+	// so rollback fires with rollbackRequired=true.
+	memberWriter.orgIndexErr = errs.NewUnexpected("injected org-index failure")
+	// Make DeleteMember/GetMemberRevision fail when the context is already cancelled.
+	// This distinguishes the old (cancelled request context) path from the fixed (detached) path.
+	memberWriter.rejectCancelledCtx = true
+
+	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		CommitteeUID: "committee-ctx-cancel",
+		Email:        "ctx-cancel@example.com",
+		Username:     "ctxcanceluser",
+		Organization: model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Cancel Org"},
+	}}
+
+	// Pre-compute the uniqueness key and seed it into members so GetMemberRevision can return a
+	// revision for it during rollback. (UniqueMember stores to w.keys; GetMemberRevision reads
+	// w.members. Without seeding, GetMemberRevision returns not-found and rollback silently skips
+	// the uniqueness key — which would defeat the assertion below.)
+	uniqueKey := member.BuildIndexKey(context.Background())
+	memberWriter.members[uniqueKey] = member
+
+	// Simulate a timed-out HTTP client: cancel the context before calling CreateMember.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := orchestrator.CreateMember(ctx, member, false, false)
+	require.Error(t, err)
+
+	// Rollback must have cleaned up the uniqueness key using a live (detached) context.
+	// If rollback incorrectly used the cancelled request context, rejectCancelledCtx would
+	// cause GetMemberRevision/DeleteMember to return an error and the key would not appear
+	// in deletedKeys.
+	assert.True(t, memberWriter.wasDeleted(uniqueKey),
+		"rollback must remove the uniqueness key even when the request context is cancelled")
 }
 
 // TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes covers the org-change path
