@@ -648,7 +648,7 @@ func (w *MockCommitteeWriter) UniquePublicName(ctx context.Context, committee *m
 		}
 	}
 
-	publicNameKey := "public_name:" + committee.PublicName
+	publicNameKey := fmt.Sprintf("lookup/committee-public-names/%s", committee.BuildPublicNameKey())
 	return publicNameKey, nil
 }
 

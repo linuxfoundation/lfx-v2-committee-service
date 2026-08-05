@@ -105,7 +105,7 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 // by creating a lookup key in the KV store. It returns the lookup key and a conflict error
 // if a committee with the same public_name already exists.
 func (s *storage) UniquePublicName(ctx context.Context, committee *model.Committee) (string, error) {
-	publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, committee.PublicName)
+	publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, committee.BuildPublicNameKey())
 	_, errPublicName := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, publicNameKey, []byte(committee.CommitteeBase.UID))
 	if errPublicName != nil {
 		if errors.Is(errPublicName, jetstream.ErrKeyExists) {

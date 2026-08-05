@@ -124,6 +124,14 @@ func (c *Committee) BuildIndexKey(ctx context.Context) string {
 	return key
 }
 
+// BuildPublicNameKey generates a SHA-256 hash of the public_name for use as a NATS KV key.
+// Raw public_name values may contain spaces or special characters that are invalid in
+// NATS JetStream KV keys (which only accept [-/_=.a-zA-Z0-9]).
+func (c *Committee) BuildPublicNameKey() string {
+	hash := sha256.Sum256([]byte(c.PublicName))
+	return hex.EncodeToString(hash[:])
+}
+
 // Tags generates a consistent set of tags for the committee.
 // IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
 // to ensure consumers understand how to use these tags for searching.

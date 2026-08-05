@@ -487,6 +487,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	if committee.PublicName != "" {
 		uniquePublicNameKey, errPublicName := uc.committeeWriter.UniquePublicName(ctx, committee)
 		if errPublicName != nil {
+			rollbackRequired = true
 			return nil, errPublicName
 		}
 		keys = append(keys, uniquePublicNameKey)
@@ -691,7 +692,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			newKeys = append(newKeys, newPublicNameKey)
 		}
 		if existing.PublicName != "" {
-			oldPublicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, existing.PublicName)
+			oldCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{PublicName: existing.PublicName}}
+			oldPublicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, oldCommittee.BuildPublicNameKey())
 			staleKeys = append(staleKeys, oldPublicNameKey)
 		}
 	}
@@ -999,7 +1001,8 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 
 	// Build public_name index key if it exists
 	if existing.PublicName != "" {
-		publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, existing.PublicName)
+		deleteCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{PublicName: existing.PublicName}}
+		publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, deleteCommittee.BuildPublicNameKey())
 		indicesToDelete = append(indicesToDelete, publicNameKey)
 	}
 
