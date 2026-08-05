@@ -2523,6 +2523,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 		committee         *model.Committee
 		wantAliases       []string
 		wantPublicNameTag string
+		wantFulltext      string
 	}{
 		{
 			name: "distinct public_name included in aliases and tags",
@@ -2537,6 +2538,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 			},
 			wantAliases:       []string{"TSC", "Technical Steering Committee", "tsc-slug"},
 			wantPublicNameTag: "public_name:tsc-slug",
+			wantFulltext:      "TSC Technical Steering Committee tsc-slug",
 		},
 		{
 			name: "public_name matching name is deduplicated",
@@ -2550,6 +2552,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 			},
 			wantAliases:       []string{"TSC"},
 			wantPublicNameTag: "public_name:TSC",
+			wantFulltext:      "TSC",
 		},
 		{
 			name: "public_name matching display_name is deduplicated",
@@ -2564,6 +2567,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 			},
 			wantAliases:       []string{"TSC", "Technical Steering Committee"},
 			wantPublicNameTag: "public_name:Technical Steering Committee",
+			wantFulltext:      "TSC Technical Steering Committee",
 		},
 		{
 			name: "empty public_name omitted from aliases and tags",
@@ -2576,6 +2580,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 			},
 			wantAliases:       []string{"TSC"},
 			wantPublicNameTag: "",
+			wantFulltext:      "TSC",
 		},
 	}
 
@@ -2592,6 +2597,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tc.wantPublicNameTag, foundTag, "public_name tag")
+			assert.Equal(t, tc.wantFulltext, cfg.Fulltext, "fulltext")
 		})
 	}
 }
