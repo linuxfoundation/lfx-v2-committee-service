@@ -41,8 +41,8 @@ type CreateCommitteeRequestBody struct {
 	RequiresReview *bool `form:"requires_review,omitempty" json:"requires_review,omitempty" xml:"requires_review,omitempty"`
 	// General committee visibility/access permissions
 	Public *bool `form:"public,omitempty" json:"public,omitempty" xml:"public,omitempty"`
-	// Human-readable slug for public URLs; optional, set by the client (PCC
-	// defaults it to the committee name when public is enabled)
+	// Human-readable slug for public URLs; optional, defaults to the committee
+	// name when public is enabled and no value is provided
 	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -108,8 +108,8 @@ type UpdateCommitteeBaseRequestBody struct {
 	RequiresReview *bool `form:"requires_review,omitempty" json:"requires_review,omitempty" xml:"requires_review,omitempty"`
 	// General committee visibility/access permissions
 	Public *bool `form:"public,omitempty" json:"public,omitempty" xml:"public,omitempty"`
-	// Human-readable slug for public URLs; optional, set by the client (PCC
-	// defaults it to the committee name when public is enabled)
+	// Human-readable slug for public URLs; optional, defaults to the committee
+	// name when public is enabled and no value is provided
 	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -404,8 +404,8 @@ type CreateCommitteeResponseBody struct {
 	RequiresReview bool `form:"requires_review" json:"requires_review" xml:"requires_review"`
 	// General committee visibility/access permissions
 	Public bool `form:"public" json:"public" xml:"public"`
-	// Human-readable slug for public URLs; optional, set by the client (PCC
-	// defaults it to the committee name when public is enabled)
+	// Human-readable slug for public URLs; optional, defaults to the committee
+	// name when public is enabled and no value is provided
 	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -485,8 +485,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	RequiresReview bool `form:"requires_review" json:"requires_review" xml:"requires_review"`
 	// General committee visibility/access permissions
 	Public bool `form:"public" json:"public" xml:"public"`
-	// Human-readable slug for public URLs; optional, set by the client (PCC
-	// defaults it to the committee name when public is enabled)
+	// Human-readable slug for public URLs; optional, defaults to the committee
+	// name when public is enabled and no value is provided
 	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -2634,8 +2634,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	RequiresReview bool `form:"requires_review" json:"requires_review" xml:"requires_review"`
 	// General committee visibility/access permissions
 	Public bool `form:"public" json:"public" xml:"public"`
-	// Human-readable slug for public URLs; optional, set by the client (PCC
-	// defaults it to the committee name when public is enabled)
+	// Human-readable slug for public URLs; optional, defaults to the committee
+	// name when public is enabled and no value is provided
 	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {

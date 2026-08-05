@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -2521,7 +2522,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 		name              string
 		committee         *model.Committee
 		wantAliases       []string
-		wantPublicNameTag bool
+		wantPublicNameTag string
 	}{
 		{
 			name: "distinct public_name included in aliases and tags",
@@ -2535,7 +2536,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 				},
 			},
 			wantAliases:       []string{"TSC", "Technical Steering Committee", "tsc-slug"},
-			wantPublicNameTag: true,
+			wantPublicNameTag: "public_name:tsc-slug",
 		},
 		{
 			name: "public_name matching name is deduplicated",
@@ -2548,7 +2549,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 				},
 			},
 			wantAliases:       []string{"TSC"},
-			wantPublicNameTag: true,
+			wantPublicNameTag: "public_name:TSC",
 		},
 		{
 			name: "public_name matching display_name is deduplicated",
@@ -2562,7 +2563,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 				},
 			},
 			wantAliases:       []string{"TSC", "Technical Steering Committee"},
-			wantPublicNameTag: true,
+			wantPublicNameTag: "public_name:Technical Steering Committee",
 		},
 		{
 			name: "empty public_name omitted from aliases and tags",
@@ -2574,7 +2575,7 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 				},
 			},
 			wantAliases:       []string{"TSC"},
-			wantPublicNameTag: false,
+			wantPublicNameTag: "",
 		},
 	}
 
@@ -2583,14 +2584,14 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 			cfg := buildCommitteeIndexingConfig(tc.committee)
 			assert.Equal(t, tc.wantAliases, cfg.NameAndAliases)
 
-			hasTag := false
+			var foundTag string
 			for _, tag := range cfg.Tags {
-				if len(tag) > 12 && tag[:12] == "public_name:" {
-					hasTag = true
+				if strings.HasPrefix(tag, "public_name:") {
+					foundTag = tag
 					break
 				}
 			}
-			assert.Equal(t, tc.wantPublicNameTag, hasTag, "public_name tag presence")
+			assert.Equal(t, tc.wantPublicNameTag, foundTag, "public_name tag")
 		})
 	}
 }

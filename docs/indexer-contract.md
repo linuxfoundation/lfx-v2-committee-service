@@ -91,7 +91,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 | Field | Value |
 |---|---|
-| `fulltext` | `name`, `display_name`, `description` |
+| `fulltext` | `name`, `display_name`, `public_name`, `description` (deduplicated) |
 | `name_and_aliases` | `name`, `display_name`, `public_name` (deduplicated) |
 | `sort_name` | `name` |
 | `public` | set from `committee.public` |

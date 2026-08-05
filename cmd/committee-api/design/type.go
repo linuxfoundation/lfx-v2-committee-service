@@ -324,7 +324,7 @@ func PublicAttribute() {
 
 // PublicNameAttribute is the DSL attribute for public name (slug).
 func PublicNameAttribute() {
-	dsl.Attribute("public_name", dsl.String, "Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)", func() {
+	dsl.Attribute("public_name", dsl.String, "Human-readable slug for public URLs; optional, defaults to the committee name when public is enabled and no value is provided", func() {
 		dsl.MaxLength(200)
 		dsl.Example("technical-steering-committee")
 	})
