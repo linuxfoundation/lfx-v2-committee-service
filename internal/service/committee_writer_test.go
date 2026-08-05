@@ -2515,3 +2515,82 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 		})
 	}
 }
+
+func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
+	tests := []struct {
+		name              string
+		committee         *model.Committee
+		wantAliases       []string
+		wantPublicNameTag bool
+	}{
+		{
+			name: "distinct public_name included in aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-1",
+					ProjectUID:  "proj-1",
+					Name:        "TSC",
+					DisplayName: "Technical Steering Committee",
+					PublicName:  "tsc-slug",
+				},
+			},
+			wantAliases:       []string{"TSC", "Technical Steering Committee", "tsc-slug"},
+			wantPublicNameTag: true,
+		},
+		{
+			name: "public_name matching name is deduplicated",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "uid-2",
+					ProjectUID: "proj-2",
+					Name:       "TSC",
+					PublicName: "TSC",
+				},
+			},
+			wantAliases:       []string{"TSC"},
+			wantPublicNameTag: true,
+		},
+		{
+			name: "public_name matching display_name is deduplicated",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-3",
+					ProjectUID:  "proj-3",
+					Name:        "TSC",
+					DisplayName: "Technical Steering Committee",
+					PublicName:  "Technical Steering Committee",
+				},
+			},
+			wantAliases:       []string{"TSC", "Technical Steering Committee"},
+			wantPublicNameTag: true,
+		},
+		{
+			name: "empty public_name omitted from aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "uid-4",
+					ProjectUID: "proj-4",
+					Name:       "TSC",
+				},
+			},
+			wantAliases:       []string{"TSC"},
+			wantPublicNameTag: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := buildCommitteeIndexingConfig(tc.committee)
+			assert.Equal(t, tc.wantAliases, cfg.NameAndAliases)
+
+			hasTag := false
+			for _, tag := range cfg.Tags {
+				if len(tag) > 12 && tag[:12] == "public_name:" {
+					hasTag = true
+					break
+				}
+			}
+			assert.Equal(t, tc.wantPublicNameTag, hasTag, "public_name tag presence")
+		})
+	}
+}

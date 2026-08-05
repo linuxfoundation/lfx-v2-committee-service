@@ -239,8 +239,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	RequiresReview bool
 	// General committee visibility/access permissions
 	Public bool
-	// Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee
-	// name when public is enabled
+	// Human-readable slug for public URLs; optional, set by the client (PCC
+	// defaults it to the committee name when public is enabled)
 	PublicName *string
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -331,8 +331,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	RequiresReview bool
 	// General committee visibility/access permissions
 	Public bool
-	// Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee
-	// name when public is enabled
+	// Human-readable slug for public URLs; optional, set by the client (PCC
+	// defaults it to the committee name when public is enabled)
 	PublicName *string
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -697,8 +697,8 @@ type CreateCommitteePayload struct {
 	RequiresReview bool
 	// General committee visibility/access permissions
 	Public bool
-	// Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee
-	// name when public is enabled
+	// Human-readable slug for public URLs; optional, set by the client (PCC
+	// defaults it to the committee name when public is enabled)
 	PublicName *string
 	// Settings related to the committee calendar
 	Calendar *struct {
@@ -1399,8 +1399,8 @@ type UpdateCommitteeBasePayload struct {
 	RequiresReview bool
 	// General committee visibility/access permissions
 	Public bool
-	// Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee
-	// name when public is enabled
+	// Human-readable slug for public URLs; optional, set by the client (PCC
+	// defaults it to the committee name when public is enabled)
 	PublicName *string
 	// Settings related to the committee calendar
 	Calendar *struct {

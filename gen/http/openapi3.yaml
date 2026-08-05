@@ -4718,7 +4718,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
@@ -4910,7 +4910,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
@@ -5230,7 +5230,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
@@ -5479,7 +5479,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
@@ -6873,7 +6873,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
@@ -7945,7 +7945,7 @@ components:
                     example: true
                 public_name:
                     type: string
-                    description: Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled
+                    description: Human-readable slug for public URLs; optional, set by the client (PCC defaults it to the committee name when public is enabled)
                     example: technical-steering-committee
                     maxLength: 200
                 repository:
