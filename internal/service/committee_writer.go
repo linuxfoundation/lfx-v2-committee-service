@@ -31,9 +31,6 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 	if committee.DisplayName != "" && committee.DisplayName != committee.Name {
 		nameAndAliases = append(nameAndAliases, committee.DisplayName)
 	}
-	if committee.PublicName != "" && committee.PublicName != committee.Name && committee.PublicName != committee.DisplayName {
-		nameAndAliases = append(nameAndAliases, committee.PublicName)
-	}
 
 	var parentRefs []string
 	if committee.ProjectUID != "" {
@@ -483,14 +480,14 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 	keys = append(keys, uniqueNameProjectKey)
 
-	// Check public_name uniqueness (if specified)
-	if committee.PublicName != "" {
-		uniquePublicNameKey, errPublicName := uc.committeeWriter.UniquePublicName(ctx, committee)
-		if errPublicName != nil {
+	// Check display_name uniqueness (if specified)
+	if committee.DisplayName != "" {
+		uniqueDisplayNameKey, errDisplayName := uc.committeeWriter.UniqueDisplayName(ctx, committee)
+		if errDisplayName != nil {
 			rollbackRequired = true
-			return nil, errPublicName
+			return nil, errDisplayName
 		}
-		keys = append(keys, uniquePublicNameKey)
+		keys = append(keys, uniqueDisplayNameKey)
 	}
 
 	// Check SSO group exists (if specified)
@@ -682,20 +679,20 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 
 	}
 
-	// Step 3.2: Handle public_name changes
-	if existing.PublicName != committee.PublicName {
-		if committee.PublicName != "" {
-			newPublicNameKey, errPublicName := uc.committeeWriter.UniquePublicName(ctx, committee)
-			if errPublicName != nil {
+	// Step 3.2: Handle display_name changes
+	if existing.DisplayName != committee.DisplayName {
+		if committee.DisplayName != "" {
+			newDisplayNameKey, errDisplayName := uc.committeeWriter.UniqueDisplayName(ctx, committee)
+			if errDisplayName != nil {
 				rollbackRequired = true
-				return nil, errPublicName
+				return nil, errDisplayName
 			}
-			newKeys = append(newKeys, newPublicNameKey)
+			newKeys = append(newKeys, newDisplayNameKey)
 		}
-		if existing.PublicName != "" {
-			oldCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{PublicName: existing.PublicName}}
-			oldPublicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, oldCommittee.BuildPublicNameKey())
-			staleKeys = append(staleKeys, oldPublicNameKey)
+		if existing.DisplayName != "" {
+			oldCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{DisplayName: existing.DisplayName}}
+			oldDisplayNameKey := fmt.Sprintf(constants.KVLookupDisplayNamePrefix, oldCommittee.BuildDisplayNameKey())
+			staleKeys = append(staleKeys, oldDisplayNameKey)
 		}
 	}
 
@@ -1000,11 +997,11 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		indicesToDelete = append(indicesToDelete, ssoIndexKey)
 	}
 
-	// Build public_name index key if it exists
-	if existing.PublicName != "" {
-		deleteCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{PublicName: existing.PublicName}}
-		publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, deleteCommittee.BuildPublicNameKey())
-		indicesToDelete = append(indicesToDelete, publicNameKey)
+	// Build display_name index key if it exists
+	if existing.DisplayName != "" {
+		deleteCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{DisplayName: existing.DisplayName}}
+		displayNameKey := fmt.Sprintf(constants.KVLookupDisplayNamePrefix, deleteCommittee.BuildDisplayNameKey())
+		indicesToDelete = append(indicesToDelete, displayNameKey)
 	}
 
 	slog.DebugContext(ctx, "secondary indices identified for deletion",

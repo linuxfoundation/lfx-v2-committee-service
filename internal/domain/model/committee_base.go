@@ -43,7 +43,6 @@ type CommitteeBase struct {
 	SSOGroupName     string    `json:"sso_group_name,omitempty"`
 	RequiresReview   bool      `json:"requires_review"`
 	Public           bool      `json:"public"`
-	PublicName       string    `json:"public_name,omitempty"`
 	JoinMode         string    `json:"join_mode,omitempty"`
 	Calendar         Calendar  `json:"calendar,omitempty"`
 	DisplayName      string    `json:"display_name,omitempty"`
@@ -124,11 +123,11 @@ func (c *Committee) BuildIndexKey(ctx context.Context) string {
 	return key
 }
 
-// BuildPublicNameKey generates a SHA-256 hash of the public_name for use as a NATS KV key.
-// Raw public_name values may contain spaces or special characters that are invalid in
+// BuildDisplayNameKey generates a SHA-256 hash of the display_name for use as a NATS KV key.
+// Raw display_name values may contain spaces or special characters that are invalid in
 // NATS JetStream KV keys (which only accept [-/_=.a-zA-Z0-9]).
-func (c *Committee) BuildPublicNameKey() string {
-	hash := sha256.Sum256([]byte(c.PublicName))
+func (c *Committee) BuildDisplayNameKey() string {
+	hash := sha256.Sum256([]byte(c.DisplayName))
 	return hex.EncodeToString(hash[:])
 }
 
@@ -163,8 +162,8 @@ func (c *Committee) Tags() []string {
 		tags = append(tags, tag)
 	}
 
-	if c.PublicName != "" {
-		tag := fmt.Sprintf("public_name:%s", c.PublicName)
+	if c.DisplayName != "" {
+		tag := fmt.Sprintf("display_name:%s", c.DisplayName)
 		tags = append(tags, tag)
 	}
 

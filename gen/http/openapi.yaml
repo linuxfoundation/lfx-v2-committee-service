@@ -3017,11 +3017,6 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
-            public_name:
-                type: string
-                description: Human-readable slug for public URLs; optional, defaults to the committee name when public is enabled and no value is provided
-                example: technical-steering-committee
-                maxLength: 200
             repository:
                 type: string
                 description: The URL of the committee's code repository
@@ -3099,7 +3094,6 @@ definitions:
             project_name: Linux Foundation Project
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
-            public_name: technical-steering-committee
             repository: https://github.com/example/repo
             requires_review: true
             scope:
@@ -3343,11 +3337,6 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
-            public_name:
-                type: string
-                description: Human-readable slug for public URLs; optional, defaults to the committee name when public is enabled and no value is provided
-                example: technical-steering-committee
-                maxLength: 200
             repository:
                 type: string
                 description: The URL of the committee's code repository
@@ -3447,7 +3436,6 @@ definitions:
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
-            public_name: technical-steering-committee
             repository: https://github.com/example/repo
             requires_review: true
             scope:
@@ -4256,11 +4244,6 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
-            public_name:
-                type: string
-                description: Human-readable slug for public URLs; optional, defaults to the committee name when public is enabled and no value is provided
-                example: technical-steering-committee
-                maxLength: 200
             repository:
                 type: string
                 description: The URL of the committee's code repository
@@ -4338,7 +4321,6 @@ definitions:
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
-            public_name: technical-steering-committee
             repository: https://github.com/example/repo
             requires_review: true
             scope:
@@ -4613,11 +4595,6 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
-            public_name:
-                type: string
-                description: Human-readable slug for public URLs; optional, defaults to the committee name when public is enabled and no value is provided
-                example: technical-steering-committee
-                maxLength: 200
             repository:
                 type: string
                 description: The URL of the committee's code repository
@@ -4671,7 +4648,6 @@ definitions:
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
-            public_name: technical-steering-committee
             repository: https://github.com/example/repo
             requires_review: true
             scope:

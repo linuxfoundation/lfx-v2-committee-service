@@ -51,11 +51,6 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 		base.DisplayName = *p.DisplayName
 	}
 
-	// Handle PublicName with nil check
-	if p.PublicName != nil {
-		base.PublicName = *p.PublicName
-	}
-
 	// Handle Website (already a pointer, safe to assign directly)
 	base.Website = p.Website
 	base.MailingList = p.MailingList
@@ -130,11 +125,6 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	// Handle DisplayName with nil check
 	if p.DisplayName != nil {
 		base.DisplayName = *p.DisplayName
-	}
-
-	// Handle PublicName with nil check
-	if p.PublicName != nil {
-		base.PublicName = *p.PublicName
 	}
 
 	// Handle Website (already a pointer, safe to assign directly)
@@ -272,9 +262,6 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	if response.DisplayName != "" {
 		result.DisplayName = &response.DisplayName
 	}
-	if response.PublicName != "" {
-		result.PublicName = &response.PublicName
-	}
 	if response.ParentUID != nil && *response.ParentUID != "" {
 		result.ParentUID = response.ParentUID
 	}
@@ -361,9 +348,6 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	}
 	if base.DisplayName != "" {
 		result.DisplayName = &base.DisplayName
-	}
-	if base.PublicName != "" {
-		result.PublicName = &base.PublicName
 	}
 	if base.ParentUID != nil && *base.ParentUID != "" {
 		result.ParentUID = base.ParentUID

@@ -92,9 +92,9 @@ func (w *TestMockCommitteeMemberWriter) UniqueSSOGroupName(ctx context.Context, 
 	return mockWriter.UniqueSSOGroupName(ctx, committee)
 }
 
-func (w *TestMockCommitteeMemberWriter) UniquePublicName(ctx context.Context, committee *model.Committee) (string, error) {
+func (w *TestMockCommitteeMemberWriter) UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
-	return mockWriter.UniquePublicName(ctx, committee)
+	return mockWriter.UniqueDisplayName(ctx, committee)
 }
 
 // Implement CommitteeSettingsWriter interface

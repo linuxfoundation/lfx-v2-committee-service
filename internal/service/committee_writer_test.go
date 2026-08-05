@@ -136,9 +136,9 @@ func (w *TestMockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, commit
 	return existingUID, err
 }
 
-func (w *TestMockCommitteeWriter) UniquePublicName(ctx context.Context, committee *model.Committee) (string, error) {
+func (w *TestMockCommitteeWriter) UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.UniquePublicName(ctx, committee)
+	return mockWriter.UniqueDisplayName(ctx, committee)
 }
 
 // CommitteeMemberWriter interface methods
@@ -2522,70 +2522,54 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 	}
 }
 
-func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
+func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
 	tests := []struct {
-		name              string
-		committee         *model.Committee
-		wantAliases       []string
-		wantPublicNameTag string
-		wantFulltext      string
+		name               string
+		committee          *model.Committee
+		wantAliases        []string
+		wantDisplayNameTag string
+		wantFulltext       string
 	}{
 		{
-			name: "distinct public_name included in aliases and tags",
+			name: "distinct display_name included in aliases and tags",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
 					UID:         "uid-1",
 					ProjectUID:  "proj-1",
 					Name:        "TSC",
 					DisplayName: "Technical Steering Committee",
-					PublicName:  "tsc-slug",
 				},
 			},
-			wantAliases:       []string{"TSC", "Technical Steering Committee", "tsc-slug"},
-			wantPublicNameTag: "public_name:tsc-slug",
-			wantFulltext:      "TSC Technical Steering Committee tsc-slug",
+			wantAliases:        []string{"TSC", "Technical Steering Committee"},
+			wantDisplayNameTag: "display_name:Technical Steering Committee",
+			wantFulltext:       "TSC Technical Steering Committee",
 		},
 		{
-			name: "public_name matching name is deduplicated",
+			name: "display_name matching name is deduplicated",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
-					UID:        "uid-2",
-					ProjectUID: "proj-2",
-					Name:       "TSC",
-					PublicName: "TSC",
-				},
-			},
-			wantAliases:       []string{"TSC"},
-			wantPublicNameTag: "public_name:TSC",
-			wantFulltext:      "TSC",
-		},
-		{
-			name: "public_name matching display_name is deduplicated",
-			committee: &model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					UID:         "uid-3",
-					ProjectUID:  "proj-3",
+					UID:         "uid-2",
+					ProjectUID:  "proj-2",
 					Name:        "TSC",
-					DisplayName: "Technical Steering Committee",
-					PublicName:  "Technical Steering Committee",
+					DisplayName: "TSC",
 				},
 			},
-			wantAliases:       []string{"TSC", "Technical Steering Committee"},
-			wantPublicNameTag: "public_name:Technical Steering Committee",
-			wantFulltext:      "TSC Technical Steering Committee",
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "display_name:TSC",
+			wantFulltext:       "TSC",
 		},
 		{
-			name: "empty public_name omitted from aliases and tags",
+			name: "empty display_name omitted from aliases and tags",
 			committee: &model.Committee{
 				CommitteeBase: model.CommitteeBase{
-					UID:        "uid-4",
-					ProjectUID: "proj-4",
+					UID:        "uid-3",
+					ProjectUID: "proj-3",
 					Name:       "TSC",
 				},
 			},
-			wantAliases:       []string{"TSC"},
-			wantPublicNameTag: "",
-			wantFulltext:      "TSC",
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "",
+			wantFulltext:       "TSC",
 		},
 	}
 
@@ -2596,12 +2580,12 @@ func TestBuildCommitteeIndexingConfig_PublicNameDedup(t *testing.T) {
 
 			var foundTag string
 			for _, tag := range cfg.Tags {
-				if strings.HasPrefix(tag, "public_name:") {
+				if strings.HasPrefix(tag, "display_name:") {
 					foundTag = tag
 					break
 				}
 			}
-			assert.Equal(t, tc.wantPublicNameTag, foundTag, "public_name tag")
+			assert.Equal(t, tc.wantDisplayNameTag, foundTag, "display_name tag")
 			assert.Equal(t, tc.wantFulltext, cfg.Fulltext, "fulltext")
 		})
 	}

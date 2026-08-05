@@ -41,9 +41,6 @@ type CreateCommitteeRequestBody struct {
 	RequiresReview bool `form:"requires_review" json:"requires_review" xml:"requires_review"`
 	// General committee visibility/access permissions
 	Public bool `form:"public" json:"public" xml:"public"`
-	// Human-readable slug for public URLs; optional, defaults to the committee
-	// name when public is enabled and no value is provided
-	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
 		// Whether the committee calendar is publicly visible
@@ -108,9 +105,6 @@ type UpdateCommitteeBaseRequestBody struct {
 	RequiresReview bool `form:"requires_review" json:"requires_review" xml:"requires_review"`
 	// General committee visibility/access permissions
 	Public bool `form:"public" json:"public" xml:"public"`
-	// Human-readable slug for public URLs; optional, defaults to the committee
-	// name when public is enabled and no value is provided
-	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
 		// Whether the committee calendar is publicly visible
@@ -404,9 +398,6 @@ type CreateCommitteeResponseBody struct {
 	RequiresReview *bool `form:"requires_review,omitempty" json:"requires_review,omitempty" xml:"requires_review,omitempty"`
 	// General committee visibility/access permissions
 	Public *bool `form:"public,omitempty" json:"public,omitempty" xml:"public,omitempty"`
-	// Human-readable slug for public URLs; optional, defaults to the committee
-	// name when public is enabled and no value is provided
-	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
 		// Whether the committee calendar is publicly visible
@@ -485,9 +476,6 @@ type UpdateCommitteeBaseResponseBody struct {
 	RequiresReview *bool `form:"requires_review,omitempty" json:"requires_review,omitempty" xml:"requires_review,omitempty"`
 	// General committee visibility/access permissions
 	Public *bool `form:"public,omitempty" json:"public,omitempty" xml:"public,omitempty"`
-	// Human-readable slug for public URLs; optional, defaults to the committee
-	// name when public is enabled and no value is provided
-	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
 		// Whether the committee calendar is publicly visible
@@ -2654,9 +2642,6 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	RequiresReview *bool `form:"requires_review,omitempty" json:"requires_review,omitempty" xml:"requires_review,omitempty"`
 	// General committee visibility/access permissions
 	Public *bool `form:"public,omitempty" json:"public,omitempty" xml:"public,omitempty"`
-	// Human-readable slug for public URLs; optional, defaults to the committee
-	// name when public is enabled and no value is provided
-	PublicName *string `form:"public_name,omitempty" json:"public_name,omitempty" xml:"public_name,omitempty"`
 	// Settings related to the committee calendar
 	Calendar *struct {
 		// Whether the committee calendar is publicly visible
@@ -3032,7 +3017,6 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		SsoGroupEnabled:       p.SsoGroupEnabled,
 		RequiresReview:        p.RequiresReview,
 		Public:                p.Public,
-		PublicName:            p.PublicName,
 		DisplayName:           p.DisplayName,
 		ParentUID:             p.ParentUID,
 		JoinMode:              p.JoinMode,
@@ -3154,7 +3138,6 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		SsoGroupEnabled: p.SsoGroupEnabled,
 		RequiresReview:  p.RequiresReview,
 		Public:          p.Public,
-		PublicName:      p.PublicName,
 		DisplayName:     p.DisplayName,
 		ParentUID:       p.ParentUID,
 		JoinMode:        p.JoinMode,
@@ -3616,7 +3599,6 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 		Website:          body.Website,
 		MailingList:      body.MailingList,
 		ChatChannel:      body.ChatChannel,
-		PublicName:       body.PublicName,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
 		Repository:       body.Repository,
@@ -3788,7 +3770,6 @@ func NewGetCommitteeBaseResultOK(body *GetCommitteeBaseResponseBody, etag *strin
 		Website:          body.Website,
 		MailingList:      body.MailingList,
 		ChatChannel:      body.ChatChannel,
-		PublicName:       body.PublicName,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
 		Repository:       body.Repository,
@@ -3914,7 +3895,6 @@ func NewUpdateCommitteeBaseCommitteeBaseWithReadonlyAttributesOK(body *UpdateCom
 		Website:          body.Website,
 		MailingList:      body.MailingList,
 		ChatChannel:      body.ChatChannel,
-		PublicName:       body.PublicName,
 		DisplayName:      body.DisplayName,
 		ParentUID:        body.ParentUID,
 		Repository:       body.Repository,
@@ -6736,11 +6716,6 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
 		}
 	}
-	if body.PublicName != nil {
-		if utf8.RuneCountInString(*body.PublicName) > 200 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.public_name", *body.PublicName, utf8.RuneCountInString(*body.PublicName), 200, false))
-		}
-	}
 	if body.DisplayName != nil {
 		if utf8.RuneCountInString(*body.DisplayName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -6859,11 +6834,6 @@ func ValidateGetCommitteeBaseResponseBody(body *GetCommitteeBaseResponseBody) (e
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
 		}
 	}
-	if body.PublicName != nil {
-		if utf8.RuneCountInString(*body.PublicName) > 200 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.public_name", *body.PublicName, utf8.RuneCountInString(*body.PublicName), 200, false))
-		}
-	}
 	if body.DisplayName != nil {
 		if utf8.RuneCountInString(*body.DisplayName) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -6963,11 +6933,6 @@ func ValidateUpdateCommitteeBaseResponseBody(body *UpdateCommitteeBaseResponseBo
 	if body.ChatChannel != nil {
 		if utf8.RuneCountInString(*body.ChatChannel) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
-		}
-	}
-	if body.PublicName != nil {
-		if utf8.RuneCountInString(*body.PublicName) > 200 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.public_name", *body.PublicName, utf8.RuneCountInString(*body.PublicName), 200, false))
 		}
 	}
 	if body.DisplayName != nil {
@@ -10096,11 +10061,6 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 	if body.ChatChannel != nil {
 		if utf8.RuneCountInString(*body.ChatChannel) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
-		}
-	}
-	if body.PublicName != nil {
-		if utf8.RuneCountInString(*body.PublicName) > 200 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.public_name", *body.PublicName, utf8.RuneCountInString(*body.PublicName), 200, false))
 		}
 	}
 	if body.DisplayName != nil {
