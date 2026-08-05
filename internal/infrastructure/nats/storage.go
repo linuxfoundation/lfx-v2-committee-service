@@ -101,6 +101,21 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 	return ssoGroupKey, nil
 }
 
+// UniquePublicName enforces a global uniqueness constraint on the committee's public_name
+// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
+// if a committee with the same public_name already exists.
+func (s *storage) UniquePublicName(ctx context.Context, committee *model.Committee) (string, error) {
+	publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, committee.PublicName)
+	_, errPublicName := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, publicNameKey, []byte(committee.CommitteeBase.UID))
+	if errPublicName != nil {
+		if errors.Is(errPublicName, jetstream.ErrKeyExists) {
+			return publicNameKey, errs.NewConflict("committee with the same public_name already exists")
+		}
+		return publicNameKey, errs.NewUnexpected("failed to create unique key for public_name", errPublicName)
+	}
+	return publicNameKey, nil
+}
+
 // get retrieves a model from the NATS KV store by bucket and UID.
 // It unmarshals the data into the provided model and returns the revision.
 // If the UID is empty, it returns a validation error.

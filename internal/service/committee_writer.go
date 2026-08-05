@@ -483,6 +483,15 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 	keys = append(keys, uniqueNameProjectKey)
 
+	// Check public_name uniqueness (if specified)
+	if committee.PublicName != "" {
+		uniquePublicNameKey, errPublicName := uc.committeeWriter.UniquePublicName(ctx, committee)
+		if errPublicName != nil {
+			return nil, errPublicName
+		}
+		keys = append(keys, uniquePublicNameKey)
+	}
+
 	// Check SSO group exists (if specified)
 	if committee.SSOGroupEnabled {
 		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
@@ -669,6 +678,22 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			}
 		}
 
+	}
+
+	// Step 3.2: Handle public_name changes
+	if existing.PublicName != committee.PublicName {
+		if committee.PublicName != "" {
+			newPublicNameKey, errPublicName := uc.committeeWriter.UniquePublicName(ctx, committee)
+			if errPublicName != nil {
+				rollbackRequired = true
+				return nil, errPublicName
+			}
+			newKeys = append(newKeys, newPublicNameKey)
+		}
+		if existing.PublicName != "" {
+			oldPublicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, existing.PublicName)
+			staleKeys = append(staleKeys, oldPublicNameKey)
+		}
 	}
 
 	// Step 4: Validate parent change
@@ -970,6 +995,12 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	if existing.SSOGroupEnabled && existing.SSOGroupName != "" {
 		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
 		indicesToDelete = append(indicesToDelete, ssoIndexKey)
+	}
+
+	// Build public_name index key if it exists
+	if existing.PublicName != "" {
+		publicNameKey := fmt.Sprintf(constants.KVLookupPublicNamePrefix, existing.PublicName)
+		indicesToDelete = append(indicesToDelete, publicNameKey)
 	}
 
 	slog.DebugContext(ctx, "secondary indices identified for deletion",

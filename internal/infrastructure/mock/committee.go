@@ -634,6 +634,24 @@ func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee 
 	return ssoKey, nil
 }
 
+// UniquePublicName verifies if a committee with the same public_name exists
+// Returns conflict error if found (for uniqueness checking)
+func (w *MockCommitteeWriter) UniquePublicName(ctx context.Context, committee *model.Committee) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by public_name", "public_name", committee.PublicName)
+
+	w.mock.mu.RLock()
+	defer w.mock.mu.RUnlock()
+
+	for _, existing := range w.mock.committees {
+		if existing.PublicName == committee.PublicName && existing.CommitteeBase.UID != committee.CommitteeBase.UID {
+			return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with public_name %s already exists", committee.PublicName))
+		}
+	}
+
+	publicNameKey := "public_name:" + committee.PublicName
+	return publicNameKey, nil
+}
+
 // ================== CommitteeSettingsWriter implementation ==================
 
 // UpdateSetting updates committee settings
