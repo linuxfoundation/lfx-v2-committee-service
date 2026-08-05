@@ -2000,7 +2000,7 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		v := b.UpdatedAt.UTC().Format(time.RFC3339)
 		out.UpdatedAt = &v
 	}
-	if b.ErrorReason != "" {
+	if b.State == model.GroupWeeklyBriefStateError && b.ErrorReason != "" {
 		v := b.ErrorReason
 		out.ErrorReason = &v
 	}

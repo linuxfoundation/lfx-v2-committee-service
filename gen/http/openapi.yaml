@@ -2941,7 +2941,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: o04
+                    example: 5s1
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3032,7 +3032,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 0zl
+                    example: 64b
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -3249,7 +3249,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 7tq
+                    example: 1o0
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3352,7 +3352,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: i12
+                    example: 20z
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -3897,12 +3897,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: 35s
+                example: o2l
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 74716d5c-f7a8-43b5-9dcd-e1b0559aec46
+                example: 6e578ed3-11a3-4b49-933e-c19b3e47fce0
                 format: uuid
             name:
                 type: string
@@ -3915,8 +3915,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: 4qt
-            folder_uid: 14a3f275-b892-4648-8a0a-af4fe104d5b1
+            description: pn8
+            folder_uid: eb093352-e864-4deb-a12b-04293406094e
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4161,7 +4161,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: zhe
+                    example: q07
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -4259,7 +4259,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: in0
+                    example: jcp
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4529,7 +4529,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 07k
+                    example: xn2
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -4610,7 +4610,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: cp3
+                    example: csh
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4936,59 +4936,53 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Culpa neque a.
+                example: Maiores porro.
             description:
                 type: string
                 description: Optional description
-                example: d5r
+                example: li8
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 79
-                    - 109
-                    - 110
+                    - 83
                     - 105
-                    - 115
-                    - 32
-                    - 114
-                    - 101
-                    - 109
-                    - 32
-                    - 111
-                    - 109
-                    - 110
-                    - 105
-                    - 115
-                    - 32
-                    - 115
-                    - 105
-                    - 110
                     - 116
                     - 32
-                    - 101
-                    - 115
-                    - 116
-                    - 32
-                    - 113
+                    - 105
                     - 117
-                    - 97
                     - 115
-                    - 105
+                    - 116
+                    - 111
                     - 32
-                    - 109
-                    - 97
-                    - 120
                     - 105
-                    - 109
+                    - 117
+                    - 115
+                    - 116
+                    - 111
+                    - 32
                     - 101
+                    - 116
+                    - 32
+                    - 110
+                    - 105
+                    - 104
+                    - 105
+                    - 108
+                    - 32
+                    - 101
+                    - 97
+                    - 32
+                    - 101
+                    - 115
+                    - 116
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Quisquam harum.
+                example: Commodi id nesciunt.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -5000,45 +4994,53 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Sit iusto iusto et nihil ea est.
-            description: i8v
+            content_type: Deleniti labore.
+            description: bjh
             file:
-                - 83
-                - 111
-                - 108
-                - 117
-                - 116
+                - 79
+                - 99
+                - 99
                 - 97
-                - 32
-                - 105
-                - 112
-                - 115
-                - 117
-                - 109
-                - 32
-                - 109
-                - 111
-                - 108
-                - 108
-                - 105
+                - 101
+                - 99
+                - 97
                 - 116
                 - 105
-                - 97
                 - 32
                 - 101
-                - 117
-                - 109
+                - 120
                 - 32
-                - 113
-                - 117
-                - 105
+                - 97
                 - 32
-                - 111
+                - 114
+                - 101
+                - 99
+                - 117
+                - 115
+                - 97
+                - 110
                 - 100
+                - 97
+                - 101
+                - 32
+                - 101
+                - 111
+                - 115
+                - 32
+                - 109
+                - 97
                 - 105
+                - 111
+                - 114
+                - 101
+                - 115
+                - 32
+                - 110
+                - 101
+                - 109
                 - 111
                 - 46
-            file_name: Id nesciunt ducimus maiores porro.
+            file_name: Qui odio maxime voluptatum incidunt nihil ab.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -5195,10 +5197,10 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: cst
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
-                error_reason: no_sources
+                error_reason: Quidem qui voluptas dicta.
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -5207,15 +5209,15 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5262,10 +5264,10 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: cst
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
-                error_reason: no_sources
+                error_reason: Quidem qui voluptas dicta.
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -5274,15 +5276,15 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5326,7 +5328,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: soc
+                example: 81u
                 maxLength: 5000
             id:
                 type: string
@@ -5342,7 +5344,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: 6su
+            excerpt: y5z
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5447,7 +5449,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: t2b
+                example: nap
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5462,7 +5464,7 @@ definitions:
             error_reason:
                 type: string
                 description: Machine-readable reason for the error state; absent on non-error briefs
-                example: no_sources
+                example: Odit sit explicabo ex architecto minima exercitationem.
             last_edited_at:
                 type: string
                 description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -5502,15 +5504,19 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: "128"
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: "128"
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5546,10 +5552,10 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: 4hn
+            brief_text: ua0
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            error_reason: no_sources
+            error_reason: Enim voluptatum voluptas.
             last_edited_at: "2026-05-18T14:03:00Z"
             last_edited_by: jsmith
             model: fake
@@ -5558,11 +5564,19 @@ definitions:
             regeneration_count: 0
             revision: 7
             source_refs:
-                - excerpt: 0jc
+                - excerpt: "128"
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: 0jc
+                - excerpt: "128"
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+                - excerpt: "128"
+                  id: https://meet.example.org/abc123
+                  kind: meeting
+                  title: 2026-05-12 weekly sync
+                - excerpt: "128"
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
