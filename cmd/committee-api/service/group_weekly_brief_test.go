@@ -33,12 +33,15 @@ func (s *stubGroupWeeklyBriefReader) GetCurrent(_ context.Context, _ string, _ t
 }
 
 // stubCommitteeReader implements internalsvc.CommitteeReader for the GetBase
-// path used by the handler. Only GetBase is exercised; the rest panic so a
-// test that accidentally relies on them fails loudly.
+// path used by the handler. GetSettings returns the settings field when set,
+// or nil (no settings) when unset — matching the "no settings = not hidden"
+// production default. The rest panic so a test that accidentally relies on
+// them fails loudly.
 type stubCommitteeReader struct {
-	base *model.CommitteeBase
-	rev  uint64
-	err  error
+	base     *model.CommitteeBase
+	settings *model.CommitteeSettings
+	rev      uint64
+	err      error
 }
 
 func (r *stubCommitteeReader) GetBase(_ context.Context, _ string) (*model.CommitteeBase, uint64, error) {
@@ -46,7 +49,7 @@ func (r *stubCommitteeReader) GetBase(_ context.Context, _ string) (*model.Commi
 }
 
 func (r *stubCommitteeReader) GetSettings(_ context.Context, _ string) (*model.CommitteeSettings, uint64, error) {
-	panic("not used")
+	return r.settings, r.rev, nil
 }
 
 func (r *stubCommitteeReader) GetMember(_ context.Context, _, _ string) (*model.CommitteeMember, uint64, error) {
@@ -335,6 +338,28 @@ func TestGenerateWeeklyBrief_Success(t *testing.T) {
 	assert.True(t, event.Force)
 	// Claim and event share the same "now" so the async phase resolves the same window.
 	assert.Equal(t, gen.gotIn.Now, event.RequestedAt)
+}
+
+func TestGenerateWeeklyBrief_MembersHidden_PropagatedToClaimAndEvent(t *testing.T) {
+	gen := &stubGroupWeeklyBriefGenerator{out: &internalsvc.GroupWeeklyBriefGenerateOutput{
+		Brief: &model.GroupWeeklyBrief{UID: "b-1", State: model.GroupWeeklyBriefStateGenerating},
+	}}
+	pub := &stubPublisher{}
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{
+			base:     &model.CommitteeBase{Name: "WG", ProjectName: "P"},
+			settings: &model.CommitteeSettings{MemberVisibility: "hidden"},
+			rev:      1,
+		},
+		weeklyBriefGenerator: gen,
+		publisher:            pub,
+	}
+	_, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.True(t, gen.gotIn.MembersHidden, "MembersHidden must be true when member_visibility is hidden")
+	event, ok := pub.gotEvent.(internalsvc.GenerateWeeklyBriefRequestedEvent)
+	require.True(t, ok)
+	assert.True(t, event.MembersHidden, "MembersHidden must be propagated to the published event")
 }
 
 func TestGenerateWeeklyBrief_CommitteeNotFound(t *testing.T) {
