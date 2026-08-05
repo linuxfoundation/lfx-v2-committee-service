@@ -362,6 +362,40 @@ func TestGenerateWeeklyBrief_MembersHidden_PropagatedToClaimAndEvent(t *testing.
 	assert.True(t, event.MembersHidden, "MembersHidden must be propagated to the published event")
 }
 
+func TestGenerateWeeklyBrief_MembersVisible_WhenBasicProfile(t *testing.T) {
+	gen := &stubGroupWeeklyBriefGenerator{out: &internalsvc.GroupWeeklyBriefGenerateOutput{
+		Brief: &model.GroupWeeklyBrief{UID: "b-1", State: model.GroupWeeklyBriefStateGenerating},
+	}}
+	pub := &stubPublisher{}
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{
+			base:     &model.CommitteeBase{Name: "WG", ProjectName: "P"},
+			settings: &model.CommitteeSettings{MemberVisibility: "basic_profile"},
+			rev:      1,
+		},
+		weeklyBriefGenerator: gen,
+		publisher:            pub,
+	}
+	_, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.False(t, gen.gotIn.MembersHidden, "MembersHidden must be false when member_visibility is basic_profile")
+	event, ok := pub.gotEvent.(internalsvc.GenerateWeeklyBriefRequestedEvent)
+	require.True(t, ok)
+	assert.False(t, event.MembersHidden, "MembersHidden=false must be propagated to the published event")
+}
+
+func TestGenerateWeeklyBrief_MembersHidden_WhenSettingsNil(t *testing.T) {
+	// nil settings → fail-closed → names hidden (matches API/migration default)
+	gen := &stubGroupWeeklyBriefGenerator{out: &internalsvc.GroupWeeklyBriefGenerateOutput{
+		Brief: &model.GroupWeeklyBrief{UID: "b-1", State: model.GroupWeeklyBriefStateGenerating},
+	}}
+	pub := &stubPublisher{}
+	svc := newGenerateSvc(&model.CommitteeBase{Name: "WG", ProjectName: "P"}, gen, pub)
+	_, err := svc.GenerateWeeklyBrief(context.Background(), &committeeservice.GenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.True(t, gen.gotIn.MembersHidden, "MembersHidden must be true when settings are absent (fail-closed)")
+}
+
 func TestGenerateWeeklyBrief_CommitteeNotFound(t *testing.T) {
 	// stubCommitteeReader with base=nil → handler returns 404.
 	svc := newGenerateSvc(nil, &stubGroupWeeklyBriefGenerator{}, &stubPublisher{})

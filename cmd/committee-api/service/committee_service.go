@@ -2105,11 +2105,13 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	// computes exactly the same window as the synchronous claim.
 	now := time.Now().UTC()
 
-	// Fetch settings separately to check member_visibility. A missing settings
-	// record is treated as "not hidden" — safe default is to show names.
-	membersHidden := false
+	// Default to hidden — matches the API schema default (dsl.Default("hidden"))
+	// and the migration backfill. Any settings read failure (transient NATS
+	// error, missing record) leaves membersHidden=true so names never leak.
+	// Only names after a successful read of "basic_profile".
+	membersHidden := true
 	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil {
-		membersHidden = settings.MemberVisibility == "hidden"
+		membersHidden = settings.MemberVisibility != "basic_profile"
 	}
 
 	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
