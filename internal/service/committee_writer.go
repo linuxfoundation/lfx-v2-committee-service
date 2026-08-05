@@ -497,6 +497,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	if committee.SSOGroupEnabled {
 		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
 		if errCheckReserveSSOName != nil {
+			rollbackRequired = true
 			return nil, errCheckReserveSSOName
 		}
 		keys = append(keys, uniqueSSOName)
@@ -741,6 +742,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
+	updateSucceeded = true
+
 	// ******************************************************
 	// Step 7: Publish messages
 
@@ -816,8 +819,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	// ******************************************************
 
-	// Mark update as successful for defer cleanup
-	updateSucceeded = true
 	return committee, nil
 }
 
