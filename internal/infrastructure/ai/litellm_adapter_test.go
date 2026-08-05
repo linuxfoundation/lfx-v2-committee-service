@@ -17,14 +17,13 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 )
 
-// makeTestPromptDir writes the three ConfigMap prompt files into a temp
+// makeTestPromptDir writes the two ConfigMap prompt files into a temp
 // directory and returns its path. The test binary registers cleanup via t.
 func makeTestPromptDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		"prompt_version": "test-v1",
-		"system_prompt":  "You are a test assistant. Respond with valid JSON only.",
+		"system_prompt": "You are a test assistant. Respond with valid JSON only.",
 		"user_prompt_template": "Committee: {{.CommitteeName}} ({{.CommitteeID}})\n" +
 			"Period: {{.PeriodStart}} to {{.PeriodEnd}}\n" +
 			"Claims:\n{{- range .Claims}}\n- id={{.ID}} summary=\"{{.Summary}}\"\n{{- end}}",

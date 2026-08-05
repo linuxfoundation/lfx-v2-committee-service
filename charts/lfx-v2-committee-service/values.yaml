@@ -610,19 +610,16 @@ app:
 # but should only be used when an environment genuinely needs a different
 # prompt — not as the normal update path.
 #
-# promptVersion MUST be incremented on every substantive prompt edit so that
-# the version stored on each generated brief can be traced back to the exact
-# prompt text that produced it, enabling rollback if quality regresses.
+# Versioning: the Helm chart computes a sha256 of systemPrompt +
+# userPromptTemplate and embeds the first 8 chars in the ConfigMap name.
+# The adapter derives the same hash from the loaded file contents and persists
+# it on every generated brief, enabling traceability without a manual bump.
 weeklyBriefPrompts:
   # promptDir is the directory where the ConfigMap is mounted inside the pod.
   # This value drives BOTH the volumeMount mountPath in the Deployment AND the
   # WEEKLY_BRIEF_PROMPT_DIR env var, so overriding this key in an ArgoCD values
   # file keeps the two in sync automatically.
   promptDir: "/etc/weekly-brief-prompts"
-
-  # promptVersion is persisted on each generated brief for regression tracing.
-  # Bump this (e.g. "v2", "v3") whenever systemPrompt or userPromptTemplate changes.
-  promptVersion: "v1"
 
   # systemPrompt is sent as the "system" role message in every LiteLLM chat
   # completion call.

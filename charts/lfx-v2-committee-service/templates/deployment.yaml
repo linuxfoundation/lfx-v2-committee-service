@@ -115,6 +115,7 @@ spec:
               value: {{ $otelPropagators | quote }}
             {{- end }}
             {{- $promptDir := .Values.weeklyBriefPrompts.promptDir | toString | trim }}
+            {{- $promptHash := printf "%s%s" .Values.weeklyBriefPrompts.systemPrompt .Values.weeklyBriefPrompts.userPromptTemplate | sha256sum | trunc 8 }}
             {{- if ne $promptDir "" }}
             - name: WEEKLY_BRIEF_PROMPT_DIR
               value: {{ $promptDir | quote }}
@@ -152,7 +153,7 @@ spec:
       volumes:
         - name: weekly-brief-prompts
           configMap:
-            name: {{ .Chart.Name }}-weekly-brief-prompts
+            name: {{ .Chart.Name }}-weekly-brief-prompts-{{ $promptHash }}
       {{- end }}
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:

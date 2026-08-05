@@ -19,18 +19,23 @@
 # Changelog / rollback: all changes flow through Git PR review on this repo.
 # Rolling back is pinning to an earlier chart version in lfx-v2-argocd.
 #
-# prompt_version MUST be bumped whenever system_prompt or user_prompt_template
-# changes. The value is persisted on every generated brief so regressions can
-# be traced to the exact prompt revision that produced them.
+# The ConfigMap name embeds an 8-char sha256 of the prompt content so each
+# prompt revision produces a distinct, immutable ConfigMap. The Deployment
+# volume reference is derived from the same hash, keeping them in sync.
+# Old ConfigMaps are retained (Prune=false) so a stored brief's hash can
+# always be matched to the exact prompt text that produced it.
+{{- $hash := printf "%s%s" .Values.weeklyBriefPrompts.systemPrompt .Values.weeklyBriefPrompts.userPromptTemplate | sha256sum | trunc 8 }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Chart.Name }}-weekly-brief-prompts
+  name: {{ .Chart.Name }}-weekly-brief-prompts-{{ $hash }}
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/component: ai-prompts
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+immutable: true
 data:
-  prompt_version: {{ .Values.weeklyBriefPrompts.promptVersion | quote }}
   system_prompt: {{ .Values.weeklyBriefPrompts.systemPrompt | quote }}
   user_prompt_template: {{ .Values.weeklyBriefPrompts.userPromptTemplate | quote }}

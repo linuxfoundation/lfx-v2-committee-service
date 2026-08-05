@@ -6,6 +6,7 @@ package ai
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -81,7 +82,7 @@ type LiteLLMAdapter struct {
 // providers.go) so wiring code can decide whether to fail fast.
 //
 // Prompt loading: cfg.PromptDir must point to the ConfigMap-mounted directory
-// containing system_prompt, user_prompt_template, and prompt_version. If the
+// containing system_prompt and user_prompt_template. If the
 // directory is missing or the files can't be read, the adapter starts without
 // failing the service — but GenerateWeeklyBrief will return an error on every
 // call until the prompt is available. Set WEEKLY_BRIEF_PROMPT_DIR to fix it.
@@ -100,44 +101,49 @@ func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 	return a
 }
 
-// loadPromptsFromDir reads the three prompt files from dir and stores them on
-// the adapter. Returns a non-nil error when the directory is unset, a file is
-// missing, a required value is empty, or the template fails to parse or execute.
-// The caller stores the error and surfaces it lazily in GenerateWeeklyBrief —
-// the service keeps running but brief generation is disabled until the prompt is
-// available.
+// loadPromptsFromDir reads the two prompt files from dir, computes an 8-char
+// sha256 content hash (matching the Helm ConfigMap name suffix), and stores
+// everything on the adapter. Returns a non-nil error when the directory is
+// unset, a file is missing, a required value is empty, or the template fails
+// to parse or execute. The caller stores the error and surfaces it lazily in
+// GenerateWeeklyBrief — the service keeps running but brief generation is
+// disabled until the prompt is available.
 func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 	if dir == "" {
 		return fmt.Errorf("weekly-brief prompt: WEEKLY_BRIEF_PROMPT_DIR is not set; " +
 			"set it to the ConfigMap mount path (e.g. /etc/weekly-brief-prompts)")
 	}
 
-	readRequired := func(name string) (string, error) {
+	readRaw := func(name string) ([]byte, error) {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
-			return "", fmt.Errorf("weekly-brief prompt: could not read %s from %s: %w", name, dir, err)
+			return nil, fmt.Errorf("weekly-brief prompt: could not read %s from %s: %w", name, dir, err)
 		}
-		val := strings.TrimRight(string(data), "\n")
-		if strings.TrimSpace(val) == "" {
-			return "", fmt.Errorf("weekly-brief prompt: %s in %s is empty; it must contain non-whitespace content", name, dir)
+		if strings.TrimSpace(string(data)) == "" {
+			return nil, fmt.Errorf("weekly-brief prompt: %s in %s is empty; it must contain non-whitespace content", name, dir)
 		}
-		return val, nil
+		return data, nil
 	}
+	trim := func(b []byte) string { return strings.TrimRight(string(b), "\n") }
 
-	version, err := readRequired("prompt_version")
+	rawSP, err := readRaw("system_prompt")
+	if err != nil {
+		return err
+	}
+	rawUP, err := readRaw("user_prompt_template")
 	if err != nil {
 		return err
 	}
 
-	systemPrompt, err := readRequired("system_prompt")
-	if err != nil {
-		return err
-	}
+	// Derive the prompt version from the raw file bytes, matching the 8-char
+	// sha256 prefix that Helm embeds in the ConfigMap name. Kubernetes writes
+	// ConfigMap data values to files byte-for-byte, so the hash computed here
+	// equals the one in the ConfigMap name for the currently-mounted prompt.
+	sum := sha256.Sum256(append(rawSP, rawUP...))
+	version := fmt.Sprintf("%x", sum)[:8]
 
-	userPromptRaw, err := readRequired("user_prompt_template")
-	if err != nil {
-		return err
-	}
+	systemPrompt := trim(rawSP)
+	userPromptRaw := trim(rawUP)
 
 	tmpl, err := template.New("user_prompt").Parse(userPromptRaw)
 	if err != nil {

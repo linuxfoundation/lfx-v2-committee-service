@@ -67,10 +67,11 @@ jobs:
         # $GITHUB_ENV by the preceding aws-secretsmanager-get-secrets
         # step (sourced from /cloudops/managed-secrets/litellm/lfx-one-cicd
         # in AWS Secrets Manager). WEEKLY_BRIEF_PROMPT_DIR is generated from
-        # the chart's values.yaml so there is a single source of truth for
-        # the prompt. Missing values are a hard failure — the live test calls
-        # t.Fatalf rather than silently skipping under -tags=live, so a green
-        # run can't appear without anything actually executing.
+        # the chart's values.yaml (single source of truth for the prompt);
+        # the adapter derives the prompt version hash from the file contents
+        # automatically. Missing values are a hard failure — the live test
+        # calls t.Fatalf rather than silently skipping under -tags=live, so a
+        # green run can't appear without anything actually executing.
         run: |
           WEEKLY_BRIEF_PROMPT_DIR=$(make eval-prompt-dir)
           export WEEKLY_BRIEF_PROMPT_DIR
