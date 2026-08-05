@@ -1217,6 +1217,9 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
 		dsl.Example("generated")
 	})
+	dsl.Attribute("error_reason", dsl.String, "Machine-readable reason for the error state; absent on non-error briefs", func() {
+		dsl.Example("no_sources")
+	})
 	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
 		dsl.MaxLength(20000)
 	})

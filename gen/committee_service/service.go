@@ -1134,6 +1134,8 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	WindowEnd *string
 	// Lifecycle state
 	State *string
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string
 	// Brief body markdown text
 	BriefText *string
 	// Sources considered by the generator

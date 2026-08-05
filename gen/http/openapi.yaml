@@ -3168,6 +3168,7 @@ definitions:
             content_type: application/pdf
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3179,6 +3180,7 @@ definitions:
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3570,6 +3572,7 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3577,6 +3580,7 @@ definitions:
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3633,6 +3637,7 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             created_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -3642,6 +3647,7 @@ definitions:
             uid: c1d2e3f4-a5b6-7890-cdef-123456789012
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
+                avatar: https://example.com/avatar.png
                 email: alexlee@linuxfoundation.org
                 name: Alex Lee
                 username: alexlee
@@ -5192,6 +5198,7 @@ definitions:
                 brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                error_reason: no_sources
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -5258,6 +5265,7 @@ definitions:
                 brief_text: sub
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                error_reason: no_sources
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -5451,6 +5459,10 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            error_reason:
+                type: string
+                description: Machine-readable reason for the error state; absent on non-error briefs
+                example: no_sources
             last_edited_at:
                 type: string
                 description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -5537,6 +5549,7 @@ definitions:
             brief_text: 4hn
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
+            error_reason: no_sources
             last_edited_at: "2026-05-18T14:03:00Z"
             last_edited_by: jsmith
             model: fake
