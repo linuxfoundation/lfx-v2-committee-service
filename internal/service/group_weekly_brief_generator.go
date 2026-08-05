@@ -24,6 +24,12 @@ type GroupWeeklyBriefGenerateInput struct {
 	ProjectName   string
 	Force         bool
 	Now           time.Time
+	// MembersHidden is true when the committee's member_visibility setting is
+	// "hidden". When set, member names are never included in the generated brief
+	// — only counts ("1 new member", "3 new members"). This applies to every
+	// rendering of the brief (on-screen and mailing-list share alike) because
+	// the brief is generated once and stored as a single text.
+	MembersHidden bool
 }
 
 // GroupWeeklyBriefGenerateOutput is what the handler shapes for the wire.
@@ -42,6 +48,7 @@ type GenerateWeeklyBriefRequestedEvent struct {
 	ProjectName   string    `json:"project_name,omitempty"`
 	Force         bool      `json:"force"`
 	RequestedAt   time.Time `json:"requested_at"`
+	MembersHidden bool      `json:"members_hidden,omitempty"`
 }
 
 // GroupWeeklyBriefGenerator is the orchestration port the HTTP handler and the
@@ -376,7 +383,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 		}
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, members, mailing, votes)
+	claims, sourceRefs := buildClaimsAndRefs(meetings, members, mailing, votes, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -430,8 +437,10 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 }
 
 // buildClaimsAndRefs turns the per-source slices into ClaimEvidence rows and a
-// parallel set of source refs persisted on the brief.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) ([]port.ClaimEvidence, []model.SourceRef) {
+// parallel set of source refs persisted on the brief. When membersHidden is
+// true (committee's member_visibility == "hidden"), member names are replaced
+// with count-only phrases so the stored brief never contains roster data.
+func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
 	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(mailing)+len(votes)+2)
 	refs := make([]model.SourceRef, 0, len(meetings)+len(mailing)+len(votes)+2)
 
@@ -475,15 +484,21 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		// TODO(member-link): deep-link URLs to member pages are not yet
 		// available; the brief still cites by username, but consumers will
 		// want a URL when one exists.
-		joinedNames := memberNames(members.Joined)
-		updatedNames := memberNames(members.Updated)
+		var joinedStr, updatedStr string
+		if membersHidden {
+			joinedStr = countMemberList(len(members.Joined))
+			updatedStr = countMemberList(len(members.Updated))
+		} else {
+			joinedStr = formatMemberList(members.Joined)
+			updatedStr = formatMemberList(members.Updated)
+		}
 
 		summaryParts := []string{}
-		if len(joinedNames) > 0 {
-			summaryParts = append(summaryParts, "Members joined: "+strings.Join(joinedNames, ", "))
+		if joinedStr != "" {
+			summaryParts = append(summaryParts, "Members joined: "+joinedStr)
 		}
-		if len(updatedNames) > 0 {
-			summaryParts = append(summaryParts, "Members updated: "+strings.Join(updatedNames, ", "))
+		if updatedStr != "" {
+			summaryParts = append(summaryParts, "Members updated: "+updatedStr)
 		}
 		summary := strings.Join(summaryParts, "; ")
 
@@ -605,24 +620,75 @@ func cleanSummary(s string) string {
 	return truncateRunes(s, maxExcerptLen)
 }
 
-func memberNames(members []*model.CommitteeMember) []string {
-	out := make([]string, 0, len(members))
-	for _, m := range members {
-		out = append(out, memberLabel(m))
+// countMemberList returns a count-only phrase used when member_visibility is
+// "hidden" — names are never included. Zero returns an empty string.
+func countMemberList(n int) string {
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		return "1 new member"
+	default:
+		return fmt.Sprintf("%d new members", n)
 	}
-	return out
 }
 
-// memberLabel returns a non-PII identifier for a member to cite in the prompt.
-// Member claims are "usernames + counts only" — deliberately never names or
-// email addresses, so PII is not leaked into the AI prompt or the generated
-// brief. Falls back to the opaque UID when no username is set.
+// memberLabel returns a human-readable identifier for a member to cite in the
+// brief. Priority: full name → first name → username → "a new member".
+// Last-name-only is skipped ("welcomed Doe" reads like a typo). The raw UID
+// is never returned (LFXV2-2990).
 func memberLabel(m *model.CommitteeMember) string {
 	if m == nil {
+		return "a new member"
+	}
+	first := strings.TrimSpace(m.FirstName)
+	last := strings.TrimSpace(m.LastName)
+	username := strings.TrimSpace(m.Username)
+	switch {
+	case first != "" && last != "":
+		return first + " " + last
+	case first != "":
+		return first
+	case username != "":
+		return username
+	default:
+		return "a new member"
+	}
+}
+
+// formatMemberList renders a slice of members into a prose list for the brief
+// summary. Members with a resolvable name are listed individually; unresolved
+// members are aggregated so "a new member" never appears more than once inline.
+//
+// Examples:
+//
+//	["Jane Doe", "John Smith"]            → "Jane Doe, John Smith"
+//	["Jane Doe"] + 2 unresolved          → "Jane Doe, and 2 others"
+//	3 unresolved                         → "3 new members"
+//	1 unresolved                         → "a new member"
+func formatMemberList(members []*model.CommitteeMember) string {
+	var named []string
+	unnamed := 0
+	for _, m := range members {
+		label := memberLabel(m)
+		if label == "a new member" {
+			unnamed++
+		} else {
+			named = append(named, label)
+		}
+	}
+	switch {
+	case len(named) == 0 && unnamed == 0:
 		return ""
+	case len(named) == 0 && unnamed == 1:
+		return "a new member"
+	case len(named) == 0:
+		return fmt.Sprintf("%d new members", unnamed)
+	case unnamed == 0:
+		return strings.Join(named, ", ")
+	case unnamed == 1:
+		return strings.Join(named, ", ") + ", and 1 other"
+	default:
+		return strings.Join(named, ", ") + fmt.Sprintf(", and %d others", unnamed)
 	}
-	if m.Username != "" {
-		return m.Username
-	}
-	return m.UID
 }

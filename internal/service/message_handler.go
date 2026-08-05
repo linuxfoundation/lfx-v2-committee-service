@@ -160,12 +160,24 @@ func (m *messageHandlerOrchestrator) HandleGenerateWeeklyBriefRequested(ctx cont
 		"force", event.Force,
 	)
 
+	// Re-read current settings rather than relying on the snapshot in the event:
+	// fulfillment is async and can wait/retry for minutes, during which a
+	// committee may change from basic_profile to hidden. Fail closed — default
+	// to hidden so a transient read error never leaks names into a stored brief.
+	membersHidden := true
+	if m.committeeReader != nil {
+		if settings, _, errSettings := m.committeeReader.GetSettings(ctx, event.CommitteeUID); errSettings == nil && settings != nil {
+			membersHidden = settings.MemberVisibility != "basic_profile"
+		}
+	}
+
 	return m.weeklyBriefGenerator.Fulfill(ctx, GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  event.CommitteeUID,
 		CommitteeName: event.CommitteeName,
 		ProjectName:   event.ProjectName,
 		Force:         event.Force,
 		Now:           event.RequestedAt,
+		MembersHidden: membersHidden,
 	})
 }
 
