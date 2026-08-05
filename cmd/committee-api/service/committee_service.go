@@ -2105,12 +2105,20 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	// computes exactly the same window as the synchronous claim.
 	now := time.Now().UTC()
 
+	// Fetch settings separately to check member_visibility. A missing settings
+	// record is treated as "not hidden" — safe default is to show names.
+	membersHidden := false
+	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil {
+		membersHidden = settings.MemberVisibility == "hidden"
+	}
+
 	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  p.UID,
 		CommitteeName: base.Name,
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		Now:           now,
+		MembersHidden: membersHidden,
 	})
 	if errClaim != nil {
 		return nil, wrapError(ctx, errClaim)
@@ -2125,6 +2133,7 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		RequestedAt:   now,
+		MembersHidden: membersHidden,
 	}
 	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
 		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",

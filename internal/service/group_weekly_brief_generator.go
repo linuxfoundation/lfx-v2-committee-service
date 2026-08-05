@@ -24,6 +24,12 @@ type GroupWeeklyBriefGenerateInput struct {
 	ProjectName   string
 	Force         bool
 	Now           time.Time
+	// MembersHidden is true when the committee's member_visibility setting is
+	// "hidden". When set, member names are never included in the generated brief
+	// — only counts ("1 new member", "3 new members"). This applies to every
+	// rendering of the brief (on-screen and mailing-list share alike) because
+	// the brief is generated once and stored as a single text.
+	MembersHidden bool
 }
 
 // GroupWeeklyBriefGenerateOutput is what the handler shapes for the wire.
@@ -42,6 +48,7 @@ type GenerateWeeklyBriefRequestedEvent struct {
 	ProjectName   string    `json:"project_name,omitempty"`
 	Force         bool      `json:"force"`
 	RequestedAt   time.Time `json:"requested_at"`
+	MembersHidden bool      `json:"members_hidden,omitempty"`
 }
 
 // GroupWeeklyBriefGenerator is the orchestration port the HTTP handler and the
@@ -382,7 +389,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 		}
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, members, mailing, votes)
+	claims, sourceRefs := buildClaimsAndRefs(meetings, members, mailing, votes, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -436,8 +443,10 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 }
 
 // buildClaimsAndRefs turns the per-source slices into ClaimEvidence rows and a
-// parallel set of source refs persisted on the brief.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) ([]port.ClaimEvidence, []model.SourceRef) {
+// parallel set of source refs persisted on the brief. When membersHidden is
+// true (committee's member_visibility == "hidden"), member names are replaced
+// with count-only phrases so the stored brief never contains roster data.
+func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
 	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(mailing)+len(votes)+2)
 	refs := make([]model.SourceRef, 0, len(meetings)+len(mailing)+len(votes)+2)
 
@@ -481,8 +490,14 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		// TODO(member-link): deep-link URLs to member pages are not yet
 		// available; the brief still cites by username, but consumers will
 		// want a URL when one exists.
-		joinedStr := formatMemberList(members.Joined)
-		updatedStr := formatMemberList(members.Updated)
+		var joinedStr, updatedStr string
+		if membersHidden {
+			joinedStr = countMemberList(len(members.Joined))
+			updatedStr = countMemberList(len(members.Updated))
+		} else {
+			joinedStr = formatMemberList(members.Joined)
+			updatedStr = formatMemberList(members.Updated)
+		}
 
 		summaryParts := []string{}
 		if joinedStr != "" {
@@ -609,6 +624,19 @@ func cleanSummary(s string) string {
 	// whitespace alone. Bound the length to the API excerpt cap.
 	s = strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 	return truncateRunes(s, maxExcerptLen)
+}
+
+// countMemberList returns a count-only phrase used when member_visibility is
+// "hidden" — names are never included. Zero returns an empty string.
+func countMemberList(n int) string {
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		return "1 new member"
+	default:
+		return fmt.Sprintf("%d new members", n)
+	}
 }
 
 // memberLabel returns a human-readable identifier for a member to cite in the

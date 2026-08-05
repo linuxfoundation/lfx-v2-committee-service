@@ -166,6 +166,7 @@ func (m *messageHandlerOrchestrator) HandleGenerateWeeklyBriefRequested(ctx cont
 		ProjectName:   event.ProjectName,
 		Force:         event.Force,
 		Now:           event.RequestedAt,
+		MembersHidden: event.MembersHidden,
 	})
 }
 

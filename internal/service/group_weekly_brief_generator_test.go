@@ -610,3 +610,52 @@ func TestFormatMemberList(t *testing.T) {
 		})
 	}
 }
+
+func TestCountMemberList(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want string
+	}{
+		{"zero", 0, ""},
+		{"one", 1, "1 new member"},
+		{"two", 2, "2 new members"},
+		{"ten", 10, "10 new members"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, countMemberList(tc.n))
+		})
+	}
+}
+
+func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
+	mk := func(first, last string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			FirstName: first, LastName: last,
+		}}
+	}
+	jane := mk("Jane", "Doe")
+	john := mk("John", "Smith")
+
+	members := port.WeeklyMemberActivity{
+		Joined:  []*model.CommitteeMember{jane, john},
+		Updated: []*model.CommitteeMember{jane},
+	}
+
+	t.Run("membersHidden=false includes names", func(t *testing.T) {
+		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, false)
+		require.Len(t, claims, 1)
+		assert.Contains(t, claims[0].Summary, "Jane Doe")
+		assert.Contains(t, claims[0].Summary, "John Smith")
+	})
+
+	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
+		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, true)
+		require.Len(t, claims, 1)
+		assert.NotContains(t, claims[0].Summary, "Jane")
+		assert.NotContains(t, claims[0].Summary, "Doe")
+		assert.Contains(t, claims[0].Summary, "2 new members") // joined
+		assert.Contains(t, claims[0].Summary, "1 new member")  // updated
+	})
+}
