@@ -6,13 +6,17 @@ package ai
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -21,10 +25,11 @@ import (
 // LiteLLMConfig is the runtime configuration for the live LiteLLM adapter.
 // All fields are sourced from environment variables in providers.go.
 type LiteLLMConfig struct {
-	BaseURL string        // LITELLM_BASE_URL, e.g. https://litellm.example.com
-	APIKey  string        // LITELLM_API_KEY
-	Model   string        // LITELLM_MODEL, e.g. "anthropic/claude-sonnet-4"
-	Timeout time.Duration // optional, default 60s
+	BaseURL   string        // LITELLM_BASE_URL, e.g. https://litellm.example.com
+	APIKey    string        // LITELLM_API_KEY
+	Model     string        // LITELLM_MODEL, e.g. "anthropic/claude-sonnet-4"
+	Timeout   time.Duration // optional, default 60s
+	PromptDir string        // WEEKLY_BRIEF_PROMPT_DIR — directory containing prompt files from the ConfigMap
 }
 
 // Robustness defaults for the live adapter. The model occasionally replies with
@@ -62,22 +67,184 @@ type LiteLLMAdapter struct {
 	// sleep is the pause primitive between attempts; injectable so tests don't
 	// wait on the wall clock. Defaults to time.Sleep.
 	sleep func(time.Duration)
+
+	// Prompt config loaded from the ConfigMap directory at startup.
+	// If loading fails, promptLoadErr is set and GenerateWeeklyBrief returns
+	// it immediately — the rest of the service continues running normally.
+	loadedSystemPrompt   string
+	loadedUserPromptTmpl *template.Template
+	loadedPromptVersion  string
+	promptLoadErr        error
 }
 
 // NewLiteLLMAdapter constructs a live adapter. It does NOT validate that
 // required env vars are present — that is the caller's responsibility (see
 // providers.go) so wiring code can decide whether to fail fast.
+//
+// Prompt loading: cfg.PromptDir must point to the ConfigMap-mounted directory
+// containing system_prompt and user_prompt_template. If the
+// directory is missing or the files can't be read, the adapter starts without
+// failing the service — but GenerateWeeklyBrief will return an error on every
+// call until the prompt is available. Set WEEKLY_BRIEF_PROMPT_DIR to fix it.
 func NewLiteLLMAdapter(cfg LiteLLMConfig) *LiteLLMAdapter {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 60 * time.Second
 	}
-	return &LiteLLMAdapter{
+	a := &LiteLLMAdapter{
 		cfg:         cfg,
 		client:      &http.Client{Timeout: cfg.Timeout},
 		maxAttempts: defaultMaxAttempts,
 		backoff:     defaultRetryBackoff,
 		sleep:       time.Sleep,
 	}
+	a.promptLoadErr = a.loadPromptsFromDir(cfg.PromptDir)
+	return a
+}
+
+// loadPromptsFromDir reads the two prompt files from dir, computes an 8-char
+// sha256 content hash (matching the Helm ConfigMap name suffix), and stores
+// everything on the adapter. Returns a non-nil error when the directory is
+// unset, a file is missing, a required value is empty, or the template fails
+// to parse or execute. The caller stores the error and surfaces it lazily in
+// GenerateWeeklyBrief — the service keeps running but brief generation is
+// disabled until the prompt is available.
+func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("weekly-brief prompt: WEEKLY_BRIEF_PROMPT_DIR is not set; " +
+			"set it to the ConfigMap mount path (e.g. /etc/weekly-brief-prompts)")
+	}
+
+	readRaw := func(name string) ([]byte, error) {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, fmt.Errorf("weekly-brief prompt: could not read %s from %s: %w", name, dir, err)
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return nil, fmt.Errorf("weekly-brief prompt: %s in %s is empty; it must contain non-whitespace content", name, dir)
+		}
+		return data, nil
+	}
+	trim := func(b []byte) string { return strings.TrimRight(string(b), "\n") }
+
+	rawSP, err := readRaw("system_prompt")
+	if err != nil {
+		return err
+	}
+	rawUP, err := readRaw("user_prompt_template")
+	if err != nil {
+		return err
+	}
+
+	// Derive the prompt version from the raw file bytes, matching the 8-char
+	// sha256 prefix that Helm embeds in the ConfigMap name. Kubernetes writes
+	// ConfigMap data values to files byte-for-byte, so the hash computed here
+	// equals the one in the ConfigMap name for the currently-mounted prompt.
+	sum := sha256.Sum256(append(rawSP, rawUP...))
+	version := fmt.Sprintf("%x", sum)[:8]
+
+	systemPrompt := trim(rawSP)
+	userPromptRaw := trim(rawUP)
+
+	tmpl, err := template.New("user_prompt").Parse(userPromptRaw)
+	if err != nil {
+		return fmt.Errorf("weekly-brief prompt: failed to parse user_prompt_template in %s: %w", dir, err)
+	}
+
+	// Dry-run execute with a representative input to catch field-name typos
+	// (e.g. {{.CommitteeNam}}) that parse without error but fail at Execute time.
+	// A broken template detected at startup beats a silent ai_error on every brief.
+	type dryRunClaim struct {
+		ID               string
+		Summary          string
+		FormattedSources string
+	}
+	dryRunData := struct {
+		CommitteeID   string
+		CommitteeName string
+		ProjectName   string
+		PeriodStart   string
+		PeriodEnd     string
+		Claims        []dryRunClaim
+	}{
+		CommitteeID:   "00000000-0000-0000-0000-000000000000",
+		CommitteeName: "Example Working Group",
+		ProjectName:   "Example Project",
+		PeriodStart:   "2024-01-01T00:00:00Z",
+		PeriodEnd:     "2024-01-07T23:59:59Z",
+		Claims:        []dryRunClaim{{ID: "claim-1", Summary: "Example claim summary", FormattedSources: "meeting:abc123"}},
+	}
+	var dryBuf strings.Builder
+	if err := tmpl.Execute(&dryBuf, dryRunData); err != nil {
+		return fmt.Errorf("weekly-brief prompt: user_prompt_template in %s fails dry-run execute (check field names): %w", dir, err)
+	}
+
+	a.loadedPromptVersion = version
+	a.loadedSystemPrompt = systemPrompt
+	a.loadedUserPromptTmpl = tmpl
+	slog.Info("weekly-brief prompt: loaded from ConfigMap dir",
+		"dir", dir, "prompt_version", version)
+	return nil
+}
+
+// PromptVersion implements port.AIAdapter. Returns the version string from the
+// loaded ConfigMap template, or "unknown" when the prompt failed to load.
+func (a *LiteLLMAdapter) PromptVersion() string {
+	if a.loadedPromptVersion != "" {
+		return a.loadedPromptVersion
+	}
+	return "unknown"
+}
+
+// systemPrompt returns the ConfigMap-loaded system prompt.
+func (a *LiteLLMAdapter) systemPrompt() string {
+	return a.loadedSystemPrompt
+}
+
+// buildUserPrompt renders the user-role message from the loaded template.
+func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, error) {
+	// Sort claims for deterministic output.
+	claims := append([]port.ClaimEvidence(nil), in.Claims...)
+	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
+
+	type claimData struct {
+		ID               string
+		Summary          string
+		FormattedSources string
+	}
+	cd := make([]claimData, len(claims))
+	for i, c := range claims {
+		parts := make([]string, len(c.Sources))
+		for j, s := range c.Sources {
+			parts[j] = s.Type + ":" + s.ID
+		}
+		cd[i] = claimData{
+			ID:               c.ID,
+			Summary:          sanitizeClaimSummary(c.Summary),
+			FormattedSources: strings.Join(parts, ","),
+		}
+	}
+
+	data := struct {
+		CommitteeID   string
+		CommitteeName string
+		ProjectName   string
+		PeriodStart   string
+		PeriodEnd     string
+		Claims        []claimData
+	}{
+		CommitteeID:   in.CommitteeID,
+		CommitteeName: in.CommitteeName,
+		ProjectName:   in.ProjectName,
+		PeriodStart:   in.PeriodStart,
+		PeriodEnd:     in.PeriodEnd,
+		Claims:        cd,
+	}
+
+	var buf strings.Builder
+	if err := a.loadedUserPromptTmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("weekly-brief prompt: template execution failed: %w", err)
+	}
+	return buf.String(), nil
 }
 
 // chatRequest is the OpenAI/LiteLLM-compatible chat-completions payload. We pin
@@ -190,6 +357,9 @@ type briefPayload struct {
 
 // GenerateWeeklyBrief implements port.AIAdapter.
 func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.WeeklyBriefInput) (port.WeeklyBrief, error) {
+	if a.promptLoadErr != nil {
+		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: prompt template not loaded: %w", a.promptLoadErr)
+	}
 	if a.cfg.BaseURL == "" || a.cfg.APIKey == "" || a.cfg.Model == "" {
 		return port.WeeklyBrief{}, fmt.Errorf(
 			"litellm adapter: missing required configuration (LITELLM_BASE_URL=%q, LITELLM_API_KEY set=%t, LITELLM_MODEL=%q)",
@@ -201,9 +371,13 @@ func (a *LiteLLMAdapter) GenerateWeeklyBrief(ctx context.Context, in port.Weekly
 	// corrective turn (see below) so the next attempt is nudged back to valid
 	// JSON even under deterministic (temperature 0) decoding, where a plain
 	// re-send would otherwise reproduce the same malformed reply verbatim.
+	userPrompt, err := a.buildUserPrompt(in)
+	if err != nil {
+		return port.WeeklyBrief{}, fmt.Errorf("litellm adapter: %w", err)
+	}
 	messages := []chatMessage{
-		{Role: "system", Content: weeklyBriefSystemPrompt},
-		{Role: "user", Content: buildPrompt(in)},
+		{Role: "system", Content: a.systemPrompt()},
+		{Role: "user", Content: userPrompt},
 	}
 
 	attempts := a.maxAttempts
@@ -270,6 +444,22 @@ func truncateForPrompt(s string) string {
 // maxErrorBodyBytes caps how much of an upstream non-2xx body we keep in the
 // returned error, which is also surfaced in retry logs/telemetry.
 const maxErrorBodyBytes = 512
+
+// sanitizeClaimSummary removes newlines and escapes double-quotes in a claim
+// summary before it is interpolated into the prompt template. The compiled-in
+// buildPrompt used fmt %q quoting, which added surrounding quotes and escaped
+// internal ones. The external template keeps the summary inside a
+// summary="..." field, so a raw double-quote could break out of that boundary
+// and inject additional prompt structure (CWE-74). Replacing " with ' preserves
+// readability while maintaining the field delimiter invariant.
+func sanitizeClaimSummary(s string) string {
+	return strings.NewReplacer(
+		"\r\n", " ",
+		"\r", " ",
+		"\n", " ",
+		`"`, `'`,
+	).Replace(s)
+}
 
 // truncateForError trims surrounding whitespace and caps an upstream error body
 // to maxErrorBodyBytes runes so a large proxy/HTML page can't bloat errors/logs.
@@ -426,33 +616,4 @@ func extractJSONObject(content string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-const weeklyBriefSystemPrompt = `You are a writing assistant that produces concise weekly briefs for open-source committee working groups.
-Respond ONLY with a JSON object matching this schema:
-{
-  "claim_ids": ["string", ...],   // at least one claim id, taken from the supplied claims
-  "source_refs": [{"type": "string", "id": "string"}, ...],  // at least one
-  "brief_text": "string"           // two paragraphs separated by a blank line
-}
-Do not include any prose outside the JSON object.`
-
-func buildPrompt(in port.WeeklyBriefInput) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Committee: %s (%s)\nProject: %s\nPeriod: %s to %s\n\nClaims:\n",
-		in.CommitteeName, in.CommitteeID, in.ProjectName, in.PeriodStart, in.PeriodEnd)
-
-	claims := append([]port.ClaimEvidence(nil), in.Claims...)
-	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
-	for _, c := range claims {
-		fmt.Fprintf(&b, "- id=%s summary=%q sources=", c.ID, c.Summary)
-		for i, s := range c.Sources {
-			if i > 0 {
-				b.WriteString(",")
-			}
-			fmt.Fprintf(&b, "%s:%s", s.Type, s.ID)
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
 }

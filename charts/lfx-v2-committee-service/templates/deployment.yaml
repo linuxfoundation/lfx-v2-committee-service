@@ -8,6 +8,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -110,6 +114,12 @@ spec:
             - name: OTEL_PROPAGATORS
               value: {{ $otelPropagators | quote }}
             {{- end }}
+            {{- $promptDir := .Values.weeklyBriefPrompts.promptDir | toString | trim }}
+            {{- $promptHash := printf "%s%s" .Values.weeklyBriefPrompts.systemPrompt .Values.weeklyBriefPrompts.userPromptTemplate | sha256sum | trunc 8 }}
+            {{- if ne $promptDir "" }}
+            - name: WEEKLY_BRIEF_PROMPT_DIR
+              value: {{ $promptDir | quote }}
+            {{- end }}
           ports:
             - containerPort: {{ .Values.service.port }}
               name: web
@@ -133,6 +143,18 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if ne $promptDir "" }}
+          volumeMounts:
+            - name: weekly-brief-prompts
+              mountPath: {{ $promptDir | quote }}
+              readOnly: true
+          {{- end }}
+      {{- if ne $promptDir "" }}
+      volumes:
+        - name: weekly-brief-prompts
+          configMap:
+            name: {{ .Chart.Name }}-weekly-brief-prompts-{{ $promptHash }}
+      {{- end }}
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
