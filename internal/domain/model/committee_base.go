@@ -43,6 +43,7 @@ type CommitteeBase struct {
 	SSOGroupName     string    `json:"sso_group_name,omitempty"`
 	RequiresReview   bool      `json:"requires_review"`
 	Public           bool      `json:"public"`
+	PublicName       string    `json:"public_name,omitempty"`
 	JoinMode         string    `json:"join_mode,omitempty"`
 	Calendar         Calendar  `json:"calendar,omitempty"`
 	DisplayName      string    `json:"display_name,omitempty"`
@@ -151,6 +152,11 @@ func (c *Committee) Tags() []string {
 
 	if c.Category != "" {
 		tag := fmt.Sprintf("category:%s", c.Category)
+		tags = append(tags, tag)
+	}
+
+	if c.PublicName != "" {
+		tag := fmt.Sprintf("public_name:%s", c.PublicName)
 		tags = append(tags, tag)
 	}
 

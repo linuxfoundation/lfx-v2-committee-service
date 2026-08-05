@@ -28,6 +28,7 @@ func CommitteeBaseAttributes() {
 	SSOGroupEnabledAttribute()
 	RequiresReviewAttribute()
 	PublicAttribute()
+	PublicNameAttribute()
 	CalendarAttribute()
 	DisplayNameAttribute()
 	ParentCommitteeUIDAttribute()
@@ -318,6 +319,14 @@ func PublicAttribute() {
 	dsl.Attribute("public", dsl.Boolean, "General committee visibility/access permissions", func() {
 		dsl.Default(false)
 		dsl.Example(true)
+	})
+}
+
+// PublicNameAttribute is the DSL attribute for public name (slug).
+func PublicNameAttribute() {
+	dsl.Attribute("public_name", dsl.String, "Human-readable slug for public URLs (e.g. 'tsc'); defaults to the committee name when public is enabled", func() {
+		dsl.MaxLength(200)
+		dsl.Example("technical-steering-committee")
 	})
 }
 

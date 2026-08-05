@@ -31,6 +31,9 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 	if committee.DisplayName != "" && committee.DisplayName != committee.Name {
 		nameAndAliases = append(nameAndAliases, committee.DisplayName)
 	}
+	if committee.PublicName != "" && committee.PublicName != committee.Name && committee.PublicName != committee.DisplayName {
+		nameAndAliases = append(nameAndAliases, committee.PublicName)
+	}
 
 	var parentRefs []string
 	if committee.ProjectUID != "" {
