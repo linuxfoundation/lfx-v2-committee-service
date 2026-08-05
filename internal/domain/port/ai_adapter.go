@@ -63,4 +63,11 @@ type AIAdapter interface {
 	// Implementations MUST validate that the returned WeeklyBrief has at least
 	// one claim_id, one source_ref, and a two-paragraph brief.
 	GenerateWeeklyBrief(ctx context.Context, in WeeklyBriefInput) (WeeklyBrief, error)
+
+	// PromptVersion returns the version label of the prompt template currently
+	// loaded by this adapter. The value is persisted on every generated brief
+	// so regressions can be traced back to the exact prompt revision.
+	// Implementations that do not use configurable prompts (e.g. FakeAdapter)
+	// return a fixed label such as "fake".
+	PromptVersion() string
 }

@@ -108,6 +108,8 @@ type recordingAIAdapter struct {
 	gotInput port.WeeklyBriefInput
 }
 
+func (r *recordingAIAdapter) PromptVersion() string { return "test-v1" }
+
 func (r *recordingAIAdapter) GenerateWeeklyBrief(_ context.Context, in port.WeeklyBriefInput) (port.WeeklyBrief, error) {
 	r.gotInput = in
 	return port.WeeklyBrief{
@@ -165,6 +167,7 @@ func generatingBrief() *model.GroupWeeklyBrief {
 // failingAIAdapter always errors, to exercise the Fulfill AI-failure path.
 type failingAIAdapter struct{}
 
+func (failingAIAdapter) PromptVersion() string { return "test-v1" }
 func (failingAIAdapter) GenerateWeeklyBrief(_ context.Context, _ port.WeeklyBriefInput) (port.WeeklyBrief, error) {
 	return port.WeeklyBrief{}, errors.NewUnexpected("ai generation failed", nil)
 }

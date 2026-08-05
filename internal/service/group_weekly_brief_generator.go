@@ -73,12 +73,6 @@ type GroupWeeklyBriefGenerator interface {
 	Fulfill(ctx context.Context, in GroupWeeklyBriefGenerateInput) error
 }
 
-// PromptVersion is the only supported prompt version for the Phase 2 generate
-// flow. Bumping this requires updating the source-marker contract in the
-// system prompt; the value is persisted on the brief so future readers can
-// pick the right rendering rules.
-const PromptVersion = "v1"
-
 type groupWeeklyBriefGenerator struct {
 	briefReader   port.GroupWeeklyBriefReader
 	briefWriter   port.GroupWeeklyBriefWriter
@@ -420,7 +414,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// Finalize → generated.
 	brief.State = model.GroupWeeklyBriefStateGenerated
 	brief.BriefText = aiOut.BriefText
-	brief.PromptVersion = PromptVersion
+	brief.PromptVersion = g.ai.PromptVersion()
 	brief.Model = modelLabelFromAdapter(g.ai)
 	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, mailing, votes)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
