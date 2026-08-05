@@ -6,8 +6,11 @@ guards before reads, secondary-index (lookup-key) reservation and rollback, and 
 These are data-integrity patterns — cost-of-miss promotes them.
 
 **Read when:** any file under `internal/infrastructure/nats/**`, `internal/service/*writer.go`,
-`internal/service/*reader.go`, `cmd/committee-api/service/committee_service.go` (handler-level existence
-guards), or `internal/infrastructure/mock/**` (mock semantics must mirror storage).
+`internal/service/*reader.go`, `internal/service/message_handler.go` (read-modify-write conflict retries,
+and the `usernameMatches`/`emailMatches` normalization helpers),
+`cmd/committee-api/service/committee_service.go` (handler-level existence
+guards), `internal/infrastructure/mock/**` (mock semantics must mirror storage),
+`pkg/constants/storage.go`, or `cmd/committee-cli/commands/sync/**` (secondary-index backfills).
 
 ---
 
@@ -51,17 +54,29 @@ read-modify-write paths (`message_handler.go`, `UpdateHasMailingList`), check fo
 
 ## `nats-storage-kv/missing-existence-guard` — Important
 
-**Pattern:** a list/get handler reads a sub-resource collection from KV without first verifying the parent
+**Pattern:** a `List*` handler reads a sub-resource collection from KV without first verifying the parent
 committee exists, so a non-existent committee UID returns `200` + empty array instead of the documented
 `404`. The repo convention is to call `GetBase` (committee existence check) before listing
 links/documents/members/invites/applications.
 
-**Detect:** in `cmd/committee-api/service/committee_service.go`, for each `List*`/`Get*` sub-resource
-handler, confirm a `GetBase(ctx, uid)` (or equivalent existence check) precedes the storage list call.
+**Detect:** in `cmd/committee-api/service/committee_service.go`, for each **`List*`** sub-resource handler,
+confirm a `GetBase(ctx, uid)` (or equivalent existence check) precedes the storage list call.
+
+**Single-resource `Get*` handlers are out of scope.** They legitimately rely on the sub-resource read's own
+404 plus a committee-ownership check, so requiring a separate `GetBase` there produces false positives.
 
 **Empirical citation:** PR #71 `cmd/committee-api/service/committee_service.go:1290` (Copilot) — "ListCommitteeDocuments does not verify the committee exists (unlike ListCommitteeLinks which calls GetBase first) ... an unknown committee UID will return 200 with an empty list, which conflicts with the API behavior implied elsewhere (and the OpenAPI 404 response)." Recurs PR #61 `committee_service.go:352/489` (ListInvites/ListApplications, same issue).
 
-**Failure message:** Sub-resource list/get handler does not verify the committee exists first — non-existent UID returns 200 + empty instead of 404.
+**Revised 2026-07-30 — scope narrowed, citations superseded.** The invariant is upheld, but all three cited
+handlers (`ListInvites`, `ListApplications`, `ListCommitteeDocuments`) no longer exist. The two surviving
+list handlers both guard, and are the current reference implementations:
+`ListCommitteeLinks` (`committee_service.go:2199` → its `GetBase` existence check at `:2202`) and
+`ListCommitteeLinkFolders` (`:2291` → `:2294`). **Corrected 2026-07-31:** these were previously cited as
+`:2208`/`:2211` and `:2296`/`:2299`, which resolve to a `wrapError` return and a slice initialization — anchor
+on the function name and its `GetBase` call, not on those numbers. The `Get*` exclusion above was added in the same pass. The PR #71/#61 threads are
+retained as provenance.
+
+**Failure message:** Sub-resource `List*` handler does not verify the committee exists first — non-existent UID returns 200 + empty instead of 404.
 
 **Fix:** call `GetBase(ctx, committeeUID)` (or a dedicated exists check) at the top of the handler and return `NotFound` when missing, matching `ListCommitteeLinks`.
 
@@ -89,19 +104,29 @@ returns the lookup/index key consistently (including the conflict case), matchin
 
 ## `nats-storage-kv/orphaned-object-on-metadata-failure` — Important
 
-**Pattern:** an Object Store blob is written (`PutDocumentFile`) before the KV metadata record, but if
-metadata creation fails the uploaded object is left orphaned in the `committee-documents` Object Store.
-Document deletes must also remove the file from the Object Store, not just the metadata.
+**Pattern:** a document delete removes the KV metadata but leaves the file behind in the
+`committee-documents` Object Store. Separately, an Object Store blob written before its KV metadata record
+is left orphaned when metadata creation fails **and nothing in the code says that was the decision**.
 
-**Detect:** in `internal/service/document_writer.go` and `internal/infrastructure/nats/document_storage.go`
-/ mocks, check that an Object Store write is paired with best-effort cleanup on metadata-write failure, and
-that delete paths remove both the metadata and the object-store file.
+**Detect:** in `internal/service/document_writer.go`, `internal/infrastructure/nats/document_storage.go`,
+and the mocks, check that delete paths remove **both** the metadata and the object-store file. For the
+write path, flag orphaning only where it is *undocumented*.
+
+**The existing metadata-failure orphan is an accepted trade-off, not a finding.**
+`internal/service/document_writer.go:115-119` explains in code why the object is deliberately not rolled
+back. Flagging it re-opens a decision the team wrote down; a reviewer that quotes this entry against that
+block is wrong. The rule bites when a *new* Object Store write path orphans silently with no such note.
 
 **Empirical citation:** PR #71 `internal/service/document_writer.go:128` (Copilot/CodeRabbit) — "If CreateDocumentMetadata fails after PutDocumentFile succeeds, the uploaded object is left orphaned in the object store ... Consider best-effort deleting the object-store entry on metadata failure." Recurs PR #71 `mock/document.go:100` ("Missing file cleanup in DeleteDocumentMetadata").
 
-**Failure message:** Object Store blob can be orphaned when metadata write fails (or delete leaves the file behind).
+**Revised 2026-07-30 — narrowed.** The delete half holds and is verified at `document_storage.go:161` plus
+`mock/document.go:98`. The metadata-failure half was rewritten because the behaviour it flagged became a
+documented accepted trade-off in the code during the mining window; as originally written the entry fired
+against that decision. The PR #71 threads are retained as provenance.
 
-**Fix:** on metadata-create failure, best-effort delete the object-store entry; on document delete, remove both metadata and the object-store file.
+**Failure message:** Document delete leaves the object-store file behind, or a new Object Store write path orphans its blob on metadata failure with no documented rationale.
+
+**Fix:** on document delete, remove both the metadata and the object-store file. On a new write path, either best-effort delete the object-store entry on metadata-create failure, or record in code why the orphan is accepted — as `document_writer.go:115-119` does.
 
 ---
 
@@ -112,12 +137,87 @@ without normalizing (`strings.ToLower(strings.TrimSpace(...))`), so case or whit
 duplicate or non-matching keys. Email is normalized but username is left verbatim, or presence checks
 (`hasUsername`/`hasEmail`) run against the raw string so `"   "` passes and is stored as empty.
 
+**Scope extends past the key builders** to **every guard that compares a caller-supplied value against an
+indexed one**. A builder that normalizes and a comparison that does not are the same defect: the comparison
+misses the record the index would have found.
+
 **Detect:** in `BuildIndexKey`, `committeeUserKey`, `userIdentityKey`, and payload-conversion presence
 checks, verify both email AND username are `TrimSpace`'d (and email lower-cased) before keying or the
-presence check.
+presence check. Then check any new or changed identity comparison the same way — a `strings.EqualFold`
+without `TrimSpace` against an email or username is a finding. The helpers to reuse are `usernameMatches` /
+`emailMatches` (`internal/service/message_handler.go:568-587`), which apply the index normalization.
 
 **Empirical citation:** PR #16 `internal/domain/model/committee_member.go:83` (CodeRabbit) — "Normalize inputs when building uniqueness key to prevent case/whitespace dupes". Recurs PR #92 `message_handler.go:1015` (dealako, "`committeeUserKey` trims email but not username") and PR #92 `committee_service_response.go:679` ("Whitespace-only username/email passes presence check, stored as empty").
 
-**Failure message:** Uniqueness/identity key or presence check uses un-normalized email/username — case/whitespace variants dupe or mismatch.
+**Revised 2026-07-30 — scope extended.** All builders normalize in `main@bd39fe9`, including the new
+`BuildUsernameIndexKey:125`, and the PR #140 fix is verified: `emailChanged` is now derived from hash
+comparison rather than raw strings. PR #161 added the `usernameMatches`/`emailMatches` helpers named above,
+which reuse the index normalization.
 
-**Fix:** apply `strings.TrimSpace` to username and `strings.ToLower(strings.TrimSpace(...))` to email before keying; trim before the presence check so whitespace-only values are treated as absent.
+**Residual live violations** — `strings.EqualFold` **without** `TrimSpace` in
+`cmd/committee-api/service/committee_service.go` at `AcceptInvite:952`, `DeclineInvite:1043`, and
+`LeaveCommittee:1345` (verified at `main@bd39fe9`). Copilot flagged this shape on PR #150 and no fix landed,
+so it is current. This is what the comparison-guard extension exists to catch.
+
+**Corrected 2026-07-31.** These were previously cited as `:954`, `:1045`, `:1347` — `ec86a8f` line numbers,
+not `bd39fe9` as the entry claimed. The file was not named either, so the numbers could not be checked
+without guessing the file. Function names are given first here because they survive line drift; the numbers
+are the convenience, not the anchor.
+
+**Failure message:** Uniqueness/identity key, presence check, or identity comparison uses un-normalized email/username — case/whitespace variants dupe or mismatch.
+
+**Fix:** apply `strings.TrimSpace` to username and `strings.ToLower(strings.TrimSpace(...))` to email before keying; trim before the presence check so whitespace-only values are treated as absent; and normalize both sides of an identity comparison rather than relying on a bare `EqualFold`.
+
+**On the helpers — do not prescribe a call that will not compile.** `usernameMatches` and `emailMatches` are the
+reference implementations of that normalization, but they are **unexported**, in `internal/service`
+(`message_handler.go:570` and `:580`). The live violations above are in `cmd/committee-api/service` — the same
+package *name*, a different package — so they cannot call them. Within `internal/service`, call them. From any
+other package, either apply the same normalization inline or promote a shared exported helper; cite them as the
+normalization to match, never as a function the caller can already reach.
+
+---
+
+## `nats-storage-kv/new-secondary-index-needs-backfill-and-cleanup` — Critical
+
+**Pattern:** a new persistent secondary index is added to the members bucket — a `KVLookup*Prefix` constant
+plus a `Build*IndexKey` method and a write-path call — but only one half of its lifecycle ships. Either
+deleted records keep their index key forever, or records that existed before the deploy are never indexed at
+all, so any reader of the index silently sees a partial view.
+
+**Detect:** the diff adds a `KVLookupMembersBy*Prefix` constant to `pkg/constants/storage.go`, or a
+`Build*IndexKey` method on a member model. Require all three:
+
+1. the key is appended to `indicesToDelete` in `DeleteMember`
+   (`internal/service/committee_member_writer.go:805-822` is the block — every other index has an entry
+   there);
+2. a backfill exists at `cmd/committee-cli/commands/sync/members_by_*_index.go` and is registered in
+   `cmd/committee-cli/commands/sync/sync.go`;
+3. the change states that the backfill runs **before** the consumer that reads the index.
+
+Any of the three missing is a finding. A read path that consults the new index while (2) is absent is the
+critical case.
+
+**Empirical citation:** PR #161 (`copilot-pull-request-reviewer`), two threads on
+`internal/service/committee_member_writer.go`.
+
+- Thread `r3659896585` at `:307` — "Adding this persistent secondary key also requires deletion cleanup.
+  `DeleteMember` currently collects only uniqueness, committee, organization, and email keys
+  (`committee_member_writer.go:797-817`), so every deleted member with a username leaves an orphaned
+  username-index key indefinitely." Fixed in `b74396c`; verified at `main@bd39fe9`
+  `committee_member_writer.go:819-822` with `TestDeleteMember_IndexKeyIncluded`
+  (`committee_member_writer_test.go:798`).
+- Thread `r3659843291`, same file — "This only indexes members created after deployment … Existing seats
+  with unchanged usernames therefore have no key, so `ListMembersByUsername` returns no matches and the
+  primary scrub behavior silently misses them. Add an idempotent username-index backfill command and
+  deployment sequencing, analogous to `members-by-email-index`." Fixed in `a9c62dc`; verified at
+  `cmd/committee-cli/commands/sync/members_by_username_index.go`, registered as
+  `"members-by-username-index"` in `sync.go:25`.
+
+**Why it earns a place:** the repo carries four of these indexes — by committee, by email, by organization,
+by username — and PR #161 shows both obligations being missed on the newest one, then acted on twice in the
+same PR. Cost of miss is permanent: an incomplete index makes the user-deletion scrub a silent blind spot,
+and nothing fails loudly.
+
+**Failure message:** New secondary index added without delete-path cleanup and/or a backfill command — existing records stay unindexed and deleted records leak orphaned keys.
+
+**Fix:** append the key to `indicesToDelete` in `DeleteMember` behind a non-empty guard, mirroring the email index; add a `members_by_<attr>_index.go` backfill with `--dry-run` defaulting to true and register it in `sync.go`; and state the backfill-before-consumer ordering in the change.

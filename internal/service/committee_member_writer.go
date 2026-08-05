@@ -100,7 +100,9 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	)
 	defer func() {
 		if err := recover(); err != nil || rollbackRequired {
-			uc.deleteMemberKeys(ctx, keys, rollbackRequired)
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			uc.deleteMemberKeys(cleanupCtx, keys, rollbackRequired)
 		}
 	}()
 

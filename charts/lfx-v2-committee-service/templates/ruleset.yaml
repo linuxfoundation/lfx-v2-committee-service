@@ -469,7 +469,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: writer
+              relation: inviter
               object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
