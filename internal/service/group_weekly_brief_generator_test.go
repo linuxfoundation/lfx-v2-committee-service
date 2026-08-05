@@ -507,14 +507,19 @@ func TestMemberLabel(t *testing.T) {
 			want: "Jane",
 		},
 		{
-			name: "last name only",
-			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3", LastName: "Doe"}},
-			want: "Doe",
-		},
-		{
 			name: "username only",
 			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-4", Username: "jdoe"}},
 			want: "jdoe",
+		},
+		{
+			name: "last name only falls through to username (not 'Doe')",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3", LastName: "Doe", Username: "jdoe"}},
+			want: "jdoe",
+		},
+		{
+			name: "last name only, no username — degrades to a new member",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3b", LastName: "Doe"}},
+			want: "a new member",
 		},
 		{
 			name: "no name fields — degrades gracefully, never emits UID",
@@ -524,12 +529,17 @@ func TestMemberLabel(t *testing.T) {
 		{
 			name: "nil member",
 			m:    nil,
-			want: "",
+			want: "a new member",
 		},
 		{
 			name: "whitespace-only names fall through to username",
 			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-5", FirstName: "  ", LastName: "\t", Username: "jdoe"}},
 			want: "jdoe",
+		},
+		{
+			name: "whitespace-only username falls through to a new member",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-6", Username: "  "}},
+			want: "a new member",
 		},
 	}
 	for _, tc := range tests {
@@ -539,6 +549,64 @@ func TestMemberLabel(t *testing.T) {
 			if tc.m != nil {
 				assert.NotEqual(t, tc.m.UID, got, "memberLabel must never return the raw UID")
 			}
+		})
+	}
+}
+
+func TestFormatMemberList(t *testing.T) {
+	mk := func(first, last, username string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			FirstName: first, LastName: last, Username: username,
+		}}
+	}
+	jane := mk("Jane", "Doe", "jdoe")
+	john := mk("John", "Smith", "jsmith")
+	unnamed := mk("", "", "")
+
+	tests := []struct {
+		name    string
+		members []*model.CommitteeMember
+		want    string
+	}{
+		{
+			name:    "empty slice",
+			members: nil,
+			want:    "",
+		},
+		{
+			name:    "one named member",
+			members: []*model.CommitteeMember{jane},
+			want:    "Jane Doe",
+		},
+		{
+			name:    "two named members",
+			members: []*model.CommitteeMember{jane, john},
+			want:    "Jane Doe, John Smith",
+		},
+		{
+			name:    "one unnamed member",
+			members: []*model.CommitteeMember{unnamed},
+			want:    "a new member",
+		},
+		{
+			name:    "three unnamed members",
+			members: []*model.CommitteeMember{unnamed, unnamed, unnamed},
+			want:    "3 new members",
+		},
+		{
+			name:    "named plus one unnamed",
+			members: []*model.CommitteeMember{jane, unnamed},
+			want:    "Jane Doe, and 1 other",
+		},
+		{
+			name:    "named plus two unnamed",
+			members: []*model.CommitteeMember{jane, john, unnamed, unnamed},
+			want:    "Jane Doe, John Smith, and 2 others",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, formatMemberList(tc.members))
 		})
 	}
 }

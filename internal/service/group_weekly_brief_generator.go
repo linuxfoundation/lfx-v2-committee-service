@@ -481,15 +481,15 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 		// TODO(member-link): deep-link URLs to member pages are not yet
 		// available; the brief still cites by username, but consumers will
 		// want a URL when one exists.
-		joinedNames := memberNames(members.Joined)
-		updatedNames := memberNames(members.Updated)
+		joinedStr := formatMemberList(members.Joined)
+		updatedStr := formatMemberList(members.Updated)
 
 		summaryParts := []string{}
-		if len(joinedNames) > 0 {
-			summaryParts = append(summaryParts, "Members joined: "+strings.Join(joinedNames, ", "))
+		if joinedStr != "" {
+			summaryParts = append(summaryParts, "Members joined: "+joinedStr)
 		}
-		if len(updatedNames) > 0 {
-			summaryParts = append(summaryParts, "Members updated: "+strings.Join(updatedNames, ", "))
+		if updatedStr != "" {
+			summaryParts = append(summaryParts, "Members updated: "+updatedStr)
 		}
 		summary := strings.Join(summaryParts, "; ")
 
@@ -611,34 +611,62 @@ func cleanSummary(s string) string {
 	return truncateRunes(s, maxExcerptLen)
 }
 
-func memberNames(members []*model.CommitteeMember) []string {
-	out := make([]string, 0, len(members))
-	for _, m := range members {
-		out = append(out, memberLabel(m))
-	}
-	return out
-}
-
 // memberLabel returns a human-readable identifier for a member to cite in the
-// brief. Priority: display name (FirstName + LastName) → Username → "a new
-// member". The raw UID is never returned — it would leak an internal identifier
-// into mailing-list output (LFXV2-2990).
+// brief. Priority: full name → first name → username → "a new member".
+// Last-name-only is skipped ("welcomed Doe" reads like a typo). The raw UID
+// is never returned (LFXV2-2990).
 func memberLabel(m *model.CommitteeMember) string {
 	if m == nil {
-		return ""
+		return "a new member"
 	}
 	first := strings.TrimSpace(m.FirstName)
 	last := strings.TrimSpace(m.LastName)
+	username := strings.TrimSpace(m.Username)
 	switch {
 	case first != "" && last != "":
 		return first + " " + last
 	case first != "":
 		return first
-	case last != "":
-		return last
-	case m.Username != "":
-		return m.Username
+	case username != "":
+		return username
 	default:
 		return "a new member"
+	}
+}
+
+// formatMemberList renders a slice of members into a prose list for the brief
+// summary. Members with a resolvable name are listed individually; unresolved
+// members are aggregated so "a new member" never appears more than once inline.
+//
+// Examples:
+//
+//	["Jane Doe", "John Smith"]            → "Jane Doe, John Smith"
+//	["Jane Doe"] + 2 unresolved          → "Jane Doe, and 2 others"
+//	3 unresolved                         → "3 new members"
+//	1 unresolved                         → "a new member"
+func formatMemberList(members []*model.CommitteeMember) string {
+	var named []string
+	unnamed := 0
+	for _, m := range members {
+		label := memberLabel(m)
+		if label == "a new member" {
+			unnamed++
+		} else {
+			named = append(named, label)
+		}
+	}
+	switch {
+	case len(named) == 0 && unnamed == 0:
+		return ""
+	case len(named) == 0 && unnamed == 1:
+		return "a new member"
+	case len(named) == 0:
+		return fmt.Sprintf("%d new members", unnamed)
+	case unnamed == 0:
+		return strings.Join(named, ", ")
+	case unnamed == 1:
+		return strings.Join(named, ", ") + ", and 1 other"
+	default:
+		return strings.Join(named, ", ") + fmt.Sprintf(", and %d others", unnamed)
 	}
 }
