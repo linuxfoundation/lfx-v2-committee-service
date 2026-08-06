@@ -860,7 +860,10 @@ func (s *committeeServicesrvc) convertApplicationDomainToResponse(app *model.Com
 	if app.Organization != nil {
 		orgID := app.Organization.ID
 		orgName := app.Organization.Name
-		orgWebsite := app.Organization.Website
+		var orgWebsite *string
+		if w := app.Organization.Website; w != "" {
+			orgWebsite = &w
+		}
 		result.Organization = &struct {
 			ID      *string
 			Name    *string
@@ -868,7 +871,7 @@ func (s *committeeServicesrvc) convertApplicationDomainToResponse(app *model.Com
 		}{
 			ID:      &orgID,
 			Name:    &orgName,
-			Website: &orgWebsite,
+			Website: orgWebsite,
 		}
 	}
 	return result

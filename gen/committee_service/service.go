@@ -307,12 +307,6 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
-	// User who soft-deleted this document. Present only when the document has been
-	// deleted.
-	DeletedBy *CommitteeUser
-	// The timestamp when the document was soft-deleted (read-only). Present only
-	// when the document has been deleted.
-	DeletedAt *string
 }
 
 // CommitteeFullWithReadonlyAttributes is the result type of the

@@ -1168,12 +1168,6 @@ type UploadCommitteeDocumentResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	// User who soft-deleted this document. Present only when the document has been
-	// deleted.
-	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
-	// The timestamp when the document was soft-deleted (read-only). Present only
-	// when the document has been deleted.
-	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
@@ -2970,12 +2964,6 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	// User who soft-deleted this document. Present only when the document has been
-	// deleted.
-	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
-	// The timestamp when the document was soft-deleted (read-only). Present only
-	// when the document has been deleted.
-	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GroupWeeklyBriefWithReadonlyAttributesResponseBody is used to define fields
@@ -6329,16 +6317,12 @@ func NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated(bo
 		ContentType:  body.ContentType,
 		CreatedAt:    body.CreatedAt,
 		UpdatedAt:    body.UpdatedAt,
-		DeletedAt:    body.DeletedAt,
 	}
 	if body.CreatedBy != nil {
 		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
 		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
-	}
-	if body.DeletedBy != nil {
-		v.DeletedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.DeletedBy)
 	}
 
 	return v
@@ -6408,16 +6392,12 @@ func NewGetCommitteeDocumentResultOK(body *GetCommitteeDocumentResponseBody, eta
 		ContentType:  body.ContentType,
 		CreatedAt:    body.CreatedAt,
 		UpdatedAt:    body.UpdatedAt,
-		DeletedAt:    body.DeletedAt,
 	}
 	if body.CreatedBy != nil {
 		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
 		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
-	}
-	if body.DeletedBy != nil {
-		v.DeletedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.DeletedBy)
 	}
 	res := &committeeservice.GetCommitteeDocumentResult{
 		CommitteeDocument: v,
@@ -8340,14 +8320,6 @@ func ValidateUploadCommitteeDocumentResponseBody(body *UploadCommitteeDocumentRe
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
 	}
-	if body.DeletedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.DeletedBy); err2 != nil {
-			err = goa.MergeErrors(err, err2)
-		}
-	}
-	if body.DeletedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.deleted_at", *body.DeletedAt, goa.FormatDateTime))
-	}
 	return
 }
 
@@ -8398,14 +8370,6 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
-	}
-	if body.DeletedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.DeletedBy); err2 != nil {
-			err = goa.MergeErrors(err, err2)
-		}
-	}
-	if body.DeletedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.deleted_at", *body.DeletedAt, goa.FormatDateTime))
 	}
 	return
 }
@@ -10739,14 +10703,6 @@ func ValidateCommitteeDocumentWithReadonlyAttributesResponseBody(body *Committee
 	}
 	if body.UpdatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
-	}
-	if body.DeletedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.DeletedBy); err2 != nil {
-			err = goa.MergeErrors(err, err2)
-		}
-	}
-	if body.DeletedAt != nil {
-		err = goa.MergeErrors(err, goa.ValidateFormat("body.deleted_at", *body.DeletedAt, goa.FormatDateTime))
 	}
 	return
 }

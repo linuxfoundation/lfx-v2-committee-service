@@ -1074,12 +1074,6 @@ paths:
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
-                                deleted_at: "2026-08-05T22:00:00Z"
-                                deleted_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
                                 description: Technical architecture decisions for Q1 2025
                                 file_name: architecture-decisions-q1-2025.pdf
                                 file_size: 204800
@@ -1296,12 +1290,6 @@ paths:
                                 content_type: application/pdf
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                deleted_at: "2026-08-05T22:00:00Z"
-                                deleted_by:
                                     avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
@@ -5070,13 +5058,6 @@ components:
                     format: date-time
                 created_by:
                     $ref: '#/components/schemas/CommitteeUser'
-                deleted_at:
-                    type: string
-                    description: The timestamp when the document was soft-deleted (read-only). Present only when the document has been deleted.
-                    example: "2026-08-05T22:00:00Z"
-                    format: date-time
-                deleted_by:
-                    $ref: '#/components/schemas/CommitteeUser'
                 description:
                     type: string
                     description: Optional description
@@ -5121,12 +5102,6 @@ components:
                 content_type: application/pdf
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
-                    avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
-                deleted_at: "2026-08-05T22:00:00Z"
-                deleted_by:
                     avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee

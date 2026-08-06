@@ -1168,12 +1168,6 @@ type UploadCommitteeDocumentResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	// User who soft-deleted this document. Present only when the document has been
-	// deleted.
-	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
-	// The timestamp when the document was soft-deleted (read-only). Present only
-	// when the document has been deleted.
-	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
@@ -2950,12 +2944,6 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	// User who soft-deleted this document. Present only when the document has been
-	// deleted.
-	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
-	// The timestamp when the document was soft-deleted (read-only). Present only
-	// when the document has been deleted.
-	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GroupWeeklyBriefWithReadonlyAttributesResponseBody is used to define fields
@@ -4382,16 +4370,12 @@ func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocum
 		ContentType:  res.ContentType,
 		CreatedAt:    res.CreatedAt,
 		UpdatedAt:    res.UpdatedAt,
-		DeletedAt:    res.DeletedAt,
 	}
 	if res.CreatedBy != nil {
 		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
 	}
 	if res.UpdatedBy != nil {
 		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
-	}
-	if res.DeletedBy != nil {
-		body.DeletedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.DeletedBy)
 	}
 	return body
 }
@@ -4411,16 +4395,12 @@ func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocum
 		ContentType:  res.CommitteeDocument.ContentType,
 		CreatedAt:    res.CommitteeDocument.CreatedAt,
 		UpdatedAt:    res.CommitteeDocument.UpdatedAt,
-		DeletedAt:    res.CommitteeDocument.DeletedAt,
 	}
 	if res.CommitteeDocument.CreatedBy != nil {
 		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.CreatedBy)
 	}
 	if res.CommitteeDocument.UpdatedBy != nil {
 		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.UpdatedBy)
-	}
-	if res.CommitteeDocument.DeletedBy != nil {
-		body.DeletedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.DeletedBy)
 	}
 	return body
 }

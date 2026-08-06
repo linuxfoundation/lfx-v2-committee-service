@@ -1416,16 +1416,4 @@ var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-
 	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
-	dsl.Attribute("deleted_by", CommitteeUserType, "User who soft-deleted this document. Present only when the document has been deleted.", func() {
-		dsl.Example(map[string]interface{}{
-			"username": "alexlee",
-			"name":     "Alex Lee",
-			"email":    "alexlee@linuxfoundation.org",
-			"avatar":   "https://example.com/avatar.png",
-		})
-	})
-	dsl.Attribute("deleted_at", dsl.String, "The timestamp when the document was soft-deleted (read-only). Present only when the document has been deleted.", func() {
-		dsl.Format(dsl.FormatDateTime)
-		dsl.Example("2026-08-05T22:00:00Z")
-	})
 })
