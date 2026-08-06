@@ -400,6 +400,10 @@ _(none)_
 | `message` | string | Application message from the applicant |
 | `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
+| `organization` | object (optional) | Organization confirmed by the applicant at submission time |
+| `organization.id` | string (optional) | Organization ID |
+| `organization.name` | string (optional) | Organization name |
+| `organization.website` | string (optional) | Organization website |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
 ### Tags
