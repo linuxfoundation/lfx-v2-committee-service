@@ -207,6 +207,15 @@ type CommitteeApplicationWithReadonlyAttributes struct {
 	Status string
 	// Notes from the reviewer
 	ReviewerNotes *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 }
@@ -1349,6 +1358,15 @@ type SubmitApplicationPayload struct {
 	// When true, send email notifications to committee writers about the new
 	// application. Defaults to false.
 	Notify bool
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // UpdateCommitteeBasePayload is the payload type of the committee-service

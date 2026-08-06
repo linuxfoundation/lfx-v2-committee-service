@@ -1229,7 +1229,7 @@ func committeeServiceSubmitApplicationUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service submit-application --body '{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service submit-application --body '{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false,\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceApproveApplicationUsage() {

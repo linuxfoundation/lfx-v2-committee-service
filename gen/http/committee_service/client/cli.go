@@ -1766,11 +1766,21 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceSubmitApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false,\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
 		}
 		if body.Message != nil {
 			if utf8.RuneCountInString(*body.Message) > 2000 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+			}
+		}
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 			}
 		}
 		if err != nil {
@@ -1818,6 +1828,20 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 		var zero bool
 		if v.Notify == zero {
 			v.Notify = false
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
 		}
 	}
 	v.UID = uid
