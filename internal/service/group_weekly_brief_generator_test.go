@@ -327,6 +327,7 @@ func TestFulfill_NoSources_SetsErrorState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, bw.putBrief)
 	assert.Equal(t, model.GroupWeeklyBriefStateError, bw.putBrief.State)
+	assert.Equal(t, "no_sources", bw.putBrief.ErrorReason)
 }
 
 func TestFulfill_AIError_SetsErrorState(t *testing.T) {
@@ -342,6 +343,7 @@ func TestFulfill_AIError_SetsErrorState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, bw.putBrief)
 	assert.Equal(t, model.GroupWeeklyBriefStateError, bw.putBrief.State)
+	assert.Equal(t, "ai_error", bw.putBrief.ErrorReason)
 }
 
 func TestFulfill_SkipsWhenBriefNotGenerating(t *testing.T) {

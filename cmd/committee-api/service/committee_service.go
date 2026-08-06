@@ -2013,6 +2013,10 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 		v := b.UpdatedAt.UTC().Format(time.RFC3339)
 		out.UpdatedAt = &v
 	}
+	if b.State == model.GroupWeeklyBriefStateError && b.ErrorReason != "" {
+		v := b.ErrorReason
+		out.ErrorReason = &v
+	}
 	if b.BriefText != "" {
 		v := b.BriefText
 		out.BriefText = &v

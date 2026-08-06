@@ -1206,6 +1206,8 @@ type UpdateCurrentWeeklyBriefResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -2960,6 +2962,8 @@ type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -4443,6 +4447,7 @@ func NewUpdateCurrentWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBr
 		WindowStart:          res.WindowStart,
 		WindowEnd:            res.WindowEnd,
 		State:                res.State,
+		ErrorReason:          res.ErrorReason,
 		BriefText:            res.BriefText,
 		PromptVersion:        res.PromptVersion,
 		Model:                res.Model,
