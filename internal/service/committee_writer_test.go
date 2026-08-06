@@ -136,11 +136,6 @@ func (w *TestMockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, commit
 	return existingUID, err
 }
 
-func (w *TestMockCommitteeWriter) UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.UniqueDisplayName(ctx, committee)
-}
-
 // CommitteeMemberWriter interface methods
 func (w *TestMockCommitteeWriter) CreateMember(ctx context.Context, member *model.CommitteeMember) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)

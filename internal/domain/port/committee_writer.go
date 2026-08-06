@@ -32,7 +32,6 @@ type CommitteeBaseWriter interface {
 	// Checkers for uniqueness
 	UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error)
 	UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error)
-	UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error)
 }
 
 // CommitteeSettingsWriter handles committee settings writing operations

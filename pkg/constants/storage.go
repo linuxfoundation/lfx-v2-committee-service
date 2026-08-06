@@ -93,10 +93,6 @@ const (
 	// KVLookupSSOGroupNamePrefix is the prefix for SSO group name lookup keys in the KV store.
 	KVLookupSSOGroupNamePrefix = "lookup/committee-sso-groups/%s"
 
-	// KVLookupDisplayNamePrefix is the prefix for display_name lookup keys in the KV store.
-	// Enforces global uniqueness of display_name across all committees (used for slug-based public URLs).
-	KVLookupDisplayNamePrefix = "lookup/committee-display-names/%s"
-
 	KVSlugPrefix = "slug/"
 
 	// KVBucketNameCommitteeLinks is the name of the KV bucket for committee links.

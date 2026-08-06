@@ -634,24 +634,6 @@ func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee 
 	return ssoKey, nil
 }
 
-// UniqueDisplayName verifies if a committee with the same display_name exists
-// Returns conflict error if found (for uniqueness checking)
-func (w *MockCommitteeWriter) UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by display_name", "display_name", committee.DisplayName)
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	for _, existing := range w.mock.committees {
-		if existing.DisplayName == committee.DisplayName && existing.CommitteeBase.UID != committee.CommitteeBase.UID {
-			return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with display_name %s already exists", committee.DisplayName))
-		}
-	}
-
-	displayNameKey := fmt.Sprintf("lookup/committee-display-names/%s", committee.BuildDisplayNameKey())
-	return displayNameKey, nil
-}
-
 // ================== CommitteeSettingsWriter implementation ==================
 
 // UpdateSetting updates committee settings

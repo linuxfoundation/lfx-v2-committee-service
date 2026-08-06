@@ -386,12 +386,15 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
 
-	// Log SSO group name update if applicable
-	if existing.Name != updated.Name && updated.SSOGroupEnabled {
+	// Accept new SSO group name when name changed and SSO/public active,
+	// or when SSO/public just enabled on an existing committee without an SSO name.
+	if existing.Name != updated.Name && (updated.SSOGroupEnabled || updated.Public) {
 		slog.DebugContext(ctx, "SSO group name updated",
 			"old_sso_name", existing.SSOGroupName,
 			"new_sso_name", updated.SSOGroupName,
 		)
+		ssoGroupName = updated.SSOGroupName
+	} else if (updated.SSOGroupEnabled || updated.Public) && existing.SSOGroupName == "" {
 		ssoGroupName = updated.SSOGroupName
 	}
 	updated.SSOGroupName = ssoGroupName
@@ -480,18 +483,8 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 	keys = append(keys, uniqueNameProjectKey)
 
-	// Check display_name uniqueness (if specified)
-	if committee.DisplayName != "" {
-		uniqueDisplayNameKey, errDisplayName := uc.committeeWriter.UniqueDisplayName(ctx, committee)
-		if errDisplayName != nil {
-			rollbackRequired = true
-			return nil, errDisplayName
-		}
-		keys = append(keys, uniqueDisplayNameKey)
-	}
-
-	// Check SSO group exists (if specified)
-	if committee.SSOGroupEnabled {
+	// Reserve SSO group name when SSO is enabled or committee is public (used as URL slug)
+	if committee.SSOGroupEnabled || committee.Public {
 		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
 		if errCheckReserveSSOName != nil {
 			rollbackRequired = true
@@ -658,8 +651,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			oldNameKey := uc.rebuildCommitteeNameIndex(ctx, newNameKey, existing)
 			staleKeys = append(staleKeys, oldNameKey)
 		}
-		// Step 3.1: Handle SSO Group Name changes (if name changed)
-		if committee.SSOGroupEnabled {
+		// Step 3.1: Regenerate SSO group name when name changed and SSO/public active
+		if committee.SSOGroupEnabled || committee.Public {
 			newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
 			if errSSOChange != nil {
 				rollbackRequired = true
@@ -676,23 +669,15 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 				}
 			}
 		}
-
-	}
-
-	// Step 3.2: Handle display_name changes
-	if existing.DisplayName != committee.DisplayName {
-		if committee.DisplayName != "" {
-			newDisplayNameKey, errDisplayName := uc.committeeWriter.UniqueDisplayName(ctx, committee)
-			if errDisplayName != nil {
-				rollbackRequired = true
-				return nil, errDisplayName
-			}
-			newKeys = append(newKeys, newDisplayNameKey)
+	} else if (committee.SSOGroupEnabled || committee.Public) && existing.SSOGroupName == "" {
+		// Step 3.2: Generate SSO name for the first time (public/SSO just enabled, no name change)
+		newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
+		if errSSOChange != nil {
+			rollbackRequired = true
+			return nil, errSSOChange
 		}
-		if existing.DisplayName != "" {
-			oldCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{DisplayName: existing.DisplayName}}
-			oldDisplayNameKey := fmt.Sprintf(constants.KVLookupDisplayNamePrefix, oldCommittee.BuildDisplayNameKey())
-			staleKeys = append(staleKeys, oldDisplayNameKey)
+		if newSSOKey != "" {
+			newKeys = append(newKeys, newSSOKey)
 		}
 	}
 
@@ -992,16 +977,9 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	indicesToDelete = append(indicesToDelete, nameIndexKey)
 
 	// Build SSO group name index key if it exists
-	if existing.SSOGroupEnabled && existing.SSOGroupName != "" {
+	if existing.SSOGroupName != "" {
 		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
 		indicesToDelete = append(indicesToDelete, ssoIndexKey)
-	}
-
-	// Build display_name index key if it exists
-	if existing.DisplayName != "" {
-		deleteCommittee := &model.Committee{CommitteeBase: model.CommitteeBase{DisplayName: existing.DisplayName}}
-		displayNameKey := fmt.Sprintf(constants.KVLookupDisplayNamePrefix, deleteCommittee.BuildDisplayNameKey())
-		indicesToDelete = append(indicesToDelete, displayNameKey)
 	}
 
 	slog.DebugContext(ctx, "secondary indices identified for deletion",

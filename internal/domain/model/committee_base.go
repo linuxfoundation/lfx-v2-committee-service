@@ -123,14 +123,6 @@ func (c *Committee) BuildIndexKey(ctx context.Context) string {
 	return key
 }
 
-// BuildDisplayNameKey generates a SHA-256 hash of the display_name for use as a NATS KV key.
-// Raw display_name values may contain spaces or special characters that are invalid in
-// NATS JetStream KV keys (which only accept [-/_=.a-zA-Z0-9]).
-func (c *Committee) BuildDisplayNameKey() string {
-	hash := sha256.Sum256([]byte(c.DisplayName))
-	return hex.EncodeToString(hash[:])
-}
-
 // Tags generates a consistent set of tags for the committee.
 // IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
 // to ensure consumers understand how to use these tags for searching.
@@ -164,6 +156,11 @@ func (c *Committee) Tags() []string {
 
 	if c.DisplayName != "" {
 		tag := fmt.Sprintf("display_name:%s", c.DisplayName)
+		tags = append(tags, tag)
+	}
+
+	if c.SSOGroupName != "" {
+		tag := fmt.Sprintf("sso_group_name:%s", c.SSOGroupName)
 		tags = append(tags, tag)
 	}
 

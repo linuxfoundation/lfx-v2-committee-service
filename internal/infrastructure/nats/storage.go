@@ -101,21 +101,6 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 	return ssoGroupKey, nil
 }
 
-// UniqueDisplayName enforces a global uniqueness constraint on the committee's display_name
-// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
-// if a committee with the same display_name already exists.
-func (s *storage) UniqueDisplayName(ctx context.Context, committee *model.Committee) (string, error) {
-	displayNameKey := fmt.Sprintf(constants.KVLookupDisplayNamePrefix, committee.BuildDisplayNameKey())
-	_, errDisplayName := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, displayNameKey, []byte(committee.CommitteeBase.UID))
-	if errDisplayName != nil {
-		if errors.Is(errDisplayName, jetstream.ErrKeyExists) {
-			return displayNameKey, errs.NewConflict("committee with the same display_name already exists")
-		}
-		return displayNameKey, errs.NewUnexpected("failed to create unique key for display_name", errDisplayName)
-	}
-	return displayNameKey, nil
-}
-
 // get retrieves a model from the NATS KV store by bucket and UID.
 // It unmarshals the data into the provided model and returns the revision.
 // If the UID is empty, it returns a validation error.
