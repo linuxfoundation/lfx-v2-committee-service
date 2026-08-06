@@ -1050,6 +1050,7 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.MaxLength(2000)
 		dsl.Example("Approved based on contribution history.")
 	})
+	OrganizationInfoAttributes()
 	CreatedAtAttribute()
 })
 

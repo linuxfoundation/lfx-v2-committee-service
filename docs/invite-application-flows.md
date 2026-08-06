@@ -123,13 +123,15 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Only available when `join_mode: application`.
 - The applicant's identity is resolved via the two-phase strategy described in [Identity Resolution](#identity-resolution) (auth-service primary path with JWT email claim fallback).
 - Creates a new application with `status: pending`.
+- Optional body field `organization` (`id`, `name`, `website`) stores the applicant's confirmed organization on the application record when provided. This is the organization the applicant selected in the join dialog.
 - If an application for the same email already exists in this committee:
-  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared and `message` is updated if provided.
+  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
   - Any other status (`pending`, `approved`) — returns `409 Conflict`.
 
 **Approving an application** (`POST .../approve`):
 - Only allowed when `status: pending`.
 - On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry.
+- The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
 **Rejecting an application** (`POST .../reject`):

@@ -24,6 +24,12 @@ type CommitteeApplication struct {
 	Status         string    `json:"status"`
 	ReviewerNotes  string    `json:"reviewer_notes"`
 	CreatedAt      time.Time `json:"created_at"`
+	// Organization supplied by the applicant at submission time. Used when
+	// approving the application to populate the created committee member record,
+	// so the member's org is set from what the applicant confirmed rather than
+	// relying solely on profile metadata enrichment (which only provides a name,
+	// not the id/website required for org-gated committees).
+	Organization *CommitteeMemberOrganization `json:"organization,omitempty"`
 }
 
 // BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
