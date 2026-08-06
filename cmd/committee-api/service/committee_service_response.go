@@ -857,5 +857,19 @@ func (s *committeeServicesrvc) convertApplicationDomainToResponse(app *model.Com
 		createdAt := app.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
 	}
+	if app.Organization != nil {
+		orgID := app.Organization.ID
+		orgName := app.Organization.Name
+		orgWebsite := app.Organization.Website
+		result.Organization = &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{
+			ID:      &orgID,
+			Name:    &orgName,
+			Website: &orgWebsite,
+		}
+	}
 	return result
 }

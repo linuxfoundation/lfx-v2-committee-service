@@ -297,6 +297,15 @@ type SubmitApplicationRequestBody struct {
 	// When true, send email notifications to committee writers about the new
 	// application. Defaults to false.
 	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
 // ApproveApplicationRequestBody is the type of the "committee-service" service
@@ -883,6 +892,15 @@ type GetApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -902,6 +920,15 @@ type SubmitApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -981,6 +1008,15 @@ type RejectApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -1132,6 +1168,12 @@ type UploadCommitteeDocumentResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	// User who soft-deleted this document. Present only when the document has been
+	// deleted.
+	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
+	// The timestamp when the document was soft-deleted (read-only). Present only
+	// when the document has been deleted.
+	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
@@ -2908,6 +2950,12 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	// User who soft-deleted this document. Present only when the document has been
+	// deleted.
+	DeletedBy *CommitteeUserResponseBody `form:"deleted_by,omitempty" json:"deleted_by,omitempty" xml:"deleted_by,omitempty"`
+	// The timestamp when the document was soft-deleted (read-only). Present only
+	// when the document has been deleted.
+	DeletedAt *string `form:"deleted_at,omitempty" json:"deleted_at,omitempty" xml:"deleted_at,omitempty"`
 }
 
 // GroupWeeklyBriefWithReadonlyAttributesResponseBody is used to define fields
@@ -3945,6 +3993,20 @@ func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWit
 			body.Status = "pending"
 		}
 	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
 	return body
 }
 
@@ -3965,6 +4027,20 @@ func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplication
 		var zero string
 		if body.Status == zero {
 			body.Status = "pending"
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
 		}
 	}
 	return body
@@ -4076,6 +4152,20 @@ func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplication
 		var zero string
 		if body.Status == zero {
 			body.Status = "pending"
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
 		}
 	}
 	return body
@@ -4292,12 +4382,16 @@ func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocum
 		ContentType:  res.ContentType,
 		CreatedAt:    res.CreatedAt,
 		UpdatedAt:    res.UpdatedAt,
+		DeletedAt:    res.DeletedAt,
 	}
 	if res.CreatedBy != nil {
 		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
 	}
 	if res.UpdatedBy != nil {
 		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
+	}
+	if res.DeletedBy != nil {
+		body.DeletedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.DeletedBy)
 	}
 	return body
 }
@@ -4317,12 +4411,16 @@ func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocum
 		ContentType:  res.CommitteeDocument.ContentType,
 		CreatedAt:    res.CommitteeDocument.CreatedAt,
 		UpdatedAt:    res.CommitteeDocument.UpdatedAt,
+		DeletedAt:    res.CommitteeDocument.DeletedAt,
 	}
 	if res.CommitteeDocument.CreatedBy != nil {
 		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.CreatedBy)
 	}
 	if res.CommitteeDocument.UpdatedBy != nil {
 		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.UpdatedBy)
+	}
+	if res.CommitteeDocument.DeletedBy != nil {
+		body.DeletedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.DeletedBy)
 	}
 	return body
 }
@@ -6704,6 +6802,20 @@ func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string,
 	if body.Notify == nil {
 		v.Notify = false
 	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -7464,6 +7576,16 @@ func ValidateSubmitApplicationRequestBody(body *SubmitApplicationRequestBody) (e
 	if body.Message != nil {
 		if utf8.RuneCountInString(*body.Message) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	return

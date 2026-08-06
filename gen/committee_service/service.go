@@ -207,6 +207,15 @@ type CommitteeApplicationWithReadonlyAttributes struct {
 	Status string
 	// Notes from the reviewer
 	ReviewerNotes *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 }
@@ -298,6 +307,12 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
+	// User who soft-deleted this document. Present only when the document has been
+	// deleted.
+	DeletedBy *CommitteeUser
+	// The timestamp when the document was soft-deleted (read-only). Present only
+	// when the document has been deleted.
+	DeletedAt *string
 }
 
 // CommitteeFullWithReadonlyAttributes is the result type of the
@@ -1347,6 +1362,15 @@ type SubmitApplicationPayload struct {
 	// When true, send email notifications to committee writers about the new
 	// application. Defaults to false.
 	Notify bool
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // UpdateCommitteeBasePayload is the payload type of the committee-service

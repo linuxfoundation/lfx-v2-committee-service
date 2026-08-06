@@ -585,6 +585,10 @@ paths:
                         example:
                             message: I would like to join the TSC to contribute my expertise.
                             notify: false
+                            organization:
+                                id: org-123456
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
             responses:
                 "201":
                     description: Created response.
@@ -597,6 +601,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 reviewer_notes: Approved based on contribution history.
                                 status: pending
                                 uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -702,6 +710,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 reviewer_notes: Approved based on contribution history.
                                 status: pending
                                 uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -917,6 +929,10 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 message: I would like to join the TSC to contribute my expertise.
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
                                 reviewer_notes: Approved based on contribution history.
                                 status: pending
                                 uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -1054,6 +1070,13 @@ paths:
                                 content_type: application/pdf
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                deleted_at: "2026-08-05T22:00:00Z"
+                                deleted_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1065,6 +1088,7 @@ paths:
                                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1272,6 +1296,13 @@ paths:
                                 content_type: application/pdf
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                deleted_at: "2026-08-05T22:00:00Z"
+                                deleted_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1283,6 +1314,7 @@ paths:
                                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1427,6 +1459,7 @@ paths:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -1434,12 +1467,14 @@ paths:
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -1447,12 +1482,14 @@ paths:
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -1460,6 +1497,7 @@ paths:
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -1467,6 +1505,7 @@ paths:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1474,12 +1513,14 @@ paths:
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1487,12 +1528,14 @@ paths:
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1500,6 +1543,7 @@ paths:
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1586,6 +1630,7 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1593,6 +1638,7 @@ paths:
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1790,6 +1836,7 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -1797,6 +1844,7 @@ paths:
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2602,6 +2650,7 @@ paths:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2611,6 +2660,7 @@ paths:
                                       uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2618,6 +2668,7 @@ paths:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2627,6 +2678,7 @@ paths:
                                       uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2634,6 +2686,7 @@ paths:
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2643,6 +2696,7 @@ paths:
                                       uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
+                                        avatar: https://example.com/avatar.png
                                         email: alexlee@linuxfoundation.org
                                         name: Alex Lee
                                         username: alexlee
@@ -2651,6 +2705,7 @@ paths:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2660,6 +2715,7 @@ paths:
                                   uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2667,6 +2723,7 @@ paths:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2676,6 +2733,7 @@ paths:
                                   uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2766,6 +2824,7 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2775,6 +2834,7 @@ paths:
                                 uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2965,6 +3025,7 @@ paths:
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -2974,6 +3035,7 @@ paths:
                                 uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
+                                    avatar: https://example.com/avatar.png
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
@@ -4546,6 +4608,28 @@ components:
                     description: Application message from the applicant
                     example: I would like to join the TSC to contribute my expertise.
                     maxLength: 2000
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
                 reviewer_notes:
                     type: string
                     description: Notes from the reviewer
@@ -4571,6 +4655,10 @@ components:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 message: I would like to join the TSC to contribute my expertise.
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
                 reviewer_notes: Approved based on contribution history.
                 status: pending
                 uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -4982,6 +5070,13 @@ components:
                     format: date-time
                 created_by:
                     $ref: '#/components/schemas/CommitteeUser'
+                deleted_at:
+                    type: string
+                    description: The timestamp when the document was soft-deleted (read-only). Present only when the document has been deleted.
+                    example: "2026-08-05T22:00:00Z"
+                    format: date-time
+                deleted_by:
+                    $ref: '#/components/schemas/CommitteeUser'
                 description:
                     type: string
                     description: Optional description
@@ -5026,6 +5121,13 @@ components:
                 content_type: application/pdf
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
+                    avatar: https://example.com/avatar.png
+                    email: alexlee@linuxfoundation.org
+                    name: Alex Lee
+                    username: alexlee
+                deleted_at: "2026-08-05T22:00:00Z"
+                deleted_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -5037,6 +5139,7 @@ components:
                 uid: d1e2f3a4-b5c6-7890-defa-123456789012
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -5665,6 +5768,7 @@ components:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -5672,6 +5776,7 @@ components:
                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -5727,6 +5832,7 @@ components:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -5736,6 +5842,7 @@ components:
                 uid: c1d2e3f4-a5b6-7890-cdef-123456789012
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
+                    avatar: https://example.com/avatar.png
                     email: alexlee@linuxfoundation.org
                     name: Alex Lee
                     username: alexlee
@@ -7749,9 +7856,35 @@ components:
                     description: When true, send email notifications to committee writers about the new application. Defaults to false.
                     default: false
                     example: false
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
             example:
                 message: I would like to join the TSC to contribute my expertise.
                 notify: false
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
         UpdateCommitteeBaseRequestBody:
             type: object
             properties:
