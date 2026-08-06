@@ -108,6 +108,8 @@ type recordingAIAdapter struct {
 	gotInput port.WeeklyBriefInput
 }
 
+func (r *recordingAIAdapter) PromptVersion() string { return "test-v1" }
+
 func (r *recordingAIAdapter) GenerateWeeklyBrief(_ context.Context, in port.WeeklyBriefInput) (port.WeeklyBrief, error) {
 	r.gotInput = in
 	return port.WeeklyBrief{
@@ -165,6 +167,7 @@ func generatingBrief() *model.GroupWeeklyBrief {
 // failingAIAdapter always errors, to exercise the Fulfill AI-failure path.
 type failingAIAdapter struct{}
 
+func (failingAIAdapter) PromptVersion() string { return "test-v1" }
 func (failingAIAdapter) GenerateWeeklyBrief(_ context.Context, _ port.WeeklyBriefInput) (port.WeeklyBrief, error) {
 	return port.WeeklyBrief{}, errors.NewUnexpected("ai generation failed", nil)
 }
@@ -486,4 +489,176 @@ func TestNewGenerator_PanicsOnMissingDeps(t *testing.T) {
 		}
 	}()
 	_ = NewGroupWeeklyBriefGeneratorOrchestrator()
+}
+
+// TestMemberLabel verifies that memberLabel never returns a raw UID and always
+// produces a human-readable label (LFXV2-2990).
+func TestMemberLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		m    *model.CommitteeMember
+		want string
+	}{
+		{
+			name: "first and last name",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-1", FirstName: "Jane", LastName: "Doe", Username: "jdoe"}},
+			want: "Jane Doe",
+		},
+		{
+			name: "first name only",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-2", FirstName: "Jane"}},
+			want: "Jane",
+		},
+		{
+			name: "username only",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-4", Username: "jdoe"}},
+			want: "jdoe",
+		},
+		{
+			name: "last name only falls through to username (not 'Doe')",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3", LastName: "Doe", Username: "jdoe"}},
+			want: "jdoe",
+		},
+		{
+			name: "last name only, no username — degrades to a new member",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-3b", LastName: "Doe"}},
+			want: "a new member",
+		},
+		{
+			name: "no name fields — degrades gracefully, never emits UID",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "3f311bb3-76b9-48ab-be02-b27f37269260"}},
+			want: "a new member",
+		},
+		{
+			name: "nil member",
+			m:    nil,
+			want: "a new member",
+		},
+		{
+			name: "whitespace-only names fall through to username",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-5", FirstName: "  ", LastName: "\t", Username: "jdoe"}},
+			want: "jdoe",
+		},
+		{
+			name: "whitespace-only username falls through to a new member",
+			m:    &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "uid-6", Username: "  "}},
+			want: "a new member",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := memberLabel(tc.m)
+			assert.Equal(t, tc.want, got)
+			if tc.m != nil {
+				assert.NotEqual(t, tc.m.UID, got, "memberLabel must never return the raw UID")
+			}
+		})
+	}
+}
+
+func TestFormatMemberList(t *testing.T) {
+	mk := func(first, last, username string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			FirstName: first, LastName: last, Username: username,
+		}}
+	}
+	jane := mk("Jane", "Doe", "jdoe")
+	john := mk("John", "Smith", "jsmith")
+	unnamed := mk("", "", "")
+
+	tests := []struct {
+		name    string
+		members []*model.CommitteeMember
+		want    string
+	}{
+		{
+			name:    "empty slice",
+			members: nil,
+			want:    "",
+		},
+		{
+			name:    "one named member",
+			members: []*model.CommitteeMember{jane},
+			want:    "Jane Doe",
+		},
+		{
+			name:    "two named members",
+			members: []*model.CommitteeMember{jane, john},
+			want:    "Jane Doe, John Smith",
+		},
+		{
+			name:    "one unnamed member",
+			members: []*model.CommitteeMember{unnamed},
+			want:    "a new member",
+		},
+		{
+			name:    "three unnamed members",
+			members: []*model.CommitteeMember{unnamed, unnamed, unnamed},
+			want:    "3 new members",
+		},
+		{
+			name:    "named plus one unnamed",
+			members: []*model.CommitteeMember{jane, unnamed},
+			want:    "Jane Doe, and 1 other",
+		},
+		{
+			name:    "named plus two unnamed",
+			members: []*model.CommitteeMember{jane, john, unnamed, unnamed},
+			want:    "Jane Doe, John Smith, and 2 others",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, formatMemberList(tc.members))
+		})
+	}
+}
+
+func TestCountMemberList(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want string
+	}{
+		{"zero", 0, ""},
+		{"one", 1, "1 new member"},
+		{"two", 2, "2 new members"},
+		{"ten", 10, "10 new members"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, countMemberList(tc.n))
+		})
+	}
+}
+
+func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
+	mk := func(first, last string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			FirstName: first, LastName: last,
+		}}
+	}
+	jane := mk("Jane", "Doe")
+	john := mk("John", "Smith")
+
+	members := port.WeeklyMemberActivity{
+		Joined:  []*model.CommitteeMember{jane, john},
+		Updated: []*model.CommitteeMember{jane},
+	}
+
+	t.Run("membersHidden=false includes names", func(t *testing.T) {
+		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, false)
+		require.Len(t, claims, 1)
+		assert.Contains(t, claims[0].Summary, "Jane Doe")
+		assert.Contains(t, claims[0].Summary, "John Smith")
+	})
+
+	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
+		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, true)
+		require.Len(t, claims, 1)
+		assert.NotContains(t, claims[0].Summary, "Jane")
+		assert.NotContains(t, claims[0].Summary, "Doe")
+		assert.Contains(t, claims[0].Summary, "2 new members") // joined
+		assert.Contains(t, claims[0].Summary, "1 new member")  // updated
+	})
 }

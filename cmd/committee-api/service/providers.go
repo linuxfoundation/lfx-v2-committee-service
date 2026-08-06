@@ -313,9 +313,10 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 		return ai.NewFakeAdapter()
 	case "live":
 		cfg := ai.LiteLLMConfig{
-			BaseURL: os.Getenv("LITELLM_BASE_URL"),
-			APIKey:  os.Getenv("LITELLM_API_KEY"),
-			Model:   os.Getenv("LITELLM_MODEL"),
+			BaseURL:   os.Getenv("LITELLM_BASE_URL"),
+			APIKey:    os.Getenv("LITELLM_API_KEY"),
+			Model:     os.Getenv("LITELLM_MODEL"),
+			PromptDir: os.Getenv("WEEKLY_BRIEF_PROMPT_DIR"),
 		}
 		if cfg.BaseURL == "" || cfg.APIKey == "" || cfg.Model == "" {
 			log.Fatalf(
@@ -324,9 +325,14 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 				cfg.BaseURL, cfg.APIKey != "", cfg.Model,
 			)
 		}
+		adapter := ai.NewLiteLLMAdapter(cfg)
+		if cfg.PromptDir == "" {
+			slog.WarnContext(ctx, "weekly-brief prompt template not loaded: WEEKLY_BRIEF_PROMPT_DIR is unset; "+
+				"brief generation will fail until it is set to the ConfigMap mount path")
+		}
 		slog.InfoContext(ctx, "initializing live LiteLLM AI adapter",
-			"ai_source", aiSource, "model", cfg.Model)
-		return ai.NewLiteLLMAdapter(cfg)
+			"ai_source", aiSource, "model", cfg.Model, "prompt_dir", cfg.PromptDir)
+		return adapter
 	default:
 		log.Fatalf("unsupported AI adapter implementation: %s (expected one of: fake, live)", aiSource)
 	}
