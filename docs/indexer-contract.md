@@ -594,6 +594,7 @@ _(none)_
 | `window_start` | timestamp | Start of the brief's reporting window (RFC3339) |
 | `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
+| `error_reason` | string (optional) | Machine-readable reason for the `error` state; omitted on non-error briefs. Known values: `no_sources` (no activity in the lookback window), `ai_error` (AI generation failure). |
 | `brief_text` | string | Generated brief body; included in the indexed data payload |
 | `source_refs` | []object | References to the source artifacts the brief was generated from. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty |
 | `prompt_version` | string | Version identifier of the prompt used to generate the brief |
