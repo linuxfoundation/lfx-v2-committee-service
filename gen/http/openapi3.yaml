@@ -27,11 +27,11 @@ paths:
                   example: "1"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -219,11 +219,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -413,11 +413,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -568,11 +568,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -1009,11 +1009,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -1167,11 +1167,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -1594,11 +1594,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -1725,11 +1725,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -1897,11 +1897,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -2420,11 +2420,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -2544,11 +2544,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -2785,11 +2785,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -2914,11 +2914,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -3089,11 +3089,11 @@ paths:
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -3271,11 +3271,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -3499,11 +3499,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true
@@ -3748,11 +3748,11 @@ paths:
                   example: "123"
                 - name: X-Sync
                   in: header
-                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   allowEmptyValue: true
                   schema:
                     type: boolean
-                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                     default: false
                     example: true
                   example: true

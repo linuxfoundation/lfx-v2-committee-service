@@ -39,10 +39,10 @@ func (w *mockInviteWriter) UniqueInvite(_ context.Context, _ *model.CommitteeInv
 	return "", nil
 }
 
-// mockPublisher records Indexer and Access call counts.
+// mockPublisher records Indexer, membership, and access call counts.
 type mockPublisher struct {
 	indexerCalls      int
-	accessCalls       int
+	memberCalls       int
 	updateAccessCalls int
 	updateAccessMsgs  []any
 	indexerErr        error
@@ -53,16 +53,20 @@ func (p *mockPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) erro
 	p.indexerCalls++
 	return p.indexerErr
 }
-func (p *mockPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
-	p.accessCalls++
-	return p.accessErr
-}
 func (p *mockPublisher) UpdateAccess(_ context.Context, message any) error {
 	p.updateAccessCalls++
 	p.updateAccessMsgs = append(p.updateAccessMsgs, message)
 	return p.accessErr
 }
 func (p *mockPublisher) DeleteAccess(_ context.Context, _ any) error {
+	return p.accessErr
+}
+func (p *mockPublisher) MemberPut(_ context.Context, _ any) error {
+	p.memberCalls++
+	return p.accessErr
+}
+func (p *mockPublisher) MemberRemove(_ context.Context, _ any) error {
+	p.memberCalls++
 	return p.accessErr
 }
 func (p *mockPublisher) Event(_ context.Context, _ string, _ any, _ bool) error { return nil }
@@ -144,7 +148,7 @@ func TestReindexInvites_OldInvite_BackfillsNameAndOrgRequired(t *testing.T) {
 	assert.True(t, iw.updated[0].OrganizationRequired)
 	assert.Equal(t, rev, iw.updatedRevs[0])
 	assert.Equal(t, 1, pub.indexerCalls)
-	assert.Equal(t, 0, pub.accessCalls)
+	assert.Equal(t, 0, pub.memberCalls)
 	assert.Equal(t, 1, pub.updateAccessCalls)
 	require.Len(t, pub.updateAccessMsgs, 1)
 	msg, ok := pub.updateAccessMsgs[0].(fgatypes.GenericFGAMessage)
@@ -173,7 +177,7 @@ func TestReindexInvites_NewInvite_NoKVUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, iw.updated, "no KV write expected when fields already match")
 	assert.Equal(t, 1, pub.indexerCalls)
-	assert.Equal(t, 0, pub.accessCalls)
+	assert.Equal(t, 0, pub.memberCalls)
 	assert.Equal(t, 1, pub.updateAccessCalls)
 }
 

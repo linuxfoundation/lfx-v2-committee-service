@@ -314,7 +314,8 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 
 			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
 			assert.Equal(t, tt.wantDeleteAccess, publisher.DeleteAccessCallCount)
-			assert.Zero(t, publisher.AccessCallCount)
+			assert.Zero(t, publisher.MemberPutCallCount)
+			assert.Zero(t, publisher.MemberRemoveCallCount)
 			if tt.action == model.ActionDeleted {
 				msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
 				require.True(t, ok)
@@ -1329,27 +1330,30 @@ func TestRevokeInvite_NotFound(t *testing.T) {
 
 func TestAcceptInvite(t *testing.T) {
 	tests := []struct {
-		name         string
-		seedStatus   string
-		seedMember   *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
-		principal    string
-		inviteeEmail string // overrides principal for invite InviteeEmail; defaults to principal when empty
-		expectError  bool
-		expectResult bool // false means nil result is acceptable
+		name                     string
+		seedStatus               string
+		seedMember               *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
+		principal                string
+		inviteeEmail             string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expectError              bool
+		expectResult             bool // false means nil result is acceptable
+		expectCreateMemberCalled bool // whether AcceptInvite reaches the CreateMember call at all
 	}{
 		{
-			name:         "successful accept of pending invite",
-			seedStatus:   "pending",
-			principal:    "accept@example.com",
-			expectError:  false,
-			expectResult: true,
+			name:                     "successful accept of pending invite",
+			seedStatus:               "pending",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
-			name:         "successful accept of previously declined invite",
-			seedStatus:   "declined",
-			principal:    "accept@example.com",
-			expectError:  false,
-			expectResult: true,
+			name:                     "successful accept of previously declined invite",
+			seedStatus:               "declined",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
 			name:       "already accepted invite returns success (idempotent) — member found",
@@ -1428,12 +1432,19 @@ func TestAcceptInvite(t *testing.T) {
 				if tt.expectResult {
 					require.NotNil(t, result)
 					assert.Equal(t, "Active", result.Status)
-					// AcceptInvite must use sync=true so the FGA tuple is written
-					// before returning; verify CreateMember was called with sync=true.
-					if len(mockOrch.createMemberSyncArgs) > 0 {
-						assert.True(t, mockOrch.createMemberSyncArgs[0], "AcceptInvite must call CreateMember with sync=true")
-					}
 				}
+			}
+
+			// AcceptInvite must always pass sync=false to CreateMember (LFXV2-2856): membership
+			// FGA publishing is asynchronous-only, and a regression to sync=true would reintroduce
+			// the request/reply indexer timeout this change removed. Idempotent/error paths
+			// short-circuit before reaching CreateMember, so assert the call happens exactly when
+			// expected rather than only inspecting the last recorded arg.
+			if tt.expectCreateMemberCalled {
+				require.Len(t, mockOrch.createMemberSyncArgs, 1)
+				assert.False(t, mockOrch.createMemberSyncArgs[0], "AcceptInvite must call CreateMember with sync=false")
+			} else {
+				assert.Empty(t, mockOrch.createMemberSyncArgs, "AcceptInvite must not call CreateMember on this path")
 			}
 		})
 	}

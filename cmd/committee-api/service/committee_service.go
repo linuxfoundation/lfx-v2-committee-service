@@ -995,10 +995,12 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 	s.enrichMember(ctx, member)
 
-	// sync=true: requests synchronous member_put so that, in the normal case, the FGA
-	// tuple is written before this endpoint returns and subsequent access checks see
-	// the membership immediately. Publish errors are best-effort (logged, not fatal).
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, true, false)
+	// sync=false: member_put is always asynchronous FGA publish now (LFXV2-2856), so an access
+	// check immediately after this returns may still 403 until fga-sync converges. This is a
+	// deliberate revert of PR #163's sync=true workaround, not a regression of LFXV2-2645 — the
+	// eventual-consistency window is mitigated by client-side polling in Self Serve (LFXV2-2890),
+	// which must ship before this change.
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}

@@ -19,7 +19,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
@@ -1253,7 +1252,7 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				// so the deleted identity no longer holds the member relation on this committee.
 				if action == model.ActionUpdated && data.OldMember != nil && data.OldMember.Username != "" {
 					oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
-					return uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync)
+					return uc.committeePublisher.MemberRemove(ctx, oldAccessMsg)
 				}
 				slog.DebugContext(ctx, "skipping access message for member without username",
 					"member_uid", data.Member.UID,
@@ -1267,16 +1266,15 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				data.OldMember.Username != "" &&
 				data.OldMember.Username != data.Member.Username {
 				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
-				if err := uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+				if err := uc.committeePublisher.MemberRemove(ctx, oldAccessMsg); err != nil {
 					return err
 				}
 			}
 
-			subject := fgaconstants.GenericMemberPutSubject
 			if action == model.ActionDeleted {
-				subject = fgaconstants.GenericMemberRemoveSubject
+				return uc.committeePublisher.MemberRemove(ctx, accessControlMessage)
 			}
-			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
+			return uc.committeePublisher.MemberPut(ctx, accessControlMessage)
 		},
 	}
 

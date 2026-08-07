@@ -461,7 +461,7 @@ func BearerTokenAttribute() {
 
 // XSyncAttribute is the DSL attribute for X-Sync header (for synchronous/asynchronous operations).
 func XSyncAttribute() {
-	dsl.Attribute("x_sync", dsl.Boolean, "Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access and delete_access publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.", func() {
+	dsl.Attribute("x_sync", dsl.Boolean, "Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.", func() {
 		dsl.Default(false)
 		dsl.Example(true)
 	})

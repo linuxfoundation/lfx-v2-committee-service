@@ -20,7 +20,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
 
@@ -1743,10 +1742,21 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	// in integration tests with real NATS storage
 }
 
+// TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure verifies that DeleteMember
+// still returns a member_remove publication error even though the member record and its
+// secondary indices are already deleted. This asymmetry with create/update (which log and
+// swallow publish errors) is deliberate: a lost member_remove leaves a removed member holding
+// committee access, so deletion failures must stay loud rather than best-effort.
 func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	mockRepo := mock.NewMockRepository()
+	memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    memberWriter,
+		committeePublisher: &failingRemovePublisher{spyCommitteePublisher: &spyCommitteePublisher{}},
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
 
-	// Setup a test member
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-msg-fail",
@@ -1759,15 +1769,13 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 	memberWriter.members["member-msg-fail"] = member
 	mockRepo.AddCommitteeMember("committee-123", member)
 
-	// TODO: When we have a way to make the mock publisher fail,
-	// we can test message publishing failure scenarios
-	// For now, we test the happy path
-
 	ctx := context.Background()
 	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false, false)
 
-	// Should succeed even if message publishing fails (currently mock always succeeds)
-	require.NoError(t, err)
+	require.Error(t, err, "a member_remove publish failure must still be returned after the record is deleted")
+
+	_, stillExists := memberWriter.members["member-msg-fail"]
+	assert.False(t, stillExists, "the member record must already be deleted despite the returned publish error")
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
@@ -2261,15 +2269,125 @@ func TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple(t *testing.T) 
 	}, false)
 	require.NoError(t, err)
 
-	// Exactly one FGA call: revoke the old tuple for the cleared username.
-	require.Len(t, spy.capturedAccessSubjects, 1, "expected exactly one FGA access publish when username is cleared")
-	assert.Equal(t, fgaconstants.GenericMemberRemoveSubject, spy.capturedAccessSubjects[0])
+	// Exactly one FGA call: revoke the old tuple for the cleared username, and no grant.
+	require.Len(t, spy.capturedMemberRemoveMsgs, 1, "expected exactly one member_remove publish when username is cleared")
+	assert.Empty(t, spy.capturedMemberPutMsgs, "clearing a username must not publish member_put")
 
 	// The removal must carry the old identity, not the empty one.
-	fgaMsg, ok := spy.capturedAccessMsgs[0].(fgatypes.GenericFGAMessage)
+	fgaMsg, ok := spy.capturedMemberRemoveMsgs[0].(fgatypes.GenericFGAMessage)
 	require.True(t, ok, "access message should be a GenericFGAMessage")
 	memberData, ok := fgaMsg.Data.(fgatypes.GenericMemberData)
 	require.True(t, ok, "FGA message Data should be GenericMemberData")
 	assert.Equal(t, "scrubbed_user", memberData.Username, "FGA removal must reference the old username")
 	assert.Equal(t, "c-1", memberData.UID, "FGA removal must reference the correct committee UID")
+}
+
+// TestPublishMemberMessages_ChangedUsername_RevokesOldBeforeGrantingNew verifies that when a
+// member's username changes, the old identity is revoked via member_remove before the new
+// identity is granted via member_put, and that a revoke failure prevents the put.
+func TestPublishMemberMessages_ChangedUsername_RevokesOldBeforeGrantingNew(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	spy := &spyCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: spy,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	oldMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-renamed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "old_username",
+			FirstName: "Renamed", LastName: "User",
+		},
+	}
+	newMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-renamed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "new_username",
+			FirstName: "Renamed", LastName: "User",
+		},
+	}
+
+	t.Run("successful revoke is followed by the put", func(t *testing.T) {
+		err := orchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+			Member:    newMember,
+			OldMember: oldMember,
+		}, false)
+		require.NoError(t, err)
+
+		require.Len(t, spy.capturedMemberRemoveMsgs, 1, "expected one member_remove for the old identity")
+		require.Len(t, spy.capturedMemberPutMsgs, 1, "expected one member_put for the new identity")
+
+		removeMsg, ok := spy.capturedMemberRemoveMsgs[0].(fgatypes.GenericFGAMessage)
+		require.True(t, ok)
+		removeData, ok := removeMsg.Data.(fgatypes.GenericMemberData)
+		require.True(t, ok)
+		assert.Equal(t, "old_username", removeData.Username, "revoke must reference the old identity")
+
+		putMsg, ok := spy.capturedMemberPutMsgs[0].(fgatypes.GenericFGAMessage)
+		require.True(t, ok)
+		putData, ok := putMsg.Data.(fgatypes.GenericMemberData)
+		require.True(t, ok)
+		assert.Equal(t, "new_username", putData.Username, "grant must reference the new identity")
+	})
+
+	t.Run("revoke failure prevents the put", func(t *testing.T) {
+		failingSpy := &failingRemovePublisher{spyCommitteePublisher: &spyCommitteePublisher{}}
+		failingOrchestrator := &committeeWriterOrchestrator{
+			committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+			committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+			committeePublisher: failingSpy,
+			projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+		}
+
+		err := failingOrchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+			Member:    newMember,
+			OldMember: oldMember,
+		}, false)
+		require.Error(t, err)
+		assert.Empty(t, failingSpy.capturedMemberPutMsgs, "a failed revoke must prevent the put")
+	})
+}
+
+// failingRemovePublisher wraps spyCommitteePublisher and always fails MemberRemove, so tests can
+// verify that a revoke failure prevents a subsequent grant.
+type failingRemovePublisher struct {
+	*spyCommitteePublisher
+}
+
+func (f *failingRemovePublisher) MemberRemove(ctx context.Context, msg any) error {
+	_ = f.spyCommitteePublisher.MemberRemove(ctx, msg)
+	return errs.NewUnexpected("member_remove publish failed", nil)
+}
+
+// TestPublishMemberMessages_SyncControlsOnlyIndexer verifies that sync=true reaches the indexer
+// publication while both membership FGA publications remain asynchronous regardless of sync.
+func TestPublishMemberMessages_SyncControlsOnlyIndexer(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	publisher := &mock.MockCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: publisher,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-sync-check", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "sync_check_user",
+			FirstName: "Sync", LastName: "Check",
+		},
+	}
+
+	err := orchestrator.publishMemberMessages(context.Background(), model.ActionCreated, &model.CommitteeMemberMessageData{
+		Member: member,
+	}, true)
+	require.NoError(t, err)
+
+	require.Len(t, publisher.IndexerSyncValues, 1)
+	assert.True(t, publisher.IndexerSyncValues[0], "indexer publication must honor sync=true")
+	assert.Equal(t, 1, publisher.MemberPutCallCount, "member_put must publish regardless of sync")
 }

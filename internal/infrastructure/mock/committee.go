@@ -1246,7 +1246,6 @@ type MockCommitteePublisher struct {
 	// LastIndexerMessage captures the most recently published indexer message for assertions.
 	LastIndexerMessage any
 	IndexerSyncValues  []bool
-	AccessCallCount    int
 	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
 	LastUpdateAccessMessage any
 	UpdateAccessCallCount   int
@@ -1254,6 +1253,12 @@ type MockCommitteePublisher struct {
 	LastDeleteAccessMessage any
 	DeleteAccessCallCount   int
 	DeleteAccessError       error
+	// LastMemberPutMessage captures the most recent asynchronous member_put message.
+	LastMemberPutMessage any
+	MemberPutCallCount   int
+	// LastMemberRemoveMessage captures the most recent asynchronous member_remove message.
+	LastMemberRemoveMessage any
+	MemberRemoveCallCount   int
 }
 
 // Indexer simulates publishing an indexer message
@@ -1266,19 +1271,6 @@ func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, me
 		"subject", subject,
 		"message_type", "indexer",
 		"sync", synced,
-	)
-	return nil
-}
-
-// Access simulates publishing an access message
-func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
-	p.mu.Lock()
-	p.AccessCallCount++
-	p.mu.Unlock()
-	slog.InfoContext(ctx, "mock publisher: access message published",
-		"subject", subject,
-		"message_type", "access",
-		"sync", sync,
 	)
 	return nil
 }
@@ -1306,6 +1298,30 @@ func (p *MockCommitteePublisher) DeleteAccess(ctx context.Context, message any) 
 		return err
 	}
 	slog.InfoContext(ctx, "mock publisher: delete_access message published",
+		"message_type", "access",
+	)
+	return nil
+}
+
+// MemberPut simulates publishing an asynchronous member_put message.
+func (p *MockCommitteePublisher) MemberPut(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastMemberPutMessage = message
+	p.MemberPutCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: member_put message published",
+		"message_type", "access",
+	)
+	return nil
+}
+
+// MemberRemove simulates publishing an asynchronous member_remove message.
+func (p *MockCommitteePublisher) MemberRemove(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastMemberRemoveMessage = message
+	p.MemberRemoveCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: member_remove message published",
 		"message_type", "access",
 	)
 	return nil
