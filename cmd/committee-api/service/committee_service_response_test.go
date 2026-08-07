@@ -1531,6 +1531,15 @@ func TestConvertPayloadToBase_CommitteeMetadata(t *testing.T) {
 					{Date: "2026-01", Label: "Kickoff"},
 					{Date: "2026-06", Label: "Review"},
 				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "group",
+						Label:      "CNCF Meetup - San Francisco",
+						URL:        "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID: stringPtr("cncf-meetup-san-francisco"),
+					},
+				},
 			},
 			expected: model.CommitteeBase{
 				ProjectUID:   "project-123",
@@ -1542,6 +1551,15 @@ func TestConvertPayloadToBase_CommitteeMetadata(t *testing.T) {
 				KeyDates: []model.KeyDate{
 					{Date: "2026-01", Label: "Kickoff"},
 					{Date: "2026-06", Label: "Review"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "group",
+						Label:      "CNCF Meetup - San Francisco",
+						URL:        "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID: "cncf-meetup-san-francisco",
+					},
 				},
 			},
 		},
