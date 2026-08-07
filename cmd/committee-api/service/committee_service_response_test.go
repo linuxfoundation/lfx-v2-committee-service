@@ -1607,6 +1607,14 @@ func TestConvertPayloadToUpdateBase_CommitteeMetadata(t *testing.T) {
 				KeyDates: []*committeeservice.KeyDate{
 					{Date: "2026-02", Label: "Milestone"},
 				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "event",
+						Label:      "CNCF Meetup - Austin",
+						URL:        "https://community.cncf.io/cncf-meetup-austin/",
+					},
+				},
 			},
 			expected: model.CommitteeBase{
 				UID:          "committee-123",
@@ -1618,6 +1626,14 @@ func TestConvertPayloadToUpdateBase_CommitteeMetadata(t *testing.T) {
 				Deliverables: []string{"deliverable 1", "deliverable 2"},
 				KeyDates: []model.KeyDate{
 					{Date: "2026-02", Label: "Milestone"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "event",
+						Label:      "CNCF Meetup - Austin",
+						URL:        "https://community.cncf.io/cncf-meetup-austin/",
+					},
 				},
 			},
 		},
@@ -1667,6 +1683,15 @@ func TestConvertBaseToResponse_CommitteeMetadata(t *testing.T) {
 				KeyDates: []model.KeyDate{
 					{Date: "2026-01", Label: "Kickoff"},
 				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "group",
+						Label:      "CNCF Meetup - San Francisco",
+						URL:        "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID: "cncf-meetup-san-francisco",
+					},
+				},
 			},
 			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
 				UID:          stringPtr("committee-123"),
@@ -1678,6 +1703,15 @@ func TestConvertBaseToResponse_CommitteeMetadata(t *testing.T) {
 				Deliverables: []string{"deliverable 1"},
 				KeyDates: []*committeeservice.KeyDate{
 					{Date: "2026-01", Label: "Kickoff"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:   "ocg",
+						EntityType: "group",
+						Label:      "CNCF Meetup - San Francisco",
+						URL:        "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID: stringPtr("cncf-meetup-san-francisco"),
+					},
 				},
 				Calendar: &struct {
 					Public bool
