@@ -75,6 +75,8 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `project_slug:{value}` | `project_slug:test-project-slug-1` | Find committees by project slug |
 | `parent_uid:{value}` | `parent_uid:9493eae5-cd73-4c4a-b28f-3b8ec5280f6c` | Find child committees of a parent |
 | `category:{value}` | `category:Board` | Find committees by category |
+| `display_name:{value}` | `display_name:Technical Steering Committee` | Find committee by display name |
+| `sso_group_name:{value}` | `sso_group_name:my-project-technical-steering-committee` | Find committee by SSO group name / public URL slug |
 
 ### Access Control (IndexingConfig)
 
@@ -89,7 +91,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 | Field | Value |
 |---|---|
-| `fulltext` | `name`, `display_name`, `description` |
+| `fulltext` | `name`, `display_name`, `description` (deduplicated) |
 | `name_and_aliases` | `name`, `display_name` (deduplicated) |
 | `sort_name` | `name` |
 | `public` | set from `committee.public` |

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -2512,6 +2513,75 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 			result := orchestrator.buildMemberAccessControlMessage(ctx, tc.member, tc.action)
 
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
+	tests := []struct {
+		name               string
+		committee          *model.Committee
+		wantAliases        []string
+		wantDisplayNameTag string
+		wantFulltext       string
+	}{
+		{
+			name: "distinct display_name included in aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-1",
+					ProjectUID:  "proj-1",
+					Name:        "TSC",
+					DisplayName: "Technical Steering Committee",
+				},
+			},
+			wantAliases:        []string{"TSC", "Technical Steering Committee"},
+			wantDisplayNameTag: "display_name:Technical Steering Committee",
+			wantFulltext:       "TSC Technical Steering Committee",
+		},
+		{
+			name: "display_name matching name is deduplicated",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-2",
+					ProjectUID:  "proj-2",
+					Name:        "TSC",
+					DisplayName: "TSC",
+				},
+			},
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "display_name:TSC",
+			wantFulltext:       "TSC",
+		},
+		{
+			name: "empty display_name omitted from aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "uid-3",
+					ProjectUID: "proj-3",
+					Name:       "TSC",
+				},
+			},
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "",
+			wantFulltext:       "TSC",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := buildCommitteeIndexingConfig(tc.committee)
+			assert.Equal(t, tc.wantAliases, cfg.NameAndAliases)
+
+			var foundTag string
+			for _, tag := range cfg.Tags {
+				if strings.HasPrefix(tag, "display_name:") {
+					foundTag = tag
+					break
+				}
+			}
+			assert.Equal(t, tc.wantDisplayNameTag, foundTag, "display_name tag")
+			assert.Equal(t, tc.wantFulltext, cfg.Fulltext, "fulltext")
 		})
 	}
 }
