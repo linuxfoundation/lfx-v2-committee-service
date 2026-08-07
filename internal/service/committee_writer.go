@@ -386,12 +386,15 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
 
-	// Log SSO group name update if applicable
-	if existing.Name != updated.Name && updated.SSOGroupEnabled {
+	// Accept new SSO group name when name changed and SSO/public active,
+	// or when SSO/public just enabled on an existing committee without an SSO name.
+	if existing.Name != updated.Name && (updated.SSOGroupEnabled || updated.Public) {
 		slog.DebugContext(ctx, "SSO group name updated",
 			"old_sso_name", existing.SSOGroupName,
 			"new_sso_name", updated.SSOGroupName,
 		)
+		ssoGroupName = updated.SSOGroupName
+	} else if (updated.SSOGroupEnabled || updated.Public) && existing.SSOGroupName == "" {
 		ssoGroupName = updated.SSOGroupName
 	}
 	updated.SSOGroupName = ssoGroupName
@@ -480,10 +483,11 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 	keys = append(keys, uniqueNameProjectKey)
 
-	// Check SSO group exists (if specified)
-	if committee.SSOGroupEnabled {
+	// Reserve SSO group name when SSO is enabled or committee is public (used as URL slug)
+	if committee.SSOGroupEnabled || committee.Public {
 		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
 		if errCheckReserveSSOName != nil {
+			rollbackRequired = true
 			return nil, errCheckReserveSSOName
 		}
 		keys = append(keys, uniqueSSOName)
@@ -647,8 +651,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			oldNameKey := uc.rebuildCommitteeNameIndex(ctx, newNameKey, existing)
 			staleKeys = append(staleKeys, oldNameKey)
 		}
-		// Step 3.1: Handle SSO Group Name changes (if name changed)
-		if committee.SSOGroupEnabled {
+		// Step 3.1: Regenerate SSO group name when name changed and SSO/public active
+		if committee.SSOGroupEnabled || committee.Public {
 			newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
 			if errSSOChange != nil {
 				rollbackRequired = true
@@ -665,7 +669,16 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 				}
 			}
 		}
-
+	} else if (committee.SSOGroupEnabled || committee.Public) && existing.SSOGroupName == "" {
+		// Step 3.2: Generate SSO name for the first time (public/SSO just enabled, no name change)
+		newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
+		if errSSOChange != nil {
+			rollbackRequired = true
+			return nil, errSSOChange
+		}
+		if newSSOKey != "" {
+			newKeys = append(newKeys, newSSOKey)
+		}
 	}
 
 	// Step 4: Validate parent change
@@ -710,6 +723,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		"project_uid", committee.ProjectUID,
 		"name", committee.Name,
 	)
+
+	updateSucceeded = true
 
 	// ******************************************************
 	// Step 7: Publish messages
@@ -786,8 +801,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	// ******************************************************
 
-	// Mark update as successful for defer cleanup
-	updateSucceeded = true
 	return committee, nil
 }
 
@@ -964,7 +977,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	indicesToDelete = append(indicesToDelete, nameIndexKey)
 
 	// Build SSO group name index key if it exists
-	if existing.SSOGroupEnabled && existing.SSOGroupName != "" {
+	if existing.SSOGroupName != "" {
 		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
 		indicesToDelete = append(indicesToDelete, ssoIndexKey)
 	}

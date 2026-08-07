@@ -73,6 +73,7 @@ type GroupWeeklyBrief struct {
 	WindowStart          time.Time             `json:"window_start"`
 	WindowEnd            time.Time             `json:"window_end"`
 	State                GroupWeeklyBriefState `json:"state"`
+	ErrorReason          string                `json:"error_reason,omitempty"`
 	BriefText            string                `json:"brief_text,omitempty"`
 	SourceRefs           []SourceRef           `json:"source_refs,omitempty"`
 	PromptVersion        string                `json:"prompt_version,omitempty"`

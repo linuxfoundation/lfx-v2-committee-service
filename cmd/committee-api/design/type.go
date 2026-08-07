@@ -1050,6 +1050,7 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.MaxLength(2000)
 		dsl.Example("Approved based on contribution history.")
 	})
+	OrganizationInfoAttributes()
 	CreatedAtAttribute()
 })
 
@@ -1217,6 +1218,7 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
 		dsl.Example("generated")
 	})
+	dsl.Attribute("error_reason", dsl.String, "Machine-readable reason for the error state; absent on non-error briefs")
 	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
 		dsl.MaxLength(20000)
 	})

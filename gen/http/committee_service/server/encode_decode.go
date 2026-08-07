@@ -5782,6 +5782,7 @@ func marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyB
 		WindowStart:          v.WindowStart,
 		WindowEnd:            v.WindowEnd,
 		State:                v.State,
+		ErrorReason:          v.ErrorReason,
 		BriefText:            v.BriefText,
 		PromptVersion:        v.PromptVersion,
 		Model:                v.Model,

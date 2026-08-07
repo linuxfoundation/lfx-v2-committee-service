@@ -1118,6 +1118,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	if p.Message != nil {
 		application.Message = *p.Message
 	}
+	if p.Organization != nil {
+		application.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
+	}
 
 	// Check uniqueness — allow reapplying if the existing application is rejected
 	_, errUnique := s.storage.UniqueApplication(ctx, application)
@@ -1152,6 +1155,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		rejectedApp.ReviewerNotes = ""
 		if p.Message != nil {
 			rejectedApp.Message = *p.Message
+		}
+		if p.Organization != nil {
+			rejectedApp.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
 		}
 		if errUpdate := s.storage.UpdateApplication(ctx, rejectedApp, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
@@ -1205,6 +1211,12 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 			Email:        application.ApplicantEmail,
 			Status:       "Active",
 		},
+	}
+	// Seed org from the stored application when present. The applicant confirmed their
+	// organization at submission time, so we trust that value over profile metadata
+	// enrichment (which only fills Name, not ID/website required for org-gated committees).
+	if application.Organization != nil {
+		member.Organization = *application.Organization
 	}
 
 	// Resolve username and profile fields from the applicant's email.
@@ -1865,7 +1877,8 @@ func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...s
 
 // enrichMemberOrganization fills organization.Name from auth-service profile metadata when
 // missing. It does not set ID or website; org-gated committees still require a complete
-// organization from the invite record or accept payload before member validation runs.
+// organization from the invite record, application record, or accept payload before member
+// validation runs. This enrichment is a last-resort fallback for non-gated cases.
 func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
 	if member.Organization.ID != "" {
 		return
@@ -2001,6 +2014,10 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	if !b.UpdatedAt.IsZero() {
 		v := b.UpdatedAt.UTC().Format(time.RFC3339)
 		out.UpdatedAt = &v
+	}
+	if b.State == model.GroupWeeklyBriefStateError && b.ErrorReason != "" {
+		v := b.ErrorReason
+		out.ErrorReason = &v
 	}
 	if b.BriefText != "" {
 		v := b.BriefText

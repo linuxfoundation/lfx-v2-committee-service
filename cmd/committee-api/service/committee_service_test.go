@@ -2044,6 +2044,174 @@ func TestApproveApplication_WrongCommittee(t *testing.T) {
 	assert.Contains(t, nfErr.Message, "application not found in this committee")
 }
 
+func TestSubmitApplication_WithOrganization(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+	svc.userReader = mockReaderForPrincipalEmail("applicant-with-org@example.com", "applicant-with-org@example.com")
+
+	orgID := "0012400001ABCDEF"
+	orgName := "Acme Corp"
+	orgWebsite := "https://acme.com"
+	msg := "I'd like to join"
+
+	ctx := testCtx("applicant-with-org@example.com")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID:     "committee-1",
+		Message: &msg,
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{
+			ID:      &orgID,
+			Name:    &orgName,
+			Website: &orgWebsite,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	stored, _, err := repo.GetApplication(ctx, *result.UID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.Organization, "organization should be stored on the application record")
+	assert.Equal(t, orgID, stored.Organization.ID)
+	assert.Equal(t, orgName, stored.Organization.Name)
+	assert.Equal(t, orgWebsite, stored.Organization.Website)
+}
+
+func TestSubmitApplication_WithoutOrganization(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+	svc.userReader = mockReaderForPrincipalEmail("applicant-no-org@example.com", "applicant-no-org@example.com")
+
+	ctx := testCtx("applicant-no-org@example.com")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID: "committee-1",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	stored, _, err := repo.GetApplication(ctx, *result.UID)
+	require.NoError(t, err)
+	assert.Nil(t, stored.Organization, "organization should be nil when not provided")
+}
+
+func TestSubmitApplication_RejectedApp_OrgReplaced(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+
+	originalOrg := &model.CommitteeMemberOrganization{ID: "old-sfid", Name: "OldCorp", Website: "https://old.com"}
+	rejected := &model.CommitteeApplication{
+		UID:            "rejected-app-with-org",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "reapplicant-org-replace@example.com",
+		Status:         "rejected",
+		Organization:   originalOrg,
+		CreatedAt:      time.Now(),
+	}
+	repo.AddCommitteeApplication(rejected)
+
+	svc.userReader = mockReaderForPrincipalEmail("reapplicant-org-replace@example.com", "reapplicant-org-replace@example.com")
+	newOrgID := "0012400001NEWID0"
+	newOrgName := "NewCorp"
+	newOrgWebsite := "https://newcorp.com"
+	newMsg := "I've improved since last time"
+	ctx := testCtx("reapplicant-org-replace@example.com")
+
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID:     "committee-1",
+		Message: &newMsg,
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{
+			ID:      &newOrgID,
+			Name:    &newOrgName,
+			Website: &newOrgWebsite,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, rejected.UID, *result.UID, "should reinstate the existing application")
+	assert.Equal(t, "pending", result.Status)
+
+	stored, _, err := repo.GetApplication(ctx, rejected.UID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.Organization, "organization should be replaced on reinstatement")
+	assert.Equal(t, newOrgID, stored.Organization.ID)
+	assert.Equal(t, newOrgName, stored.Organization.Name)
+	assert.Equal(t, newOrgWebsite, stored.Organization.Website)
+}
+
+func TestApproveApplication_OrganizationPropagatedToMember(t *testing.T) {
+	tests := []struct {
+		name        string
+		appUID      string
+		appEmail    string
+		appOrg      *model.CommitteeMemberOrganization
+		wantOrgID   string
+		wantOrgName string
+	}{
+		{
+			name:        "organization from application is seeded onto created member",
+			appUID:      "app-org-propagation-with-org",
+			appEmail:    "org-propagation-with@example.com",
+			appOrg:      &model.CommitteeMemberOrganization{ID: "0012400001SFIDXX", Name: "Acme Corp", Website: "https://acme.com"},
+			wantOrgID:   "0012400001SFIDXX",
+			wantOrgName: "Acme Corp",
+		},
+		{
+			name:        "no organization on application leaves member organization empty",
+			appUID:      "app-org-propagation-no-org",
+			appEmail:    "org-propagation-without@example.com",
+			appOrg:      nil,
+			wantOrgID:   "",
+			wantOrgName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+
+			app := &model.CommitteeApplication{
+				UID:            tt.appUID,
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: tt.appEmail,
+				Status:         "pending",
+				Organization:   tt.appOrg,
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(app)
+
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Email:        tt.appEmail,
+					Status:       "Active",
+				},
+			}
+
+			notes := "Welcome aboard"
+			_, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: tt.appUID,
+				ReviewerNotes:  &notes,
+			})
+
+			require.NoError(t, err)
+			require.Len(t, mockOrch.createMemberCalls, 1)
+			createdMember := mockOrch.createMemberCalls[0]
+			assert.Equal(t, tt.wantOrgID, createdMember.Organization.ID)
+			assert.Equal(t, tt.wantOrgName, createdMember.Organization.Name)
+		})
+	}
+}
+
 func TestRejectApplication(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -154,6 +154,16 @@ func (c *Committee) Tags() []string {
 		tags = append(tags, tag)
 	}
 
+	if c.DisplayName != "" {
+		tag := fmt.Sprintf("display_name:%s", c.DisplayName)
+		tags = append(tags, tag)
+	}
+
+	if c.SSOGroupName != "" {
+		tag := fmt.Sprintf("sso_group_name:%s", c.SSOGroupName)
+		tags = append(tags, tag)
+	}
+
 	if c.CommitteeBase.UID != "" {
 		// without prefix
 		tags = append(tags, c.CommitteeBase.UID)

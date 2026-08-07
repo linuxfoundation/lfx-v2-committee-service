@@ -817,6 +817,8 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example(false)
 			})
 
+			OrganizationInfoAttributes()
+
 			dsl.Required("version", "uid")
 		})
 

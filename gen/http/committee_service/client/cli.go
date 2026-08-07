@@ -1766,11 +1766,21 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceSubmitApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false,\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
 		}
 		if body.Message != nil {
 			if utf8.RuneCountInString(*body.Message) > 2000 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+			}
+		}
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 			}
 		}
 		if err != nil {
@@ -1818,6 +1828,20 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 		var zero bool
 		if v.Notify == zero {
 			v.Notify = false
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
 		}
 	}
 	v.UID = uid
@@ -2162,7 +2186,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"ez6\",\n      \"folder_uid\": \"13681fa2-642f-49eb-af9a-7890baff5d32\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2515,7 +2539,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quo consequatur natus omnis.\",\n      \"description\": \"hfi\",\n      \"file\": \"T21uaXMgYWNjdXNhbXVzLg==\",\n      \"file_name\": \"Omnis quae velit voluptate ut ullam.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))

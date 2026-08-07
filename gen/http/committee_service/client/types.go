@@ -297,6 +297,15 @@ type SubmitApplicationRequestBody struct {
 	// When true, send email notifications to committee writers about the new
 	// application. Defaults to false.
 	Notify bool `form:"notify" json:"notify" xml:"notify"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
 // ApproveApplicationRequestBody is the type of the "committee-service" service
@@ -883,6 +892,15 @@ type GetApplicationResponseBody struct {
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -902,6 +920,15 @@ type SubmitApplicationResponseBody struct {
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -981,6 +1008,15 @@ type RejectApplicationResponseBody struct {
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -1170,6 +1206,8 @@ type UpdateCurrentWeeklyBriefResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -2944,6 +2982,8 @@ type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -3478,6 +3518,20 @@ func NewSubmitApplicationRequestBody(p *committeeservice.SubmitApplicationPayloa
 		var zero bool
 		if body.Notify == zero {
 			body.Notify = false
+		}
+	}
+	if p.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      p.Organization.ID,
+			Name:    p.Organization.Name,
+			Website: p.Organization.Website,
 		}
 	}
 	return body
@@ -5290,6 +5344,20 @@ func NewGetApplicationCommitteeApplicationWithReadonlyAttributesOK(body *GetAppl
 	if body.Status == nil {
 		v.Status = "pending"
 	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
 
 	return v
 }
@@ -5341,6 +5409,20 @@ func NewSubmitApplicationCommitteeApplicationWithReadonlyAttributesCreated(body 
 	}
 	if body.Status == nil {
 		v.Status = "pending"
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 
 	return v
@@ -5559,6 +5641,20 @@ func NewRejectApplicationCommitteeApplicationWithReadonlyAttributesOK(body *Reje
 	}
 	if body.Status == nil {
 		v.Status = "pending"
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 
 	return v
@@ -6591,6 +6687,7 @@ func NewUpdateCurrentWeeklyBriefGroupWeeklyBriefWithReadonlyAttributesOK(body *U
 		WindowStart:          body.WindowStart,
 		WindowEnd:            body.WindowEnd,
 		State:                body.State,
+		ErrorReason:          body.ErrorReason,
 		BriefText:            body.BriefText,
 		PromptVersion:        body.PromptVersion,
 		Model:                body.Model,
@@ -7720,6 +7817,16 @@ func ValidateGetApplicationResponseBody(body *GetApplicationResponseBody) (err e
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
 		}
 	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
@@ -7748,6 +7855,16 @@ func ValidateSubmitApplicationResponseBody(body *SubmitApplicationResponseBody) 
 	if body.ReviewerNotes != nil {
 		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	if body.CreatedAt != nil {
@@ -7881,6 +7998,16 @@ func ValidateRejectApplicationResponseBody(body *RejectApplicationResponseBody) 
 	if body.ReviewerNotes != nil {
 		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	if body.CreatedAt != nil {

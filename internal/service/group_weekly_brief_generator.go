@@ -430,6 +430,7 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 	slog.WarnContext(ctx, "weekly-brief fulfill: finalizing brief in error state",
 		"committee_uid", brief.CommitteeUID, "reason", reason)
 	brief.State = model.GroupWeeklyBriefStateError
+	brief.ErrorReason = reason
 	if _, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); err != nil {
 		return err
 	}
