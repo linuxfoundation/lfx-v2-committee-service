@@ -268,6 +268,9 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	Deliverables []string
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// The name of the project this committee belongs to
 	ProjectName *string
 	// The name of the SSO group - read-only
@@ -357,6 +360,9 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Deliverables []string
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// The name of the SSO group - read-only
 	SsoGroupName *string
 	// The total number of members in this committee
@@ -720,6 +726,9 @@ type CreateCommitteePayload struct {
 	Deliverables []string
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -892,6 +901,27 @@ type DownloadCommitteeDocumentPayload struct {
 	UID *string
 	// Committee document UID
 	DocumentUID *string
+}
+
+// A single source-labeled external entity linked to a committee (e.g. an OCG
+// group or event).
+type ExternalSource struct {
+	// The external platform that owns this linked entity
+	Provider string
+	// The type of entity in the external platform
+	EntityType string
+	// Human-readable label for the linked external entity
+	Label string
+	// The URL of the linked external entity
+	URL string
+	// The identifier of the entity within the external platform
+	ExternalID *string
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string
 }
 
 // GenerateWeeklyBriefPayload is the payload type of the committee-service
@@ -1428,6 +1458,9 @@ type UpdateCommitteeBasePayload struct {
 	Deliverables []string
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service

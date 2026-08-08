@@ -67,6 +67,9 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	// Handle KeyDates if present
 	base.KeyDates = convertPayloadKeyDatesToModel(p.KeyDates)
 
+	// Handle ExternalSources if present
+	base.ExternalSources = convertPayloadExternalSourcesToModel(p.ExternalSources)
+
 	// Handle calendar if present
 	if p.Calendar != nil {
 		base.Calendar = model.Calendar{
@@ -143,6 +146,9 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	// Handle KeyDates if present
 	base.KeyDates = convertPayloadKeyDatesToModel(p.KeyDates)
 
+	// Handle ExternalSources if present
+	base.ExternalSources = convertPayloadExternalSourcesToModel(p.ExternalSources)
+
 	base.JoinMode = p.JoinMode
 
 	// Handle calendar if present
@@ -194,6 +200,78 @@ func convertModelKeyDatesToResponse(dates []model.KeyDate) []*committeeservice.K
 			Date:  d.Date,
 			Label: d.Label,
 		})
+	}
+
+	return result
+}
+
+// convertPayloadExternalSourcesToModel converts GOA ExternalSource payloads to domain ExternalSources.
+func convertPayloadExternalSourcesToModel(sources []*committeeservice.ExternalSource) []model.ExternalSource {
+	if sources == nil {
+		return nil
+	}
+
+	result := make([]model.ExternalSource, 0, len(sources))
+	for _, src := range sources {
+		if src == nil {
+			continue
+		}
+
+		entry := model.ExternalSource{
+			Provider:   src.Provider,
+			EntityType: src.EntityType,
+			Label:      src.Label,
+			URL:        src.URL,
+		}
+
+		if src.ExternalID != nil {
+			entry.ExternalID = *src.ExternalID
+		}
+		if src.ExternalCategory != nil {
+			entry.ExternalCategory = *src.ExternalCategory
+		}
+		if src.ExternalRegion != nil {
+			entry.ExternalRegion = *src.ExternalRegion
+		}
+		if src.ExternalEventCategory != nil {
+			entry.ExternalEventCategory = *src.ExternalEventCategory
+		}
+
+		result = append(result, entry)
+	}
+
+	return result
+}
+
+// convertModelExternalSourcesToResponse converts domain ExternalSources to GOA response ExternalSources.
+func convertModelExternalSourcesToResponse(sources []model.ExternalSource) []*committeeservice.ExternalSource {
+	if sources == nil {
+		return nil
+	}
+
+	result := make([]*committeeservice.ExternalSource, 0, len(sources))
+	for _, src := range sources {
+		entry := &committeeservice.ExternalSource{
+			Provider:   src.Provider,
+			EntityType: src.EntityType,
+			Label:      src.Label,
+			URL:        src.URL,
+		}
+
+		if src.ExternalID != "" {
+			entry.ExternalID = &src.ExternalID
+		}
+		if src.ExternalCategory != "" {
+			entry.ExternalCategory = &src.ExternalCategory
+		}
+		if src.ExternalRegion != "" {
+			entry.ExternalRegion = &src.ExternalRegion
+		}
+		if src.ExternalEventCategory != "" {
+			entry.ExternalEventCategory = &src.ExternalEventCategory
+		}
+
+		result = append(result, entry)
 	}
 
 	return result
@@ -271,6 +349,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	result.Scope = response.Scope
 	result.Deliverables = response.Deliverables
 	result.KeyDates = convertModelKeyDatesToResponse(response.KeyDates)
+	result.ExternalSources = convertModelExternalSourcesToResponse(response.ExternalSources)
 	if response.SSOGroupName != "" {
 		result.SsoGroupName = &response.SSOGroupName
 	}
@@ -358,6 +437,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	result.Scope = base.Scope
 	result.Deliverables = base.Deliverables
 	result.KeyDates = convertModelKeyDatesToResponse(base.KeyDates)
+	result.ExternalSources = convertModelExternalSourcesToResponse(base.ExternalSources)
 	if base.SSOGroupName != "" {
 		result.SsoGroupName = &base.SSOGroupName
 	}

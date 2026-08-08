@@ -5629,6 +5629,27 @@ func unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(v *KeyDateRequestBody)
 	return res
 }
 
+// unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource builds a
+// value of type *committeeservice.ExternalSource from a value of type
+// *ExternalSourceRequestBody.
+func unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(v *ExternalSourceRequestBody) *committeeservice.ExternalSource {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.ExternalSource{
+		Provider:              *v.Provider,
+		EntityType:            *v.EntityType,
+		Label:                 *v.Label,
+		URL:                   *v.URL,
+		ExternalID:            v.ExternalID,
+		ExternalCategory:      v.ExternalCategory,
+		ExternalRegion:        v.ExternalRegion,
+		ExternalEventCategory: v.ExternalEventCategory,
+	}
+
+	return res
+}
+
 // unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -5655,6 +5676,27 @@ func marshalCommitteeserviceKeyDateToKeyDateResponseBody(v *committeeservice.Key
 	res := &KeyDateResponseBody{
 		Date:  v.Date,
 		Label: v.Label,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceExternalSourceToExternalSourceResponseBody builds a
+// value of type *ExternalSourceResponseBody from a value of type
+// *committeeservice.ExternalSource.
+func marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(v *committeeservice.ExternalSource) *ExternalSourceResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &ExternalSourceResponseBody{
+		Provider:              v.Provider,
+		EntityType:            v.EntityType,
+		Label:                 v.Label,
+		URL:                   v.URL,
+		ExternalID:            v.ExternalID,
+		ExternalCategory:      v.ExternalCategory,
+		ExternalRegion:        v.ExternalRegion,
+		ExternalEventCategory: v.ExternalEventCategory,
 	}
 
 	return res
