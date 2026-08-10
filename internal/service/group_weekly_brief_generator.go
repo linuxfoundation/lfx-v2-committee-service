@@ -369,12 +369,13 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 {
-		if errMeetings != nil || errMailing != nil || errVotes != nil {
+		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
+				"summaries_errored", errSummaries != nil,
 			)
 			// Surface the underlying source error so the consumer retries rather
 			// than finalizing a terminal brief over a transient outage.
@@ -384,6 +385,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 			if retryErr == nil {
 				retryErr = errVotes
+			}
+			if retryErr == nil {
+				retryErr = errSummaries
 			}
 			return retryErr
 		}

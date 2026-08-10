@@ -17,6 +17,8 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 )
 
+func boolPtr(b bool) *bool { return &b }
+
 // summaryResponse builds a minimal query-service envelope with the given records.
 func summaryResponse(t *testing.T, records []querySummaryData) []byte {
 	t.Helper()
@@ -50,7 +52,7 @@ func TestListAISummariesForWindow_ApprovalGate(t *testing.T) {
 			SummaryTitle:           "Approved Summary",
 			SummaryStartTime:       t0.Format(time.RFC3339Nano),
 			Content:                "Content A",
-			RequiresApproval:       true,
+			RequiresApproval:       boolPtr(true),
 			Approved:               true,
 			AISummaryAccess:        "public",
 		},
@@ -59,7 +61,7 @@ func TestListAISummariesForWindow_ApprovalGate(t *testing.T) {
 			SummaryTitle:           "Pending Summary",
 			SummaryStartTime:       t0.Add(time.Hour).Format(time.RFC3339Nano),
 			Content:                "Content B",
-			RequiresApproval:       true,
+			RequiresApproval:       boolPtr(true),
 			Approved:               false, // not approved — must be filtered out
 			AISummaryAccess:        "private",
 		},
@@ -68,7 +70,7 @@ func TestListAISummariesForWindow_ApprovalGate(t *testing.T) {
 			SummaryTitle:           "Auto-Approved",
 			SummaryStartTime:       t0.Add(2 * time.Hour).Format(time.RFC3339Nano),
 			Content:                "Content C",
-			RequiresApproval:       false, // auto-approved: no human review needed
+			RequiresApproval:       boolPtr(false), // auto-approved: no human review needed
 			Approved:               false,
 			AISummaryAccess:        "members",
 		},
@@ -106,7 +108,7 @@ func TestListAISummariesForWindow_PrivateDerivation(t *testing.T) {
 			SummaryTitle:           "Public Summary",
 			SummaryStartTime:       t0.Format(time.RFC3339Nano),
 			Content:                "Public content",
-			RequiresApproval:       false,
+			RequiresApproval:       boolPtr(false),
 			Approved:               false,
 			AISummaryAccess:        "public",
 		},
@@ -115,7 +117,7 @@ func TestListAISummariesForWindow_PrivateDerivation(t *testing.T) {
 			SummaryTitle:           "Private Summary",
 			SummaryStartTime:       t0.Add(time.Hour).Format(time.RFC3339Nano),
 			Content:                "Private content",
-			RequiresApproval:       false,
+			RequiresApproval:       boolPtr(false),
 			Approved:               false,
 			AISummaryAccess:        "members",
 		},
@@ -124,7 +126,7 @@ func TestListAISummariesForWindow_PrivateDerivation(t *testing.T) {
 			SummaryTitle:           "Empty Access",
 			SummaryStartTime:       t0.Add(2 * time.Hour).Format(time.RFC3339Nano),
 			Content:                "Some content",
-			RequiresApproval:       false,
+			RequiresApproval:       boolPtr(false),
 			Approved:               false,
 			AISummaryAccess:        "", // missing → private by default
 		},
@@ -164,14 +166,14 @@ func TestListAISummariesForWindow_TitleFallback(t *testing.T) {
 			SummaryTitle:           "My Custom Title",
 			ZoomMeetingTopic:       "Zoom Topic (ignored)",
 			SummaryStartTime:       t0.Format(time.RFC3339Nano),
-			RequiresApproval:       false,
+			RequiresApproval:       boolPtr(false),
 		},
 		{
 			MeetingAndOccurrenceID: "m-no-title",
 			SummaryTitle:           "",
 			ZoomMeetingTopic:       "Zoom Topic Used",
 			SummaryStartTime:       t0.Add(time.Hour).Format(time.RFC3339Nano),
-			RequiresApproval:       false,
+			RequiresApproval:       boolPtr(false),
 		},
 	}
 
@@ -281,7 +283,7 @@ func TestListAISummariesForWindow_MalformedRecord_Skipped(t *testing.T) {
 		SummaryTitle:           "Good Summary",
 		SummaryStartTime:       t0.Format(time.RFC3339Nano),
 		Content:                "Good content",
-		RequiresApproval:       false,
+		RequiresApproval:       boolPtr(false),
 	}
 	goodJSON, _ := json.Marshal(validRecord)
 
@@ -315,7 +317,7 @@ func TestListAISummariesForWindow_MissingDataPayload_Skipped(t *testing.T) {
 		SummaryTitle:           "Good Summary",
 		SummaryStartTime:       t0.Format(time.RFC3339Nano),
 		Content:                "Good content",
-		RequiresApproval:       true,
+		RequiresApproval:       boolPtr(true),
 		Approved:               true,
 	}
 	goodJSON, _ := json.Marshal(validRecord)
@@ -338,4 +340,34 @@ func TestListAISummariesForWindow_MissingDataPayload_Skipped(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1, "only the record with valid approval data should be returned")
 	assert.Equal(t, "good", got[0].MeetingAndOccurrenceID)
+}
+
+// ── Absent requires_approval field is not treated as auto-approved ────────────
+
+func TestListAISummariesForWindow_AbsentRequiresApproval_NotAutoApproved(t *testing.T) {
+	t0 := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
+
+	// "{}" is a valid, non-null JSON object. It was previously vulnerable: the
+	// zero-value bool RequiresApproval=false would pass the approval gate as
+	// auto-approved. Now that RequiresApproval is *bool, absent means nil and
+	// the record is treated as unapproved rather than auto-approved.
+	absentRAJSON := []byte(`{"uid":"absent-ra","data":{}}`)
+	// A record with approved=true but missing requires_approval should still pass.
+	approvedNoRAJSON := []byte(`{"uid":"approved-no-ra","data":{"meeting_and_occurrence_id":"approved-no-ra","approved":true}}`)
+
+	body := []byte(`{"resources":[` + string(absentRAJSON) + `,` + string(approvedNoRAJSON) + `]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newSummarySource(t, srv)
+	got, err := src.ListAISummariesForWindow(context.Background(), "c-1",
+		t0.Add(-time.Hour), t0.Add(2*time.Hour))
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "record with absent requires_approval and approved=false must be filtered; approved=true must pass")
+	assert.Equal(t, "approved-no-ra", got[0].MeetingAndOccurrenceID)
 }

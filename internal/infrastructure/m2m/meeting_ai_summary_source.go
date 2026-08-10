@@ -60,15 +60,20 @@ type querySummaryData struct {
 	SummaryTitle           string `json:"summary_title"`
 	SummaryStartTime       string `json:"summary_start_time"`
 	Content                string `json:"content"`
-	RequiresApproval       bool   `json:"requires_approval"`
-	Approved               bool   `json:"approved"`
-	AISummaryAccess        string `json:"ai_summary_access"`
+	// RequiresApproval is a pointer so we can distinguish "explicitly false"
+	// (auto-approved by the Zoom pipeline) from "field absent" (ambiguous
+	// approval status — treat as unapproved rather than auto-approving a
+	// zero-value bool from a partial payload such as {}).
+	RequiresApproval *bool  `json:"requires_approval,omitempty"`
+	Approved         bool   `json:"approved"`
+	AISummaryAccess  string `json:"ai_summary_access"`
 }
 
 // ListAISummariesForWindow fetches approved AI-generated meeting summaries for
 // the given committee whose summary_start_time falls in [windowStart, windowEnd].
-// Records where approved == false are filtered out in-process. When RequiresApproval
-// is false the summary is auto-approved by the Zoom pipeline, so it passes.
+// Records are filtered in-process: a summary passes when requires_approval is
+// explicitly false (auto-approved by the Zoom pipeline), or when approved is
+// true. When requires_approval is absent the record is treated as unapproved.
 func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]port.MeetingAISummaryActivity, error) {
 	if m == nil || m.cfg.BaseURL == "" {
 		slog.WarnContext(ctx, "meeting AI summary source disabled: QUERY_SERVICE_URL not set")
@@ -126,10 +131,11 @@ func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, c
 			continue
 		}
 
-		// Only use summaries that have been approved. When requires_approval is
-		// false the Zoom pipeline auto-publishes without human review, which still
-		// counts as approved for our purposes.
-		if !data.Approved && data.RequiresApproval {
+		// Pass when auto-approved (requires_approval explicitly false) or when a
+		// human has approved (approved=true). When requires_approval is absent we
+		// cannot infer the approval intent, so we treat the record as unapproved.
+		autoApproved := data.RequiresApproval != nil && !*data.RequiresApproval
+		if !autoApproved && !data.Approved {
 			continue
 		}
 

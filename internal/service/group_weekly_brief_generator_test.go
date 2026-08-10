@@ -897,6 +897,28 @@ func TestFulfill_NoAISummarySource_BriefStillGenerates(t *testing.T) {
 	assert.Empty(t, recorder.gotInput.RawContext)
 }
 
+func TestFulfill_SummaryOnlyError_TriggersRetry(t *testing.T) {
+	// When AI summaries are the ONLY source for the window and the fetch fails,
+	// Fulfill must return the error (triggering a retry) rather than silently
+	// finalizing as "no_sources" and permanently ACKing the message.
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}), // no meetings
+		WithMeetingAISummarySource(&fakeAISummarySource{err: errors.NewUnexpected("summary fetch failed", nil)}),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err, "summary-only window with fetch error must return an error to trigger retry")
+	// Brief must NOT be finalized — the put writer should still hold the generating brief.
+	if bw.putBrief != nil {
+		assert.NotEqual(t, model.GroupWeeklyBriefStateError, bw.putBrief.State,
+			"brief must not be finalized as error when summary source is temporarily down")
+	}
+}
+
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	mk := func(first, last string) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
