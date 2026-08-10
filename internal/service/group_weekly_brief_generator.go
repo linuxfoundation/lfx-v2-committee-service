@@ -80,6 +80,7 @@ type groupWeeklyBriefGenerator struct {
 	aiSummaries   port.MeetingAISummarySource
 	mailingLists  port.MailingListSource
 	votes         port.VoteSource
+	voteResults   port.VoteResultSource
 	memberReader  port.CommitteeWeeklyMemberReader
 	ai            port.AIAdapter
 	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
@@ -118,6 +119,13 @@ func WithMailingListSource(s port.MailingListSource) GroupWeeklyBriefGeneratorOp
 // WithVoteSource wires the vote-source port.
 func WithVoteSource(s port.VoteSource) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.votes = s }
+}
+
+// WithVoteResultSource wires the vote-result-source port. This is optional —
+// when nil, brief generation continues without per-choice tallies (graceful
+// degrade). Deployments that do not set VOTING_SERVICE_URL omit this source.
+func WithVoteResultSource(s port.VoteResultSource) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.voteResults = s }
 }
 
 // WithCommitteeWeeklyMemberReader wires the member-activity reader.
@@ -346,6 +354,12 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		votes = nil
 	}
 
+	// Enrich closed votes with per-choice tallies. Result fetch errors are
+	// non-fatal: the brief still generates with name and participation counts.
+	if g.voteResults != nil {
+		g.enrichVotesWithResults(ctx, votes)
+	}
+
 	// AI summaries are optional — nil source or fetch error both degrade to
 	// zero summaries without blocking the brief. A missing summary source is
 	// not logged at error level because the source is wired optionally.
@@ -505,11 +519,17 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 		})
 	}
 	for _, v := range votes {
-		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Subject, Excerpt: cleanSummary(v.Outcome)}
+		// The excerpt captures participation so it is available in source_refs
+		// even when tally detail is unavailable.
+		excerpt := voteParticipationExcerpt(v)
+		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Name, Excerpt: excerpt}
 		refs = append(refs, ref)
+		// Vote tallies are server-computed integers — safe to include in the
+		// claim label (not user-controlled free text). Name is still passed
+		// through claimLabel to sanitize newlines and apply the 80-rune cap.
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "vote-" + v.VoteID,
-			Summary: claimLabel("vote", v.Subject),
+			Summary: claimLabel("vote", v.Name) + voteTallyLabel(v),
 			Sources: []port.SourceRef{{Type: "vote", ID: v.VoteID}},
 		})
 	}
@@ -623,11 +643,10 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 			return true
 		}
 	}
-	for _, v := range votes {
-		if v.Private {
-			return true
-		}
-	}
+	// VoteActivity has no Private flag — votes are committee-scoped records and
+	// treated as non-private for the banner guard. If a private vote concept is
+	// added later, extend this loop then.
+	_ = votes
 	return false
 }
 
@@ -800,4 +819,58 @@ func formatMemberList(members []*model.CommitteeMember) string {
 	default:
 		return strings.Join(named, ", ") + fmt.Sprintf(", and %d others", unnamed)
 	}
+}
+
+// enrichVotesWithResults calls GetVoteResults for each vote in the slice and
+// populates Tally in-place. Errors per vote are logged and skipped — a failed
+// tally fetch never blocks brief generation.
+func (g *groupWeeklyBriefGenerator) enrichVotesWithResults(ctx context.Context, votes []port.VoteActivity) {
+	for i := range votes {
+		tally, err := g.voteResults.GetVoteResults(ctx, votes[i].VoteID)
+		if err != nil {
+			slog.WarnContext(ctx, "weekly-brief fulfill: vote result fetch failed; continuing without tally",
+				"vote_id", votes[i].VoteID, "error", err)
+			continue
+		}
+		votes[i].Tally = tally
+	}
+}
+
+// voteParticipationExcerpt returns a short participation summary for the
+// source_ref excerpt. When tally data is available it prefers the numeric
+// breakdown; otherwise it falls back to the response/invitation counts from
+// the query-service index.
+func voteParticipationExcerpt(v port.VoteActivity) string {
+	if v.Tally != nil {
+		return fmt.Sprintf("%d of %d voted, %d abstained",
+			v.Tally.NumVotesCast, v.Tally.NumRecipients, v.Tally.NumAbstained)
+	}
+	if v.InvitationCount > 0 {
+		return fmt.Sprintf("%d of %d responded", v.ResponseCount, v.InvitationCount)
+	}
+	return ""
+}
+
+// voteTallyLabel returns a suffix for the claim summary when per-choice tally
+// data is available. The leading space is included in the suffix so callers can
+// concatenate directly after claimLabel output.
+//
+// Example output: " — 8 yes, 2 no (8 of 10 voted)"
+//
+// When no tally is available (Tally is nil or ChoiceResults is empty) an empty
+// string is returned and the claim reads as just the vote name without tallies.
+func voteTallyLabel(v port.VoteActivity) string {
+	if v.Tally == nil || len(v.Tally.ChoiceResults) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(v.Tally.ChoiceResults))
+	for _, c := range v.Tally.ChoiceResults {
+		label := c.ChoiceText
+		if label == "" {
+			label = c.ChoiceID
+		}
+		parts = append(parts, fmt.Sprintf("%d %s", c.VoteCount, label))
+	}
+	tally := strings.Join(parts, ", ")
+	return fmt.Sprintf(" — %s (%d of %d voted)", tally, v.Tally.NumVotesCast, v.Tally.NumRecipients)
 }

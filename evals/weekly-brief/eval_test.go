@@ -86,11 +86,12 @@ type fixtureThread struct {
 }
 
 type fixtureVote struct {
-	VoteID  string `json:"vote_id"`
-	Subject string `json:"subject"`
-	URL     string `json:"url"`
-	Outcome string `json:"outcome"`
-	Private bool   `json:"private"`
+	VoteID          string `json:"vote_id"`
+	Name            string `json:"name"`
+	URL             string `json:"url"`
+	Status          string `json:"status"`
+	ResponseCount   int    `json:"response_count"`
+	InvitationCount int    `json:"invitation_count"`
 }
 
 type fixtureAISummary struct {
@@ -255,11 +256,12 @@ func votesFromFixture(fx fixture) []port.VoteActivity {
 	out := make([]port.VoteActivity, 0, len(fx.Votes))
 	for _, v := range fx.Votes {
 		out = append(out, port.VoteActivity{
-			VoteID:  v.VoteID,
-			Subject: v.Subject,
-			URL:     v.URL,
-			Outcome: v.Outcome,
-			Private: v.Private,
+			VoteID:          v.VoteID,
+			Name:            v.Name,
+			URL:             v.URL,
+			Status:          v.Status,
+			ResponseCount:   v.ResponseCount,
+			InvitationCount: v.InvitationCount,
 		})
 	}
 	return out

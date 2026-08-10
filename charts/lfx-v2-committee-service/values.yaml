@@ -539,6 +539,12 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
+    # VOTING_SERVICE_URL — base URL for the voting service REST API used to
+    # fetch per-choice tallies for closed votes (GET /votes/{uid}/results).
+    # When empty, the vote result source is disabled and briefs are generated
+    # without per-choice tally data (participation counts are still available).
+    VOTING_SERVICE_URL:
+      value: ""
     # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt ConfigMap
     # is mounted. Injected by the Deployment template from
     # weeklyBriefPrompts.promptDir so the env var and the volume mountPath always

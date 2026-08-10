@@ -722,6 +722,24 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
+// VoteResultSourceImpl builds the live vote result source. It calls the voting
+// service's GET /votes/{uid}/results endpoint directly (not the query service)
+// because per-choice tallies are computed at runtime and are not indexed.
+// When VOTING_SERVICE_URL is unset the source returns nil without error so
+// deployments that do not wire the voting service still generate briefs from
+// participation counts alone.
+func VoteResultSourceImpl(ctx context.Context) port.VoteResultSource {
+	baseURL := os.Getenv("VOTING_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "VOTING_SERVICE_URL not set; vote result source will return nil tallies")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewVoteResultSource(m2m.VoteResultSourceConfig{
+		BaseURL: baseURL,
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
 // OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
 // synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
 // by-organization secondary index.
@@ -886,6 +904,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithMeetingAISummarySource(MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
 		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
+		usecaseSvc.WithVoteResultSource(VoteResultSourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
 		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
 	)
