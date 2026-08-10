@@ -61,6 +61,9 @@ type CreateCommitteeRequestBody struct {
 	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -125,6 +128,9 @@ type UpdateCommitteeBaseRequestBody struct {
 	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -427,6 +433,9 @@ type CreateCommitteeResponseBody struct {
 	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -505,6 +514,9 @@ type UpdateCommitteeBaseResponseBody struct {
 	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -2618,6 +2630,26 @@ type KeyDateResponseBody struct {
 	Label string `form:"label" json:"label" xml:"label"`
 }
 
+// ExternalSourceResponseBody is used to define fields on response body types.
+type ExternalSourceResponseBody struct {
+	// The external platform that owns this linked entity
+	Provider string `form:"provider" json:"provider" xml:"provider"`
+	// The type of entity in the external platform
+	EntityType string `form:"entity_type" json:"entity_type" xml:"entity_type"`
+	// Human-readable label for the linked external entity
+	Label string `form:"label" json:"label" xml:"label"`
+	// The URL of the linked external entity
+	URL string `form:"url" json:"url" xml:"url"`
+	// The identifier of the entity within the external platform
+	ExternalID *string `form:"external_id,omitempty" json:"external_id,omitempty" xml:"external_id,omitempty"`
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string `form:"external_category,omitempty" json:"external_category,omitempty" xml:"external_category,omitempty"`
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string `form:"external_region,omitempty" json:"external_region,omitempty" xml:"external_region,omitempty"`
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string `form:"external_event_category,omitempty" json:"external_event_category,omitempty" xml:"external_event_category,omitempty"`
+}
+
 // CommitteeUserResponseBody is used to define fields on response body types.
 type CommitteeUserResponseBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -2678,6 +2710,9 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
 	// Timeline of important dates for the committee
 	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -3026,6 +3061,26 @@ type KeyDateRequestBody struct {
 	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
 }
 
+// ExternalSourceRequestBody is used to define fields on request body types.
+type ExternalSourceRequestBody struct {
+	// The external platform that owns this linked entity
+	Provider *string `form:"provider,omitempty" json:"provider,omitempty" xml:"provider,omitempty"`
+	// The type of entity in the external platform
+	EntityType *string `form:"entity_type,omitempty" json:"entity_type,omitempty" xml:"entity_type,omitempty"`
+	// Human-readable label for the linked external entity
+	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
+	// The URL of the linked external entity
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// The identifier of the entity within the external platform
+	ExternalID *string `form:"external_id,omitempty" json:"external_id,omitempty" xml:"external_id,omitempty"`
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string `form:"external_category,omitempty" json:"external_category,omitempty" xml:"external_category,omitempty"`
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string `form:"external_region,omitempty" json:"external_region,omitempty" xml:"external_region,omitempty"`
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string `form:"external_event_category,omitempty" json:"external_event_category,omitempty" xml:"external_event_category,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -3128,6 +3183,12 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		body.KeyDates = make([]*KeyDateResponseBody, len(res.KeyDates))
 		for i, val := range res.KeyDates {
 			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
+		}
+	}
+	if res.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.ExternalSources))
+		for i, val := range res.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
 		}
 	}
 	{
@@ -3258,6 +3319,12 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
 		}
 	}
+	if res.CommitteeBase.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.CommitteeBase.ExternalSources))
+		for i, val := range res.CommitteeBase.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
+		}
+	}
 	{
 		var zero bool
 		if body.HasMailingList == zero {
@@ -3354,6 +3421,12 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		body.KeyDates = make([]*KeyDateResponseBody, len(res.KeyDates))
 		for i, val := range res.KeyDates {
 			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
+		}
+	}
+	if res.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.ExternalSources))
+		for i, val := range res.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
 		}
 	}
 	{
@@ -6252,6 +6325,12 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 			v.KeyDates[i] = unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
 		}
 	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
+		}
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
@@ -6364,6 +6443,12 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
 		for i, val := range body.KeyDates {
 			v.KeyDates[i] = unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
+		}
+	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
 		}
 	}
 	v.UID = &uid
@@ -7167,6 +7252,16 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			}
 		}
 	}
+	if len(body.ExternalSources) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+	}
+	for _, e := range body.ExternalSources {
+		if e != nil {
+			if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -7277,6 +7372,16 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 	for _, e := range body.KeyDates {
 		if e != nil {
 			if err2 := ValidateKeyDateRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if len(body.ExternalSources) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+	}
+	for _, e := range body.ExternalSources {
+		if e != nil {
+			if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
@@ -7710,6 +7815,70 @@ func ValidateKeyDateRequestBody(body *KeyDateRequestBody) (err error) {
 	if body.Label != nil {
 		if utf8.RuneCountInString(*body.Label) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", *body.Label, utf8.RuneCountInString(*body.Label), 200, false))
+		}
+	}
+	return
+}
+
+// ValidateExternalSourceRequestBody runs the validations defined on
+// external-sourceRequestBody
+func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err error) {
+	if body.Provider == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("provider", "body"))
+	}
+	if body.EntityType == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("entity_type", "body"))
+	}
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.Provider != nil {
+		if !(*body.Provider == "ocg") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.provider", *body.Provider, []any{"ocg"}))
+		}
+	}
+	if body.EntityType != nil {
+		if !(*body.EntityType == "community" || *body.EntityType == "group" || *body.EntityType == "event") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.entity_type", *body.EntityType, []any{"community", "group", "event"}))
+		}
+	}
+	if body.Label != nil {
+		if utf8.RuneCountInString(*body.Label) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", *body.Label, utf8.RuneCountInString(*body.Label), 200, false))
+		}
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.ExternalID != nil {
+		if utf8.RuneCountInString(*body.ExternalID) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_id", *body.ExternalID, utf8.RuneCountInString(*body.ExternalID), 200, false))
+		}
+	}
+	if body.ExternalCategory != nil {
+		if utf8.RuneCountInString(*body.ExternalCategory) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_category", *body.ExternalCategory, utf8.RuneCountInString(*body.ExternalCategory), 200, false))
+		}
+	}
+	if body.ExternalRegion != nil {
+		if utf8.RuneCountInString(*body.ExternalRegion) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_region", *body.ExternalRegion, utf8.RuneCountInString(*body.ExternalRegion), 200, false))
+		}
+	}
+	if body.ExternalEventCategory != nil {
+		if utf8.RuneCountInString(*body.ExternalEventCategory) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_event_category", *body.ExternalEventCategory, utf8.RuneCountInString(*body.ExternalEventCategory), 200, false))
 		}
 	}
 	return

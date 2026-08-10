@@ -58,6 +58,11 @@ paths:
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
+                            external_sources:
+                                - entity_type: group
+                                  label: CNCF Meetup - San Francisco
+                                  provider: ocg
+                                  url: https://community.cncf.io/cncf-meetup-san-francisco/
                             join_mode: open
                             key_dates:
                                 - date: 2026-04
@@ -107,6 +112,11 @@ paths:
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                external_sources:
+                                    - entity_type: group
+                                      label: CNCF Meetup - San Francisco
+                                      provider: ocg
+                                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                                 has_mailing_list: true
                                 join_mode: open
                                 key_dates:
@@ -326,6 +336,11 @@ paths:
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                external_sources:
+                                    - entity_type: group
+                                      label: CNCF Meetup - San Francisco
+                                      provider: ocg
+                                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                                 has_mailing_list: true
                                 join_mode: open
                                 key_dates:
@@ -438,6 +453,11 @@ paths:
                             description: Main technical oversight committee for the project
                             display_name: TSC Committee Calendar
                             enable_voting: true
+                            external_sources:
+                                - entity_type: group
+                                  label: CNCF Meetup - San Francisco
+                                  provider: ocg
+                                  url: https://community.cncf.io/cncf-meetup-san-francisco/
                             join_mode: open
                             key_dates:
                                 - date: 2026-04
@@ -472,6 +492,11 @@ paths:
                                 description: Main technical oversight committee for the project
                                 display_name: TSC Committee Calendar
                                 enable_voting: true
+                                external_sources:
+                                    - entity_type: group
+                                      label: CNCF Meetup - San Francisco
+                                      provider: ocg
+                                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                                 has_mailing_list: true
                                 join_mode: open
                                 key_dates:
@@ -4709,6 +4734,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -4798,6 +4834,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 join_mode: open
                 key_dates:
                     - date: 2026-04
@@ -4885,6 +4926,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 has_mailing_list:
                     type: boolean
                     description: Whether the committee has any associated mailing lists
@@ -5005,6 +5057,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 has_mailing_list: true
                 join_mode: open
                 key_dates:
@@ -5192,6 +5249,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -5319,6 +5387,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 join_mode: open
                 key_dates:
                     - date: 2026-04
@@ -5430,6 +5503,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 has_mailing_list:
                     type: boolean
                     description: Whether the committee has any associated mailing lists
@@ -5583,6 +5667,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 has_mailing_list: true
                 join_mode: open
                 key_dates:
@@ -6823,6 +6912,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -6949,6 +7049,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 join_mode: open
                 key_dates:
                     - date: 2026-04
@@ -7021,6 +7126,70 @@ components:
                 role: None
             required:
                 - invitee_email
+        ExternalSource:
+            type: object
+            properties:
+                entity_type:
+                    type: string
+                    description: The type of entity in the external platform
+                    example: group
+                    enum:
+                        - community
+                        - group
+                        - event
+                external_category:
+                    type: string
+                    description: The community-managed category of the entity in the external platform
+                    example: Meetup
+                    maxLength: 200
+                external_event_category:
+                    type: string
+                    description: The community-managed event category of the entity in the external platform
+                    example: Virtual
+                    maxLength: 200
+                external_id:
+                    type: string
+                    description: The identifier of the entity within the external platform
+                    example: cncf-meetup-san-francisco
+                    maxLength: 200
+                external_region:
+                    type: string
+                    description: The community-managed region of the entity in the external platform
+                    example: North America
+                    maxLength: 200
+                label:
+                    type: string
+                    description: Human-readable label for the linked external entity
+                    example: CNCF Meetup - San Francisco
+                    maxLength: 200
+                provider:
+                    type: string
+                    description: The external platform that owns this linked entity
+                    example: ocg
+                    enum:
+                        - ocg
+                url:
+                    type: string
+                    description: The URL of the linked external entity
+                    example: https://community.cncf.io/cncf-meetup-san-francisco/
+                    format: uri
+                    pattern: ^https?://[^\s/$.?#][^\s]*$
+                    maxLength: 2048
+            description: A single source-labeled external entity linked to a committee (e.g. an OCG group or event).
+            example:
+                entity_type: group
+                external_category: Meetup
+                external_event_category: Virtual
+                external_id: cncf-meetup-san-francisco
+                external_region: North America
+                label: CNCF Meetup - San Francisco
+                provider: ocg
+                url: https://community.cncf.io/cncf-meetup-san-francisco/
+            required:
+                - provider
+                - entity_type
+                - label
+                - url
         ForbiddenError:
             type: object
             properties:
@@ -7932,6 +8101,17 @@ components:
                     description: Whether voting is enabled for this committee
                     default: false
                     example: true
+                external_sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExternalSource'
+                    description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                    example:
+                        - entity_type: group
+                          label: CNCF Meetup - San Francisco
+                          provider: ocg
+                          url: https://community.cncf.io/cncf-meetup-san-francisco/
+                    maxItems: 50
                 join_mode:
                     type: string
                     description: How new members can join this committee
@@ -8020,6 +8200,11 @@ components:
                 description: Main technical oversight committee for the project
                 display_name: TSC Committee Calendar
                 enable_voting: true
+                external_sources:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
                 join_mode: open
                 key_dates:
                     - date: 2026-04

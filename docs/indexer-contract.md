@@ -59,6 +59,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `scope` | []string (optional) | Committee scope bullet points |
 | `deliverables` | []string (optional) | Committee deliverables bullet points |
 | `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
+| `external_sources` | []object (optional) | Source-labeled external entities linked to the committee (e.g. OCG groups/events), each with `provider`, `entity_type`, `label`, `url`, and optional `external_id`, `external_category`, `external_region`, `external_event_category` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |

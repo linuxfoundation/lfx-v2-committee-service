@@ -36,6 +36,7 @@ func CommitteeBaseAttributes() {
 	ScopeAttribute()
 	DeliverablesAttribute()
 	KeyDatesAttribute()
+	ExternalSourcesAttribute()
 }
 
 // CommitteeSettings is the DSL type for a committee settings.
@@ -270,6 +271,61 @@ func KeyDatesAttribute() {
 		dsl.MaxLength(50)
 		dsl.Example([]map[string]interface{}{
 			{"date": "2026-04", "label": "Charter renewal"},
+		})
+	})
+}
+
+// ExternalSourceType is the DSL type for a single external source linked to a committee.
+var ExternalSourceType = dsl.Type("external-source", func() {
+	dsl.Description("A single source-labeled external entity linked to a committee (e.g. an OCG group or event).")
+	dsl.Attribute("provider", dsl.String, "The external platform that owns this linked entity", func() {
+		dsl.Enum("ocg")
+		dsl.Example("ocg")
+	})
+	dsl.Attribute("entity_type", dsl.String, "The type of entity in the external platform", func() {
+		dsl.Enum("community", "group", "event")
+		dsl.Example("group")
+	})
+	dsl.Attribute("label", dsl.String, "Human-readable label for the linked external entity", func() {
+		dsl.MaxLength(200)
+		dsl.Example("CNCF Meetup - San Francisco")
+	})
+	dsl.Attribute("url", dsl.String, "The URL of the linked external entity", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://community.cncf.io/cncf-meetup-san-francisco/")
+	})
+	dsl.Attribute("external_id", dsl.String, "The identifier of the entity within the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("cncf-meetup-san-francisco")
+	})
+	dsl.Attribute("external_category", dsl.String, "The community-managed category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Meetup")
+	})
+	dsl.Attribute("external_region", dsl.String, "The community-managed region of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("North America")
+	})
+	dsl.Attribute("external_event_category", dsl.String, "The community-managed event category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Virtual")
+	})
+	dsl.Required("provider", "entity_type", "label", "url")
+})
+
+// ExternalSourcesAttribute is the DSL attribute for a committee's linked external sources.
+func ExternalSourcesAttribute() {
+	dsl.Attribute("external_sources", dsl.ArrayOf(ExternalSourceType), "External source-labeled entities linked to this committee (e.g. OCG groups or events)", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{
+				"provider":    "ocg",
+				"entity_type": "group",
+				"label":       "CNCF Meetup - San Francisco",
+				"url":         "https://community.cncf.io/cncf-meetup-san-francisco/",
+			},
 		})
 	})
 }
