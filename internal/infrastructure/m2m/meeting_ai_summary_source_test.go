@@ -270,8 +270,8 @@ func TestListAISummariesForWindow_QueryParameters(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, capturedURL, "type=v1_past_meeting_summary")
-	assert.Contains(t, capturedURL, "tags=committee%3A"+committeeUID)
-	assert.Contains(t, capturedURL, "summary_start_time")
+	assert.Contains(t, capturedURL, "tags=committee_uid%3A"+committeeUID)
+	assert.Contains(t, capturedURL, "date_field=summary_start_time")
 }
 
 // ── Malformed data record is skipped ─────────────────────────────────────────

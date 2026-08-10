@@ -27,8 +27,8 @@ type MeetingAISummarySourceConfig struct {
 // MeetingAISummarySource is the live MeetingAISummarySource adapter. It speaks
 //
 //	GET {BaseURL}/query/resources?type=v1_past_meeting_summary
-//	    &tags=committee:{uid}
-//	    &summary_start_time[gte]={windowStart}&summary_start_time[lte]={windowEnd}
+//	    &tags=committee_uid:{uid}
+//	    &date_field=summary_start_time&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service, then filters in-process for approved summaries.
 // Authentication is by the same M2M *http.Client used by MeetingSource.
@@ -93,9 +93,10 @@ func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, c
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", "v1_past_meeting_summary")
-	q.Set("tags", "committee:"+committeeUID)
-	q.Set("summary_start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("summary_start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("tags", "committee_uid:"+committeeUID)
+	q.Set("date_field", "summary_start_time")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
