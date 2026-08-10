@@ -39,6 +39,35 @@ type MeetingSource interface {
 	ListMeetingsForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]MeetingActivity, error)
 }
 
+// MeetingAISummaryActivity is a normalised view of an approved AI-generated
+// meeting summary consumed by the weekly-brief generator.
+type MeetingAISummaryActivity struct {
+	// MeetingAndOccurrenceID is the combined meeting+occurrence identifier used
+	// to link back to the parent past meeting record.
+	MeetingAndOccurrenceID string
+	// Title is the meeting topic or AI-generated summary title.
+	Title string
+	// StartTime is the start of the summarised meeting session (UTC).
+	StartTime time.Time
+	// Content is the consolidated markdown content of the AI summary.
+	// It is sanitized by the generator before being passed to the AI adapter.
+	Content string
+	// Private is true when the summary's access level is not "public".
+	// When true, the generator marks PrivateSourcePresent on the brief.
+	Private bool
+}
+
+// MeetingAISummarySource fetches approved AI-generated meeting summaries for a
+// committee in a window. Live implementations query the query-service for
+// v1_past_meeting_summary resources tagged by committee_uid; only records where
+// approved == true are returned. Test/mock implementations return canned data.
+//
+// Implementations MUST NOT propagate the caller's bearer token — access is
+// brokered by service identity.
+type MeetingAISummarySource interface {
+	ListAISummariesForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]MeetingAISummaryActivity, error)
+}
+
 // MailingListActivity is the per-thread view consumed by the brief generator.
 type MailingListActivity struct {
 	ThreadID string

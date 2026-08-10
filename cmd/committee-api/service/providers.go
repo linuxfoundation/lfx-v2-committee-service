@@ -672,6 +672,21 @@ func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
 	}, client)
 }
 
+// MeetingAISummarySourceImpl builds the AI meeting summary source. It reuses
+// the same QUERY_SERVICE_URL and M2M HTTP client as MeetingSourceImpl. When
+// QUERY_SERVICE_URL is unset the source returns zero summaries (graceful degrade).
+func MeetingAISummarySourceImpl(ctx context.Context) port.MeetingAISummarySource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; AI meeting summary source will return zero summaries")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewMeetingAISummarySource(m2m.MeetingAISummarySourceConfig{
+		BaseURL: baseURL,
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
 // MailingListSourceImpl builds the live mailing-list source. When
 // QUERY_SERVICE_URL is unset the source returns zero threads (graceful
 // degrade). The query-service resource type defaults to
@@ -860,6 +875,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(GroupWeeklyBriefReaderImpl(ctx)),
 		usecaseSvc.WithGroupWeeklyBriefWriter(GroupWeeklyBriefWriterImpl(ctx)),
 		usecaseSvc.WithMeetingSource(MeetingSourceImpl(ctx)),
+		usecaseSvc.WithMeetingAISummarySource(MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
 		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),

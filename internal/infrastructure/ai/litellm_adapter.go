@@ -165,6 +165,7 @@ func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 		PeriodStart   string
 		PeriodEnd     string
 		Claims        []dryRunClaim
+		RawContext    string
 	}{
 		CommitteeID:   "00000000-0000-0000-0000-000000000000",
 		CommitteeName: "Example Working Group",
@@ -172,6 +173,7 @@ func (a *LiteLLMAdapter) loadPromptsFromDir(dir string) error {
 		PeriodStart:   "2024-01-01T00:00:00Z",
 		PeriodEnd:     "2024-01-07T23:59:59Z",
 		Claims:        []dryRunClaim{{ID: "claim-1", Summary: "Example claim summary", FormattedSources: "meeting:abc123"}},
+		RawContext:    "",
 	}
 	var dryBuf strings.Builder
 	if err := tmpl.Execute(&dryBuf, dryRunData); err != nil {
@@ -231,6 +233,7 @@ func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, erro
 		PeriodStart   string
 		PeriodEnd     string
 		Claims        []claimData
+		RawContext    string
 	}{
 		CommitteeID:   in.CommitteeID,
 		CommitteeName: in.CommitteeName,
@@ -238,6 +241,7 @@ func (a *LiteLLMAdapter) buildUserPrompt(in port.WeeklyBriefInput) (string, erro
 		PeriodStart:   in.PeriodStart,
 		PeriodEnd:     in.PeriodEnd,
 		Claims:        cd,
+		RawContext:    in.RawContext,
 	}
 
 	var buf strings.Builder
