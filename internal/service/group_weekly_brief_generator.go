@@ -368,7 +368,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// window would just fail again. But if the window is empty ONLY because one
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
-	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 {
 		if errMeetings != nil || errMailing != nil || errVotes != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
@@ -403,6 +403,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 				projectName = pn
 			}
 		}
+	}
+	if len(summaries) > maxSummaryCount {
+		summaries = summaries[:maxSummaryCount]
 	}
 	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, in.MembersHidden)
 
@@ -629,22 +632,43 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 // excessive portion of the model's context window.
 const maxSummaryContentLen = 3000
 
+// maxSummaryCount caps the total number of AI summaries included in a brief.
+// Each summary adds a claim, a persisted source reference, and up to
+// maxSummaryContentLen runes of RawContext; an unbounded slice could exhaust
+// the model's context window across many meetings.
+const maxSummaryCount = 10
+
+// collapseHyphens reduces every run of three or more consecutive hyphens to
+// "--". A single strings.ReplaceAll("---", "--") is insufficient: "----"
+// contains one non-overlapping "---" starting at position 0, which becomes
+// "--", leaving "---" in the output. Iterating until stable handles all cases.
+func collapseHyphens(s string) string {
+	for strings.Contains(s, "---") {
+		s = strings.ReplaceAll(s, "---", "--")
+	}
+	return s
+}
+
 // buildRawContext produces a fenced, sanitized block of AI meeting summary
 // content for the weekly-brief prompt. Each summary is separated by a header
 // line so the model can cite by meeting title and date. Returns an empty string
 // when no summaries are provided.
 //
-// Sanitization: fence marker sequences ("---") embedded in summary content are
-// replaced with "--" so they cannot break the fenced structure. Content is also
-// run through cleanSummary (collapse newlines, truncate) before the per-summary
-// cap is applied.
+// Sanitization: runs of three or more hyphens in titles and content are
+// collapsed to "--" (preventing fence-header forgery), titles are passed
+// through cleanSummary to strip newlines, and content is truncated to
+// maxSummaryContentLen runes. At most maxSummaryCount summaries are rendered.
 func buildRawContext(summaries []port.MeetingAISummaryActivity) string {
 	if len(summaries) == 0 {
 		return ""
 	}
+	if len(summaries) > maxSummaryCount {
+		summaries = summaries[:maxSummaryCount]
+	}
 	var b strings.Builder
 	for _, s := range summaries {
-		title := strings.TrimSpace(s.Title)
+		// Normalize title: collapse whitespace, strip newlines, then cap length.
+		title := collapseHyphens(cleanSummary(s.Title))
 		if title == "" {
 			title = "Untitled Meeting"
 		}
@@ -658,9 +682,9 @@ func buildRawContext(summaries []port.MeetingAISummaryActivity) string {
 		}
 		header += " ---"
 
-		// Sanitize content: strip fence markers that could break the block
-		// structure, then collapse whitespace and truncate.
-		sanitized := strings.ReplaceAll(s.Content, "---", "--")
+		// Sanitize content: collapse hyphen runs that could break the fenced
+		// block structure, then collapse whitespace and truncate.
+		sanitized := collapseHyphens(s.Content)
 		sanitized = cleanSummary(sanitized)
 		sanitized = truncateRunes(sanitized, maxSummaryContentLen)
 

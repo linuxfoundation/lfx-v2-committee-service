@@ -152,6 +152,7 @@ func main() {
 		usecaseSvc.WithMailingListSource(mailingListSource),
 		usecaseSvc.WithVoteSource(voteSource),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
+		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithAIAdapter(aiAdapter),
 	)
 

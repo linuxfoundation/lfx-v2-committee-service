@@ -112,13 +112,18 @@ func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, c
 
 	out := make([]port.MeetingAISummaryActivity, 0, len(env.Resources))
 	for _, r := range env.Resources {
+		if len(r.Data) == 0 || string(r.Data) == "null" {
+			// Records with no data payload carry no approval metadata; treat them
+			// as missing rather than auto-approved (zero-value RequiresApproval=false
+			// would otherwise pass the gate below).
+			slog.WarnContext(ctx, "skipping AI summary record with missing data payload", "uid", r.UID)
+			continue
+		}
 		var data querySummaryData
-		if len(r.Data) > 0 {
-			if err := json.Unmarshal(r.Data, &data); err != nil {
-				slog.WarnContext(ctx, "skipping AI summary record with malformed data",
-					"uid", r.UID, "error", err)
-				continue
-			}
+		if err := json.Unmarshal(r.Data, &data); err != nil {
+			slog.WarnContext(ctx, "skipping AI summary record with malformed data",
+				"uid", r.UID, "error", err)
+			continue
 		}
 
 		// Only use summaries that have been approved. When requires_approval is

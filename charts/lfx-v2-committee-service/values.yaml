@@ -648,6 +648,7 @@ weeklyBriefPrompts:
   #   .PeriodStart    — reporting window start (RFC3339)
   #   .PeriodEnd      — reporting window end (RFC3339)
   #   .Claims         — slice of claims; each has .ID, .Summary, .FormattedSources
+  #   .RawContext     — fenced AI meeting-summary excerpts (empty when none approved)
   # Claims are pre-sorted by ID before the template is executed.
   userPromptTemplate: |
     Committee: {{.CommitteeName}} ({{.CommitteeID}})
@@ -657,4 +658,9 @@ weeklyBriefPrompts:
     Claims:
     {{- range .Claims}}
     - id={{.ID}} summary="{{.Summary}}" sources={{.FormattedSources}}
+    {{- end}}
+    {{- if .RawContext}}
+
+    Meeting summaries (ground your brief on these where relevant):
+    {{.RawContext}}
     {{- end}}

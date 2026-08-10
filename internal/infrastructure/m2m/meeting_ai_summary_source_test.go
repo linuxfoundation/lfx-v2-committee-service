@@ -305,3 +305,37 @@ func TestListAISummariesForWindow_MalformedRecord_Skipped(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "good", got[0].MeetingAndOccurrenceID)
 }
+
+// ── Missing/null data payload is skipped (not treated as auto-approved) ────────
+
+func TestListAISummariesForWindow_MissingDataPayload_Skipped(t *testing.T) {
+	t0 := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
+	validRecord := querySummaryData{
+		MeetingAndOccurrenceID: "good",
+		SummaryTitle:           "Good Summary",
+		SummaryStartTime:       t0.Format(time.RFC3339Nano),
+		Content:                "Good content",
+		RequiresApproval:       true,
+		Approved:               true,
+	}
+	goodJSON, _ := json.Marshal(validRecord)
+
+	// One record has a null data field (zero-value RequiresApproval=false would
+	// otherwise pass the approval gate as auto-approved — must be rejected).
+	body := []byte(`{"resources":[{"uid":"missing-data"},{"uid":"null-data","data":null},{"uid":"good","data":` +
+		string(goodJSON) + `}]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newSummarySource(t, srv)
+	got, err := src.ListAISummariesForWindow(context.Background(), "c-1",
+		t0.Add(-time.Hour), t0.Add(2*time.Hour))
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "only the record with valid approval data should be returned")
+	assert.Equal(t, "good", got[0].MeetingAndOccurrenceID)
+}
