@@ -611,4 +611,5 @@ func TestCommitteeBase_UnmarshalJSON_LegacyBlobWithoutMetadataFields(t *testing.
 	assert.Nil(t, base.Scope)
 	assert.Nil(t, base.Deliverables)
 	assert.Nil(t, base.KeyDates)
+	assert.Nil(t, base.ExternalSources)
 }

@@ -293,6 +293,7 @@ var ExternalSourceType = dsl.Type("external-source", func() {
 	dsl.Attribute("url", dsl.String, "The URL of the linked external entity", func() {
 		dsl.Format(dsl.FormatURI)
 		dsl.Pattern(urlPattern)
+		dsl.MaxLength(2048)
 		dsl.Example("https://community.cncf.io/cncf-meetup-san-francisco/")
 	})
 	dsl.Attribute("external_id", dsl.String, "The identifier of the entity within the external platform", func() {

@@ -5339,6 +5339,7 @@ definitions:
                 example: https://community.cncf.io/cncf-meetup-san-francisco/
                 format: uri
                 pattern: ^https?://[^\s/$.?#][^\s]*$
+                maxLength: 2048
         description: A single source-labeled external entity linked to a committee (e.g. an OCG group or event).
         example:
             entity_type: group

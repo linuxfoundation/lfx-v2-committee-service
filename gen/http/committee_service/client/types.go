@@ -10238,6 +10238,9 @@ func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err err
 	}
 	err = goa.MergeErrors(err, goa.ValidateFormat("body.url", body.URL, goa.FormatURI))
 	err = goa.MergeErrors(err, goa.ValidatePattern("body.url", body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	if utf8.RuneCountInString(body.URL) > 2048 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", body.URL, utf8.RuneCountInString(body.URL), 2048, false))
+	}
 	if body.ExternalID != nil {
 		if utf8.RuneCountInString(*body.ExternalID) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_id", *body.ExternalID, utf8.RuneCountInString(*body.ExternalID), 200, false))
@@ -10325,6 +10328,11 @@ func ValidateExternalSourceResponseBody(body *ExternalSourceResponseBody) (err e
 	}
 	if body.URL != nil {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
 	}
 	if body.ExternalID != nil {
 		if utf8.RuneCountInString(*body.ExternalID) > 200 {

@@ -1821,6 +1821,34 @@ func TestValidateCreateCommitteeRequestBody_Metadata(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
+					},
+				}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1876,6 +1904,34 @@ func TestValidateUpdateCommitteeBaseRequestBody_Metadata(t *testing.T) {
 					{
 						Date:  stringPtr("06-2026"),
 						Label: stringPtr("Kickoff"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
 					},
 				}
 			},
