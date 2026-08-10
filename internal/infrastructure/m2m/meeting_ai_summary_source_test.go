@@ -371,3 +371,54 @@ func TestListAISummariesForWindow_AbsentRequiresApproval_NotAutoApproved(t *test
 	require.Len(t, got, 1, "record with absent requires_approval and approved=false must be filtered; approved=true must pass")
 	assert.Equal(t, "approved-no-ra", got[0].MeetingAndOccurrenceID)
 }
+
+// ── edited_content preferred over content ─────────────────────────────────────
+
+func TestListAISummariesForWindow_EditedContentPreferredOverContent(t *testing.T) {
+	t0 := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
+
+	records := []querySummaryData{
+		{
+			MeetingAndOccurrenceID: "edited",
+			SummaryTitle:           "Edited Summary",
+			SummaryStartTime:       t0.Format(time.RFC3339Nano),
+			Content:                "Original AI content — contains sensitive text removed by chair.",
+			EditedContent:          "Edited content — sensitive text removed.",
+			RequiresApproval:       boolPtr(true),
+			Approved:               true,
+		},
+		{
+			MeetingAndOccurrenceID: "unedited",
+			SummaryTitle:           "Unedited Summary",
+			SummaryStartTime:       t0.Add(time.Hour).Format(time.RFC3339Nano),
+			Content:                "Original AI content — no edits.",
+			EditedContent:          "", // no human edit
+			RequiresApproval:       boolPtr(false),
+		},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(summaryResponse(t, records))
+	}))
+	defer srv.Close()
+
+	src := newSummarySource(t, srv)
+	got, err := src.ListAISummariesForWindow(context.Background(), "c-1",
+		t0.Add(-time.Hour), t0.Add(4*time.Hour))
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+
+	byID := make(map[string]port.MeetingAISummaryActivity, len(got))
+	for _, g := range got {
+		byID[g.MeetingAndOccurrenceID] = g
+	}
+
+	assert.Equal(t, "Edited content — sensitive text removed.", byID["edited"].Content,
+		"edited_content must be preferred when present")
+	assert.NotContains(t, byID["edited"].Content, "sensitive text removed by chair",
+		"original content must not leak when edited_content is present")
+	assert.Equal(t, "Original AI content — no edits.", byID["unedited"].Content,
+		"content must be used as fallback when edited_content is absent")
+}

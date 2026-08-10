@@ -59,7 +59,12 @@ type querySummaryData struct {
 	ZoomMeetingTopic       string `json:"zoom_meeting_topic"`
 	SummaryTitle           string `json:"summary_title"`
 	SummaryStartTime       string `json:"summary_start_time"`
-	Content                string `json:"content"`
+	// Content is the original Zoom AI-generated markdown. EditedContent is the
+	// human-reviewed version a committee chair edits before approving. When both
+	// are present, prefer EditedContent so the chair's edits (e.g. removals of
+	// sensitive text) are respected rather than bypassed.
+	Content       string `json:"content"`
+	EditedContent string `json:"edited_content"`
 	// RequiresApproval is a pointer so we can distinguish "explicitly false"
 	// (auto-approved by the Zoom pipeline) from "field absent" (ambiguous
 	// approval status — treat as unapproved rather than auto-approving a
@@ -151,11 +156,18 @@ func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, c
 			}
 		}
 
+		// Prefer the human-edited content when a chair has reviewed the summary;
+		// fall back to the original AI-generated content otherwise.
+		content := data.EditedContent
+		if content == "" {
+			content = data.Content
+		}
+
 		out = append(out, port.MeetingAISummaryActivity{
 			MeetingAndOccurrenceID: data.MeetingAndOccurrenceID,
 			Title:                  title,
 			StartTime:              start,
-			Content:                data.Content,
+			Content:                content,
 			Private:                data.AISummaryAccess != "public",
 		})
 	}
