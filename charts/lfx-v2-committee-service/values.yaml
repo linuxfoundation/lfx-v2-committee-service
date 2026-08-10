@@ -539,11 +539,13 @@ app:
     # source queries (defaults to m2m.DefaultVoteType).
     QUERY_VOTE_TYPE:
       value: ""
-    # VOTING_SERVICE_URL — base URL for the voting service REST API used to
-    # fetch per-choice tallies for closed votes (GET /votes/{uid}/results).
-    # When empty, the vote result source is disabled and briefs are generated
-    # without per-choice tally data (participation counts are still available).
-    VOTING_SERVICE_URL:
+    # QUERY_VOTE_RESULT_TYPE — overrides the query-service resource type the
+    # vote result source queries (defaults to m2m.DefaultVoteResultType).
+    # The vote_result resource type is populated by lfx-v2-voting-service once
+    # the PollResults DynamoDB table and lfx-v1-sync-helper stream handler are
+    # live. Until then, queries return zero results and briefs fall back to
+    # participation counts only.
+    QUERY_VOTE_RESULT_TYPE:
       value: ""
     # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt ConfigMap
     # is mounted. Injected by the Deployment template from

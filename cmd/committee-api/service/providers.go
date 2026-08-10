@@ -722,20 +722,22 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
-// VoteResultSourceImpl builds the live vote result source. It calls the voting
-// service's GET /votes/{uid}/results endpoint directly (not the query service)
-// because per-choice tallies are computed at runtime and are not indexed.
-// When VOTING_SERVICE_URL is unset the source returns nil without error so
-// deployments that do not wire the voting service still generate briefs from
-// participation counts alone.
+// VoteResultSourceImpl builds the vote result source. It queries the
+// query service for `vote_result` resources tagged by vote_uid. Results are
+// indexed by the lfx-v2-voting-service once the PollResults DynamoDB table
+// and lfx-v1-sync-helper stream handler are live. Until then, queries return
+// zero results and the brief degrades to participation-count-only claim labels.
+// The resource type defaults to m2m.DefaultVoteResultType and can be overridden
+// via QUERY_VOTE_RESULT_TYPE.
 func VoteResultSourceImpl(ctx context.Context) port.VoteResultSource {
-	baseURL := os.Getenv("VOTING_SERVICE_URL")
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
-		slog.WarnContext(ctx, "VOTING_SERVICE_URL not set; vote result source will return nil tallies")
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; vote result source will return nil tallies")
 	}
 	client := m2mHTTPClient(ctx)
 	return m2m.NewVoteResultSource(m2m.VoteResultSourceConfig{
 		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_VOTE_RESULT_TYPE"), // empty → DefaultVoteResultType inside NewVoteResultSource
 		Timeout: 15 * time.Second,
 	}, client)
 }
