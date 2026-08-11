@@ -634,6 +634,291 @@ func TestCountMemberList(t *testing.T) {
 	}
 }
 
+// fakeAISummarySource is a controllable MeetingAISummarySource for unit tests.
+type fakeAISummarySource struct {
+	summaries []port.MeetingAISummaryActivity
+	err       error
+}
+
+func (f *fakeAISummarySource) ListAISummariesForWindow(_ context.Context, _ string, _, _ time.Time) ([]port.MeetingAISummaryActivity, error) {
+	return f.summaries, f.err
+}
+
+// ── buildRawContext ───────────────────────────────────────────────────────────
+
+func TestBuildRawContext(t *testing.T) {
+	t0 := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		summaries   []port.MeetingAISummaryActivity
+		wantEmpty   bool
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:      "nil summaries → empty string",
+			summaries: nil,
+			wantEmpty: true,
+		},
+		{
+			name:      "empty slice → empty string",
+			summaries: []port.MeetingAISummaryActivity{},
+			wantEmpty: true,
+		},
+		{
+			name: "single summary → header and content",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "Q1 Review", StartTime: t0, Content: "Discussed Q1 results."},
+			},
+			contains: []string{"--- meeting: Q1 Review (2026-05-12) ---", "Discussed Q1 results."},
+		},
+		{
+			name: "multiple summaries → both headers present",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "Meeting A", StartTime: t0, Content: "Content A"},
+				{Title: "Meeting B", StartTime: t0.Add(24 * time.Hour), Content: "Content B"},
+			},
+			contains: []string{"--- meeting: Meeting A", "--- meeting: Meeting B", "Content A", "Content B"},
+		},
+		{
+			name: "fence markers in content are sanitized",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "Safe Meeting", StartTime: t0, Content: "Intro --- separator --- end"},
+			},
+			// Header is allowed to contain "---" as fence delimiters;
+			// only the content portion must have "---" replaced with "--".
+			contains: []string{"Intro -- separator -- end"},
+		},
+		{
+			name: "hyphen run longer than three is fully collapsed",
+			summaries: []port.MeetingAISummaryActivity{
+				// "----" contains one non-overlapping "---" at pos 0; a single
+				// ReplaceAll would leave "---" in the result. Must iterate to "--".
+				{Title: "Run Test", StartTime: t0, Content: "A ---- B ----- C"},
+			},
+			contains:    []string{"A -- B -- C"},
+			notContains: []string{"----", "-----"},
+		},
+		{
+			name: "newlines in title are normalized",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "Title\nWith\nNewlines", StartTime: t0, Content: "Content"},
+			},
+			// cleanSummary collapses newlines; the resulting header must not
+			// contain a bare newline that would break the fence structure.
+			contains: []string{"--- meeting: Title With Newlines"},
+		},
+		{
+			name: "empty title falls back to Untitled Meeting",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "", StartTime: t0, Content: "Some content"},
+			},
+			contains: []string{"--- meeting: Untitled Meeting"},
+		},
+		{
+			name: "zero StartTime omits date from header",
+			summaries: []port.MeetingAISummaryActivity{
+				{Title: "No Date", Content: "Content"},
+			},
+			contains:    []string{"--- meeting: No Date ---"},
+			notContains: []string{"("},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildRawContext(tc.summaries)
+			if tc.wantEmpty {
+				assert.Empty(t, got)
+				return
+			}
+			for _, s := range tc.contains {
+				assert.Contains(t, got, s)
+			}
+			for _, s := range tc.notContains {
+				assert.NotContains(t, got, s)
+			}
+		})
+	}
+}
+
+// ── derivePrivateSourcePresent with AI summaries ──────────────────────────────
+
+func TestDerivePrivateSourcePresent_AISummaries(t *testing.T) {
+	noMembers := 0
+	noMeetings := []port.MeetingActivity{}
+	noMailing := []port.MailingListActivity{}
+	noVotes := []port.VoteActivity{}
+
+	t.Run("any AI summary → true regardless of its Private field", func(t *testing.T) {
+		summaries := []port.MeetingAISummaryActivity{
+			{Title: "Public Summary", Private: false},
+		}
+		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes))
+	})
+
+	t.Run("no summaries, no other private sources → false", func(t *testing.T) {
+		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes))
+	})
+}
+
+// oneMeeting is a single past meeting that bypasses the no-source guard in
+// Fulfill without contributing named members (private=false, no member data).
+var oneMeeting = []port.MeetingActivity{{UID: "m-1", Title: "Weekly Sync"}}
+
+// ── Fulfill: RawContext wired from AI summaries ───────────────────────────────
+
+func TestFulfill_RawContextPopulatedFromSummaries(t *testing.T) {
+	t0 := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC) // within testNow window
+	summaries := []port.MeetingAISummaryActivity{
+		{Title: "Sprint Review", StartTime: t0, Content: "We shipped feature X."},
+	}
+
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMeetingAISummarySource(&fakeAISummarySource{summaries: summaries}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, recorder.gotInput.RawContext, "Sprint Review")
+	assert.Contains(t, recorder.gotInput.RawContext, "We shipped feature X.")
+}
+
+func TestFulfill_RawContextEmptyWhenNoSummaries(t *testing.T) {
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMeetingAISummarySource(&fakeAISummarySource{summaries: nil}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, recorder.gotInput.RawContext)
+}
+
+func TestFulfill_SummarySourceError_DegradeGracefully(t *testing.T) {
+	// An error from the AI summary source must not block brief generation.
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMeetingAISummarySource(&fakeAISummarySource{err: errors.NewUnexpected("summary fetch failed", nil)}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, recorder.gotInput.RawContext)
+}
+
+func TestFulfill_PrivateSourcePresentWhenSummariesContribute(t *testing.T) {
+	t0 := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC) // within testNow window
+	summaries := []port.MeetingAISummaryActivity{
+		// Private: false — yet private_source_present must still be true because
+		// AI transcript content in a committee brief is always treated as sensitive.
+		{Title: "AI Summary", StartTime: t0, Content: "Sensitive notes.", Private: false},
+	}
+
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMeetingAISummarySource(&fakeAISummarySource{summaries: summaries}),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bw.putBrief)
+	assert.True(t, bw.putBrief.PrivateSourcePresent,
+		"private_source_present must be true whenever AI summaries contributed")
+}
+
+func TestFulfill_SummaryOnly_DoesNotFinalizeAsNoSources(t *testing.T) {
+	// When only AI summaries are available (no meetings/members/mailing/votes),
+	// Fulfill must call the AI adapter and generate a brief — not finalize as
+	// no_sources. This exercises the len(summaries)==0 guard in the no-source check.
+	t0 := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
+	summaries := []port.MeetingAISummaryActivity{
+		{Title: "Solo Summary", StartTime: t0, Content: "Only source of activity."},
+	}
+
+	recorder := &recordingAIAdapter{}
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}), // no meetings
+		WithMeetingAISummarySource(&fakeAISummarySource{summaries: summaries}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bw.putBrief)
+	assert.Equal(t, model.GroupWeeklyBriefStateGenerated, bw.putBrief.State,
+		"brief must be generated, not finalized as no_sources")
+	assert.Contains(t, recorder.gotInput.RawContext, "Solo Summary")
+}
+
+func TestFulfill_NoAISummarySource_BriefStillGenerates(t *testing.T) {
+	// Without wiring WithMeetingAISummarySource the field is nil; brief must succeed.
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithAIAdapter(recorder),
+		// intentionally no WithMeetingAISummarySource
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, recorder.gotInput.RawContext)
+}
+
+func TestFulfill_SummaryOnlyError_TriggersRetry(t *testing.T) {
+	// When AI summaries are the ONLY source for the window and the fetch fails,
+	// Fulfill must return the error (triggering a retry) rather than silently
+	// finalizing as "no_sources" and permanently ACKing the message.
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}), // no meetings
+		WithMeetingAISummarySource(&fakeAISummarySource{err: errors.NewUnexpected("summary fetch failed", nil)}),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err, "summary-only window with fetch error must return an error to trigger retry")
+	// Brief must NOT be finalized — the put writer should still hold the generating brief.
+	if bw.putBrief != nil {
+		assert.NotEqual(t, model.GroupWeeklyBriefStateError, bw.putBrief.State,
+			"brief must not be finalized as error when summary source is temporarily down")
+	}
+}
+
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	mk := func(first, last string) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
@@ -649,14 +934,14 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	}
 
 	t.Run("membersHidden=false includes names", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, false)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, false)
 		require.Len(t, claims, 1)
 		assert.Contains(t, claims[0].Summary, "Jane Doe")
 		assert.Contains(t, claims[0].Summary, "John Smith")
 	})
 
 	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, members, nil, nil, true)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, true)
 		require.Len(t, claims, 1)
 		assert.NotContains(t, claims[0].Summary, "Jane")
 		assert.NotContains(t, claims[0].Summary, "Doe")

@@ -77,6 +77,7 @@ type groupWeeklyBriefGenerator struct {
 	briefReader   port.GroupWeeklyBriefReader
 	briefWriter   port.GroupWeeklyBriefWriter
 	meetings      port.MeetingSource
+	aiSummaries   port.MeetingAISummarySource
 	mailingLists  port.MailingListSource
 	votes         port.VoteSource
 	memberReader  port.CommitteeWeeklyMemberReader
@@ -101,6 +102,12 @@ func WithGroupWeeklyBriefWriter(w port.GroupWeeklyBriefWriter) GroupWeeklyBriefG
 // WithMeetingSource wires the meeting-source port.
 func WithMeetingSource(s port.MeetingSource) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.meetings = s }
+}
+
+// WithMeetingAISummarySource wires the AI summary source port. This is optional
+// — when nil, generation continues without AI summary content (graceful degrade).
+func WithMeetingAISummarySource(s port.MeetingAISummarySource) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.aiSummaries = s }
 }
 
 // WithMailingListSource wires the mailing-list-source port.
@@ -339,6 +346,20 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		votes = nil
 	}
 
+	// AI summaries are optional — nil source or fetch error both degrade to
+	// zero summaries without blocking the brief. A missing summary source is
+	// not logged at error level because the source is wired optionally.
+	var summaries []port.MeetingAISummaryActivity
+	var errSummaries error
+	if g.aiSummaries != nil {
+		summaries, errSummaries = g.aiSummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		if errSummaries != nil {
+			slog.ErrorContext(ctx, "weekly-brief fulfill: AI summary source failed; continuing with zero summaries",
+				"committee_uid", in.CommitteeUID, "error", errSummaries)
+			summaries = nil
+		}
+	}
+
 	memberCount := len(members.Joined) + len(members.Updated)
 
 	// No-source handling. A genuinely empty window (every source returned zero
@@ -347,13 +368,14 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// window would just fail again. But if the window is empty ONLY because one
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
-	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 {
-		if errMeetings != nil || errMailing != nil || errVotes != nil {
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 {
+		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
+				"summaries_errored", errSummaries != nil,
 			)
 			// Surface the underlying source error so the consumer retries rather
 			// than finalizing a terminal brief over a transient outage.
@@ -363,6 +385,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 			if retryErr == nil {
 				retryErr = errVotes
+			}
+			if retryErr == nil {
+				retryErr = errSummaries
 			}
 			return retryErr
 		}
@@ -383,7 +408,10 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 		}
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, members, mailing, votes, in.MembersHidden)
+	if len(summaries) > maxSummaryCount {
+		summaries = summaries[:maxSummaryCount]
+	}
+	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -392,14 +420,8 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		PeriodStart:   windowStart.UTC().Format(time.RFC3339),
 		PeriodEnd:     windowEnd.UTC().Format(time.RFC3339),
 		Claims:        claims,
+		RawContext:    buildRawContext(summaries),
 	}
-
-	// TODO(raw-context): the live adapter does not yet receive a fenced block of
-	// raw source text — only the sanitized claim labels. When raw context is
-	// wired through (e.g. a RawContext field on port.WeeklyBriefInput), the
-	// source content MUST be sanitized FIRST: boundary/fence markers can be
-	// spoofed by an attacker embedding a close marker + instructions in a
-	// title/summary, so fencing alone is not a sufficient injection defence.
 
 	aiOut, errAI := g.ai.GenerateWeeklyBrief(ctx, aiInput)
 	if errAI != nil {
@@ -416,7 +438,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.BriefText = aiOut.BriefText
 	brief.PromptVersion = g.ai.PromptVersion()
 	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, mailing, votes)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
 	if _, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); errPut != nil {
 		return errPut // infrastructure / CAS error → retry
@@ -441,18 +463,18 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 // parallel set of source refs persisted on the brief. When membersHidden is
 // true (committee's member_visibility == "hidden"), member names are replaced
 // with count-only phrases so the stored brief never contains roster data.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
-	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(mailing)+len(votes)+2)
-	refs := make([]model.SourceRef, 0, len(meetings)+len(mailing)+len(votes)+2)
+func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
+	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+2)
+	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+2)
 
 	// IMPORTANT: do NOT pass raw untrusted source text (meeting summaries,
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
 	// Claim summaries flow through the AI adapter and may be echoed back in the
 	// output, so only sanitized labels (titles via claimLabel) travel through
 	// claims. Raw excerpts ARE persisted into SourceRef.Excerpt for the response
-	// (sanitized + length-capped) but are not surfaced through claims. Any future
-	// path that feeds raw source text to the model must sanitize it first (see
-	// the raw-context TODO in Fulfill).
+	// (sanitized + length-capped) but are not surfaced through claims. Rich
+	// AI summary content is passed separately via port.WeeklyBriefInput.RawContext
+	// (sanitized via buildRawContext) to keep injection risk contained.
 	for _, m := range meetings {
 		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
 		refs = append(refs, ref)
@@ -460,6 +482,17 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, members port.WeeklyMemb
 			ID:      "meeting-" + m.UID,
 			Summary: claimLabel("meeting", m.Title),
 			Sources: []port.SourceRef{{Type: "meeting", ID: m.UID}},
+		})
+	}
+	for _, s := range summaries {
+		ref := model.SourceRef{Kind: "meeting-summary", ID: s.MeetingAndOccurrenceID, Title: s.Title, Excerpt: cleanSummary(s.Content)}
+		refs = append(refs, ref)
+		// The claim label is still a sanitized title only — rich content is
+		// delivered via RawContext, not through claims (defense-in-depth).
+		claims = append(claims, port.ClaimEvidence{
+			ID:      "meeting-summary-" + s.MeetingAndOccurrenceID,
+			Summary: claimLabel("meeting summary", s.Title),
+			Sources: []port.SourceRef{{Type: "meeting-summary", ID: s.MeetingAndOccurrenceID}},
 		})
 	}
 	for _, ml := range mailing {
@@ -569,11 +602,15 @@ func truncateRunes(s string, maxRunes int) string {
 }
 
 // derivePrivateSourcePresent flags the brief as containing private source
-// material whenever members contributed (members are inherently private) or any
-// contributing meeting, mailing-list thread, or vote was marked private. Every
-// source kind carries a Private flag, so all of them are inspected.
-func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) bool {
+// material whenever members contributed (members are inherently private), any
+// meeting, mailing-list thread, or vote was marked private, or any AI meeting
+// summary contributed (transcript content in a brief is always treated as
+// private regardless of the summary's own access level).
+func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) bool {
 	if memberCount > 0 {
+		return true
+	}
+	if len(summaries) > 0 {
 		return true
 	}
 	for _, m := range meetings {
@@ -592,6 +629,77 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 		}
 	}
 	return false
+}
+
+// maxSummaryContentLen caps each AI summary's content contribution to the
+// RawContext block. This prevents a single very long summary from consuming an
+// excessive portion of the model's context window.
+const maxSummaryContentLen = 3000
+
+// maxSummaryCount caps the total number of AI summaries included in a brief.
+// Each summary adds a claim, a persisted source reference, and up to
+// maxSummaryContentLen runes of RawContext; an unbounded slice could exhaust
+// the model's context window across many meetings.
+const maxSummaryCount = 10
+
+// collapseHyphens reduces every run of three or more consecutive hyphens to
+// "--". A single strings.ReplaceAll("---", "--") is insufficient: "----"
+// contains one non-overlapping "---" starting at position 0, which becomes
+// "--", leaving "---" in the output. Iterating until stable handles all cases.
+func collapseHyphens(s string) string {
+	for strings.Contains(s, "---") {
+		s = strings.ReplaceAll(s, "---", "--")
+	}
+	return s
+}
+
+// buildRawContext produces a fenced, sanitized block of AI meeting summary
+// content for the weekly-brief prompt. Each summary is separated by a header
+// line so the model can cite by meeting title and date. Returns an empty string
+// when no summaries are provided.
+//
+// Sanitization: runs of three or more hyphens in titles and content are
+// collapsed to "--" (preventing fence-header forgery), titles are passed
+// through cleanSummary to strip newlines, and content is truncated to
+// maxSummaryContentLen runes. At most maxSummaryCount summaries are rendered.
+func buildRawContext(summaries []port.MeetingAISummaryActivity) string {
+	if len(summaries) == 0 {
+		return ""
+	}
+	if len(summaries) > maxSummaryCount {
+		summaries = summaries[:maxSummaryCount]
+	}
+	var b strings.Builder
+	for _, s := range summaries {
+		// Normalize title: collapse whitespace, strip newlines, then cap length.
+		title := collapseHyphens(cleanSummary(s.Title))
+		if title == "" {
+			title = "Untitled Meeting"
+		}
+		dateStr := ""
+		if !s.StartTime.IsZero() {
+			dateStr = s.StartTime.UTC().Format("2006-01-02")
+		}
+		header := "--- meeting: " + truncateRunes(title, 80)
+		if dateStr != "" {
+			header += " (" + dateStr + ")"
+		}
+		header += " ---"
+
+		// Sanitize content: collapse hyphen runs that could break the fenced
+		// block structure, then collapse whitespace and truncate.
+		sanitized := collapseHyphens(s.Content)
+		sanitized = cleanSummary(sanitized)
+		sanitized = truncateRunes(sanitized, maxSummaryContentLen)
+
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(header)
+		b.WriteString("\n")
+		b.WriteString(sanitized)
+	}
+	return b.String()
 }
 
 // modelLabelFromAdapter returns a short identifier for the AI adapter. The

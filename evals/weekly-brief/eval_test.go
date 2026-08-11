@@ -38,18 +38,19 @@ import (
 // fed through the orchestrator without any per-source translation logic in
 // the test runner.
 type fixture struct {
-	Name          string           `json:"name"`
-	Description   string           `json:"description"`
-	CommitteeUID  string           `json:"committee_uid"`
-	CommitteeName string           `json:"committee_name"`
-	ProjectName   string           `json:"project_name"`
-	Now           time.Time        `json:"now"`
-	WindowStart   time.Time        `json:"window_start"`
-	WindowEnd     time.Time        `json:"window_end"`
-	Meetings      []fixtureMeeting `json:"meetings"`
-	Members       fixtureMembers   `json:"members"`
-	MailingLists  []fixtureThread  `json:"mailing_lists"`
-	Votes         []fixtureVote    `json:"votes"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description"`
+	CommitteeUID  string             `json:"committee_uid"`
+	CommitteeName string             `json:"committee_name"`
+	ProjectName   string             `json:"project_name"`
+	Now           time.Time          `json:"now"`
+	WindowStart   time.Time          `json:"window_start"`
+	WindowEnd     time.Time          `json:"window_end"`
+	Meetings      []fixtureMeeting   `json:"meetings"`
+	Members       fixtureMembers     `json:"members"`
+	MailingLists  []fixtureThread    `json:"mailing_lists"`
+	Votes         []fixtureVote      `json:"votes"`
+	AISummaries   []fixtureAISummary `json:"ai_summaries"`
 }
 
 type fixtureMeeting struct {
@@ -90,6 +91,14 @@ type fixtureVote struct {
 	URL     string `json:"url"`
 	Outcome string `json:"outcome"`
 	Private bool   `json:"private"`
+}
+
+type fixtureAISummary struct {
+	MeetingAndOccurrenceID string    `json:"meeting_and_occurrence_id"`
+	Title                  string    `json:"title"`
+	StartTime              time.Time `json:"start_time"`
+	Content                string    `json:"content"`
+	Private                bool      `json:"private"`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,6 +171,14 @@ func (s stubMailingListSource) ListMailingListActivityForWindow(_ context.Contex
 type stubVoteSource struct{ items []port.VoteActivity }
 
 func (s stubVoteSource) ListVoteActivityForWindow(_ context.Context, _ string, _, _ time.Time) ([]port.VoteActivity, error) {
+	return s.items, nil
+}
+
+type stubAISummarySource struct {
+	items []port.MeetingAISummaryActivity
+}
+
+func (s stubAISummarySource) ListAISummariesForWindow(_ context.Context, _ string, _, _ time.Time) ([]port.MeetingAISummaryActivity, error) {
 	return s.items, nil
 }
 
@@ -248,6 +265,20 @@ func votesFromFixture(fx fixture) []port.VoteActivity {
 	return out
 }
 
+func aiSummariesFromFixture(fx fixture) []port.MeetingAISummaryActivity {
+	out := make([]port.MeetingAISummaryActivity, 0, len(fx.AISummaries))
+	for _, s := range fx.AISummaries {
+		out = append(out, port.MeetingAISummaryActivity{
+			MeetingAndOccurrenceID: s.MeetingAndOccurrenceID,
+			Title:                  s.Title,
+			StartTime:              s.StartTime,
+			Content:                s.Content,
+			Private:                s.Private,
+		})
+	}
+	return out
+}
+
 // buildOrchestrator wires every port from the fixture and the given AI adapter,
 // then returns the orchestrator, the brief writer, and the meeting source (which
 // records the window it is queried with).
@@ -261,6 +292,7 @@ func buildOrchestrator(fx fixture, adapter port.AIAdapter) (service.GroupWeeklyB
 		service.WithCommitteeWeeklyMemberReader(stubMemberReader{activity: memberActivityFromFixture(fx)}),
 		service.WithMailingListSource(stubMailingListSource{items: mailingFromFixture(fx)}),
 		service.WithVoteSource(stubVoteSource{items: votesFromFixture(fx)}),
+		service.WithMeetingAISummarySource(stubAISummarySource{items: aiSummariesFromFixture(fx)}),
 		service.WithAIAdapter(adapter),
 	)
 	return g, bw, mtg
@@ -335,6 +367,24 @@ func TestWeeklyBriefEvalFake(t *testing.T) {
 				assertPromptInjectionContained(t, brief)
 			},
 		},
+		{
+			fixtureName: "ai_summaries_week",
+			extra: func(t *testing.T, fx fixture, brief *model.GroupWeeklyBrief) {
+				require.Equalf(t, model.GroupWeeklyBriefStateGenerated, brief.State,
+					"[%s] ai-summary-only brief must reach 'generated' state, got %q", fx.Name, brief.State)
+				require.Truef(t, brief.PrivateSourcePresent,
+					"[%s] brief fed by AI summaries must have private_source_present=true", fx.Name)
+				hasSummaryRef := false
+				for _, ref := range brief.SourceRefs {
+					if ref.Kind == "meeting-summary" {
+						hasSummaryRef = true
+						break
+					}
+				}
+				require.Truef(t, hasSummaryRef,
+					"[%s] source_refs must contain at least one meeting-summary entry", fx.Name)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -376,7 +426,7 @@ func TestWeeklyBriefEvalFake(t *testing.T) {
 // orchestrator picks the same Sun→Sat window the fixture documents, so future
 // fixture authors don't drift relative to model.WeeklyWindow().
 func TestWeeklyBriefEvalFake_WindowMatchesFixture(t *testing.T) {
-	for _, name := range []string{"normal_week", "low_data_week", "prompt_injection"} {
+	for _, name := range []string{"normal_week", "low_data_week", "prompt_injection", "ai_summaries_week"} {
 		name := name
 		t.Run(name, func(t *testing.T) {
 			fx := loadFixture(t, name)

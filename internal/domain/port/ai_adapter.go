@@ -22,6 +22,11 @@ type WeeklyBriefInput struct {
 	PeriodEnd   string
 	// Claims is the curated set of evidence rows the model should ground on.
 	Claims []ClaimEvidence
+	// RawContext is a sanitized, fenced block of source excerpts that the
+	// adapter should include verbatim in the prompt for richer grounding.
+	// Each entry is delimited by a header line so the model can cite by source.
+	// Empty string when no approved AI summaries are available for the window.
+	RawContext string
 }
 
 // ClaimEvidence is one grounded fact the adapter should weave into the brief.
