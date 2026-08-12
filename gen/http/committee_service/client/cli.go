@@ -54,17 +54,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
 			}
 		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
-		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
-		}
-		if body.ChatWebhookURL != nil {
-			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
-				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
-			}
-		}
 		if body.DisplayName != nil {
 			if utf8.RuneCountInString(*body.DisplayName) > 100 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -116,6 +105,17 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 				if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
 					err = goa.MergeErrors(err, err2)
 				}
+			}
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+		if body.ChatWebhookURL != nil {
+			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 			}
 		}
 		if body.LastReviewedAt != nil {
@@ -177,7 +177,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		Website:               body.Website,
 		MailingList:           body.MailingList,
 		ChatChannel:           body.ChatChannel,
-		ChatWebhookURL:        body.ChatWebhookURL,
 		EnableVoting:          body.EnableVoting,
 		SsoGroupEnabled:       body.SsoGroupEnabled,
 		RequiresReview:        body.RequiresReview,
@@ -186,6 +185,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		ParentUID:             body.ParentUID,
 		JoinMode:              body.JoinMode,
 		Repository:            body.Repository,
+		ChatWebhookURL:        body.ChatWebhookURL,
 		BusinessEmailRequired: body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
@@ -371,17 +371,6 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_channel", *body.ChatChannel, utf8.RuneCountInString(*body.ChatChannel), 500, false))
 			}
 		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
-		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
-		}
-		if body.ChatWebhookURL != nil {
-			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
-				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
-			}
-		}
 		if body.DisplayName != nil {
 			if utf8.RuneCountInString(*body.DisplayName) > 100 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.display_name", *body.DisplayName, utf8.RuneCountInString(*body.DisplayName), 100, false))
@@ -433,6 +422,17 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 				if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
 					err = goa.MergeErrors(err, err2)
 				}
+			}
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+		if body.ChatWebhookURL != nil {
+			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 			}
 		}
 		if err != nil {
@@ -488,7 +488,6 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		Website:         body.Website,
 		MailingList:     body.MailingList,
 		ChatChannel:     body.ChatChannel,
-		ChatWebhookURL:  body.ChatWebhookURL,
 		EnableVoting:    body.EnableVoting,
 		SsoGroupEnabled: body.SsoGroupEnabled,
 		RequiresReview:  body.RequiresReview,
@@ -497,6 +496,7 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		ParentUID:       body.ParentUID,
 		JoinMode:        body.JoinMode,
 		Repository:      body.Repository,
+		ChatWebhookURL:  body.ChatWebhookURL,
 	}
 	{
 		var zero bool

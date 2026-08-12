@@ -514,7 +514,10 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
 
-	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeBase, committee.Tags())
+	// Exclude write-only credential fields from the public index payload.
+	indexBase := committee.CommitteeBase
+	indexBase.ChatWebhookURL = nil
+	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, indexBase, committee.Tags())
 	if errBuildCommitteeMsg != nil {
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildCommitteeMsg)
 	}
@@ -730,7 +733,10 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 7: Publish messages
 
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, committee.CommitteeBase, committee.Tags())
+	// Exclude write-only credential fields from the public index payload.
+	indexBase := committee.CommitteeBase
+	indexBase.ChatWebhookURL = nil
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, indexBase, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,

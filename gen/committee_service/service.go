@@ -240,8 +240,6 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -334,8 +332,6 @@ type CommitteeFullWithReadonlyAttributes struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -702,8 +698,6 @@ type CreateCommitteePayload struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -735,6 +729,8 @@ type CreateCommitteePayload struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSource
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -1436,8 +1432,6 @@ type UpdateCommitteeBasePayload struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -1469,6 +1463,8 @@ type UpdateCommitteeBasePayload struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSource
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service

@@ -55,6 +55,7 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	base.Website = p.Website
 	base.MailingList = p.MailingList
 	base.ChatChannel = p.ChatChannel
+	base.ChatWebhookURL = p.ChatWebhookURL
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
@@ -134,6 +135,7 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	base.Website = p.Website
 	base.MailingList = p.MailingList
 	base.ChatChannel = p.ChatChannel
+	base.ChatWebhookURL = p.ChatWebhookURL
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID

@@ -24,7 +24,6 @@ func CommitteeBaseAttributes() {
 	WebsiteAttribute()
 	MailingListAttribute()
 	ChatChannelAttribute()
-	ChatWebhookURLAttribute()
 	EnableVotingAttribute()
 	SSOGroupEnabledAttribute()
 	RequiresReviewAttribute()
