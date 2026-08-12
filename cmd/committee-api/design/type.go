@@ -24,6 +24,7 @@ func CommitteeBaseAttributes() {
 	WebsiteAttribute()
 	MailingListAttribute()
 	ChatChannelAttribute()
+	ChatWebhookURLAttribute()
 	EnableVotingAttribute()
 	SSOGroupEnabledAttribute()
 	RequiresReviewAttribute()
@@ -1025,6 +1026,16 @@ func ChatChannelAttribute() {
 	dsl.Attribute("chat_channel", dsl.String, "The chat channel URL or identifier for the committee", func() {
 		dsl.MaxLength(500)
 		dsl.Example("https://slack.example.org/channels/tsc")
+	})
+}
+
+// ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
+func ChatWebhookURLAttribute() {
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing content to a Slack channel", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.MaxLength(500)
+		dsl.Example("https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
 }
 

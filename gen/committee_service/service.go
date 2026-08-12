@@ -240,6 +240,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -332,6 +334,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -698,6 +702,8 @@ type CreateCommitteePayload struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
@@ -1430,6 +1436,8 @@ type UpdateCommitteeBasePayload struct {
 	MailingList *string
 	// The chat channel URL or identifier for the committee
 	ChatChannel *string
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Whether voting is enabled for this committee
 	EnableVoting bool
 	// Whether SSO group integration is enabled
