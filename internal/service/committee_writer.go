@@ -398,6 +398,13 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 		ssoGroupName = updated.SSOGroupName
 	}
 	updated.SSOGroupName = ssoGroupName
+
+	// chat_webhook_url is write-only and absent from GET responses. Preserve
+	// the stored value when the PUT payload omits it (nil) so a round-trip
+	// update of any other field does not silently clear the webhook URL.
+	if updated.ChatWebhookURL == nil {
+		updated.ChatWebhookURL = existing.ChatWebhookURL
+	}
 }
 
 // Execute orchestrates the committee creation process
@@ -765,10 +772,16 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 
+	// Sanitize write-only credential fields before event publication so
+	// chat_webhook_url is never included in the committee.updated payload.
+	sanitizedOld := *existing
+	sanitizedOld.ChatWebhookURL = nil
+	sanitizedNew := committee.CommitteeBase
+	sanitizedNew.ChatWebhookURL = nil
 	updateEventData := &model.CommitteeUpdateEventData{
 		CommitteeUID: committee.CommitteeBase.UID,
-		OldCommittee: existing,
-		Committee:    &committee.CommitteeBase,
+		OldCommittee: &sanitizedOld,
+		Committee:    &sanitizedNew,
 	}
 
 	messages := []func() error{
