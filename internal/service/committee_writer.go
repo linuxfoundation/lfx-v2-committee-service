@@ -524,16 +524,18 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, committeeMsg, sync)
 	})
 
-	indexSettings := *committee.CommitteeSettings
-	indexSettings.ChatWebhookURL = nil
-	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
-	if errBuildSettingsMsg != nil {
-		return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+	if committee.CommitteeSettings != nil {
+		indexSettings := *committee.CommitteeSettings
+		indexSettings.ChatWebhookURL = nil
+		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
+		if errBuildSettingsMsg != nil {
+			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+		}
+		settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+		messages = append(messages, func() error {
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
+		})
 	}
-	settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
-	messages = append(messages, func() error {
-		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
-	})
 
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
