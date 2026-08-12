@@ -858,6 +858,14 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		settings.Auditors = existingSettings.Auditors
 	}
 
+	// Preserve the stored webhook URL when the caller omits the field.
+	// Because chat_webhook_url is write-only (not returned from GET), a
+	// GET→PUT round-trip will always arrive with nil here; overwriting on
+	// every omission would silently wipe the credential on any settings save.
+	if settings.ChatWebhookURL == nil {
+		settings.ChatWebhookURL = existingSettings.ChatWebhookURL
+	}
+
 	// Step 3: Update the committee settings in storage
 	errUpdate := uc.committeeWriter.UpdateSetting(ctx, settings, revision)
 	if errUpdate != nil {
