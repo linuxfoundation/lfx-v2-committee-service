@@ -4220,7 +4220,7 @@ definitions:
                 description: Slack Incoming Webhook URL for sharing content to a Slack channel
                 example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 format: uri
-                pattern: ^https?://[^\s/$.?#][^\s]*$
+                pattern: ^https://[^\s/$.?#][^\s]*$
                 maxLength: 500
             deliverables:
                 type: array
@@ -4981,7 +4981,7 @@ definitions:
                 description: Slack Incoming Webhook URL for sharing content to a Slack channel
                 example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 format: uri
-                pattern: ^https?://[^\s/$.?#][^\s]*$
+                pattern: ^https://[^\s/$.?#][^\s]*$
                 maxLength: 500
             last_reviewed_at:
                 type: string

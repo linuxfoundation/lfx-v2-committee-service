@@ -208,6 +208,10 @@ func DescriptionAttribute() {
 // would otherwise pass dsl.FormatURI as syntactically valid URIs.
 const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
 
+// httpsURLPattern validates an HTTPS-only URL. Used for fields that carry
+// bearer credentials (e.g. webhook URLs) where plaintext HTTP is unsafe.
+const httpsURLPattern = `^https://[^\s/$.?#][^\s]*$`
+
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "The website URL of the committee", func() {
@@ -1032,7 +1036,7 @@ func ChatChannelAttribute() {
 func ChatWebhookURLAttribute() {
 	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing content to a Slack channel", func() {
 		dsl.Format(dsl.FormatURI)
-		dsl.Pattern(urlPattern)
+		dsl.Pattern(httpsURLPattern)
 		dsl.MaxLength(500)
 		dsl.Example("https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
