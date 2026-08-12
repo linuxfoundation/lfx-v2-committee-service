@@ -6890,10 +6890,9 @@ components:
                     maxLength: 500
                 chat_webhook_url:
                     type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
+                    description: 'Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
                     example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https://[^\s/$.?#][^\s]*$
+                    pattern: ^$|^https://[^\s/$.?#][^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
@@ -8255,10 +8254,9 @@ components:
                     example: false
                 chat_webhook_url:
                     type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
+                    description: 'Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
                     example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https://[^\s/$.?#][^\s]*$
+                    pattern: ^$|^https://[^\s/$.?#][^\s]*$
                     maxLength: 500
                 last_reviewed_at:
                     type: string

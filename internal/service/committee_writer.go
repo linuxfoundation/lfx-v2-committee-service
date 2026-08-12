@@ -526,7 +526,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 	if committee.CommitteeSettings != nil {
 		indexSettings := *committee.CommitteeSettings
-		indexSettings.ChatWebhookURL = nil
+		indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
 		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
 		if errBuildSettingsMsg != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
@@ -858,12 +858,13 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		settings.Auditors = existingSettings.Auditors
 	}
 
-	// Preserve the stored webhook URL when the caller omits the field.
-	// Because chat_webhook_url is write-only (not returned from GET), a
-	// GET→PUT round-trip will always arrive with nil here; overwriting on
-	// every omission would silently wipe the credential on any settings save.
+	// nil (absent/null) → preserve existing; "" → explicit clear; non-empty URL → replace.
+	// Because chat_webhook_url is write-only (not returned from GET), a GET→PUT
+	// round-trip always sends nil — preserve prevents silently wiping the credential.
 	if settings.ChatWebhookURL == nil {
 		settings.ChatWebhookURL = existingSettings.ChatWebhookURL
+	} else if *settings.ChatWebhookURL == "" {
+		settings.ChatWebhookURL = nil
 	}
 
 	// Step 3: Update the committee settings in storage
@@ -894,7 +895,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
 	indexSettings := *settings
-	indexSettings.ChatWebhookURL = nil
+	indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
 	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, &indexSettings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
@@ -927,9 +928,9 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	// detect newly added Writers/Auditors and send notification emails.
 	updatedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
 	sanitizedOldSettings := *existingSettings
-	sanitizedOldSettings.ChatWebhookURL = nil
+	sanitizedOldSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
 	sanitizedNewSettings := *settings
-	sanitizedNewSettings.ChatWebhookURL = nil
+	sanitizedNewSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
 	settingsEvent, errBuildEvent := (&model.CommitteeEvent{}).Build(ctx, model.ResourceCommitteeSettings, model.ActionUpdated, &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  settings.UID,
 		OldSettings:   &sanitizedOldSettings,

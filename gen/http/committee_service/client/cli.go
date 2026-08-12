@@ -114,10 +114,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
-		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https://[^\\s/$.?#][^\\s]*$"))
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://[^\\s/$.?#][^\\s]*$"))
 		}
 		if body.ChatWebhookURL != nil {
 			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
@@ -673,10 +670,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
-		}
-		if body.ChatWebhookURL != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https://[^\\s/$.?#][^\\s]*$"))
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://[^\\s/$.?#][^\\s]*$"))
 		}
 		if body.ChatWebhookURL != nil {
 			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {

@@ -741,7 +741,9 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -1560,7 +1562,9 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
