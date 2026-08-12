@@ -524,7 +524,9 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, committeeMsg, sync)
 	})
 
-	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeSettings, committee.Tags())
+	indexSettings := *committee.CommitteeSettings
+	indexSettings.ChatWebhookURL = nil
+	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
 	if errBuildSettingsMsg != nil {
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
 	}
@@ -881,7 +883,9 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, settings, committee.Tags())
+	indexSettings := *settings
+	indexSettings.ChatWebhookURL = nil
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, &indexSettings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
@@ -912,10 +916,14 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	// Publish a domain event carrying old+new settings so subscribers can
 	// detect newly added Writers/Auditors and send notification emails.
 	updatedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	sanitizedOldSettings := *existingSettings
+	sanitizedOldSettings.ChatWebhookURL = nil
+	sanitizedNewSettings := *settings
+	sanitizedNewSettings.ChatWebhookURL = nil
 	settingsEvent, errBuildEvent := (&model.CommitteeEvent{}).Build(ctx, model.ResourceCommitteeSettings, model.ActionUpdated, &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  settings.UID,
-		OldSettings:   existingSettings,
-		Settings:      settings,
+		OldSettings:   &sanitizedOldSettings,
+		Settings:      &sanitizedNewSettings,
 		CommitteeName: committeeBase.Name,
 		UpdatedBy:     updatedBy,
 	})
