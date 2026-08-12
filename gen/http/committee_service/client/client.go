@@ -178,6 +178,10 @@ type Client struct {
 	// the update-current-weekly-brief endpoint.
 	UpdateCurrentWeeklyBriefDoer goahttp.Doer
 
+	// ShareWeeklyBriefToChat Doer is the HTTP client used to make requests to the
+	// share-weekly-brief-to-chat endpoint.
+	ShareWeeklyBriefToChatDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -244,6 +248,7 @@ func NewClient(
 		GetCurrentWeeklyBriefDoer:     doer,
 		GenerateWeeklyBriefDoer:       doer,
 		UpdateCurrentWeeklyBriefDoer:  doer,
+		ShareWeeklyBriefToChatDoer:    doer,
 		RestoreResponseBody:           restoreBody,
 		scheme:                        scheme,
 		host:                          host,
@@ -1202,6 +1207,30 @@ func (c *Client) UpdateCurrentWeeklyBrief() goa.Endpoint {
 		resp, err := c.UpdateCurrentWeeklyBriefDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "update-current-weekly-brief", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ShareWeeklyBriefToChat returns an endpoint that makes HTTP requests to the
+// committee-service service share-weekly-brief-to-chat server.
+func (c *Client) ShareWeeklyBriefToChat() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeShareWeeklyBriefToChatRequest(c.encoder)
+		decodeResponse = DecodeShareWeeklyBriefToChatResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildShareWeeklyBriefToChatRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ShareWeeklyBriefToChatDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "share-weekly-brief-to-chat", err)
 		}
 		return decodeResponse(resp)
 	}

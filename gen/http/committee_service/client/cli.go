@@ -2963,3 +2963,56 @@ func BuildUpdateCurrentWeeklyBriefPayload(committeeServiceUpdateCurrentWeeklyBri
 
 	return v, nil
 }
+
+// BuildShareWeeklyBriefToChatPayload builds the payload for the
+// committee-service share-weekly-brief-to-chat endpoint from CLI flags.
+func BuildShareWeeklyBriefToChatPayload(committeeServiceShareWeeklyBriefToChatBody string, committeeServiceShareWeeklyBriefToChatUID string, committeeServiceShareWeeklyBriefToChatVersion string, committeeServiceShareWeeklyBriefToChatBearerToken string) (*committeeservice.ShareWeeklyBriefToChatPayload, error) {
+	var err error
+	var body ShareWeeklyBriefToChatRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceShareWeeklyBriefToChatBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"revision\": 7\n   }'")
+		}
+		if body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", body.Revision, 1, true))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceShareWeeklyBriefToChatUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceShareWeeklyBriefToChatVersion != "" {
+			version = &committeeServiceShareWeeklyBriefToChatVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceShareWeeklyBriefToChatBearerToken != "" {
+			bearerToken = &committeeServiceShareWeeklyBriefToChatBearerToken
+		}
+	}
+	v := &committeeservice.ShareWeeklyBriefToChatPayload{
+		Revision: body.Revision,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}

@@ -64,6 +64,7 @@ type Server struct {
 	GetCurrentWeeklyBrief     http.Handler
 	GenerateWeeklyBrief       http.Handler
 	UpdateCurrentWeeklyBrief  http.Handler
+	ShareWeeklyBriefToChat    http.Handler
 	GenHTTPOpenapiJSON        http.Handler
 	GenHTTPOpenapiYaml        http.Handler
 	GenHTTPOpenapi3JSON       http.Handler
@@ -163,6 +164,7 @@ func New(
 			{"GetCurrentWeeklyBrief", "GET", "/committees/{uid}/weekly-briefs/current"},
 			{"GenerateWeeklyBrief", "POST", "/committees/{uid}/weekly-briefs/generate"},
 			{"UpdateCurrentWeeklyBrief", "PUT", "/committees/{uid}/weekly-briefs/current"},
+			{"ShareWeeklyBriefToChat", "POST", "/committees/{uid}/weekly-briefs/share-to-chat"},
 			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
 			{"Serve gen/http/openapi.yaml", "GET", "/_committees/openapi.yaml"},
 			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
@@ -208,6 +210,7 @@ func New(
 		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefHandler(e.GetCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
 		GenerateWeeklyBrief:       NewGenerateWeeklyBriefHandler(e.GenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
 		UpdateCurrentWeeklyBrief:  NewUpdateCurrentWeeklyBriefHandler(e.UpdateCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		ShareWeeklyBriefToChat:    NewShareWeeklyBriefToChatHandler(e.ShareWeeklyBriefToChat, mux, decoder, encoder, errhandler, formatter),
 		GenHTTPOpenapiJSON:        http.FileServer(fileSystemGenHTTPOpenapiJSON),
 		GenHTTPOpenapiYaml:        http.FileServer(fileSystemGenHTTPOpenapiYaml),
 		GenHTTPOpenapi3JSON:       http.FileServer(fileSystemGenHTTPOpenapi3JSON),
@@ -260,6 +263,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.GetCurrentWeeklyBrief = m(s.GetCurrentWeeklyBrief)
 	s.GenerateWeeklyBrief = m(s.GenerateWeeklyBrief)
 	s.UpdateCurrentWeeklyBrief = m(s.UpdateCurrentWeeklyBrief)
+	s.ShareWeeklyBriefToChat = m(s.ShareWeeklyBriefToChat)
 }
 
 // MethodNames returns the methods served.
@@ -307,6 +311,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetCurrentWeeklyBriefHandler(mux, h.GetCurrentWeeklyBrief)
 	MountGenerateWeeklyBriefHandler(mux, h.GenerateWeeklyBrief)
 	MountUpdateCurrentWeeklyBriefHandler(mux, h.UpdateCurrentWeeklyBrief)
+	MountShareWeeklyBriefToChatHandler(mux, h.ShareWeeklyBriefToChat)
 	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
 	MountGenHTTPOpenapiYaml(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiYaml))
 	MountGenHTTPOpenapi3JSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapi3JSON))
@@ -2466,6 +2471,60 @@ func NewUpdateCurrentWeeklyBriefHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "update-current-weekly-brief")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountShareWeeklyBriefToChatHandler configures the mux to serve the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint.
+func MountShareWeeklyBriefToChatHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/weekly-briefs/share-to-chat", f)
+}
+
+// NewShareWeeklyBriefToChatHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service
+// "share-weekly-brief-to-chat" endpoint.
+func NewShareWeeklyBriefToChatHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeShareWeeklyBriefToChatRequest(mux, decoder)
+		encodeResponse = EncodeShareWeeklyBriefToChatResponse(encoder)
+		encodeError    = EncodeShareWeeklyBriefToChatError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "share-weekly-brief-to-chat")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

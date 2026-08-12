@@ -33,6 +33,11 @@ func wrapError(ctx context.Context, err error) error {
 				Code:     "revision_conflict",
 				Revision: e.Revision,
 			}
+		case errors.NoChatWebhook:
+			return &committeeservice.NoChatWebhookError{
+				Code:    "no_chat_webhook",
+				Message: e.Error(),
+			}
 		case errors.Conflict:
 			return &committeeservice.ConflictError{
 				Message: e.Error(),

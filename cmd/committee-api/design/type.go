@@ -1442,6 +1442,19 @@ var GroupWeeklyBriefRevisionConflictError = dsl.Type("group-weekly-brief-revisio
 	dsl.Required("code", "revision")
 })
 
+// NoChatWebhookError is the 409 body returned by
+// POST /committees/{uid}/weekly-briefs/share-to-chat when no chat_webhook_url
+// is configured in the committee settings.
+var NoChatWebhookError = dsl.Type("no-chat-webhook-error", func() {
+	dsl.Description("Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("no_chat_webhook")
+		dsl.Example("no_chat_webhook")
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable description")
+	dsl.Required("code", "message")
+})
+
 // ─── Committee Document Types ───
 
 // DocumentUIDAttribute is the DSL attribute for document UID in URL paths.

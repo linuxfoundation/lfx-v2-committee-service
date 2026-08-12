@@ -393,6 +393,13 @@ type UpdateCurrentWeeklyBriefRequestBody struct {
 	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
 }
 
+// ShareWeeklyBriefToChatRequestBody is the type of the "committee-service"
+// service "share-weekly-brief-to-chat" endpoint HTTP request body.
+type ShareWeeklyBriefToChatRequestBody struct {
+	// Optimistic-concurrency token from GET /current
+	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -2630,6 +2637,66 @@ type UpdateCurrentWeeklyBriefServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// ShareWeeklyBriefToChatBadRequestResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "BadRequest" error.
+type ShareWeeklyBriefToChatBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ShareWeeklyBriefToChatForbiddenResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "Forbidden" error.
+type ShareWeeklyBriefToChatForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ShareWeeklyBriefToChatRevisionConflictResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "RevisionConflict" error.
+type ShareWeeklyBriefToChatRevisionConflictResponseBody struct {
+	// Stable machine code
+	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+	// Current server-side revision of the brief
+	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
+}
+
+// ShareWeeklyBriefToChatNoChatWebhookResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "NoChatWebhook" error.
+type ShareWeeklyBriefToChatNoChatWebhookResponseBody struct {
+	// Stable machine code
+	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+	// Human-readable description
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ShareWeeklyBriefToChatNotFoundResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "NotFound" error.
+type ShareWeeklyBriefToChatNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ShareWeeklyBriefToChatServiceUnavailableResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type ShareWeeklyBriefToChatServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // KeyDateRequestBody is used to define fields on request body types.
 type KeyDateRequestBody struct {
 	// The month of the key date, in YYYY-MM format
@@ -3709,6 +3776,16 @@ func NewUpdateCurrentWeeklyBriefRequestBody(p *committeeservice.UpdateCurrentWee
 	body := &UpdateCurrentWeeklyBriefRequestBody{
 		BriefText: p.BriefText,
 		Revision:  p.Revision,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatRequestBody builds the HTTP request body from the
+// payload of the "share-weekly-brief-to-chat" endpoint of the
+// "committee-service" service.
+func NewShareWeeklyBriefToChatRequestBody(p *committeeservice.ShareWeeklyBriefToChatPayload) *ShareWeeklyBriefToChatRequestBody {
+	body := &ShareWeeklyBriefToChatRequestBody{
+		Revision: p.Revision,
 	}
 	return body
 }
@@ -6858,6 +6935,78 @@ func NewUpdateCurrentWeeklyBriefNotFound(body *UpdateCurrentWeeklyBriefNotFoundR
 // NewUpdateCurrentWeeklyBriefServiceUnavailable builds a committee-service
 // service update-current-weekly-brief endpoint ServiceUnavailable error.
 func NewUpdateCurrentWeeklyBriefServiceUnavailable(body *UpdateCurrentWeeklyBriefServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatBadRequest builds a committee-service service
+// share-weekly-brief-to-chat endpoint BadRequest error.
+func NewShareWeeklyBriefToChatBadRequest(body *ShareWeeklyBriefToChatBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatForbidden builds a committee-service service
+// share-weekly-brief-to-chat endpoint Forbidden error.
+func NewShareWeeklyBriefToChatForbidden(body *ShareWeeklyBriefToChatForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatRevisionConflict builds a committee-service service
+// share-weekly-brief-to-chat endpoint RevisionConflict error.
+func NewShareWeeklyBriefToChatRevisionConflict(body *ShareWeeklyBriefToChatRevisionConflictResponseBody) *committeeservice.GroupWeeklyBriefRevisionConflictError {
+	v := &committeeservice.GroupWeeklyBriefRevisionConflictError{
+		Code:     *body.Code,
+		Revision: *body.Revision,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatNoChatWebhook builds a committee-service service
+// share-weekly-brief-to-chat endpoint NoChatWebhook error.
+func NewShareWeeklyBriefToChatNoChatWebhook(body *ShareWeeklyBriefToChatNoChatWebhookResponseBody) *committeeservice.NoChatWebhookError {
+	v := &committeeservice.NoChatWebhookError{
+		Code:    *body.Code,
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatInternalServerError builds a committee-service
+// service share-weekly-brief-to-chat endpoint InternalServerError error.
+func NewShareWeeklyBriefToChatInternalServerError(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatNotFound builds a committee-service service
+// share-weekly-brief-to-chat endpoint NotFound error.
+func NewShareWeeklyBriefToChatNotFound(body *ShareWeeklyBriefToChatNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewShareWeeklyBriefToChatServiceUnavailable builds a committee-service
+// service share-weekly-brief-to-chat endpoint ServiceUnavailable error.
+func NewShareWeeklyBriefToChatServiceUnavailable(body *ShareWeeklyBriefToChatServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -10218,6 +10367,88 @@ func ValidateUpdateCurrentWeeklyBriefNotFoundResponseBody(body *UpdateCurrentWee
 // validations defined on
 // update-current-weekly-brief_ServiceUnavailable_response_body
 func ValidateUpdateCurrentWeeklyBriefServiceUnavailableResponseBody(body *UpdateCurrentWeeklyBriefServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatBadRequestResponseBody runs the validations
+// defined on share-weekly-brief-to-chat_BadRequest_response_body
+func ValidateShareWeeklyBriefToChatBadRequestResponseBody(body *ShareWeeklyBriefToChatBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatForbiddenResponseBody runs the validations
+// defined on share-weekly-brief-to-chat_Forbidden_response_body
+func ValidateShareWeeklyBriefToChatForbiddenResponseBody(body *ShareWeeklyBriefToChatForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatRevisionConflictResponseBody runs the
+// validations defined on
+// share-weekly-brief-to-chat_RevisionConflict_response_body
+func ValidateShareWeeklyBriefToChatRevisionConflictResponseBody(body *ShareWeeklyBriefToChatRevisionConflictResponseBody) (err error) {
+	if body.Code == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
+	}
+	if body.Revision == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("revision", "body"))
+	}
+	if body.Code != nil {
+		if !(*body.Code == "revision_conflict") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"revision_conflict"}))
+		}
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody runs the validations
+// defined on share-weekly-brief-to-chat_NoChatWebhook_response_body
+func ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody(body *ShareWeeklyBriefToChatNoChatWebhookResponseBody) (err error) {
+	if body.Code == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("code", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	if body.Code != nil {
+		if !(*body.Code == "no_chat_webhook") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"no_chat_webhook"}))
+		}
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody runs the
+// validations defined on
+// share-weekly-brief-to-chat_InternalServerError_response_body
+func ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatNotFoundResponseBody runs the validations
+// defined on share-weekly-brief-to-chat_NotFound_response_body
+func ValidateShareWeeklyBriefToChatNotFoundResponseBody(body *ShareWeeklyBriefToChatNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatServiceUnavailableResponseBody runs the
+// validations defined on
+// share-weekly-brief-to-chat_ServiceUnavailable_response_body
+func ValidateShareWeeklyBriefToChatServiceUnavailableResponseBody(body *ShareWeeklyBriefToChatServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

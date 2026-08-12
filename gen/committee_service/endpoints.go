@@ -58,6 +58,7 @@ type Endpoints struct {
 	GetCurrentWeeklyBrief     goa.Endpoint
 	GenerateWeeklyBrief       goa.Endpoint
 	UpdateCurrentWeeklyBrief  goa.Endpoint
+	ShareWeeklyBriefToChat    goa.Endpoint
 }
 
 // DownloadCommitteeDocumentResponseData holds both the result and the HTTP
@@ -113,6 +114,7 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
 		GenerateWeeklyBrief:       NewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
 		UpdateCurrentWeeklyBrief:  NewUpdateCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
+		ShareWeeklyBriefToChat:    NewShareWeeklyBriefToChatEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -159,6 +161,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCurrentWeeklyBrief = m(e.GetCurrentWeeklyBrief)
 	e.GenerateWeeklyBrief = m(e.GenerateWeeklyBrief)
 	e.UpdateCurrentWeeklyBrief = m(e.UpdateCurrentWeeklyBrief)
+	e.ShareWeeklyBriefToChat = m(e.ShareWeeklyBriefToChat)
 }
 
 // NewCreateCommitteeEndpoint returns an endpoint function that calls the
@@ -1052,5 +1055,28 @@ func NewUpdateCurrentWeeklyBriefEndpoint(s Service, authJWTFn security.AuthJWTFu
 			return nil, err
 		}
 		return s.UpdateCurrentWeeklyBrief(ctx, p)
+	}
+}
+
+// NewShareWeeklyBriefToChatEndpoint returns an endpoint function that calls
+// the method "share-weekly-brief-to-chat" of service "committee-service".
+func NewShareWeeklyBriefToChatEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ShareWeeklyBriefToChatPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.ShareWeeklyBriefToChat(ctx, p)
 	}
 }

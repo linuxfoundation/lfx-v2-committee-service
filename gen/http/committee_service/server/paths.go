@@ -211,3 +211,8 @@ func GenerateWeeklyBriefCommitteeServicePath(uid string) string {
 func UpdateCurrentWeeklyBriefCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/weekly-briefs/current", uid)
 }
+
+// ShareWeeklyBriefToChatCommitteeServicePath returns the URL path to the committee-service service share-weekly-brief-to-chat HTTP endpoint.
+func ShareWeeklyBriefToChatCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/weekly-briefs/share-to-chat", uid)
+}

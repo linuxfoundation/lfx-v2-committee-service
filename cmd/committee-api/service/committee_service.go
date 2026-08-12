@@ -55,6 +55,7 @@ type committeeServicesrvc struct {
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
+	weeklyBriefSharer           service.GroupWeeklyBriefDataSharer
 	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
@@ -1917,6 +1918,7 @@ func NewCommitteeService(
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
 	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
+	weeklyBriefSharer service.GroupWeeklyBriefDataSharer,
 	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
@@ -1935,6 +1937,7 @@ func NewCommitteeService(
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
 		weeklyBriefWriter:           weeklyBriefWriter,
+		weeklyBriefSharer:           weeklyBriefSharer,
 		orgSeatReader:               orgSeatReader,
 	}
 }
@@ -2223,6 +2226,26 @@ func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *
 	}
 
 	return domainGroupWeeklyBriefToGoa(updated), nil
+}
+
+// ShareWeeklyBriefToChat posts the current weekly brief to the committee's
+// configured Slack Incoming Webhook URL. Authorization (committee writer
+// relation) is enforced at the edge by Heimdall.
+func (s *committeeServicesrvc) ShareWeeklyBriefToChat(ctx context.Context, p *committeeservice.ShareWeeklyBriefToChatPayload) error {
+	slog.DebugContext(ctx, "committeeService.share-weekly-brief-to-chat",
+		"committee_uid", p.UID,
+		"revision", p.Revision,
+	)
+
+	if s.weeklyBriefSharer == nil {
+		return wrapError(ctx, errors.NewServiceUnavailable("weekly brief sharer is not configured"))
+	}
+
+	return wrapError(ctx, s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
+		CommitteeUID: p.UID,
+		Revision:     p.Revision,
+		Now:          time.Now().UTC(),
+	}))
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

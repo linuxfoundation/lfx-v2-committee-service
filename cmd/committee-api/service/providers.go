@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -860,6 +861,27 @@ func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocume
 
 	// unreachable
 	return nil
+}
+
+// SlackSenderImpl returns a Slack Incoming Webhook sender.
+// In mock mode or when SLACK_WEBHOOK_ENABLED is not "true" a no-op sender is
+// returned so the service boots without requiring a real webhook in local dev.
+func SlackSenderImpl(ctx context.Context) port.SlackSender {
+	if os.Getenv("SLACK_WEBHOOK_ENABLED") != "true" {
+		slog.InfoContext(ctx, "Slack webhook disabled — set SLACK_WEBHOOK_ENABLED=true to enable")
+		return &noopSlackSender{}
+	}
+	slog.InfoContext(ctx, "Slack webhook enabled")
+	return slack.NewWebhookSender(nil)
+}
+
+// noopSlackSender is a send-disabled stub used when SLACK_WEBHOOK_ENABLED is
+// not "true". It returns a ServiceUnavailable error so callers get a clear
+// signal rather than a silent no-op.
+type noopSlackSender struct{}
+
+func (noopSlackSender) Send(_ context.Context, _ string, _ string) error {
+	return fmt.Errorf("slack webhook sending is disabled (set SLACK_WEBHOOK_ENABLED=true)")
 }
 
 // QueueSubscriptions starts all NATS subscriptions with the provided dependencies
