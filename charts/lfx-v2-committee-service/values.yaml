@@ -487,11 +487,6 @@ app:
     # INVITES_ENABLED gates outbound invite requests for non-LFID users.
     INVITES_ENABLED:
       value: "false"
-    # SLACK_WEBHOOK_ENABLED gates outbound Slack Incoming Webhook sends for
-    # weekly-brief share-to-chat. Disabled by default; set to "true" in
-    # environments with a configured webhook URL.
-    SLACK_WEBHOOK_ENABLED:
-      value: "false"
     # AI_SOURCE selects the AI adapter: "fake" (default when unset; safe for
     # local dev / CI / fresh installs without LiteLLM credentials) or "live"
     # (requires LITELLM_BASE_URL, LITELLM_API_KEY, LITELLM_MODEL — startup
