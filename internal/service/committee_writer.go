@@ -525,9 +525,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	})
 
 	if committee.CommitteeSettings != nil {
-		indexSettings := *committee.CommitteeSettings
-		indexSettings.ChatWebhookURL = nil
-		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
+		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeSettings, committee.Tags())
 		if errBuildSettingsMsg != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
 		}
@@ -885,9 +883,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	indexSettings := *settings
-	indexSettings.ChatWebhookURL = nil
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, &indexSettings, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, settings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
