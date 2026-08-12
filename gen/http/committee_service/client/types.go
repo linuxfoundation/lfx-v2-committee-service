@@ -64,10 +64,10 @@ type CreateCommitteeRequestBody struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -133,8 +133,6 @@ type UpdateCommitteeBaseRequestBody struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -142,6 +140,8 @@ type UpdateCommitteeBaseRequestBody struct {
 type UpdateCommitteeSettingsRequestBody struct {
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool `form:"business_email_required" json:"business_email_required" xml:"business_email_required"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -448,6 +448,8 @@ type CreateCommitteeResponseBody struct {
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -544,6 +546,8 @@ type UpdateCommitteeSettingsResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -2776,6 +2780,8 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string `form:"last_reviewed_at,omitempty" json:"last_reviewed_at,omitempty" xml:"last_reviewed_at,omitempty"`
 	// The user ID who last reviewed this committee
@@ -3116,8 +3122,8 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		ParentUID:             p.ParentUID,
 		JoinMode:              p.JoinMode,
 		Repository:            p.Repository,
-		ChatWebhookURL:        p.ChatWebhookURL,
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
@@ -3244,7 +3250,6 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 		ParentUID:       p.ParentUID,
 		JoinMode:        p.JoinMode,
 		Repository:      p.Repository,
-		ChatWebhookURL:  p.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -3323,6 +3328,7 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSettingsPayload) *UpdateCommitteeSettingsRequestBody {
 	body := &UpdateCommitteeSettingsRequestBody{
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
@@ -3728,6 +3734,7 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 		SsoGroupName:     body.SsoGroupName,
 		TotalMembers:     body.TotalMembers,
 		TotalVotingRepos: body.TotalVotingRepos,
+		ChatWebhookURL:   body.ChatWebhookURL,
 		LastReviewedAt:   body.LastReviewedAt,
 		LastReviewedBy:   body.LastReviewedBy,
 	}
@@ -4219,6 +4226,7 @@ func NewDeleteCommitteeServiceUnavailable(body *DeleteCommitteeServiceUnavailabl
 func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, etag *string) *committeeservice.GetCommitteeSettingsResult {
 	v := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:            body.UID,
+		ChatWebhookURL: body.ChatWebhookURL,
 		LastReviewedAt: body.LastReviewedAt,
 		LastReviewedBy: body.LastReviewedBy,
 		CreatedAt:      body.CreatedAt,
@@ -4298,6 +4306,7 @@ func NewGetCommitteeSettingsServiceUnavailable(body *GetCommitteeSettingsService
 func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *UpdateCommitteeSettingsResponseBody) *committeeservice.CommitteeSettingsWithReadonlyAttributes {
 	v := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:            body.UID,
+		ChatWebhookURL: body.ChatWebhookURL,
 		LastReviewedAt: body.LastReviewedAt,
 		LastReviewedBy: body.LastReviewedBy,
 		CreatedAt:      body.CreatedAt,
@@ -6964,6 +6973,17 @@ func ValidateCreateCommitteeResponseBody(body *CreateCommitteeResponseBody) (err
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.total_voting_repos", *body.TotalVotingRepos, 0, true))
 		}
 	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+		}
+	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -7217,6 +7237,17 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+		}
+	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -7253,6 +7284,17 @@ func ValidateGetCommitteeSettingsResponseBody(body *GetCommitteeSettingsResponse
 func ValidateUpdateCommitteeSettingsResponseBody(body *UpdateCommitteeSettingsResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -10489,6 +10531,17 @@ func ValidateCommitteeBaseWithReadonlyAttributesResponseBody(body *CommitteeBase
 func ValidateCommitteeSettingsWithReadonlyAttributesResponseBody(body *CommitteeSettingsWithReadonlyAttributesResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+		}
 	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))

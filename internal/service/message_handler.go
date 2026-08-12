@@ -366,10 +366,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx conte
 		fullCommittee.CommitteeSettings = settings
 	}
 
-	// Exclude write-only credential fields from the indexer payload.
-	indexBase := *committee
-	indexBase.ChatWebhookURL = nil
-	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, &indexBase, fullCommittee.Tags())
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"committee_uid", event.CommitteeUID, "error", err)

@@ -55,7 +55,6 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	base.Website = p.Website
 	base.MailingList = p.MailingList
 	base.ChatChannel = p.ChatChannel
-	base.ChatWebhookURL = p.ChatWebhookURL
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
@@ -88,6 +87,7 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.CreateCommitteePayload) *model.CommitteeSettings {
 	settings := &model.CommitteeSettings{
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               convertPayloadUsersToModel(p.Writers, nil),
 		Auditors:              convertPayloadUsersToModel(p.Auditors, nil),
@@ -135,7 +135,6 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 	base.Website = p.Website
 	base.MailingList = p.MailingList
 	base.ChatChannel = p.ChatChannel
-	base.ChatWebhookURL = p.ChatWebhookURL
 
 	// Handle ParentUID (already a pointer, safe to assign directly)
 	base.ParentUID = p.ParentUID
@@ -297,6 +296,7 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 	settings := &model.CommitteeSettings{
 		UID:                   *p.UID, // UID is required for updates
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               convertPayloadUsersToModel(p.Writers, existingWriters),
@@ -469,6 +469,7 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:                   &settings.UID,
 		BusinessEmailRequired: settings.BusinessEmailRequired,
+		ChatWebhookURL:        settings.ChatWebhookURL,
 		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
 		MemberVisibility:      settings.MemberVisibility,
 	}

@@ -399,12 +399,6 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	}
 	updated.SSOGroupName = ssoGroupName
 
-	// chat_webhook_url is write-only and absent from GET responses. Preserve
-	// the stored value when the PUT payload omits it (nil) so a round-trip
-	// update of any other field does not silently clear the webhook URL.
-	if updated.ChatWebhookURL == nil {
-		updated.ChatWebhookURL = existing.ChatWebhookURL
-	}
 }
 
 // Execute orchestrates the committee creation process
@@ -521,10 +515,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
 
-	// Exclude write-only credential fields from the public index payload.
-	indexBase := committee.CommitteeBase
-	indexBase.ChatWebhookURL = nil
-	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, indexBase, committee.Tags())
+	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeBase, committee.Tags())
 	if errBuildCommitteeMsg != nil {
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildCommitteeMsg)
 	}
@@ -740,10 +731,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 7: Publish messages
 
 	// Build and publish indexer message
-	// Exclude write-only credential fields from the public index payload.
-	indexBase := committee.CommitteeBase
-	indexBase.ChatWebhookURL = nil
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, indexBase, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, committee.CommitteeBase, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,
@@ -772,16 +760,10 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 
-	// Sanitize write-only credential fields before event publication so
-	// chat_webhook_url is never included in the committee.updated payload.
-	sanitizedOld := *existing
-	sanitizedOld.ChatWebhookURL = nil
-	sanitizedNew := committee.CommitteeBase
-	sanitizedNew.ChatWebhookURL = nil
 	updateEventData := &model.CommitteeUpdateEventData{
 		CommitteeUID: committee.CommitteeBase.UID,
-		OldCommittee: &sanitizedOld,
-		Committee:    &sanitizedNew,
+		OldCommittee: existing,
+		Committee:    &committee.CommitteeBase,
 	}
 
 	messages := []func() error{
