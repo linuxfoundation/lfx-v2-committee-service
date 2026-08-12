@@ -371,8 +371,6 @@ type CommitteeFullWithReadonlyAttributes struct {
 	TotalVotingRepos *int
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -533,8 +531,6 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -735,8 +731,6 @@ type CreateCommitteePayload struct {
 	ExternalSources []*ExternalSource
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -747,6 +741,8 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
 	// Users who can audit this committee
@@ -1554,8 +1550,6 @@ type UpdateCommitteeSettingsPayload struct {
 	UID *string
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel
-	ChatWebhookURL *string
 	// The timestamp when the committee was last reviewed in RFC3339 format
 	LastReviewedAt *string
 	// The user ID who last reviewed this committee
@@ -1566,6 +1560,8 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Slack Incoming Webhook URL for sharing content to a Slack channel
+	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
 	// Users who can audit this committee

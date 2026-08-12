@@ -107,6 +107,12 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 				}
 			}
 		}
+		if body.LastReviewedAt != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
+		}
+		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
 		if body.ChatWebhookURL != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
 		}
@@ -117,12 +123,6 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 			}
-		}
-		if body.LastReviewedAt != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
-		}
-		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 		for _, e := range body.Writers {
 			if e != nil {
@@ -186,11 +186,11 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		JoinMode:              body.JoinMode,
 		Repository:            body.Repository,
 		BusinessEmailRequired: body.BusinessEmailRequired,
-		ChatWebhookURL:        body.ChatWebhookURL,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
 		MemberVisibility:      body.MemberVisibility,
 		ShowMeetingAttendees:  body.ShowMeetingAttendees,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -666,6 +666,12 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
+		if body.LastReviewedAt != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
+		}
+		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
 		if body.ChatWebhookURL != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.chat_webhook_url", *body.ChatWebhookURL, goa.FormatURI))
 		}
@@ -676,12 +682,6 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 			}
-		}
-		if body.LastReviewedAt != nil {
-			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
-		}
-		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 		for _, e := range body.Writers {
 			if e != nil {
@@ -744,11 +744,11 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 	}
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
 		BusinessEmailRequired: body.BusinessEmailRequired,
-		ChatWebhookURL:        body.ChatWebhookURL,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
 		MemberVisibility:      body.MemberVisibility,
 		ShowMeetingAttendees:  body.ShowMeetingAttendees,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	{
 		var zero string

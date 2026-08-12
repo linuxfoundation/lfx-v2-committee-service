@@ -35,6 +35,7 @@ var _ = dsl.Service("committee-service", func() {
 			CommitteeBaseAttributes()
 
 			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
 
 			WritersAttribute()
 			AuditorsAttribute()
@@ -228,6 +229,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			CommitteeUIDAttribute()
 			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
 
 			WritersAttribute()
 			AuditorsAttribute()

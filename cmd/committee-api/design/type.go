@@ -49,7 +49,6 @@ var CommitteeSettings = dsl.Type("committee-settings", func() {
 // CommitteeSettingsAttributes is the DSL attributes for a committee settings.
 func CommitteeSettingsAttributes() {
 	BusinessEmailRequiredAttribute()
-	ChatWebhookURLAttribute()
 	LastReviewedAtAttribute()
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()

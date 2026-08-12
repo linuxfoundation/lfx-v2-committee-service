@@ -469,7 +469,6 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 		UID:                   &settings.UID,
 		BusinessEmailRequired: settings.BusinessEmailRequired,
-		ChatWebhookURL:        settings.ChatWebhookURL,
 		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
 		MemberVisibility:      settings.MemberVisibility,
 	}

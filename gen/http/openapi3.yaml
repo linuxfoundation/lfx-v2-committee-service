@@ -107,7 +107,6 @@ paths:
                                     public: true
                                 category: Technical Steering Committee
                                 chat_channel: https://slack.example.org/channels/tsc
-                                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                                 deliverables:
                                     - Quarterly technical roadmap
                                     - Annual governance review
@@ -3698,7 +3697,6 @@ paths:
                                       name: John Doe
                                       username: auditor_user_id1
                                 business_email_required: false
-                                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                                 created_at: "2023-01-15T10:30:00Z"
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
@@ -3821,7 +3819,6 @@ paths:
                                       name: John Doe
                                       username: auditor_user_id1
                                 business_email_required: false
-                                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                                 created_at: "2023-01-15T10:30:00Z"
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
@@ -5228,13 +5225,6 @@ components:
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
                     maxLength: 500
-                chat_webhook_url:
-                    type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https?://[^\s/$.?#][^\s]*$
-                    maxLength: 500
                 deliverables:
                     type: array
                     items:
@@ -5393,7 +5383,6 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -5489,13 +5478,6 @@ components:
                     type: string
                     description: The chat channel URL or identifier for the committee
                     example: https://slack.example.org/channels/tsc
-                    maxLength: 500
-                chat_webhook_url:
-                    type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https?://[^\s/$.?#][^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
@@ -5681,7 +5663,6 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -6480,13 +6461,6 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
-                chat_webhook_url:
-                    type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https?://[^\s/$.?#][^\s]*$
-                    maxLength: 500
                 last_reviewed_at:
                     type: string
                     description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -6512,7 +6486,6 @@ components:
             description: A representation of LF Committee settings.
             example:
                 business_email_required: false
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -6535,13 +6508,6 @@ components:
                     description: Whether business email is required for committee members
                     default: false
                     example: false
-                chat_webhook_url:
-                    type: string
-                    description: Slack Incoming Webhook URL for sharing content to a Slack channel
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    format: uri
-                    pattern: ^https?://[^\s/$.?#][^\s]*$
-                    maxLength: 500
                 created_at:
                     type: string
                     description: The timestamp when the resource was created (read-only)
@@ -6597,7 +6563,6 @@ components:
                       name: John Doe
                       username: auditor_user_id1
                 business_email_required: false
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 created_at: "2023-01-15T10:30:00Z"
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
