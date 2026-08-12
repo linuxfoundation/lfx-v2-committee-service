@@ -76,6 +76,10 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -148,6 +152,10 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -6255,6 +6263,7 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 		Repository:     body.Repository,
 		LastReviewedAt: body.LastReviewedAt,
 		LastReviewedBy: body.LastReviewedBy,
+		ChatWebhookURL: body.ChatWebhookURL,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -6491,6 +6500,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 		BusinessEmailRequired: *body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
@@ -7270,6 +7280,14 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
 		}
 	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+		}
+	}
 	for _, e := range body.Writers {
 		if e != nil {
 			if err2 := ValidateCommitteeUserRequestBody(e); err2 != nil {
@@ -7401,6 +7419,14 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 		}
 	}
 	for _, e := range body.Writers {

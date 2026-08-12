@@ -87,6 +87,7 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.CreateCommitteePayload) *model.CommitteeSettings {
 	settings := &model.CommitteeSettings{
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               convertPayloadUsersToModel(p.Writers, nil),
 		Auditors:              convertPayloadUsersToModel(p.Auditors, nil),
@@ -295,6 +296,7 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 	settings := &model.CommitteeSettings{
 		UID:                   *p.UID, // UID is required for updates
 		BusinessEmailRequired: p.BusinessEmailRequired,
+		ChatWebhookURL:        p.ChatWebhookURL,
 		LastReviewedAt:        p.LastReviewedAt,
 		LastReviewedBy:        p.LastReviewedBy,
 		Writers:               convertPayloadUsersToModel(p.Writers, existingWriters),

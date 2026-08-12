@@ -76,6 +76,10 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -148,6 +152,10 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// Slack Incoming Webhook URL for sharing content to a Slack channel.
+	// Write-only: never returned from GET. Send empty string to clear a previously
+	// stored value; omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -3117,6 +3125,7 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
+		ChatWebhookURL:        p.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -3321,6 +3330,7 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 		LastReviewedBy:        p.LastReviewedBy,
 		MemberVisibility:      p.MemberVisibility,
 		ShowMeetingAttendees:  p.ShowMeetingAttendees,
+		ChatWebhookURL:        p.ChatWebhookURL,
 	}
 	{
 		var zero string

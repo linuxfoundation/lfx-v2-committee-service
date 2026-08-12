@@ -398,6 +398,7 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 		ssoGroupName = updated.SSOGroupName
 	}
 	updated.SSOGroupName = ssoGroupName
+
 }
 
 // Execute orchestrates the committee creation process
@@ -523,14 +524,18 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, committeeMsg, sync)
 	})
 
-	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeSettings, committee.Tags())
-	if errBuildSettingsMsg != nil {
-		return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+	if committee.CommitteeSettings != nil {
+		indexSettings := *committee.CommitteeSettings
+		indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
+		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
+		if errBuildSettingsMsg != nil {
+			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+		}
+		settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+		messages = append(messages, func() error {
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
+		})
 	}
-	settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
-	messages = append(messages, func() error {
-		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
-	})
 
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
@@ -853,6 +858,15 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		settings.Auditors = existingSettings.Auditors
 	}
 
+	// nil (absent/null) → preserve existing; "" → explicit clear; non-empty URL → replace.
+	// Because chat_webhook_url is write-only (not returned from GET), a GET→PUT
+	// round-trip always sends nil — preserve prevents silently wiping the credential.
+	if settings.ChatWebhookURL == nil {
+		settings.ChatWebhookURL = existingSettings.ChatWebhookURL
+	} else if *settings.ChatWebhookURL == "" {
+		settings.ChatWebhookURL = nil
+	}
+
 	// Step 3: Update the committee settings in storage
 	errUpdate := uc.committeeWriter.UpdateSetting(ctx, settings, revision)
 	if errUpdate != nil {
@@ -880,7 +894,9 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, settings, committee.Tags())
+	indexSettings := *settings
+	indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, &indexSettings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
@@ -911,10 +927,14 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	// Publish a domain event carrying old+new settings so subscribers can
 	// detect newly added Writers/Auditors and send notification emails.
 	updatedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	sanitizedOldSettings := *existingSettings
+	sanitizedOldSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
+	sanitizedNewSettings := *settings
+	sanitizedNewSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
 	settingsEvent, errBuildEvent := (&model.CommitteeEvent{}).Build(ctx, model.ResourceCommitteeSettings, model.ActionUpdated, &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  settings.UID,
-		OldSettings:   existingSettings,
-		Settings:      settings,
+		OldSettings:   &sanitizedOldSettings,
+		Settings:      &sanitizedNewSettings,
 		CommitteeName: committeeBase.Name,
 		UpdatedBy:     updatedBy,
 	})

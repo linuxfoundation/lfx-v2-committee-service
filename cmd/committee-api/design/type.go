@@ -208,6 +208,12 @@ func DescriptionAttribute() {
 // would otherwise pass dsl.FormatURI as syntactically valid URIs.
 const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
 
+// httpsURLPattern validates an HTTPS-only URL or an empty string.
+// Used for write-only credential fields (e.g. webhook URLs) where:
+//   - a non-empty value must be a valid HTTPS URL (plaintext HTTP is rejected)
+//   - an empty string is the explicit clear signal (see ChatWebhookURLAttribute)
+const httpsURLPattern = `^$|^https://[^\s/$.?#][^\s]*$`
+
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "The website URL of the committee", func() {
@@ -1025,6 +1031,17 @@ func ChatChannelAttribute() {
 	dsl.Attribute("chat_channel", dsl.String, "The chat channel URL or identifier for the committee", func() {
 		dsl.MaxLength(500)
 		dsl.Example("https://slack.example.org/channels/tsc")
+	})
+}
+
+// ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
+// This field is write-only: accepted on create and PUT settings, never returned from GET.
+// Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
+func ChatWebhookURLAttribute() {
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
+		dsl.Pattern(httpsURLPattern)
+		dsl.MaxLength(500)
+		dsl.Example("https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
 }
 

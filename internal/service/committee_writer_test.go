@@ -1933,6 +1933,86 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_WritersAuditorsPreservation(
 	}
 }
 
+func TestCommitteeWriterOrchestrator_UpdateSettings_ChatWebhookURLSemantics(t *testing.T) {
+	storedURL := "https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder"
+	newURL := "https://hooks.slack.example.org/services/TYYYYYYYY/BYYYYYYYY/newtoken"
+	emptyStr := ""
+
+	tests := []struct {
+		name        string
+		existingURL *string
+		updateURL   *string // nil = omitted, ptr("") = explicit clear, ptr(url) = replace
+		wantURL     *string
+	}{
+		{
+			name:        "omitting field preserves existing URL",
+			existingURL: &storedURL,
+			updateURL:   nil,
+			wantURL:     &storedURL,
+		},
+		{
+			name:        "empty string clears existing URL",
+			existingURL: &storedURL,
+			updateURL:   &emptyStr,
+			wantURL:     nil,
+		},
+		{
+			name:        "new HTTPS URL replaces existing",
+			existingURL: &storedURL,
+			updateURL:   &newURL,
+			wantURL:     &newURL,
+		},
+		{
+			name:        "omitting field when no URL stored leaves it nil",
+			existingURL: nil,
+			updateURL:   nil,
+			wantURL:     nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			existingCommittee := &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID:            "committee-1",
+					ChatWebhookURL: tc.existingURL,
+					CreatedAt:      time.Now().Add(-24 * time.Hour),
+					UpdatedAt:      time.Now().Add(-1 * time.Hour),
+				},
+			}
+			mockRepo.AddCommittee(existingCommittee)
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			updateSettings := &model.CommitteeSettings{
+				UID:            "committee-1",
+				ChatWebhookURL: tc.updateURL,
+			}
+
+			result, err := orchestrator.UpdateSettings(context.Background(), updateSettings, uint64(1), false)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.wantURL, result.ChatWebhookURL)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 	tests := []struct {
 		name           string
