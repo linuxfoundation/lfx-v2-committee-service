@@ -2241,6 +2241,16 @@ func (s *committeeServicesrvc) ShareWeeklyBriefToChat(ctx context.Context, p *co
 		return wrapError(ctx, errors.NewServiceUnavailable("weekly brief sharer is not configured"))
 	}
 
+	// Verify the committee exists so a typo'd UID returns 404 for the committee
+	// rather than 404 for a missing brief.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+	if base == nil {
+		return wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
 	if err := s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
 		CommitteeUID: p.UID,
 		Revision:     p.Revision,
