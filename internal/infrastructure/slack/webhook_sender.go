@@ -53,7 +53,7 @@ type slackPayload struct {
 // request fails. Errors never contain the webhook URL.
 func (s *WebhookSender) Send(ctx context.Context, webhookURL string, text string) error {
 	parsed, err := url.Parse(webhookURL)
-	if err != nil || !allowedHosts[parsed.Hostname()] {
+	if err != nil || parsed.Scheme != "https" || !allowedHosts[parsed.Hostname()] {
 		return fmt.Errorf("slack webhook host is not in the approved allowlist")
 	}
 
