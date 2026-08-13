@@ -2241,11 +2241,14 @@ func (s *committeeServicesrvc) ShareWeeklyBriefToChat(ctx context.Context, p *co
 		return wrapError(ctx, errors.NewServiceUnavailable("weekly brief sharer is not configured"))
 	}
 
-	return wrapError(ctx, s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
+	if err := s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
 		CommitteeUID: p.UID,
 		Revision:     p.Revision,
 		Now:          time.Now().UTC(),
-	}))
+	}); err != nil {
+		return wrapError(ctx, err)
+	}
+	return nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.
