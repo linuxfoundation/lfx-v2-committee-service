@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
+	stderrors "errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // allowedHosts is the set of hosts permitted as Slack Incoming Webhook targets.
@@ -49,41 +51,44 @@ type slackPayload struct {
 }
 
 // Send POSTs text to the Slack Incoming Webhook URL.
-// Returns an error if the host is not in the approved allowlist, or if the
-// request fails. Errors never contain the webhook URL.
+// Returns a typed error from pkg/errors; raw Slack response details are
+// logged server-side and never forwarded to callers.
 func (s *WebhookSender) Send(ctx context.Context, webhookURL string, text string) error {
 	parsed, err := url.Parse(webhookURL)
 	if err != nil || parsed.Scheme != "https" || !allowedHosts[parsed.Hostname()] {
-		return fmt.Errorf("slack webhook host is not in the approved allowlist")
+		return errors.NewUnexpected("slack webhook URL failed allowlist check", nil)
 	}
 
 	body, err := json.Marshal(slackPayload{Text: text})
 	if err != nil {
-		return fmt.Errorf("failed to marshal slack payload: %w", err)
+		return errors.NewUnexpected("failed to marshal slack payload", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
-		// NewRequestWithContext errors do not include the URL but sanitize anyway.
-		return fmt.Errorf("failed to build slack request: %w", err)
+		return errors.NewUnexpected("failed to build slack request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		// *url.Error embeds the full URL in its string — strip it.
+		// *url.Error embeds the full URL — strip it before wrapping.
 		var urlErr *url.Error
-		if errors.As(err, &urlErr) {
-			return fmt.Errorf("slack webhook request failed: %w", urlErr.Err)
+		if stderrors.As(err, &urlErr) {
+			return errors.NewServiceUnavailable("slack webhook unreachable", urlErr.Err)
 		}
-		return fmt.Errorf("slack webhook request failed: %w", err)
+		return errors.NewServiceUnavailable("slack webhook request failed", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Read a small excerpt of the body for diagnostics without echoing the URL.
 		excerpt, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return fmt.Errorf("slack webhook returned %d: %s", resp.StatusCode, string(excerpt))
+		// Log details server-side; return a stable typed error to callers.
+		slog.WarnContext(ctx, "slack webhook returned non-2xx",
+			"status", resp.StatusCode,
+			"response_excerpt", string(excerpt),
+		)
+		return errors.NewServiceUnavailable("slack webhook returned a non-2xx response", nil)
 	}
 	return nil
 }
