@@ -19,6 +19,8 @@ import (
 
 // allowedHosts is the set of hosts permitted as Slack Incoming Webhook targets.
 // Restricting to hooks.slack.com prevents SSRF via an attacker-controlled URL.
+// Only Slack is supported in v1; the Goa DSL enforces the same constraint at write
+// time via slackWebhookURLPattern so stored URLs already match this allowlist.
 var allowedHosts = map[string]bool{
 	"hooks.slack.com": true,
 }

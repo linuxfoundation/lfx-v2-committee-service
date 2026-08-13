@@ -52,7 +52,7 @@ paths:
                                 public: true
                             category: Technical Steering Committee
                             chat_channel: https://slack.example.org/channels/tsc
-                            chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                            chat_webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
                             deliverables:
                                 - Quarterly technical roadmap
                                 - Annual governance review
@@ -3801,7 +3801,7 @@ paths:
                                   name: John Doe
                                   username: auditor_user_id1
                             business_email_required: false
-                            chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                            chat_webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
@@ -4276,7 +4276,7 @@ paths:
             tags:
                 - committee-service
             summary: share-weekly-brief-to-chat committee-service
-            description: Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. The caller must supply the revision from GET /current as an optimistic-concurrency guard. Returns 404 when no brief exists for the current window, 400 when the brief is not in a shareable state (generated, edited, or approved), 409 when the revision is stale or no chat webhook URL is configured in committee settings.
+            description: Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. Only Slack Incoming Webhooks (hooks.slack.com) are supported in v1; other chat platforms are not supported. The caller must supply the revision from GET /current as an optimistic-concurrency guard. Returns 404 when no brief exists for the current window, 400 when the brief is not in a shareable state (generated, edited, or approved), 409 when the revision is stale, 422 when no chat webhook URL is configured in committee settings.
             operationId: committee-service#share-weekly-brief-to-chat
             parameters:
                 - name: v
@@ -6996,9 +6996,9 @@ components:
                     maxLength: 500
                 chat_webhook_url:
                     type: string
-                    description: 'Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    pattern: ^$|^https://[^\s/$.?#][^\s]*$
+                    description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are accepted; other chat platforms are not supported in v1. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
+                    example: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                    pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
@@ -7157,7 +7157,7 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                chat_webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -8383,9 +8383,9 @@ components:
                     example: false
                 chat_webhook_url:
                     type: string
-                    description: 'Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
-                    pattern: ^$|^https://[^\s/$.?#][^\s]*$
+                    description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are accepted; other chat platforms are not supported in v1. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
+                    example: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                    pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 last_reviewed_at:
                     type: string
@@ -8426,7 +8426,7 @@ components:
                       name: John Doe
                       username: auditor_user_id1
                 business_email_required: false
-                chat_webhook_url: https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder
+                chat_webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden

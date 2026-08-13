@@ -208,11 +208,11 @@ func DescriptionAttribute() {
 // would otherwise pass dsl.FormatURI as syntactically valid URIs.
 const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
 
-// httpsURLPattern validates an HTTPS-only URL or an empty string.
-// Used for write-only credential fields (e.g. webhook URLs) where:
-//   - a non-empty value must be a valid HTTPS URL (plaintext HTTP is rejected)
-//   - an empty string is the explicit clear signal (see ChatWebhookURLAttribute)
-const httpsURLPattern = `^$|^https://[^\s/$.?#][^\s]*$`
+// slackWebhookURLPattern validates a Slack Incoming Webhook URL or an empty string.
+// Restricts the hostname to hooks.slack.com so the API enforces at write time the
+// same host allowlist that WebhookSender.Send enforces at send time.
+// Empty string is the explicit clear signal (see ChatWebhookURLAttribute).
+const slackWebhookURLPattern = `^$|^https://hooks\.slack\.com/[^\s]*$`
 
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
@@ -1037,11 +1037,16 @@ func ChatChannelAttribute() {
 // ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
 // This field is write-only: accepted on create and PUT settings, never returned from GET.
 // Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
+// Only Slack Incoming Webhooks (hooks.slack.com) are supported in v1. Other chat platforms
+// are not supported and URLs pointing to other hosts are rejected at both write and send time.
 func ChatWebhookURLAttribute() {
-	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
-		dsl.Pattern(httpsURLPattern)
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. "+
+		"Write-only: never returned from GET. "+
+		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are accepted; other chat platforms are not supported in v1. "+
+		"Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
+		dsl.Pattern(slackWebhookURLPattern)
 		dsl.MaxLength(500)
-		dsl.Example("https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder")
+		dsl.Example("https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
 }
 

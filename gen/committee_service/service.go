@@ -124,11 +124,12 @@ type Service interface {
 	// brief_text is empty.
 	UpdateCurrentWeeklyBrief(context.Context, *UpdateCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefWithReadonlyAttributes, err error)
 	// Post the current weekly brief to the committee's configured Slack Incoming
-	// Webhook URL. The caller must supply the revision from GET /current as an
-	// optimistic-concurrency guard. Returns 404 when no brief exists for the
-	// current window, 400 when the brief is not in a shareable state (generated,
-	// edited, or approved), 409 when the revision is stale or no chat webhook URL
-	// is configured in committee settings.
+	// Webhook URL. Only Slack Incoming Webhooks (hooks.slack.com) are supported in
+	// v1; other chat platforms are not supported. The caller must supply the
+	// revision from GET /current as an optimistic-concurrency guard. Returns 404
+	// when no brief exists for the current window, 400 when the brief is not in a
+	// shareable state (generated, edited, or approved), 409 when the revision is
+	// stale, 422 when no chat webhook URL is configured in committee settings.
 	ShareWeeklyBriefToChat(context.Context, *ShareWeeklyBriefToChatPayload) (err error)
 }
 
@@ -748,9 +749,11 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel.
-	// Write-only: never returned from GET. Send empty string to clear a previously
-	// stored value; omit the field (or send null) to preserve the existing value.
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are accepted; other chat platforms are not
+	// supported in v1. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -1582,9 +1585,11 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel.
-	// Write-only: never returned from GET. Send empty string to clear a previously
-	// stored value; omit the field (or send null) to preserve the existing value.
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are accepted; other chat platforms are not
+	// supported in v1. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
