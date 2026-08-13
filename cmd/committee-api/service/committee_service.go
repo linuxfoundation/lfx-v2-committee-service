@@ -55,6 +55,7 @@ type committeeServicesrvc struct {
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
+	weeklyBriefSharer           service.GroupWeeklyBriefDataSharer
 	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
@@ -1917,6 +1918,7 @@ func NewCommitteeService(
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
 	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
+	weeklyBriefSharer service.GroupWeeklyBriefDataSharer,
 	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
@@ -1935,6 +1937,7 @@ func NewCommitteeService(
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
 		weeklyBriefWriter:           weeklyBriefWriter,
+		weeklyBriefSharer:           weeklyBriefSharer,
 		orgSeatReader:               orgSeatReader,
 	}
 }
@@ -2223,6 +2226,39 @@ func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *
 	}
 
 	return domainGroupWeeklyBriefToGoa(updated), nil
+}
+
+// ShareWeeklyBriefToChat posts the current weekly brief to the committee's
+// configured Slack Incoming Webhook URL. Authorization (committee writer
+// relation) is enforced at the edge by Heimdall.
+func (s *committeeServicesrvc) ShareWeeklyBriefToChat(ctx context.Context, p *committeeservice.ShareWeeklyBriefToChatPayload) error {
+	slog.DebugContext(ctx, "committeeService.share-weekly-brief-to-chat",
+		"committee_uid", p.UID,
+		"revision", p.Revision,
+	)
+
+	if s.weeklyBriefSharer == nil {
+		return wrapError(ctx, errors.NewServiceUnavailable("weekly brief sharer is not configured"))
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404 for the committee
+	// rather than 404 for a missing brief.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+	if base == nil {
+		return wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if err := s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
+		CommitteeUID: p.UID,
+		Revision:     p.Revision,
+		Now:          time.Now().UTC(),
+	}); err != nil {
+		return wrapError(ctx, err)
+	}
+	return nil
 }
 
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.

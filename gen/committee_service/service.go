@@ -123,6 +123,14 @@ type Service interface {
 	// 404 when no brief exists for the window (generate one first), 400 when
 	// brief_text is empty.
 	UpdateCurrentWeeklyBrief(context.Context, *UpdateCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefWithReadonlyAttributes, err error)
+	// Post the current weekly brief to the committee's configured Slack Incoming
+	// Webhook URL. Only Slack Incoming Webhooks (hooks.slack.com) are currently
+	// supported; other chat platforms are not supported. The caller must supply
+	// the revision from GET /current as an optimistic-concurrency guard. Returns
+	// 404 when no brief exists for the current window, 400 when the brief is not
+	// in a shareable state (generated, edited, or approved), 409 when the revision
+	// is stale, 422 when no chat webhook URL is configured in committee settings.
+	ShareWeeklyBriefToChat(context.Context, *ShareWeeklyBriefToChatPayload) (err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -145,7 +153,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [40]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief"}
+var MethodNames = [41]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -741,9 +749,11 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel.
-	// Write-only: never returned from GET. Send empty string to clear a previously
-	// stored value; omit the field (or send null) to preserve the existing value.
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -1373,6 +1383,19 @@ type RevokeInvitePayload struct {
 	InviteUID string
 }
 
+// ShareWeeklyBriefToChatPayload is the payload type of the committee-service
+// service share-weekly-brief-to-chat method.
+type ShareWeeklyBriefToChatPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Optimistic-concurrency token from GET /current
+	Revision uint64
+}
+
 // SubmitApplicationPayload is the payload type of the committee-service
 // service submit-application method.
 type SubmitApplicationPayload struct {
@@ -1562,9 +1585,11 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Slack Incoming Webhook URL for sharing content to a Slack channel.
-	// Write-only: never returned from GET. Send empty string to clear a previously
-	// stored value; omit the field (or send null) to preserve the existing value.
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -1668,6 +1693,15 @@ type GroupWeeklyBriefThrottleExceededError struct {
 
 type InternalServerError struct {
 	// Error message
+	Message string
+}
+
+// Returned when share-to-chat is attempted but no chat webhook URL is
+// configured for the committee.
+type NoChatWebhookError struct {
+	// Stable machine code
+	Code string
+	// Human-readable description
 	Message string
 }
 
@@ -1798,6 +1832,23 @@ func (e *InternalServerError) ErrorName() string {
 // GoaErrorName returns "internal-server-error".
 func (e *InternalServerError) GoaErrorName() string {
 	return "InternalServerError"
+}
+
+// Error returns an error description.
+func (e *NoChatWebhookError) Error() string {
+	return "Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee."
+}
+
+// ErrorName returns "no-chat-webhook-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *NoChatWebhookError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "no-chat-webhook-error".
+func (e *NoChatWebhookError) GoaErrorName() string {
+	return "NoChatWebhook"
 }
 
 // Error returns an error description.

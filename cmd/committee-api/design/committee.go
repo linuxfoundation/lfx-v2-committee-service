@@ -1630,6 +1630,51 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	dsl.Method("share-weekly-brief-to-chat", func() {
+		dsl.Description("Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. " +
+			"Only Slack Incoming Webhooks (hooks.slack.com) are currently supported; other chat platforms are not supported. " +
+			"The caller must supply the revision from GET /current as an optimistic-concurrency guard. " +
+			"Returns 404 when no brief exists for the current window, 400 when the brief is not in a " +
+			"shareable state (generated, edited, or approved), 409 when the revision is stale, " +
+			"422 when no chat webhook URL is configured in committee settings.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from GET /current", func() {
+				dsl.Minimum(1)
+				dsl.Example(uint64(7))
+			})
+			dsl.Required("uid", "revision")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Brief is not in a shareable state")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found, or no brief exists for the current window")
+		dsl.Error("RevisionConflict", GroupWeeklyBriefRevisionConflictError, "The revision token is stale")
+		dsl.Error("NoChatWebhook", NoChatWebhookError, "No chat webhook URL is configured for this committee")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/share-to-chat")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("NoChatWebhook", dsl.StatusUnprocessableEntity)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
 	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
 		dsl.Meta("swagger:generate", "false")

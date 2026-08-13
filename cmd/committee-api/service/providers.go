@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -860,6 +861,13 @@ func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocume
 
 	// unreachable
 	return nil
+}
+
+// SlackSenderImpl returns a Slack Incoming Webhook sender.
+// The natural gate is whether a chat_webhook_url is stored for the committee;
+// no env flag is needed.
+func SlackSenderImpl(_ context.Context) port.SlackSender {
+	return slack.NewWebhookSender(nil)
 }
 
 // QueueSubscriptions starts all NATS subscriptions with the provided dependencies

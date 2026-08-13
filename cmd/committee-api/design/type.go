@@ -208,11 +208,11 @@ func DescriptionAttribute() {
 // would otherwise pass dsl.FormatURI as syntactically valid URIs.
 const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
 
-// httpsURLPattern validates an HTTPS-only URL or an empty string.
-// Used for write-only credential fields (e.g. webhook URLs) where:
-//   - a non-empty value must be a valid HTTPS URL (plaintext HTTP is rejected)
-//   - an empty string is the explicit clear signal (see ChatWebhookURLAttribute)
-const httpsURLPattern = `^$|^https://[^\s/$.?#][^\s]*$`
+// slackWebhookURLPattern validates a Slack Incoming Webhook URL or an empty string.
+// Restricts the hostname to hooks.slack.com so the API enforces at write time the
+// same host allowlist that WebhookSender.Send enforces at send time.
+// Empty string is the explicit clear signal (see ChatWebhookURLAttribute).
+const slackWebhookURLPattern = `^$|^https://hooks\.slack\.com/[^\s]*$`
 
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
@@ -1037,11 +1037,15 @@ func ChatChannelAttribute() {
 // ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
 // This field is write-only: accepted on create and PUT settings, never returned from GET.
 // Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
+// Only Slack Incoming Webhooks (hooks.slack.com) are supported. Other chat platforms
+// are not supported and URLs pointing to other hosts are rejected at both write and send time.
 func ChatWebhookURLAttribute() {
-	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing content to a Slack channel. Write-only: never returned from GET. Send empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
-		dsl.Pattern(httpsURLPattern)
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. "+
+		"Write-only: never returned from GET. "+
+		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. "+
+		"Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
+		dsl.Pattern(slackWebhookURLPattern)
 		dsl.MaxLength(500)
-		dsl.Example("https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
 }
 
@@ -1440,6 +1444,19 @@ var GroupWeeklyBriefRevisionConflictError = dsl.Type("group-weekly-brief-revisio
 		dsl.Example(uint64(8))
 	})
 	dsl.Required("code", "revision")
+})
+
+// NoChatWebhookError is the 409 body returned by
+// POST /committees/{uid}/weekly-briefs/share-to-chat when no chat_webhook_url
+// is configured in the committee settings.
+var NoChatWebhookError = dsl.Type("no-chat-webhook-error", func() {
+	dsl.Description("Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("no_chat_webhook")
+		dsl.Example("no_chat_webhook")
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable description")
+	dsl.Required("code", "message")
 })
 
 // ─── Committee Document Types ───
