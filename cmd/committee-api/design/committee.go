@@ -1632,7 +1632,7 @@ var _ = dsl.Service("committee-service", func() {
 
 	dsl.Method("share-weekly-brief-to-chat", func() {
 		dsl.Description("Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. " +
-			"Only Slack Incoming Webhooks (hooks.slack.com) are supported in v1; other chat platforms are not supported. " +
+			"Only Slack Incoming Webhooks (hooks.slack.com) are currently supported; other chat platforms are not supported. " +
 			"The caller must supply the revision from GET /current as an optimistic-concurrency guard. " +
 			"Returns 404 when no brief exists for the current window, 400 when the brief is not in a " +
 			"shareable state (generated, edited, or approved), 409 when the revision is stale, " +

@@ -78,8 +78,8 @@ type CreateCommitteeRequestBody struct {
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
-	// (https://hooks.slack.com/...) are accepted; other chat platforms are not
-	// supported in v1. Send an empty string to clear a previously stored value;
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
 	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
@@ -156,8 +156,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
-	// (https://hooks.slack.com/...) are accepted; other chat platforms are not
-	// supported in v1. Send an empty string to clear a previously stored value;
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
 	// omit the field (or send null) to preserve the existing value.
 	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee

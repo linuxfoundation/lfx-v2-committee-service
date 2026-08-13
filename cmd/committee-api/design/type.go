@@ -1037,16 +1037,15 @@ func ChatChannelAttribute() {
 // ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
 // This field is write-only: accepted on create and PUT settings, never returned from GET.
 // Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
-// Only Slack Incoming Webhooks (hooks.slack.com) are supported in v1. Other chat platforms
+// Only Slack Incoming Webhooks (hooks.slack.com) are supported. Other chat platforms
 // are not supported and URLs pointing to other hosts are rejected at both write and send time.
 func ChatWebhookURLAttribute() {
 	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. "+
 		"Write-only: never returned from GET. "+
-		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are accepted; other chat platforms are not supported in v1. "+
+		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. "+
 		"Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
 		dsl.Pattern(slackWebhookURLPattern)
 		dsl.MaxLength(500)
-		dsl.Example("https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/placeholder")
 	})
 }
 
