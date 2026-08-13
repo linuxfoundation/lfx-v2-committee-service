@@ -2677,6 +2677,13 @@ paths:
                 "409":
                     description: Conflict response.
                     schema:
+                        $ref: '#/definitions/GroupWeeklyBriefRevisionConflictError'
+                        required:
+                            - code
+                            - revision
+                "422":
+                    description: Unprocessable Entity response.
+                    schema:
                         $ref: '#/definitions/NoChatWebhookError'
                         required:
                             - code

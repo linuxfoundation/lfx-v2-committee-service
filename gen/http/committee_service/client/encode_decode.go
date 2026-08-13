@@ -6505,8 +6505,8 @@ func EncodeShareWeeklyBriefToChatRequest(encoder func(*http.Request) goahttp.Enc
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
 //   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
 //   - "RevisionConflict" (type *committeeservice.GroupWeeklyBriefRevisionConflictError): http.StatusConflict
-//   - "NoChatWebhook" (type *committeeservice.NoChatWebhookError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NoChatWebhook" (type *committeeservice.NoChatWebhookError): http.StatusUnprocessableEntity
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
 //   - error: internal error
@@ -6556,40 +6556,19 @@ func DecodeShareWeeklyBriefToChatResponse(decoder func(*http.Response) goahttp.D
 			}
 			return nil, NewShareWeeklyBriefToChatForbidden(&body)
 		case http.StatusConflict:
-			en := resp.Header.Get("goa-error")
-			switch en {
-			case "RevisionConflict":
-				var (
-					body ShareWeeklyBriefToChatRevisionConflictResponseBody
-					err  error
-				)
-				err = decoder(resp).Decode(&body)
-				if err != nil {
-					return nil, goahttp.ErrDecodingError("committee-service", "share-weekly-brief-to-chat", err)
-				}
-				err = ValidateShareWeeklyBriefToChatRevisionConflictResponseBody(&body)
-				if err != nil {
-					return nil, goahttp.ErrValidationError("committee-service", "share-weekly-brief-to-chat", err)
-				}
-				return nil, NewShareWeeklyBriefToChatRevisionConflict(&body)
-			case "NoChatWebhook":
-				var (
-					body ShareWeeklyBriefToChatNoChatWebhookResponseBody
-					err  error
-				)
-				err = decoder(resp).Decode(&body)
-				if err != nil {
-					return nil, goahttp.ErrDecodingError("committee-service", "share-weekly-brief-to-chat", err)
-				}
-				err = ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody(&body)
-				if err != nil {
-					return nil, goahttp.ErrValidationError("committee-service", "share-weekly-brief-to-chat", err)
-				}
-				return nil, NewShareWeeklyBriefToChatNoChatWebhook(&body)
-			default:
-				body, _ := io.ReadAll(resp.Body)
-				return nil, goahttp.ErrInvalidResponse("committee-service", "share-weekly-brief-to-chat", resp.StatusCode, string(body))
+			var (
+				body ShareWeeklyBriefToChatRevisionConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "share-weekly-brief-to-chat", err)
 			}
+			err = ValidateShareWeeklyBriefToChatRevisionConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "share-weekly-brief-to-chat", err)
+			}
+			return nil, NewShareWeeklyBriefToChatRevisionConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body ShareWeeklyBriefToChatInternalServerErrorResponseBody
@@ -6604,6 +6583,20 @@ func DecodeShareWeeklyBriefToChatResponse(decoder func(*http.Response) goahttp.D
 				return nil, goahttp.ErrValidationError("committee-service", "share-weekly-brief-to-chat", err)
 			}
 			return nil, NewShareWeeklyBriefToChatInternalServerError(&body)
+		case http.StatusUnprocessableEntity:
+			var (
+				body ShareWeeklyBriefToChatNoChatWebhookResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "share-weekly-brief-to-chat", err)
+			}
+			err = ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "share-weekly-brief-to-chat", err)
+			}
+			return nil, NewShareWeeklyBriefToChatNoChatWebhook(&body)
 		case http.StatusNotFound:
 			var (
 				body ShareWeeklyBriefToChatNotFoundResponseBody

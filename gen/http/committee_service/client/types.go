@@ -2663,6 +2663,14 @@ type ShareWeeklyBriefToChatRevisionConflictResponseBody struct {
 	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
 }
 
+// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // ShareWeeklyBriefToChatNoChatWebhookResponseBody is the type of the
 // "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
 // response body for the "NoChatWebhook" error.
@@ -2670,14 +2678,6 @@ type ShareWeeklyBriefToChatNoChatWebhookResponseBody struct {
 	// Stable machine code
 	Code *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
 	// Human-readable description
-	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
-}
-
-// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
-// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
-// response body for the "InternalServerError" error.
-type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
-	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
@@ -6973,21 +6973,21 @@ func NewShareWeeklyBriefToChatRevisionConflict(body *ShareWeeklyBriefToChatRevis
 	return v
 }
 
-// NewShareWeeklyBriefToChatNoChatWebhook builds a committee-service service
-// share-weekly-brief-to-chat endpoint NoChatWebhook error.
-func NewShareWeeklyBriefToChatNoChatWebhook(body *ShareWeeklyBriefToChatNoChatWebhookResponseBody) *committeeservice.NoChatWebhookError {
-	v := &committeeservice.NoChatWebhookError{
-		Code:    *body.Code,
+// NewShareWeeklyBriefToChatInternalServerError builds a committee-service
+// service share-weekly-brief-to-chat endpoint InternalServerError error.
+func NewShareWeeklyBriefToChatInternalServerError(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
 		Message: *body.Message,
 	}
 
 	return v
 }
 
-// NewShareWeeklyBriefToChatInternalServerError builds a committee-service
-// service share-weekly-brief-to-chat endpoint InternalServerError error.
-func NewShareWeeklyBriefToChatInternalServerError(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) *committeeservice.InternalServerError {
-	v := &committeeservice.InternalServerError{
+// NewShareWeeklyBriefToChatNoChatWebhook builds a committee-service service
+// share-weekly-brief-to-chat endpoint NoChatWebhook error.
+func NewShareWeeklyBriefToChatNoChatWebhook(body *ShareWeeklyBriefToChatNoChatWebhookResponseBody) *committeeservice.NoChatWebhookError {
+	v := &committeeservice.NoChatWebhookError{
+		Code:    *body.Code,
 		Message: *body.Message,
 	}
 
@@ -10409,6 +10409,16 @@ func ValidateShareWeeklyBriefToChatRevisionConflictResponseBody(body *ShareWeekl
 	return
 }
 
+// ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody runs the
+// validations defined on
+// share-weekly-brief-to-chat_InternalServerError_response_body
+func ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody runs the validations
 // defined on share-weekly-brief-to-chat_NoChatWebhook_response_body
 func ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody(body *ShareWeeklyBriefToChatNoChatWebhookResponseBody) (err error) {
@@ -10422,16 +10432,6 @@ func ValidateShareWeeklyBriefToChatNoChatWebhookResponseBody(body *ShareWeeklyBr
 		if !(*body.Code == "no_chat_webhook") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.code", *body.Code, []any{"no_chat_webhook"}))
 		}
-	}
-	return
-}
-
-// ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody runs the
-// validations defined on
-// share-weekly-brief-to-chat_InternalServerError_response_body
-func ValidateShareWeeklyBriefToChatInternalServerErrorResponseBody(body *ShareWeeklyBriefToChatInternalServerErrorResponseBody) (err error) {
-	if body.Message == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
 	return
 }

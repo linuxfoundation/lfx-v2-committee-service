@@ -5735,19 +5735,6 @@ func EncodeShareWeeklyBriefToChatError(encoder func(context.Context, http.Respon
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusConflict)
 			return enc.Encode(body)
-		case "NoChatWebhook":
-			var res *committeeservice.NoChatWebhookError
-			errors.As(v, &res)
-			enc := encoder(ctx, w)
-			var body any
-			if formatter != nil {
-				body = formatter(ctx, res)
-			} else {
-				body = NewShareWeeklyBriefToChatNoChatWebhookResponseBody(res)
-			}
-			w.Header().Set("goa-error", res.GoaErrorName())
-			w.WriteHeader(http.StatusConflict)
-			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
 			errors.As(v, &res)
@@ -5760,6 +5747,19 @@ func EncodeShareWeeklyBriefToChatError(encoder func(context.Context, http.Respon
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NoChatWebhook":
+			var res *committeeservice.NoChatWebhookError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatNoChatWebhookResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusUnprocessableEntity)
 			return enc.Encode(body)
 		case "NotFound":
 			var res *committeeservice.NotFoundError

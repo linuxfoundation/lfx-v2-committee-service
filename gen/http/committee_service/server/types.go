@@ -2663,6 +2663,14 @@ type ShareWeeklyBriefToChatRevisionConflictResponseBody struct {
 	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
 }
 
+// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // ShareWeeklyBriefToChatNoChatWebhookResponseBody is the type of the
 // "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
 // response body for the "NoChatWebhook" error.
@@ -2670,14 +2678,6 @@ type ShareWeeklyBriefToChatNoChatWebhookResponseBody struct {
 	// Stable machine code
 	Code string `form:"code" json:"code" xml:"code"`
 	// Human-readable description
-	Message string `form:"message" json:"message" xml:"message"`
-}
-
-// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
-// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
-// response body for the "InternalServerError" error.
-type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
-	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
@@ -6345,22 +6345,22 @@ func NewShareWeeklyBriefToChatRevisionConflictResponseBody(res *committeeservice
 	return body
 }
 
+// NewShareWeeklyBriefToChatInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "share-weekly-brief-to-chat" endpoint
+// of the "committee-service" service.
+func NewShareWeeklyBriefToChatInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ShareWeeklyBriefToChatInternalServerErrorResponseBody {
+	body := &ShareWeeklyBriefToChatInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewShareWeeklyBriefToChatNoChatWebhookResponseBody builds the HTTP response
 // body from the result of the "share-weekly-brief-to-chat" endpoint of the
 // "committee-service" service.
 func NewShareWeeklyBriefToChatNoChatWebhookResponseBody(res *committeeservice.NoChatWebhookError) *ShareWeeklyBriefToChatNoChatWebhookResponseBody {
 	body := &ShareWeeklyBriefToChatNoChatWebhookResponseBody{
 		Code:    res.Code,
-		Message: res.Message,
-	}
-	return body
-}
-
-// NewShareWeeklyBriefToChatInternalServerErrorResponseBody builds the HTTP
-// response body from the result of the "share-weekly-brief-to-chat" endpoint
-// of the "committee-service" service.
-func NewShareWeeklyBriefToChatInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ShareWeeklyBriefToChatInternalServerErrorResponseBody {
-	body := &ShareWeeklyBriefToChatInternalServerErrorResponseBody{
 		Message: res.Message,
 	}
 	return body

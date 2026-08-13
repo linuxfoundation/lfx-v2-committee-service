@@ -1668,7 +1668,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("RevisionConflict", dsl.StatusConflict)
-			dsl.Response("NoChatWebhook", dsl.StatusConflict)
+			dsl.Response("NoChatWebhook", dsl.StatusUnprocessableEntity)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})
