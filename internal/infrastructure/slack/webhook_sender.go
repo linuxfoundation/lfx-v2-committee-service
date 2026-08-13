@@ -74,12 +74,15 @@ func (s *WebhookSender) Send(ctx context.Context, webhookURL string, text string
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		// *url.Error embeds the full URL — strip it before wrapping.
+		// Log the transport cause server-side (DNS/TLS details); pass nil to
+		// NewServiceUnavailable so the cause never reaches the 503 response body.
 		var urlErr *url.Error
 		if stderrors.As(err, &urlErr) {
-			return errors.NewServiceUnavailable("slack webhook unreachable", urlErr.Err)
+			slog.WarnContext(ctx, "slack webhook transport error", "cause", urlErr.Err)
+			return errors.NewServiceUnavailable("slack webhook unreachable", nil)
 		}
-		return errors.NewServiceUnavailable("slack webhook request failed", err)
+		slog.WarnContext(ctx, "slack webhook request failed", "cause", err)
+		return errors.NewServiceUnavailable("slack webhook request failed", nil)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
