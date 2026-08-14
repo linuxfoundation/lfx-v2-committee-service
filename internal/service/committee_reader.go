@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -67,6 +68,28 @@ type committeeReaderOrchestrator struct {
 	committeeReader port.CommitteeReader
 }
 
+// rewrapWithUID embeds the committee UID into a storage error's message so
+// that boundary log lines which log err.Error() carry the identifier, even
+// when the enriched ctx does not reach the logging frame. Domain error types
+// (NotFound, Validation, Conflict) are re-created as their original type so
+// wrapError's HTTP-status type switch continues to produce the correct status
+// code. Generic errors are wrapped with fmt.Errorf to preserve the chain.
+func rewrapWithUID(uid string, err error) error {
+	var nf errs.NotFound
+	if errors.As(err, &nf) {
+		return errs.NewNotFound(fmt.Sprintf("committee %q: %s", uid, nf.Error()))
+	}
+	var v errs.Validation
+	if errors.As(err, &v) {
+		return errs.NewValidation(fmt.Sprintf("committee %q: %s", uid, v.Error()))
+	}
+	var c errs.Conflict
+	if errors.As(err, &c) {
+		return errs.NewConflict(fmt.Sprintf("committee %q: %s", uid, c.Error()))
+	}
+	return fmt.Errorf("committee %q: %w", uid, err)
+}
+
 // GetBase retrieves committee base information by UID
 func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
@@ -76,7 +99,7 @@ func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) 
 	// Get committee base from storage
 	committeeBase, revision, err := rc.committeeReader.GetBase(ctx, uid)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(uid, err)
 	}
 
 	slog.DebugContext(ctx, "committee base retrieved successfully", "revision", revision)
@@ -93,7 +116,7 @@ func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid stri
 	// Get committee settings from storage
 	committeeSettings, revision, err := rc.committeeReader.GetSettings(ctx, uid)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(uid, err)
 	}
 
 	slog.DebugContext(ctx, "committee settings retrieved successfully", "revision", revision)
@@ -147,13 +170,13 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 	// First, verify that the committee exists
 	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(committeeUID, err)
 	}
 
 	// Get committee member from storage
 	committeeMember, revision, err := rc.committeeReader.GetMember(ctx, memberUID)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(committeeUID, err)
 	}
 
 	// Verify that the member belongs to the requested committee
@@ -175,7 +198,7 @@ func (rc *committeeReaderOrchestrator) ListMembersByCommittee(ctx context.Contex
 	// Get all committee members from storage
 	members, err := rc.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
-		return nil, err
+		return nil, rewrapWithUID(committeeUID, err)
 	}
 
 	slog.DebugContext(ctx, "committee members retrieved successfully", "member_count", len(members))

@@ -508,7 +508,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	committee.TotalMembers = actualCount
 
 	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
-		return err
+		return fmt.Errorf("committee %q update total_members: %w", committeeUID, err)
 	}
 
 	return nil
