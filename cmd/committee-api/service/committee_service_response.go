@@ -495,6 +495,8 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 	result.Writers = convertModelUsersToResponse(settings.Writers)
 	result.Auditors = convertModelUsersToResponse(settings.Auditors)
 
+	result.HasChatWebhook = settings.ChatWebhookURL != nil && *settings.ChatWebhookURL != ""
+
 	return result
 }
 
