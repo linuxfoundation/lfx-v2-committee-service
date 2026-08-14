@@ -124,6 +124,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `business_email_required` | bool | Whether a business email is required to join |
 | `show_meeting_attendees` | bool | Whether meeting attendees are visible |
 | `member_visibility` | string | Who can see members |
+| `has_chat_webhook` | bool | Whether a Slack Incoming Webhook URL is configured. Computed from `chat_webhook_url` at write time; the raw URL is never indexed. Records written before this field was introduced will have `false` regardless of whether a webhook was set. |
 | `last_reviewed_at` | string (optional) | RFC3339 timestamp of the last membership review |
 | `last_reviewed_by` | string (optional) | UID of who performed the last review |
 | `writers` | []object | Users with write access. Each object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username), and optionally `invite` (object — see [Invite Object](#invite-object)) when the user has no LFID yet |
