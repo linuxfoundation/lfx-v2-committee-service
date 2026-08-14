@@ -1919,10 +1919,13 @@ func (m *messageHandlerOrchestrator) reconcileUsernamesForEmail(ctx context.Cont
 	if err != nil {
 		var notFound errors.NotFound
 		if stderrors.As(err, &notFound) {
-			slog.DebugContext(ctx, "email not resolvable to an LFID yet — leaving seats email-only",
+			// For alternate_email_added the LFID must exist; NotFound means the auth index
+			// has not caught up yet. Return the error so JetStream retries rather than
+			// ACKing permanently and losing this reconciliation.
+			slog.WarnContext(ctx, "email not yet visible to auth lookup — NAKing for JetStream retry",
 				"email", redaction.RedactEmail(email),
 			)
-			return nil
+			return err
 		}
 		slog.ErrorContext(ctx, "failed to resolve username by email during user-email sync",
 			"email", redaction.RedactEmail(email),
@@ -2019,6 +2022,8 @@ func (m *messageHandlerOrchestrator) promoteEmailOnlyMemberUsername(writeCtx con
 		return nil
 	}
 
+	// Unreachable: the final iteration always returns (conflict on the last attempt falls through
+	// to return writeErr above). Required by the compiler for a bounded for loop.
 	return nil
 }
 

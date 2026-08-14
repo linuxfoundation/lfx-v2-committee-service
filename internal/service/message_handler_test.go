@@ -2838,11 +2838,12 @@ func TestMessageHandlerOrchestrator_HandleUserEmailChanged_AlternateEmailAdded(t
 			},
 		},
 		{
-			name:  "UsernameByEmail returns NotFound — ACK, no UpdateMember",
+			name:  "UsernameByEmail returns NotFound — NAK for retry, no UpdateMember",
 			email: targetEmail,
 			userReaderFn: func(_ context.Context, _ string) (string, error) {
 				return "", errs.NewNotFound("email not found")
 			},
+			wantErr:         true,
 			wantUpdateCalls: 0,
 		},
 		{
