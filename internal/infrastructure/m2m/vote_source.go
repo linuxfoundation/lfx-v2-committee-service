@@ -62,10 +62,13 @@ func NewVoteSource(cfg VoteSourceConfig, client *http.Client) *VoteSource {
 }
 
 type queryVoteData struct {
-	Subject string `json:"subject"`
-	URL     string `json:"url"`
-	Outcome string `json:"outcome"`
-	Private bool   `json:"private"`
+	// Name is the poll display name. The v1_vote indexer field is "name", not
+	// "subject" — using "subject" silently produced empty vote names.
+	Name                          string `json:"name"`
+	URL                           string `json:"url"`
+	Status                        string `json:"status"`
+	NumResponseReceived           int    `json:"num_response_received"`
+	TotalVotingRequestInvitations int    `json:"total_voting_request_invitations"`
 }
 
 // ListVoteActivityForWindow fetches votes tagged with the committee UID whose
@@ -87,8 +90,10 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 	q.Set("v", "1")
 	q.Set("type", v.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
-	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	// Filter by end_time: we want votes that closed within the window.
+	// The v1_vote resource has no start_time field; end_time is the close date.
+	q.Set("end_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("end_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -124,11 +129,12 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 			}
 		}
 		out = append(out, port.VoteActivity{
-			VoteID:  r.UID,
-			Subject: data.Subject,
-			URL:     data.URL,
-			Outcome: data.Outcome,
-			Private: data.Private,
+			VoteID:          r.UID,
+			Name:            data.Name,
+			URL:             data.URL,
+			Status:          data.Status,
+			ResponseCount:   data.NumResponseReceived,
+			InvitationCount: data.TotalVotingRequestInvitations,
 		})
 	}
 	return out, nil

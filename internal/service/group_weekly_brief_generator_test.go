@@ -949,3 +949,109 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 		assert.Contains(t, claims[0].Summary, "1 new member")  // updated
 	})
 }
+
+// ── voteTallyLabel ────────────────────────────────────────────────────────────
+
+func TestVoteTallyLabel_NilTally_ReturnsEmpty(t *testing.T) {
+	v := port.VoteActivity{VoteID: "v1", Name: "Approval"}
+	assert.Equal(t, "", voteTallyLabel(v))
+}
+
+func TestVoteTallyLabel_EmptyChoices_ReturnsEmpty(t *testing.T) {
+	v := port.VoteActivity{
+		VoteID: "v1",
+		Tally:  &port.VoteTally{NumRecipients: 5, NumVotesCast: 3, ChoiceResults: nil},
+	}
+	assert.Equal(t, "", voteTallyLabel(v))
+}
+
+func TestVoteTallyLabel_FormatsChoicesAndCounts(t *testing.T) {
+	v := port.VoteActivity{
+		VoteID: "v1",
+		Tally: &port.VoteTally{
+			NumRecipients: 10,
+			NumVotesCast:  8,
+			ChoiceResults: []port.VoteChoiceResult{
+				{ChoiceID: "c1", ChoiceText: "Yes", VoteCount: 6},
+				{ChoiceID: "c2", ChoiceText: "No", VoteCount: 2},
+			},
+		},
+	}
+	got := voteTallyLabel(v)
+	assert.Equal(t, " — 6 Yes, 2 No (8 of 10 voted)", got)
+}
+
+func TestVoteTallyLabel_FallsBackToChoiceID_WhenTextEmpty(t *testing.T) {
+	v := port.VoteActivity{
+		VoteID: "v1",
+		Tally: &port.VoteTally{
+			NumRecipients: 5,
+			NumVotesCast:  3,
+			ChoiceResults: []port.VoteChoiceResult{
+				{ChoiceID: "choice-yes", ChoiceText: "", VoteCount: 3},
+			},
+		},
+	}
+	got := voteTallyLabel(v)
+	assert.Contains(t, got, "choice-yes", "must fall back to ChoiceID when ChoiceText is empty")
+}
+
+func TestVoteTallyLabel_SanitizesChoiceText(t *testing.T) {
+	long := strings.Repeat("x", 100)
+	v := port.VoteActivity{
+		VoteID: "v1",
+		Tally: &port.VoteTally{
+			NumRecipients: 2,
+			NumVotesCast:  1,
+			ChoiceResults: []port.VoteChoiceResult{
+				{ChoiceID: "c1", ChoiceText: "Line1\nLine2", VoteCount: 1},
+				{ChoiceID: "c2", ChoiceText: long, VoteCount: 0},
+			},
+		},
+	}
+	got := voteTallyLabel(v)
+	assert.NotContains(t, got, "\n", "newlines must be stripped from ChoiceText")
+	assert.Contains(t, got, "Line1 Line2", "newline replaced with space")
+	// The long label should be capped at 80 runes
+	for _, part := range strings.Split(got, ", ") {
+		// strip the leading count (e.g. "0 xxxxxxxxx...")
+		if idx := strings.Index(part, " "); idx >= 0 {
+			label := part[idx+1:]
+			// trim trailing " (N of M voted)" if present
+			if i := strings.Index(label, " ("); i >= 0 {
+				label = label[:i]
+			}
+			assert.LessOrEqual(t, len([]rune(label)), 80, "choice label must be capped at 80 runes")
+		}
+	}
+}
+
+// ── voteParticipationExcerpt ──────────────────────────────────────────────────
+
+func TestVoteParticipationExcerpt_WithTally_UsesTallyNumbers(t *testing.T) {
+	v := port.VoteActivity{
+		VoteID: "v1",
+		Tally: &port.VoteTally{
+			NumRecipients: 10,
+			NumVotesCast:  8,
+			NumAbstained:  1,
+		},
+	}
+	got := voteParticipationExcerpt(v)
+	assert.Equal(t, "8 of 10 voted, 1 abstained", got)
+}
+
+func TestVoteParticipationExcerpt_NoTally_WithInvitation_UsesResponseCounts(t *testing.T) {
+	v := port.VoteActivity{
+		VoteID:          "v1",
+		ResponseCount:   7,
+		InvitationCount: 12,
+	}
+	got := voteParticipationExcerpt(v)
+	assert.Equal(t, "7 of 12 responded", got)
+}
+
+func TestVoteParticipationExcerpt_NoTallyNoInvitation_ReturnsEmpty(t *testing.T) {
+	v := port.VoteActivity{VoteID: "v1"}
+	assert.Equal(t, "", voteParticipationExcerpt(v))
+}
