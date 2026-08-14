@@ -416,10 +416,12 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
-	// Set timestamps for committee settings if they exist
+	// Set timestamps and derived fields for committee settings if they exist
 	if committee.CommitteeSettings != nil {
 		committee.CommitteeSettings.CreatedAt = now
 		committee.CommitteeSettings.UpdatedAt = now
+		cs := committee.CommitteeSettings
+		cs.HasChatWebhook = cs.ChatWebhookURL != nil && *cs.ChatWebhookURL != ""
 	}
 
 	// for rollback purposes
@@ -866,6 +868,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	} else if *settings.ChatWebhookURL == "" {
 		settings.ChatWebhookURL = nil
 	}
+	settings.HasChatWebhook = settings.ChatWebhookURL != nil && *settings.ChatWebhookURL != ""
 
 	// Step 3: Update the committee settings in storage
 	errUpdate := uc.committeeWriter.UpdateSetting(ctx, settings, revision)
