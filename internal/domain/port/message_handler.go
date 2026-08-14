@@ -58,6 +58,13 @@ type CommitteeNotificationHandler interface {
 	// auditors of the committee when a new link is added. Best-effort: send errors are logged
 	// but not returned.
 	HandleCommitteeLinkCreated(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeApplicationSubmitted fans out notification emails to all LFID writers
+	// when a new application is submitted (or reinstated). Best-effort: send errors are logged
+	// but not returned.
+	HandleCommitteeApplicationSubmitted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeApplicationUpdated sends a notification email to the applicant when their
+	// application is approved or rejected. Best-effort: send errors are logged but not returned.
+	HandleCommitteeApplicationUpdated(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // WeeklyBriefGenerateHandler handles the durable async weekly-brief generation
@@ -76,6 +83,13 @@ type UserEmailSyncHandler interface {
 	HandleUserEmailChanged(ctx context.Context, msg StreamMessenger) error
 }
 
+// UserEventHandler handles user lifecycle events from external services.
+type UserEventHandler interface {
+	// HandleUserDeleted scrubs the deleted user's username from committee members
+	// and settings writers/auditors that still carry it.
+	HandleUserDeleted(ctx context.Context, msg TransportMessenger) ([]byte, error)
+}
+
 // MessageHandler is the aggregate interface for all inbound NATS message handlers.
 type MessageHandler interface {
 	CommitteeAttributeHandler
@@ -84,4 +98,5 @@ type MessageHandler interface {
 	CommitteeNotificationHandler
 	WeeklyBriefGenerateHandler
 	UserEmailSyncHandler
+	UserEventHandler
 }

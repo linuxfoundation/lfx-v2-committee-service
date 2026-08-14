@@ -22,6 +22,11 @@ type WeeklyBriefInput struct {
 	PeriodEnd   string
 	// Claims is the curated set of evidence rows the model should ground on.
 	Claims []ClaimEvidence
+	// RawContext is a sanitized, fenced block of source excerpts that the
+	// adapter should include verbatim in the prompt for richer grounding.
+	// Each entry is delimited by a header line so the model can cite by source.
+	// Empty string when no approved AI summaries are available for the window.
+	RawContext string
 }
 
 // ClaimEvidence is one grounded fact the adapter should weave into the brief.
@@ -63,4 +68,11 @@ type AIAdapter interface {
 	// Implementations MUST validate that the returned WeeklyBrief has at least
 	// one claim_id, one source_ref, and a two-paragraph brief.
 	GenerateWeeklyBrief(ctx context.Context, in WeeklyBriefInput) (WeeklyBrief, error)
+
+	// PromptVersion returns the version label of the prompt template currently
+	// loaded by this adapter. The value is persisted on every generated brief
+	// so regressions can be traced back to the exact prompt revision.
+	// Implementations that do not use configurable prompts (e.g. FakeAdapter)
+	// return a fixed label such as "fake".
+	PromptVersion() string
 }

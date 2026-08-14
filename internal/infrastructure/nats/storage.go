@@ -820,6 +820,98 @@ func (s *storage) ListMembersByEmail(ctx context.Context, email string) ([]*mode
 	return members, nil
 }
 
+// IndexMemberByUsername writes the secondary index entry
+// "lookup/committee-members-by-username/<username_hash>.<member_uid>" → <member_uid> into the
+// committee-members bucket, so ListMembersByUsername can use a server-side filtered scan rather
+// than a full bucket scan. The username segment is the SHA-256 hex of the normalized username
+// (strings.TrimSpace + strings.ToLower), matching model.CommitteeMember.BuildUsernameIndexKey.
+//
+// Members without a username produce an empty hash and no index entry is written (returns "", nil).
+// jetstream.ErrKeyExists is treated as idempotent success.
+func (s *storage) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	if member == nil {
+		return "", errs.NewValidation("committee member cannot be nil")
+	}
+	if member.UID == "" {
+		return "", errs.NewValidation("committee member UID must be non-empty")
+	}
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
+	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
+		if errors.Is(err, jetstream.ErrKeyExists) {
+			return key, nil
+		}
+		return key, errs.NewUnexpected("failed to index member by username", err)
+	}
+	return key, nil
+}
+
+// ListMembersByUsername retrieves all committee members whose normalized username matches the given
+// LFID, using the by-username secondary index. It performs a server-side filtered scan of
+// "lookup/committee-members-by-username/<username_hash>.*" so only members with that username are
+// fetched. A defensive consistency re-check skips stale entries left by in-flight username-change
+// cleanups.
+func (s *storage) ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error) {
+	probe := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{Username: username}}
+	usernameHash := probe.BuildUsernameIndexKey(ctx)
+	if usernameHash == "" {
+		return nil, errs.NewValidation("username cannot be empty")
+	}
+
+	slog.DebugContext(ctx, "listing committee members by username from NATS storage")
+
+	filter := fmt.Sprintf(constants.KVLookupMembersByUsernameFilter, usernameHash)
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeysFiltered(ctx, filter)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list member index keys for username", errKeys)
+	}
+	defer func() { _ = keys.Stop() }()
+
+	var members []*model.CommitteeMember
+
+	// Each key is "lookup/committee-members-by-username/<username_hash>.<member_uid>".
+	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	for key := range keys.Keys() {
+		dotIdx := strings.LastIndex(key, ".")
+		if dotIdx < 0 || dotIdx == len(key)-1 {
+			slog.WarnContext(ctx, "skipping malformed username member index key", "key", key)
+			continue
+		}
+		memberUID := key[dotIdx+1:]
+
+		member := &model.CommitteeMember{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+		if errGet != nil {
+			if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+				// Stale index key: the member was deleted but the index entry lagged behind.
+				slog.WarnContext(ctx, "skipping stale username member index entry; member no longer exists",
+					"member_uid", memberUID)
+				continue
+			}
+			return nil, errs.NewUnexpected("failed to get member while listing by username", errGet)
+		}
+
+		// Defensive consistency check: username-change stale-key cleanup runs asynchronously,
+		// so a lagging cleanup can leave an index key pointing at a member whose username has since
+		// changed. Skip such entries.
+		if member.BuildUsernameIndexKey(ctx) != usernameHash {
+			slog.WarnContext(ctx, "skipping stale username member index entry; member username no longer matches",
+				"member_uid", memberUID, "index_username_hash", usernameHash)
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	slog.DebugContext(ctx, "retrieved committee members by username from NATS storage",
+		"member_count", len(members))
+
+	return members, nil
+}
+
 // ================== CommitteeInviteReader implementation ==================
 
 // GetInvite retrieves a committee invite by invite UID
@@ -1079,9 +1171,14 @@ func (s *storage) IsReady(ctx context.Context) error {
 	return s.client.IsReady(ctx)
 }
 
-// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
-func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
+// NewStorageBackend creates the concrete NATS storage implementation.
+func NewStorageBackend(client *NATSClient) *storage {
 	return &storage{
 		client: client,
 	}
+}
+
+// NewStorage creates a new NATS JetStream KV-backed storage that implements the CommitteeReaderWriter port.
+func NewStorage(client *NATSClient) port.CommitteeReaderWriter {
+	return NewStorageBackend(client)
 }

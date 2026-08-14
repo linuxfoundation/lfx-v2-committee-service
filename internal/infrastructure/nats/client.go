@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -23,11 +24,13 @@ import (
 
 // NATSClient wraps the NATS connection and provides access control operations
 type NATSClient struct {
-	conn     *nats.Conn
-	config   Config
-	kvStore  map[string]jetstream.KeyValue
-	objStore map[string]jetstream.ObjectStore
-	timeout  time.Duration
+	conn        *nats.Conn
+	config      Config
+	kvMu        sync.RWMutex
+	kvStore     map[string]jetstream.KeyValue
+	kvStoreLazy map[string]jetstream.KeyValue
+	objStore    map[string]jetstream.ObjectStore
+	timeout     time.Duration
 }
 
 // NATSClientInterface defines the interface for NATS operations
@@ -81,6 +84,47 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 	}
 	c.kvStore[bucketName] = kvStore
 	return nil
+}
+
+// GetOrBindKVStore returns the KV handle for bucketName. If the bucket was
+// absent at startup (e.g. a pod that booted before the bucket was provisioned),
+// it attempts to bind on first access so the pod self-heals without a restart.
+//
+// Lazy handles are kept in kvStoreLazy, separate from the startup-populated
+// kvStore. kvStore is written only during NewClient (single-threaded) so the
+// 50+ call sites that read it directly remain race-free. kvStoreLazy is always
+// accessed under kvMu. The NATS bind call itself runs outside the lock so
+// concurrent cache-hit lookups are never blocked by an in-flight bind.
+func (c *NATSClient) GetOrBindKVStore(ctx context.Context, bucketName string) (jetstream.KeyValue, error) {
+	c.kvMu.RLock()
+	kv, ok := c.kvStoreLazy[bucketName]
+	c.kvMu.RUnlock()
+	if ok {
+		return kv, nil
+	}
+
+	// Bind outside the lock — js.KeyValue is a network call and must not hold
+	// kvMu while it waits, which would block concurrent cache-hit lookups.
+	js, err := jetstream.New(c.conn)
+	if err != nil {
+		return nil, errors.NewServiceUnavailable("failed to create JetStream client", err)
+	}
+	kv, err = js.KeyValue(ctx, bucketName)
+	if err != nil {
+		return nil, errors.NewServiceUnavailable(fmt.Sprintf("%s bucket not initialized", bucketName), err)
+	}
+
+	c.kvMu.Lock()
+	defer c.kvMu.Unlock()
+	if existing, ok := c.kvStoreLazy[bucketName]; ok {
+		return existing, nil
+	}
+	if c.kvStoreLazy == nil {
+		c.kvStoreLazy = make(map[string]jetstream.KeyValue)
+	}
+	c.kvStoreLazy[bucketName] = kv
+	slog.InfoContext(ctx, "weekly-brief KV bucket bound on first access", "bucket", bucketName)
+	return kv, nil
 }
 
 // ObjectStore creates a JetStream client and gets the object store by name.
@@ -266,27 +310,6 @@ func NewClient(ctx context.Context, config Config) (*NATSClient, error) {
 				"bucket", bucketName,
 			)
 			return nil, errors.NewServiceUnavailable("failed to initialize NATS key-value store", err)
-		}
-		slog.InfoContext(ctx, "NATS key-value store initialized",
-			"bucket", bucketName,
-		)
-	}
-
-	// Weekly-brief buckets are initialized best-effort. If they aren't yet
-	// provisioned (e.g. a rolling deploy where the chart hasn't created them, or
-	// a local NATS without them) the service still starts; only the weekly-brief
-	// endpoints return ServiceUnavailable until the buckets exist.
-	for _, bucketName := range []string{
-		constants.KVBucketNameGroupWeeklyBriefs,
-		constants.KVBucketNameGroupWeeklyBriefUIDIndex,
-		constants.KVBucketNameGroupWeeklyBriefThrottle,
-	} {
-		if err := client.KeyValueStore(ctx, bucketName); err != nil {
-			slog.WarnContext(ctx, "weekly-brief KV bucket not initialized; weekly-brief endpoints will be unavailable until it is provisioned",
-				"error", err,
-				"bucket", bucketName,
-			)
-			continue
 		}
 		slog.InfoContext(ctx, "NATS key-value store initialized",
 			"bucket", bucketName,

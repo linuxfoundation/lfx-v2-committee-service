@@ -23,6 +23,20 @@ aren't preceded by a nil/empty guard.
 
 **Empirical citation:** PR #14 `cmd/committee-api/service/committee_member_service.go:70` (CodeRabbit) — "Create returns (nil, nil) — high risk of runtime failure or incorrect 200 OK" (recurs at :99/:134/:164 and `committee_service.go:233/261`). Nil-deref recurs PR #6 `committee_service.go:82` (CodeRabbit, "Nil-UID will panic – validate incoming request"), PR #41 `committee_service_response.go:172` (jordane, "we're dereferencing base without checking it ... not safe to use unless this has been done"), PR #97 `committee_service.go:1457` ("Guard against nil `Claim` output before dereference").
 
+**Revised 2026-07-31 — primary citation's file is gone; entry stays active.** PR #14's
+`cmd/committee-api/service/committee_member_service.go` **no longer exists at `main@bd39fe9`**, so the `:70`
+/ `:99` / `:134` / `:164` line references cannot be resolved. The thread is retained as provenance — it is
+real history and the shape it describes is real — but do not send a reviewer looking for that file. The
+recurrence citations (`committee_service.go:233/261`, PR #6 `:82`, PR #41 `committee_service_response.go:172`,
+PR #97 `:1457`) are unaffected: they are anchored to their own PRs, which is what a provenance citation is for.
+
+**No live violation at `main@bd39fe9`.** Every `return nil, nil` under `cmd/committee-api/service/` is
+either in `_test.go`, in `providers.go` wiring, or in an internal helper where a nil pair is the correct
+answer (`stampAuditUsers` returns `nil, nil` when there is no requesting user). The Detect stays as written
+— the path is live code and the shape would be a Critical if reintroduced — but nothing currently matches,
+so do not report one on the strength of a bare `return nil, nil` without checking it is a Goa service method
+that owes a result.
+
 **Failure message:** Goa service method returns `(nil, nil)` (misleading 200) or dereferences a payload pointer without a nil guard (panic risk).
 
 **Fix:** return a concrete result or a typed `pkg/errors` value; validate required pointer fields (UID, etc.) and return `errors.NewValidation` before dereferencing.
@@ -104,3 +118,34 @@ size cap (`http.MaxBytesReader`), and closes each part.
 **Failure message:** Custom multipart decoder bypasses generated validation / lacks a total-size cap / leaks unclosed parts.
 
 **Fix:** decode into the generated request-body type and call `Validate*RequestBody`; normalize the media type before the allowlist check; wrap the body with `http.MaxBytesReader`; close every part (including on error paths).
+
+---
+
+## `goa-presentation/url-scheme-allowlist` — Critical
+
+**Pattern:** a URL-bearing design attribute validates shape but not scheme. `dsl.FormatURI` accepts any URI
+scheme, and a `Pattern` whose `https?://` prefix is optional lets the scheme fall through to the permissive
+tail. A `javascript:` URI then satisfies validation, is persisted, and is returned to the UI as a link.
+
+**Detect:** a new or changed URL-bearing attribute in `cmd/committee-api/design/**` that relies on
+`dsl.Format(dsl.FormatURI)` alone, or declares a `Pattern` in which the scheme prefix is optional — an
+`(https?://)?` group is the tell. Require the shared `urlPattern`
+(`cmd/committee-api/design/type.go:208`) or an equivalent explicitly anchored `^https?://`.
+
+**Empirical citation:** PR #149 `cmd/committee-api/design/type.go:220`
+(`copilot-pull-request-reviewer`, thread `r3560697597`) — "`FormatURI` accepts non-HTTP URI schemes, and this
+pattern does not close that gap because its optional prefix lets the scheme be consumed by the fallback. For
+example, `javascript:alert(1)` matches the regex and is a valid URI, so it can be persisted and returned as a
+repository link."
+
+Fixed in `91e89f5`, which changed `^(https?://)?[^\s/$.?#].[^\s]*$` to `^https?://[^\s/$.?#][^\s]*$` and
+added `TestURLPattern` covering the rejected schemes. Verified at `main@bd39fe9`
+`cmd/committee-api/design/type.go:208` and `cmd/committee-api/design/type_test.go:11`.
+
+**Why it earns a place:** cost of miss is a stored-XSS vector — a persisted `javascript:` URI rendered as a
+link reaches the self-serve UI — and the fix landed with a regression test, which is the strongest acted-on
+signal available.
+
+**Failure message:** URL attribute accepts non-HTTP(S) schemes; a `javascript:` URI passes validation and can be persisted and rendered as a link.
+
+**Fix:** use the shared `urlPattern` from `cmd/committee-api/design/type.go`, or anchor the scheme explicitly with `^https?://`, and add the rejected schemes to `TestURLPattern`.

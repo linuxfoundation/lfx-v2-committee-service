@@ -106,6 +106,7 @@ func main() {
 		usecaseSvc.WithProjectRetriever(projectRetriever),
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(committeePublisher),
+		usecaseSvc.WithB2BOrgResolver(service.B2BOrgResolverImpl(ctx)),
 	)
 
 	readCommitteeUseCase := usecaseSvc.NewCommitteeReaderOrchestrator(
@@ -151,12 +152,19 @@ func main() {
 		usecaseSvc.WithMailingListSource(mailingListSource),
 		usecaseSvc.WithVoteSource(voteSource),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
+		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithAIAdapter(aiAdapter),
 	)
 
 	weeklyBriefWriterUseCase := usecaseSvc.NewGroupWeeklyBriefWriterOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForWriter(weeklyBriefReader),
 		usecaseSvc.WithGroupWeeklyBriefWriterForWriter(weeklyBriefWriter),
+	)
+
+	weeklyBriefSharerUseCase := usecaseSvc.NewGroupWeeklyBriefSharerOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForSharer(weeklyBriefReader),
+		usecaseSvc.WithCommitteeSettingsReaderForSharer(readCommitteeUseCase),
+		usecaseSvc.WithSlackSenderForSharer(service.SlackSenderImpl(ctx)),
 	)
 
 	committeeServiceSvc := service.NewCommitteeService(
@@ -175,6 +183,7 @@ func main() {
 		weeklyBriefReaderUseCase,
 		weeklyBriefGeneratorUseCase,
 		weeklyBriefWriterUseCase,
+		weeklyBriefSharerUseCase,
 		orgCommitteeSeatReader,
 	)
 

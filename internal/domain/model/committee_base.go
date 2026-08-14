@@ -28,35 +28,61 @@ type Committee struct {
 
 // CommitteeBase represents the base committee attributes without settings
 type CommitteeBase struct {
-	UID              string    `json:"uid"`
-	ProjectUID       string    `json:"project_uid"`
-	ProjectName      string    `json:"project_name,omitempty"`
-	ProjectSlug      string    `json:"project_slug,omitempty"`
-	Name             string    `json:"name"`
-	Category         string    `json:"category"`
-	Description      string    `json:"description,omitempty"`
-	Website          *string   `json:"website,omitempty"`
-	MailingList      *string   `json:"mailing_list,omitempty"`
-	ChatChannel      *string   `json:"chat_channel,omitempty"`
-	EnableVoting     bool      `json:"enable_voting"`
-	SSOGroupEnabled  bool      `json:"sso_group_enabled"`
-	SSOGroupName     string    `json:"sso_group_name,omitempty"`
-	RequiresReview   bool      `json:"requires_review"`
-	Public           bool      `json:"public"`
-	JoinMode         string    `json:"join_mode,omitempty"`
-	Calendar         Calendar  `json:"calendar,omitempty"`
-	DisplayName      string    `json:"display_name,omitempty"`
-	ParentUID        *string   `json:"parent_uid,omitempty"`
-	TotalMembers     int       `json:"total_members"`
-	TotalVotingRepos int       `json:"total_voting_repos"`
-	HasMailingList   bool      `json:"has_mailing_list"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	UID              string           `json:"uid"`
+	ProjectUID       string           `json:"project_uid"`
+	ProjectName      string           `json:"project_name,omitempty"`
+	ProjectSlug      string           `json:"project_slug,omitempty"`
+	Name             string           `json:"name"`
+	Category         string           `json:"category"`
+	Description      string           `json:"description,omitempty"`
+	Website          *string          `json:"website,omitempty"`
+	MailingList      *string          `json:"mailing_list,omitempty"`
+	ChatChannel      *string          `json:"chat_channel,omitempty"`
+	EnableVoting     bool             `json:"enable_voting"`
+	SSOGroupEnabled  bool             `json:"sso_group_enabled"`
+	SSOGroupName     string           `json:"sso_group_name,omitempty"`
+	RequiresReview   bool             `json:"requires_review"`
+	Public           bool             `json:"public"`
+	JoinMode         string           `json:"join_mode,omitempty"`
+	Calendar         Calendar         `json:"calendar,omitempty"`
+	DisplayName      string           `json:"display_name,omitempty"`
+	ParentUID        *string          `json:"parent_uid,omitempty"`
+	Repository       *string          `json:"repository,omitempty"`
+	Scope            []string         `json:"scope,omitempty"`
+	Deliverables     []string         `json:"deliverables,omitempty"`
+	KeyDates         []KeyDate        `json:"key_dates,omitempty"`
+	ExternalSources  []ExternalSource `json:"external_sources,omitempty"`
+	TotalMembers     int              `json:"total_members"`
+	TotalVotingRepos int              `json:"total_voting_repos"`
+	HasMailingList   bool             `json:"has_mailing_list"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 // Calendar represents committee calendar settings
 type Calendar struct {
 	Public bool `json:"public"`
+}
+
+// KeyDate represents a single entry in a committee's key-dates timeline.
+type KeyDate struct {
+	Date  string `json:"date"`
+	Label string `json:"label"`
+}
+
+// ExternalSource represents a single source-labeled external entity linked to a
+// committee (e.g. an OCG group or event). External source data is linked activity
+// metadata only; it never overrides a committee's canonical category, governance
+// status, or other LFX-owned attributes.
+type ExternalSource struct {
+	Provider              string `json:"provider"`
+	EntityType            string `json:"entity_type"`
+	Label                 string `json:"label"`
+	URL                   string `json:"url"`
+	ExternalID            string `json:"external_id,omitempty"`
+	ExternalCategory      string `json:"external_category,omitempty"`
+	ExternalRegion        string `json:"external_region,omitempty"`
+	ExternalEventCategory string `json:"external_event_category,omitempty"`
 }
 
 // SSOGroupNameBuild builds the SSO group name for the committee based on the project slug and committee name.
@@ -141,6 +167,16 @@ func (c *Committee) Tags() []string {
 
 	if c.Category != "" {
 		tag := fmt.Sprintf("category:%s", c.Category)
+		tags = append(tags, tag)
+	}
+
+	if c.DisplayName != "" {
+		tag := fmt.Sprintf("display_name:%s", c.DisplayName)
+		tags = append(tags, tag)
+	}
+
+	if c.SSOGroupName != "" {
+		tag := fmt.Sprintf("sso_group_name:%s", c.SSOGroupName)
 		tags = append(tags, tag)
 	}
 

@@ -15,18 +15,21 @@ import (
 // MockAuthService provides a mock implementation of the authentication service
 type MockAuthService struct{}
 
-// ParsePrincipal returns a mock principal from environment variables (ignores token parameter)
-func (m *MockAuthService) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, error) {
+// ParsePrincipal returns a mock principal and email from environment variables (ignores token parameter).
+// Set JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL to simulate a JWT email claim in local dev.
+func (m *MockAuthService) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
 	principal := os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL")
 	if principal == "" {
-		return "", errors.NewValidation("mock principal not configured in JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL")
+		return "", "", errors.NewValidation("mock principal not configured in JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL")
 	}
+
+	email := os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL")
 
 	logger.DebugContext(ctx, "parsed principal",
 		"user_id", principal,
 	)
 
-	return principal, nil
+	return principal, email, nil
 }
 
 // NewMockAuthService creates a new mock authentication service

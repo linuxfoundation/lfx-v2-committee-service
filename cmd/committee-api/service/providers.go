@@ -21,6 +21,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -31,10 +32,11 @@ import (
 )
 
 var (
-	natsStorage    port.CommitteeReaderWriter
-	natsMessaging  port.ProjectReader
-	natsUserReader port.UserReader
-	natsPublisher  port.CommitteePublisher
+	natsStorage        port.CommitteeReaderWriter
+	natsMessaging      port.ProjectReader
+	natsUserReader     port.UserReader
+	natsB2BOrgResolver port.B2BOrgResolver
+	natsPublisher      port.CommitteePublisher
 
 	// expose the NATS client for direct access in subscriptions
 	natsClient *nats.NATSClient
@@ -92,6 +94,7 @@ func natsInit(ctx context.Context) {
 		natsStorage = nats.NewStorage(client)
 		natsMessaging = nats.NewMessageRequest(client)
 		natsUserReader = nats.NewUserRequest(client)
+		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
@@ -231,6 +234,27 @@ func UserReaderImpl(ctx context.Context) port.UserReader {
 	return userReader
 }
 
+// B2BOrgResolverImpl initializes the b2b_org resolver used to validate committee member
+// organization.id values (LFXV2-2400). Returns nil in mock mode.
+func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		return nil
+	case "nats":
+		natsInit(ctx)
+		return natsB2BOrgResolver
+	default:
+		log.Fatalf("unsupported b2b org resolver implementation: %s", repoSource)
+	}
+
+	return nil
+}
+
 // AuthServiceImpl initializes the authentication service implementation
 func AuthServiceImpl(ctx context.Context) port.Authenticator {
 	var authService port.Authenticator
@@ -248,8 +272,10 @@ func AuthServiceImpl(ctx context.Context) port.Authenticator {
 	case "jwt":
 		slog.InfoContext(ctx, "initializing JWT authentication service")
 		jwtConfig := auth.JWTAuthConfig{
-			JWKSURL:  os.Getenv("JWKS_URL"),
-			Audience: os.Getenv("JWT_AUDIENCE"),
+			JWKSURL:            os.Getenv("JWKS_URL"),
+			Audience:           os.Getenv("JWT_AUDIENCE"),
+			MockLocalPrincipal: os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL"),
+			MockLocalEmail:     os.Getenv("JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL"),
 		}
 		if jwtConfig.JWKSURL == "" || jwtConfig.Audience == "" {
 			log.Fatalf("JWT configuration incomplete: JWKS_URL and JWT_AUDIENCE are required")
@@ -288,9 +314,10 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 		return ai.NewFakeAdapter()
 	case "live":
 		cfg := ai.LiteLLMConfig{
-			BaseURL: os.Getenv("LITELLM_BASE_URL"),
-			APIKey:  os.Getenv("LITELLM_API_KEY"),
-			Model:   os.Getenv("LITELLM_MODEL"),
+			BaseURL:   os.Getenv("LITELLM_BASE_URL"),
+			APIKey:    os.Getenv("LITELLM_API_KEY"),
+			Model:     os.Getenv("LITELLM_MODEL"),
+			PromptDir: os.Getenv("WEEKLY_BRIEF_PROMPT_DIR"),
 		}
 		if cfg.BaseURL == "" || cfg.APIKey == "" || cfg.Model == "" {
 			log.Fatalf(
@@ -299,9 +326,14 @@ func AIAdapterImpl(ctx context.Context) port.AIAdapter {
 				cfg.BaseURL, cfg.APIKey != "", cfg.Model,
 			)
 		}
+		adapter := ai.NewLiteLLMAdapter(cfg)
+		if cfg.PromptDir == "" {
+			slog.WarnContext(ctx, "weekly-brief prompt template not loaded: WEEKLY_BRIEF_PROMPT_DIR is unset; "+
+				"brief generation will fail until it is set to the ConfigMap mount path")
+		}
 		slog.InfoContext(ctx, "initializing live LiteLLM AI adapter",
-			"ai_source", aiSource, "model", cfg.Model)
-		return ai.NewLiteLLMAdapter(cfg)
+			"ai_source", aiSource, "model", cfg.Model, "prompt_dir", cfg.PromptDir)
+		return adapter
 	default:
 		log.Fatalf("unsupported AI adapter implementation: %s (expected one of: fake, live)", aiSource)
 	}
@@ -641,6 +673,21 @@ func MeetingSourceImpl(ctx context.Context) port.MeetingSource {
 	}, client)
 }
 
+// MeetingAISummarySourceImpl builds the AI meeting summary source. It reuses
+// the same QUERY_SERVICE_URL and M2M HTTP client as MeetingSourceImpl. When
+// QUERY_SERVICE_URL is unset the source returns zero summaries (graceful degrade).
+func MeetingAISummarySourceImpl(ctx context.Context) port.MeetingAISummarySource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; AI meeting summary source will return zero summaries")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewMeetingAISummarySource(m2m.MeetingAISummarySourceConfig{
+		BaseURL: baseURL,
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
 // MailingListSourceImpl builds the live mailing-list source. When
 // QUERY_SERVICE_URL is unset the source returns zero threads (graceful
 // degrade). The query-service resource type defaults to
@@ -816,6 +863,13 @@ func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocume
 	return nil
 }
 
+// SlackSenderImpl returns a Slack Incoming Webhook sender.
+// The natural gate is whether a chat_webhook_url is stored for the committee;
+// no env flag is needed.
+func SlackSenderImpl(_ context.Context) port.SlackSender {
+	return slack.NewWebhookSender(nil)
+}
+
 // QueueSubscriptions starts all NATS subscriptions with the provided dependencies
 func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReader) error {
 	slog.InfoContext(ctx, "starting NATS subscriptions")
@@ -829,6 +883,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(GroupWeeklyBriefReaderImpl(ctx)),
 		usecaseSvc.WithGroupWeeklyBriefWriter(GroupWeeklyBriefWriterImpl(ctx)),
 		usecaseSvc.WithMeetingSource(MeetingSourceImpl(ctx)),
+		usecaseSvc.WithMeetingAISummarySource(MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
 		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
@@ -852,6 +907,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 					usecaseSvc.WithProjectRetriever(ProjectRetrieverImpl(ctx)),
 					usecaseSvc.WithUserReader(UserReaderImpl(ctx)),
 					usecaseSvc.WithCommitteePublisher(CommitteePublisherImpl(ctx)),
+					usecaseSvc.WithB2BOrgResolver(B2BOrgResolverImpl(ctx)),
 				),
 			),
 			usecaseSvc.WithCommitteeWriterForMessageHandler(CommitteeWriterImpl(ctx)),
@@ -860,6 +916,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 			usecaseSvc.WithInviteSenderForMessageHandler(InviteSenderImpl(ctx)),
 			usecaseSvc.WithLFXSelfServeBaseURLForMessageHandler(LFXSelfServeBaseURL()),
 			usecaseSvc.WithUserReaderForMessageHandler(UserReaderImpl(ctx)),
+			usecaseSvc.WithProjectReaderForMessageHandler(ProjectRetrieverImpl(ctx)),
 			usecaseSvc.WithLinkReaderForMessageHandler(CommitteeLinkReaderWriterImpl(ctx)),
 		),
 	}
@@ -872,17 +929,20 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 
 	// Start subscriptions for each subject
 	subjects := map[string]func(context.Context, port.TransportMessenger){
-		constants.CommitteeGetNameSubject:            messageHandlerService.HandleMessage,
-		constants.CommitteeListMembersSubject:        messageHandlerService.HandleMessage,
-		constants.CommitteeGetProjectSubject:         messageHandlerService.HandleMessage,
-		constants.MailingListCommitteeChangedSubject: messageHandlerService.HandleMessage,
-		constants.CommitteeUpdatedSubject:            messageHandlerService.HandleMessage,
-		constants.CommitteeMemberCreatedSubject:      messageHandlerService.HandleMessage,
-		constants.CommitteeMemberDeletedSubject:      messageHandlerService.HandleMessage,
-		constants.CommitteeSettingsUpdatedSubject:    messageHandlerService.HandleMessage,
-		inviteapi.InviteServiceAcceptedSubject:       messageHandlerService.HandleMessage,
-		constants.CommitteeDocumentCreatedSubject:    messageHandlerService.HandleMessage,
-		constants.CommitteeLinkCreatedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeGetNameSubject:              messageHandlerService.HandleMessage,
+		constants.CommitteeListMembersSubject:          messageHandlerService.HandleMessage,
+		constants.CommitteeGetProjectSubject:           messageHandlerService.HandleMessage,
+		constants.MailingListCommitteeChangedSubject:   messageHandlerService.HandleMessage,
+		constants.CommitteeUpdatedSubject:              messageHandlerService.HandleMessage,
+		constants.CommitteeMemberCreatedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeMemberDeletedSubject:        messageHandlerService.HandleMessage,
+		constants.CommitteeSettingsUpdatedSubject:      messageHandlerService.HandleMessage,
+		inviteapi.InviteServiceAcceptedSubject:         messageHandlerService.HandleMessage,
+		constants.CommitteeDocumentCreatedSubject:      messageHandlerService.HandleMessage,
+		constants.CommitteeLinkCreatedSubject:          messageHandlerService.HandleMessage,
+		constants.CommitteeApplicationSubmittedSubject: messageHandlerService.HandleMessage,
+		constants.CommitteeApplicationUpdatedSubject:   messageHandlerService.HandleMessage,
+		constants.V1SyncHelperUserDeletedSubject:       messageHandlerService.HandleMessage,
 	}
 
 	for subject, handler := range subjects {

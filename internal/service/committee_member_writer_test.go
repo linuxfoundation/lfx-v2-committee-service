@@ -20,17 +20,19 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
 
 // TestMockCommitteeMemberWriter implements the full CommitteeWriter interface for testing
 type TestMockCommitteeMemberWriter struct {
 	*mock.MockRepository
-	members           map[string]*model.CommitteeMember
-	keys              map[string]string // uniqueness keys
-	customRevisions   map[string]uint64 // for testing revision conflicts
-	indexedKeys       []string          // keys written by IndexMemberByCommittee
-	orgIndexErr       error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
-	uniqueMemberCalls int               // incremented on every UniqueMember call
+	members            map[string]*model.CommitteeMember
+	keys               map[string]string // uniqueness keys
+	customRevisions    map[string]uint64 // for testing revision conflicts
+	indexedKeys        []string          // keys written by IndexMemberByCommittee
+	orgIndexErr        error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
+	uniqueMemberCalls  int               // incremented on every UniqueMember call
+	rejectCancelledCtx bool              // when set, DeleteMember/GetMemberRevision return ctx.Err() if ctx is already done
 
 	mu          sync.Mutex // guards deletedKeys (DeleteMember may run in a background cleanup goroutine)
 	deletedKeys []string   // keys passed to DeleteMember (for asserting rollback / async stale cleanup)
@@ -124,6 +126,9 @@ func (w *TestMockCommitteeMemberWriter) UpdateMember(ctx context.Context, member
 }
 
 func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+	if w.rejectCancelledCtx && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if _, exists := w.members[uid]; !exists {
 		return errs.NewNotFound("member not found")
 	}
@@ -190,7 +195,20 @@ func (w *TestMockCommitteeMemberWriter) IndexMemberByEmail(ctx context.Context, 
 	return key, nil
 }
 
+func (w *TestMockCommitteeMemberWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
+	w.indexedKeys = append(w.indexedKeys, key)
+	return key, nil
+}
+
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
+	if w.rejectCancelledCtx && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 	// Check if member exists in our local storage
 	if _, exists := w.members[uid]; exists {
 		// Check if we have a custom revision set
@@ -321,6 +339,10 @@ func (r *TestMockCommitteeReader) ListMembersByOrganization(_ context.Context, _
 }
 
 func (r *TestMockCommitteeReader) ListMembersByEmail(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
+	return []*model.CommitteeMember{}, nil
+}
+
+func (r *TestMockCommitteeReader) ListMembersByUsername(_ context.Context, _ string) ([]*model.CommitteeMember, error) {
 	return []*model.CommitteeMember{}, nil
 }
 
@@ -540,7 +562,7 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			result, err := orchestrator.CreateMember(ctx, tt.member, false)
+			result, err := orchestrator.CreateMember(ctx, tt.member, false, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -587,7 +609,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Since validateCorporateEmailDomain is currently a placeholder that returns nil,
 	// this should succeed
@@ -677,7 +699,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 			tt.setupMock(mockRepo, memberWriter)
 
 			ctx := context.Background()
-			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false)
+			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false, false)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -763,7 +785,7 @@ func TestCreateMember_IndexKeyTracked(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.NotEmpty(t, result.UID)
@@ -805,19 +827,30 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 	indexKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s",
 		existingMember.CommitteeUID, existingMember.UID)
 	memberWriter.members[indexKey] = existingMember
-	orchestrator.committeeReader = memberWriter
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false)
+
+	// Pre-register the username→member secondary index key.
+	usernameHash := existingMember.BuildUsernameIndexKey(ctx)
+	usernameIndexKey := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existingMember.UID)
+	memberWriter.members[usernameIndexKey] = existingMember
+
+	orchestrator.committeeReader = memberWriter
+
+	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false, false)
 	require.NoError(t, err)
 
 	// Primary record must be gone.
 	_, primaryStillExists := memberWriter.members["member-del-idx"]
 	assert.False(t, primaryStillExists, "main member record should be deleted")
 
-	// Index key must also have been removed by the cleanup pass.
+	// Committee index key must also have been removed by the cleanup pass.
 	_, indexStillExists := memberWriter.members[indexKey]
 	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
+
+	// Username index key must also have been removed by the cleanup pass.
+	_, usernameIndexStillExists := memberWriter.members[usernameIndexKey]
+	assert.False(t, usernameIndexStillExists, "username→member index key should be cleaned up on delete")
 }
 
 // flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
@@ -922,7 +955,7 @@ func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
 	}}
 
 	ctx := context.Background()
-	res, err := orchestrator.CreateMember(ctx, member, false)
+	res, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	require.Error(t, err)
 	assert.Nil(t, res)
@@ -932,6 +965,69 @@ func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
 	_, stillExists := memberWriter.members[member.UID]
 	assert.False(t, stillExists, "primary member record must be rolled back when the org index write fails")
 	assert.True(t, memberWriter.wasDeleted(member.UID), "rollback must delete the primary member record")
+}
+
+// TestCreateMember_RollbackSurvivesCancelledContext is the regression test for the bug fixed in
+// LFXV2-2984: when the HTTP client times out, the server-side request context is cancelled
+// mid-flight. Before the fix, CreateMember's rollback defer passed that cancelled context to
+// deleteMemberKeys, causing NATS KV cleanup to fail immediately and leaving orphaned uniqueness
+// keys that permanently blocked future creates with 409 Conflict. The fix uses a detached
+// context.WithTimeout(context.Background(), …) for rollback so cleanup always runs regardless of
+// caller-context state.
+//
+// The test simulates the cancelled-caller-context scenario: the request context is cancelled
+// before CreateMember is called, IndexMemberByOrganization is forced to fail (so rollback fires),
+// and DeleteMember / GetMemberRevision are configured to reject a cancelled context. Under the old
+// code the rollback would propagate the cancelled context and the uniqueness key would not be
+// cleaned up. Under the fixed code the detached cleanup context is alive and the key is removed.
+func TestCreateMember_RollbackSurvivesCancelledContext(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Route reads through the writer so rollback's GetMemberRevision/DeleteMember see written records.
+	orchestrator.committeeReader = memberWriter
+
+	committee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{UID: "committee-ctx-cancel", Name: "Ctx Cancel Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{
+			UID:                   "committee-ctx-cancel",
+			BusinessEmailRequired: false,
+		},
+	}
+	mockRepo.AddCommittee(committee)
+
+	// Force a write failure at the org-index step (after both UniqueMember and CreateMember succeed),
+	// so rollback fires with rollbackRequired=true.
+	memberWriter.orgIndexErr = errs.NewUnexpected("injected org-index failure")
+	// Make DeleteMember/GetMemberRevision fail when the context is already cancelled.
+	// This distinguishes the old (cancelled request context) path from the fixed (detached) path.
+	memberWriter.rejectCancelledCtx = true
+
+	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		CommitteeUID: "committee-ctx-cancel",
+		Email:        "ctx-cancel@example.com",
+		Username:     "ctxcanceluser",
+		Organization: model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Cancel Org"},
+	}}
+
+	// Pre-compute the uniqueness key and seed it into members so GetMemberRevision can return a
+	// revision for it during rollback. (UniqueMember stores to w.keys; GetMemberRevision reads
+	// w.members. Without seeding, GetMemberRevision returns not-found and rollback silently skips
+	// the uniqueness key — which would defeat the assertion below.)
+	uniqueKey := member.BuildIndexKey(context.Background())
+	memberWriter.members[uniqueKey] = member
+
+	// Simulate a timed-out HTTP client: cancel the context before calling CreateMember.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := orchestrator.CreateMember(ctx, member, false, false)
+	require.Error(t, err)
+
+	// Rollback must have cleaned up the uniqueness key using a live (detached) context.
+	// If rollback incorrectly used the cancelled request context, rejectCancelledCtx would
+	// cause GetMemberRevision/DeleteMember to return an error and the key would not appear
+	// in deletedKeys.
+	assert.True(t, memberWriter.wasDeleted(uniqueKey),
+		"rollback must remove the uniqueness key even when the request context is cancelled")
 }
 
 // TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes covers the org-change path
@@ -972,7 +1068,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.
 		Organization: model.CommitteeMemberOrganization{ID: newOrg, Name: "New Org"},
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1021,7 +1117,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.
 		Organization: model.CommitteeMemberOrganization{},
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1071,7 +1167,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange(t *testing
 		FirstName: "Test", LastName: "User",
 	}}
 
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false)
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -1120,6 +1216,305 @@ func TestCommitteeWriterOrchestrator_validateOrganizationExists(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+type stubB2BOrgResolver struct {
+	sfid string
+	ok   bool
+	err  error
+}
+
+func (s stubB2BOrgResolver) ResolveByUID(_ context.Context, _ string) (string, bool, error) {
+	if s.err != nil {
+		return "", false, s.err
+	}
+	return s.sfid, s.ok, nil
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	org := model.CommitteeMemberOrganization{ID: "0014100000Te2ovAAB", Name: "LF"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
+
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}
+	org = model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err = orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
+	assert.Equal(t, "Acme", org.Name)
+	assert.Equal(t, "https://acme.com", org.Website)
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	// Resolver would return found=true if called, but the pre-filter must prevent
+	// non-SFID-shaped ids from even reaching the resolver (FR-005 / T017).
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	cases := []struct {
+		name string
+		id   string
+	}{
+		{"CDP UUID", "51fde723-67df-4e0e-91c6-936d01d59559"},
+		{"hex digest", "abc123de45fg6789abcd1234ef567890"},
+		{"arbitrary non-sfid", "not-a-sfid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			org := model.CommitteeMemberOrganization{ID: tc.id, Name: "Acme"}
+			err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+			require.NoError(t, err)
+			assert.Empty(t, org.ID, "non-SFID id %q must be cleared before lookup", tc.id)
+		})
+	}
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Empty(t, stored.Organization.ID)
+	assert.Equal(t, "Acme Corp", stored.Organization.Name)
+	assert.Equal(t, "https://acme.com", stored.Organization.Website)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_UnresolvedOrgIDClearsID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // not found
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				// SFID-shaped so the pre-filter passes it through to the resolver;
+				// the not-found stub then exercises the resolver's clear branch.
+				ID:      "001B000000IqhSLIAZ",
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Organization.ID)
+	assert.Equal(t, "Acme Corp", result.Organization.Name)
+	assert.Equal(t, "https://acme.com", result.Organization.Website)
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.CreateMember(context.Background(), member, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members[result.UID]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_ResolverErrorKeepsOrgID(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	// Use an SFID-shaped id: the pre-filter passes it through, and the fail-open path
+	// keeps it when the resolver returns a transient error.
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("b2b_org lookup failed")}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:      wantID,
+				Name:    "Acme Corp",
+				Website: "https://acme.com",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members["member-123"]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
+func TestCommitteeWriterOrchestrator_UpdateMember_TrimsWhitespaceOrgIDWithoutLookup(t *testing.T) {
+	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	const wantID = "001B000000IqhSLIAZ"
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call resolver")}
+	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"test@example.com": "testuser"}}
+
+	committee := &model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
+	}
+	mockRepo.AddCommittee(committee)
+
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{ID: wantID, Name: "Acme Corp"},
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember("committee-123", existing)
+	memberWriter.members["member-123"] = existing
+	memberWriter.customRevisions["member-123"] = 1
+
+	updated := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:          "member-123",
+			CommitteeUID: "committee-123",
+			Email:        "test@example.com",
+			Username:     "testuser",
+			FirstName:    "Test",
+			LastName:     "User",
+			Organization: model.CommitteeMemberOrganization{
+				ID:   "  " + wantID + "  ",
+				Name: "Acme Corp",
+			},
+		},
+	}
+
+	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantID, result.Organization.ID)
+
+	stored := memberWriter.members["member-123"]
+	require.NotNil(t, stored)
+	assert.Equal(t, wantID, stored.Organization.ID)
+}
+
 func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 
@@ -1132,9 +1527,10 @@ func TestCommitteeWriterOrchestrator_addOrganizationUserEngagement(t *testing.T)
 
 func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 	tests := []struct {
-		name   string
-		action model.MessageAction
-		data   *model.CommitteeMemberMessageData
+		name               string
+		action             model.MessageAction
+		data               *model.CommitteeMemberMessageData
+		wantNameAndAliases []string
 	}{
 		{
 			name:   "publish create message with member data",
@@ -1186,17 +1582,52 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "publish create message includes combined full name in name_and_aliases",
+			action: model.ActionCreated,
+			data: &model.CommitteeMemberMessageData{
+				Member: &model.CommitteeMember{
+					CommitteeMemberBase: model.CommitteeMemberBase{
+						UID:           "member-987",
+						CommitteeUID:  "committee-123",
+						CommitteeName: "Governing Board",
+						Email:         "jsmith@example.com",
+						FirstName:     "Jane",
+						LastName:      "Smith",
+						Username:      "jsmith",
+					},
+				},
+			},
+			wantNameAndAliases: []string{"Jane", "Smith", "Jane Smith"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orchestrator, _, _ := setupMemberWriterTest()
+			mockRepo := mock.NewMockRepository()
+			memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := &committeeWriterOrchestrator{
+				committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+				committeeWriter:    memberWriter,
+				committeePublisher: publisher,
+				projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+			}
 
 			ctx := context.Background()
 			err := orchestrator.publishMemberMessages(ctx, tt.action, tt.data, false)
 
 			// Should succeed with mock publisher
 			assert.NoError(t, err)
+
+			if tt.wantNameAndAliases != nil {
+				msg, ok := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
+				require.True(t, ok)
+				require.NotNil(t, msg.IndexingConfig)
+				for _, want := range tt.wantNameAndAliases {
+					assert.Contains(t, msg.IndexingConfig.NameAndAliases, want)
+				}
+			}
 		})
 	}
 }
@@ -1227,7 +1658,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_RollbackOnError(t *testing.T) 
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Should fail because committee doesn't exist
 	require.Error(t, err)
@@ -1261,7 +1692,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false)
+	result, err := orchestrator.CreateMember(ctx, member, false, false)
 
 	// Should succeed with default settings
 	require.NoError(t, err)
@@ -1297,7 +1728,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	memberWriter.keys[lookupKey] = member.UID
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false)
+	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -1311,10 +1742,21 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	// in integration tests with real NATS storage
 }
 
+// TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure verifies that DeleteMember
+// still returns a member_remove publication error even though the member record and its
+// secondary indices are already deleted. This asymmetry with create/update (which log and
+// swallow publish errors) is deliberate: a lost member_remove leaves a removed member holding
+// committee access, so deletion failures must stay loud rather than best-effort.
 func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+	mockRepo := mock.NewMockRepository()
+	memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    memberWriter,
+		committeePublisher: &failingRemovePublisher{spyCommitteePublisher: &spyCommitteePublisher{}},
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
 
-	// Setup a test member
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          "member-msg-fail",
@@ -1327,15 +1769,13 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 	memberWriter.members["member-msg-fail"] = member
 	mockRepo.AddCommitteeMember("committee-123", member)
 
-	// TODO: When we have a way to make the mock publisher fail,
-	// we can test message publishing failure scenarios
-	// For now, we test the happy path
-
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false)
+	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false, false)
 
-	// Should succeed even if message publishing fails (currently mock always succeeds)
-	require.NoError(t, err)
+	require.Error(t, err, "a member_remove publish failure must still be returned after the record is deleted")
+
+	_, stillExists := memberWriter.members["member-msg-fail"]
+	assert.False(t, stillExists, "the member record must already be deleted despite the returned publish error")
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
@@ -1395,7 +1835,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -1446,7 +1886,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_RevisionMismatch(t *testing.T)
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3, false) // Using old revision 3
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 3, false, false) // Using old revision 3
 
 	// Should fail with conflict error
 	require.Error(t, err)
@@ -1466,7 +1906,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_MemberNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail with not found error
 	require.Error(t, err)
@@ -1501,7 +1941,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_CommitteeNotFound(t *testing.T
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail because member belongs to different committee
 	require.Error(t, err)
@@ -1557,7 +1997,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailChangeWithCorporateValida
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should succeed (corporate validation is mocked to always pass)
 	require.NoError(t, err)
@@ -1614,7 +2054,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	}
 
 	ctx := context.Background()
-	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false)
+	result, err := orchestrator.UpdateMember(ctx, updatedMember, 1, false, false)
 
 	// Should fail with conflict error
 	require.Error(t, err)
@@ -1645,7 +2085,7 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 				FirstName:    "Alice",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, false)
+		}, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "alice", result.Username)
@@ -1664,10 +2104,29 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 				FirstName:    "Alice",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, false)
+		}, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
+	})
+
+	t.Run("skip enrichment persists caller-supplied username without email lookup", func(t *testing.T) {
+		orchestrator, mockRepo, _ := setupMemberWriterTest()
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "other-lfid"}}
+		addCommittee(mockRepo)
+
+		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "c-1",
+				Email:        "alice@example.com",
+				Username:     "sync-lfid",
+				FirstName:    "Alice",
+				Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			},
+		}, false, true)
+
+		require.NoError(t, err)
+		assert.Equal(t, "sync-lfid", result.Username)
 	})
 }
 
@@ -1701,7 +2160,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "new", result.Username)
@@ -1718,7 +2177,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
@@ -1735,7 +2194,7 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Username)
@@ -1752,27 +2211,183 @@ func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.
 				Username: "plain-lfid", FirstName: "Old",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, "old", result.Username)
 	})
 
-	t.Run("invite acceptance context persists accepted_by without email lookup", func(t *testing.T) {
+	t.Run("skip enrichment persists accepted_by without email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
 		addCommitteeAndMember(mockRepo, memberWriter)
 
-		ctx := contextWithSkipMemberUsernameEmailResolution(context.Background())
-		result, err := orchestrator.UpdateMember(ctx, &model.CommitteeMember{
+		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
 				Username: "accepted-lfid", FirstName: "New",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
-		}, 1, false)
+		}, 1, false, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, "accepted-lfid", result.Username)
 	})
+}
+
+// TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple verifies that when a member's
+// username is cleared (e.g. via the user-deleted scrub), the old FGA tuple is revoked so the
+// deleted identity no longer holds the member relation on the committee.
+func TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	spy := &spyCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: spy,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	oldMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-scrubbed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "scrubbed_user",
+			FirstName: "Scrubbed", LastName: "User",
+		},
+	}
+	updatedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-scrubbed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "",
+			FirstName: "Scrubbed", LastName: "User",
+		},
+	}
+
+	err := orchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+		Member:    updatedMember,
+		OldMember: oldMember,
+	}, false)
+	require.NoError(t, err)
+
+	// Exactly one FGA call: revoke the old tuple for the cleared username, and no grant.
+	require.Len(t, spy.capturedMemberRemoveMsgs, 1, "expected exactly one member_remove publish when username is cleared")
+	assert.Empty(t, spy.capturedMemberPutMsgs, "clearing a username must not publish member_put")
+
+	// The removal must carry the old identity, not the empty one.
+	fgaMsg, ok := spy.capturedMemberRemoveMsgs[0].(fgatypes.GenericFGAMessage)
+	require.True(t, ok, "access message should be a GenericFGAMessage")
+	memberData, ok := fgaMsg.Data.(fgatypes.GenericMemberData)
+	require.True(t, ok, "FGA message Data should be GenericMemberData")
+	assert.Equal(t, "scrubbed_user", memberData.Username, "FGA removal must reference the old username")
+	assert.Equal(t, "c-1", memberData.UID, "FGA removal must reference the correct committee UID")
+}
+
+// TestPublishMemberMessages_ChangedUsername_RevokesOldBeforeGrantingNew verifies that when a
+// member's username changes, the old identity is revoked via member_remove before the new
+// identity is granted via member_put, and that a revoke failure prevents the put.
+func TestPublishMemberMessages_ChangedUsername_RevokesOldBeforeGrantingNew(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	spy := &spyCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: spy,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	oldMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-renamed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "old_username",
+			FirstName: "Renamed", LastName: "User",
+		},
+	}
+	newMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-renamed", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "new_username",
+			FirstName: "Renamed", LastName: "User",
+		},
+	}
+
+	t.Run("successful revoke is followed by the put", func(t *testing.T) {
+		err := orchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+			Member:    newMember,
+			OldMember: oldMember,
+		}, false)
+		require.NoError(t, err)
+
+		require.Len(t, spy.capturedMemberRemoveMsgs, 1, "expected one member_remove for the old identity")
+		require.Len(t, spy.capturedMemberPutMsgs, 1, "expected one member_put for the new identity")
+
+		removeMsg, ok := spy.capturedMemberRemoveMsgs[0].(fgatypes.GenericFGAMessage)
+		require.True(t, ok)
+		removeData, ok := removeMsg.Data.(fgatypes.GenericMemberData)
+		require.True(t, ok)
+		assert.Equal(t, "old_username", removeData.Username, "revoke must reference the old identity")
+
+		putMsg, ok := spy.capturedMemberPutMsgs[0].(fgatypes.GenericFGAMessage)
+		require.True(t, ok)
+		putData, ok := putMsg.Data.(fgatypes.GenericMemberData)
+		require.True(t, ok)
+		assert.Equal(t, "new_username", putData.Username, "grant must reference the new identity")
+	})
+
+	t.Run("revoke failure prevents the put", func(t *testing.T) {
+		failingSpy := &failingRemovePublisher{spyCommitteePublisher: &spyCommitteePublisher{}}
+		failingOrchestrator := &committeeWriterOrchestrator{
+			committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+			committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+			committeePublisher: failingSpy,
+			projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+		}
+
+		err := failingOrchestrator.publishMemberMessages(context.Background(), model.ActionUpdated, &model.CommitteeMemberMessageData{
+			Member:    newMember,
+			OldMember: oldMember,
+		}, false)
+		require.Error(t, err)
+		assert.Empty(t, failingSpy.capturedMemberPutMsgs, "a failed revoke must prevent the put")
+	})
+}
+
+// failingRemovePublisher wraps spyCommitteePublisher and always fails MemberRemove, so tests can
+// verify that a revoke failure prevents a subsequent grant.
+type failingRemovePublisher struct {
+	*spyCommitteePublisher
+}
+
+func (f *failingRemovePublisher) MemberRemove(ctx context.Context, msg any) error {
+	_ = f.spyCommitteePublisher.MemberRemove(ctx, msg)
+	return errs.NewUnexpected("member_remove publish failed", nil)
+}
+
+// TestPublishMemberMessages_SyncControlsOnlyIndexer verifies that sync=true reaches the indexer
+// publication while both membership FGA publications remain asynchronous regardless of sync.
+func TestPublishMemberMessages_SyncControlsOnlyIndexer(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	publisher := &mock.MockCommitteePublisher{}
+	orchestrator := &committeeWriterOrchestrator{
+		committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+		committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+		committeePublisher: publisher,
+		projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+	}
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "m-sync-check", CommitteeUID: "c-1",
+			Email: "user@example.com", Username: "sync_check_user",
+			FirstName: "Sync", LastName: "Check",
+		},
+	}
+
+	err := orchestrator.publishMemberMessages(context.Background(), model.ActionCreated, &model.CommitteeMemberMessageData{
+		Member: member,
+	}, true)
+	require.NoError(t, err)
+
+	require.Len(t, publisher.IndexerSyncValues, 1)
+	assert.True(t, publisher.IndexerSyncValues[0], "indexer publication must honor sync=true")
+	assert.Equal(t, 1, publisher.MemberPutCallCount, "member_put must publish regardless of sync")
 }

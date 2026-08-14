@@ -18,7 +18,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
@@ -104,11 +103,11 @@ type CommitteeDataWriter interface {
 // CommitteeMemberDataWriter defines the interface for committee member write operations
 type CommitteeMemberDataWriter interface {
 	// CreateMember inserts a new committee member into the storage
-	CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error)
+	CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error)
 	// UpdateMember modifies an existing committee member in the storage
-	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error)
+	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error
+	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error
 	// ReassignMember atomically replaces the holder of an existing seat: it creates newMember (the
 	// replacement holder) and deletes the old member (oldMemberUID at oldRevision), rolling back the
 	// newly-created member if the delete fails so no duplicate seat is left. It returns the created
@@ -154,6 +153,13 @@ func WithUserReader(reader port.UserReader) committeeWriterOrchestratorOption {
 	}
 }
 
+// WithB2BOrgResolver sets the b2b_org resolver used to validate organization.id values.
+func WithB2BOrgResolver(resolver port.B2BOrgResolver) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.b2bOrgResolver = resolver
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	projectRetriever   port.ProjectReader
@@ -161,6 +167,7 @@ type committeeWriterOrchestrator struct {
 	committeeWriter    port.CommitteeWriter
 	committeePublisher port.CommitteePublisher
 	userReader         port.UserReader
+	b2bOrgResolver     port.B2BOrgResolver
 }
 
 // deleteKeys removes keys by getting their revision and deleting them
@@ -379,15 +386,19 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
 
-	// Log SSO group name update if applicable
-	if existing.Name != updated.Name && updated.SSOGroupEnabled {
+	// Accept new SSO group name when name changed and SSO/public active,
+	// or when SSO/public just enabled on an existing committee without an SSO name.
+	if existing.Name != updated.Name && (updated.SSOGroupEnabled || updated.Public) {
 		slog.DebugContext(ctx, "SSO group name updated",
 			"old_sso_name", existing.SSOGroupName,
 			"new_sso_name", updated.SSOGroupName,
 		)
 		ssoGroupName = updated.SSOGroupName
+	} else if (updated.SSOGroupEnabled || updated.Public) && existing.SSOGroupName == "" {
+		ssoGroupName = updated.SSOGroupName
 	}
 	updated.SSOGroupName = ssoGroupName
+
 }
 
 // Execute orchestrates the committee creation process
@@ -473,10 +484,11 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	}
 	keys = append(keys, uniqueNameProjectKey)
 
-	// Check SSO group exists (if specified)
-	if committee.SSOGroupEnabled {
+	// Reserve SSO group name when SSO is enabled or committee is public (used as URL slug)
+	if committee.SSOGroupEnabled || committee.Public {
 		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
 		if errCheckReserveSSOName != nil {
+			rollbackRequired = true
 			return nil, errCheckReserveSSOName
 		}
 		keys = append(keys, uniqueSSOName)
@@ -512,33 +524,37 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, committeeMsg, sync)
 	})
 
-	settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeSettings, committee.Tags())
-	if errBuildSettingsMsg != nil {
-		return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+	if committee.CommitteeSettings != nil {
+		indexSettings := *committee.CommitteeSettings
+		indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
+		settingsMsg, errBuildSettingsMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, &indexSettings, committee.Tags())
+		if errBuildSettingsMsg != nil {
+			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
+		}
+		settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+		messages = append(messages, func() error {
+			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
+		})
 	}
-	settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
-	messages = append(messages, func() error {
-		return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
-	})
 
 	// Publish access control message for the committee
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+		return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 	})
 
 	// all messages are executed concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish indexer message",
+		slog.ErrorContext(ctx, "failed to publish committee messages",
 			"error", errPublishingMessage,
 			"committee_uid", committee.CommitteeBase.UID,
 		)
+	} else {
+		slog.DebugContext(ctx, "indexer and access control messages published successfully",
+			"committee_uid", committee.CommitteeBase.UID,
+		)
 	}
-
-	slog.DebugContext(ctx, "indexer and access control messages published successfully",
-		"committee_uid", committee.CommitteeBase.UID,
-	)
 
 	return committee, nil
 }
@@ -640,8 +656,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			oldNameKey := uc.rebuildCommitteeNameIndex(ctx, newNameKey, existing)
 			staleKeys = append(staleKeys, oldNameKey)
 		}
-		// Step 3.1: Handle SSO Group Name changes (if name changed)
-		if committee.SSOGroupEnabled {
+		// Step 3.1: Regenerate SSO group name when name changed and SSO/public active
+		if committee.SSOGroupEnabled || committee.Public {
 			newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
 			if errSSOChange != nil {
 				rollbackRequired = true
@@ -658,7 +674,16 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 				}
 			}
 		}
-
+	} else if (committee.SSOGroupEnabled || committee.Public) && existing.SSOGroupName == "" {
+		// Step 3.2: Generate SSO name for the first time (public/SSO just enabled, no name change)
+		newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
+		if errSSOChange != nil {
+			rollbackRequired = true
+			return nil, errSSOChange
+		}
+		if newSSOKey != "" {
+			newKeys = append(newKeys, newSSOKey)
+		}
 	}
 
 	// Step 4: Validate parent change
@@ -704,6 +729,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		"name", committee.Name,
 	)
 
+	updateSucceeded = true
+
 	// ******************************************************
 	// Step 7: Publish messages
 
@@ -748,7 +775,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 		},
 		func() error {
 			committeeEvent := model.CommitteeEvent{}
@@ -767,20 +794,18 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// all messages are executed concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish indexer message",
+		slog.ErrorContext(ctx, "failed to publish committee update messages",
 			"error", errPublishingMessage,
 			"committee_uid", committee.CommitteeBase.UID,
+		)
+	} else {
+		slog.DebugContext(ctx, "committee update messages published successfully",
+			"committee_uid", committee.CommitteeBase.UID,
+			"stale_keys_count", len(staleKeys),
 		)
 	}
 	// ******************************************************
 
-	slog.DebugContext(ctx, "committee update completed successfully",
-		"committee_uid", committee.CommitteeBase.UID,
-		"stale_keys_count", len(staleKeys),
-	)
-
-	// Mark update as successful for defer cleanup
-	updateSucceeded = true
 	return committee, nil
 }
 
@@ -833,6 +858,15 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		settings.Auditors = existingSettings.Auditors
 	}
 
+	// nil (absent/null) → preserve existing; "" → explicit clear; non-empty URL → replace.
+	// Because chat_webhook_url is write-only (not returned from GET), a GET→PUT
+	// round-trip always sends nil — preserve prevents silently wiping the credential.
+	if settings.ChatWebhookURL == nil {
+		settings.ChatWebhookURL = existingSettings.ChatWebhookURL
+	} else if *settings.ChatWebhookURL == "" {
+		settings.ChatWebhookURL = nil
+	}
+
 	// Step 3: Update the committee settings in storage
 	errUpdate := uc.committeeWriter.UpdateSetting(ctx, settings, revision)
 	if errUpdate != nil {
@@ -860,7 +894,9 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, settings, committee.Tags())
+	indexSettings := *settings
+	indexSettings.ChatWebhookURL = nil // bearer credential — must not enter the search index
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, &indexSettings, committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.ErrorContext(ctx, "failed to build indexer message",
 			"error", errBuildIndexerMessage,
@@ -876,13 +912,13 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, messageIndexer, sync)
 		},
 		func() error {
-			return uc.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, accessControlMessage, sync)
+			return uc.committeePublisher.UpdateAccess(ctx, accessControlMessage)
 		},
 	}
 
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
 	if errPublishingMessage != nil {
-		slog.ErrorContext(ctx, "failed to publish access control message",
+		slog.ErrorContext(ctx, "failed to publish committee settings messages",
 			"error", errPublishingMessage,
 			"committee_uid", settings.UID,
 		)
@@ -891,10 +927,14 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	// Publish a domain event carrying old+new settings so subscribers can
 	// detect newly added Writers/Auditors and send notification emails.
 	updatedBy, _ := ctx.Value(constants.PrincipalContextID).(string)
+	sanitizedOldSettings := *existingSettings
+	sanitizedOldSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
+	sanitizedNewSettings := *settings
+	sanitizedNewSettings.ChatWebhookURL = nil // bearer credential — must not enter NATS events
 	settingsEvent, errBuildEvent := (&model.CommitteeEvent{}).Build(ctx, model.ResourceCommitteeSettings, model.ActionUpdated, &model.CommitteeSettingsUpdateEventData{
 		CommitteeUID:  settings.UID,
-		OldSettings:   existingSettings,
-		Settings:      settings,
+		OldSettings:   &sanitizedOldSettings,
+		Settings:      &sanitizedNewSettings,
 		CommitteeName: committeeBase.Name,
 		UpdatedBy:     updatedBy,
 	})
@@ -957,7 +997,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	indicesToDelete = append(indicesToDelete, nameIndexKey)
 
 	// Build SSO group name index key if it exists
-	if existing.SSOGroupEnabled && existing.SSOGroupName != "" {
+	if existing.SSOGroupName != "" {
 		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
 		indicesToDelete = append(indicesToDelete, ssoIndexKey)
 	}
@@ -1026,7 +1066,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		Data:       fgatypes.GenericDeleteData{UID: uid},
 	}
 	messages = append(messages, func() error {
-		return uc.committeePublisher.Access(ctx, fgaconstants.GenericDeleteAccessSubject, deleteMsg, sync)
+		return uc.committeePublisher.DeleteAccess(ctx, deleteMsg)
 	})
 
 	// Execute all messages concurrently

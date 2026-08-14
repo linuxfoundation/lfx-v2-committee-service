@@ -55,6 +55,11 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `join_mode` | string (optional) | How members can join |
 | `calendar.public` | bool (optional) | Whether the committee calendar is public; omitted when the `calendar` object is empty |
 | `parent_uid` | string (optional) | UID of the parent committee (if nested) |
+| `repository` | string (optional) | Committee repository URL |
+| `scope` | []string (optional) | Committee scope bullet points |
+| `deliverables` | []string (optional) | Committee deliverables bullet points |
+| `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
+| `external_sources` | []object (optional) | Source-labeled external entities linked to the committee (e.g. OCG groups/events), each with `provider`, `entity_type`, `label`, `url`, and optional `external_id`, `external_category`, `external_region`, `external_event_category` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |
@@ -71,6 +76,8 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `project_slug:{value}` | `project_slug:test-project-slug-1` | Find committees by project slug |
 | `parent_uid:{value}` | `parent_uid:9493eae5-cd73-4c4a-b28f-3b8ec5280f6c` | Find child committees of a parent |
 | `category:{value}` | `category:Board` | Find committees by category |
+| `display_name:{value}` | `display_name:Technical Steering Committee` | Find committee by display name |
+| `sso_group_name:{value}` | `sso_group_name:my-project-technical-steering-committee` | Find committee by SSO group name / public URL slug |
 
 ### Access Control (IndexingConfig)
 
@@ -85,7 +92,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 
 | Field | Value |
 |---|---|
-| `fulltext` | `name`, `display_name`, `description` |
+| `fulltext` | `name`, `display_name`, `description` (deduplicated) |
 | `name_and_aliases` | `name`, `display_name` (deduplicated) |
 | `sort_name` | `name` |
 | `public` | set from `committee.public` |
@@ -236,7 +243,7 @@ _(none)_
 | Field | Value |
 |---|---|
 | `fulltext` | `first_name`, `last_name`, `email`, `organization.name` |
-| `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username` (non-empty values only) |
+| `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username`, `"first_name last_name"` (non-empty values only) |
 | `sort_name` | `first_name` |
 | `public` | _(omitted; viewer access check required)_ |
 
@@ -270,7 +277,8 @@ _(none)_
 | `file_name` | string | Original uploaded file name |
 | `file_size` | int | File size in bytes |
 | `content_type` | string | Uploaded MIME type |
-| `uploaded_by_username` | string (optional) | Username of the uploader |
+| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the document. Same shape as `created_by`; identical to `created_by` on upload |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -283,9 +291,9 @@ _(none)_
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find documents belonging to a committee |
 | `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find documents within a folder |
 | `content_type:{value}` | `content_type:application/pdf` | Find documents by content type |
-| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find documents by uploader (LFID username, from `uploaded_by_username`) |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find documents by uploader (username from `created_by.username`) |
 
-> Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty.
+> Tags for `folder_uid`, `content_type`, and `uploaded_by` are only emitted when the value is non-empty. Legacy KV records with only `uploaded_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 
@@ -395,6 +403,10 @@ _(none)_
 | `message` | string | Application message from the applicant |
 | `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
+| `organization` | object (optional) | Organization confirmed by the applicant at submission time |
+| `organization.id` | string (optional) | Organization ID |
+| `organization.name` | string (optional) | Organization name |
+| `organization.website` | string (optional) | Organization website |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
 ### Tags
@@ -455,7 +467,8 @@ _(none)_
 | `name` | string | Link display name |
 | `url` | string | Link URL |
 | `description` | string (optional) | Link description |
-| `created_by_username` | string (optional) | Username of the user who created the link |
+| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the link. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -467,8 +480,9 @@ _(none)_
 | `committee_link_uid:{uid}` | `committee_link_uid:a1b2c3d4-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find links belonging to a committee |
 | `folder_uid:{value}` | `folder_uid:f0a1b2c3-...` | Find links within a folder |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find links by creator (username from `created_by.username`) |
 
-> `folder_uid` tag is only emitted when `folder_uid` is set.
+> `folder_uid` tag is only emitted when `folder_uid` is set. Legacy KV records with only `created_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 
@@ -514,7 +528,8 @@ _(none)_
 | `uid` | string | Folder unique identifier |
 | `committee_uid` | string | UID of the owning committee |
 | `name` | string | Folder name |
-| `created_by_username` | string (optional) | Username of the user who created the folder |
+| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `updated_by` | object (optional) | User who last updated the folder. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 
@@ -525,6 +540,9 @@ _(none)_
 | `{uid}` | `f0a1b2c3-...` | Direct lookup by UID |
 | `committee_link_folder_uid:{uid}` | `committee_link_folder_uid:f0a1b2c3-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find folders belonging to a committee |
+| `uploaded_by:{value}` | `uploaded_by:jdoe` | Find folders by creator (username from `created_by.username`) |
+
+> Legacy KV records with only `created_by_username` are normalized to `created_by.username` at index time after migration.
 
 ### Access Control (IndexingConfig)
 
@@ -583,6 +601,7 @@ _(none)_
 | `window_start` | timestamp | Start of the brief's reporting window (RFC3339) |
 | `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
+| `error_reason` | string (optional) | Machine-readable reason for the `error` state; omitted on non-error briefs. Known values: `no_sources` (no activity in the lookback window), `ai_error` (AI generation failure). |
 | `brief_text` | string | Generated brief body; included in the indexed data payload |
 | `source_refs` | []object | References to the source artifacts the brief was generated from. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty |
 | `prompt_version` | string | Version identifier of the prompt used to generate the brief |

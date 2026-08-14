@@ -14,7 +14,8 @@ type UserReader interface {
 	// UsernameByEmail resolves the registered LFID username for the given primary email address.
 	UsernameByEmail(ctx context.Context, email string) (string, error)
 	// EmailsByAuthToken retrieves all email addresses (primary and alternate) for the user
-	// identified by their Auth0 subject string (auth0|{userID}) sent as auth_token to auth-service.
+	// identified by their principal (LFID username, JWT sub, or provider-qualified id) sent as
+	// auth_token to auth-service.
 	EmailsByAuthToken(ctx context.Context, authToken string) (*model.UserEmails, error)
 	// UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by their principal.
 	UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error)

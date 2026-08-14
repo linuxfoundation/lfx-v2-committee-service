@@ -13,6 +13,8 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
 
 // mockInviteWriter records UpdateInvite calls for assertion in tests.
@@ -37,20 +39,34 @@ func (w *mockInviteWriter) UniqueInvite(_ context.Context, _ *model.CommitteeInv
 	return "", nil
 }
 
-// mockPublisher records Indexer and Access call counts.
+// mockPublisher records Indexer, membership, and access call counts.
 type mockPublisher struct {
-	indexerCalls int
-	accessCalls  int
-	indexerErr   error
-	accessErr    error
+	indexerCalls      int
+	memberCalls       int
+	updateAccessCalls int
+	updateAccessMsgs  []any
+	indexerErr        error
+	accessErr         error
 }
 
 func (p *mockPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) error {
 	p.indexerCalls++
 	return p.indexerErr
 }
-func (p *mockPublisher) Access(_ context.Context, _ string, _ any, _ bool) error {
-	p.accessCalls++
+func (p *mockPublisher) UpdateAccess(_ context.Context, message any) error {
+	p.updateAccessCalls++
+	p.updateAccessMsgs = append(p.updateAccessMsgs, message)
+	return p.accessErr
+}
+func (p *mockPublisher) DeleteAccess(_ context.Context, _ any) error {
+	return p.accessErr
+}
+func (p *mockPublisher) MemberPut(_ context.Context, _ any) error {
+	p.memberCalls++
+	return p.accessErr
+}
+func (p *mockPublisher) MemberRemove(_ context.Context, _ any) error {
+	p.memberCalls++
 	return p.accessErr
 }
 func (p *mockPublisher) Event(_ context.Context, _ string, _ any, _ bool) error { return nil }
@@ -132,7 +148,16 @@ func TestReindexInvites_OldInvite_BackfillsNameAndOrgRequired(t *testing.T) {
 	assert.True(t, iw.updated[0].OrganizationRequired)
 	assert.Equal(t, rev, iw.updatedRevs[0])
 	assert.Equal(t, 1, pub.indexerCalls)
-	assert.Equal(t, 1, pub.accessCalls)
+	assert.Equal(t, 0, pub.memberCalls)
+	assert.Equal(t, 1, pub.updateAccessCalls)
+	require.Len(t, pub.updateAccessMsgs, 1)
+	msg, ok := pub.updateAccessMsgs[0].(fgatypes.GenericFGAMessage)
+	require.True(t, ok)
+	data, ok := msg.Data.(fgatypes.GenericAccessData)
+	require.True(t, ok)
+	assert.Equal(t, "i1", data.UID)
+	assert.Equal(t, []string{"c1"}, data.References[constants.RelationCommittee])
+	assert.Equal(t, []string{constants.RelationInvitee}, data.ExcludeRelations)
 }
 
 func TestReindexInvites_NewInvite_NoKVUpdate(t *testing.T) {
@@ -152,7 +177,8 @@ func TestReindexInvites_NewInvite_NoKVUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, iw.updated, "no KV write expected when fields already match")
 	assert.Equal(t, 1, pub.indexerCalls)
-	assert.Equal(t, 1, pub.accessCalls)
+	assert.Equal(t, 0, pub.memberCalls)
+	assert.Equal(t, 1, pub.updateAccessCalls)
 }
 
 func TestReindexInvites_OrgRequiredMismatch_UpdatesKV(t *testing.T) {

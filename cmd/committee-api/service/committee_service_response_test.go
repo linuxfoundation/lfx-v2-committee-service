@@ -8,6 +8,7 @@ import (
 	"time"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	server "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -1511,6 +1512,459 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 	}
 }
 
+func TestConvertPayloadToBase_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected model.CommitteeBase
+	}{
+		{
+			name: "committee with populated metadata fields",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1", "scope item 2"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+					{Date: "2026-06", Label: "Review"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            stringPtr("cncf-meetup-san-francisco"),
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("in-person"),
+					},
+				},
+			},
+			expected: model.CommitteeBase{
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1", "scope item 2"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+					{Date: "2026-06", Label: "Review"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            "cncf-meetup-san-francisco",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "in-person",
+					},
+				},
+			},
+		},
+		{
+			name: "committee without any metadata fields",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: model.CommitteeBase{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateBase_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeBasePayload
+		expected model.CommitteeBase
+	}{
+		{
+			name: "update with populated metadata fields",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:          stringPtr("committee-123"),
+				ProjectUID:   "project-123",
+				Name:         "Updated Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1", "deliverable 2"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-02", Label: "Milestone"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "event",
+						Label:                 "CNCF Meetup - Austin",
+						URL:                   "https://community.cncf.io/cncf-meetup-austin/",
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("virtual"),
+					},
+				},
+			},
+			expected: model.CommitteeBase{
+				UID:          "committee-123",
+				ProjectUID:   "project-123",
+				Name:         "Updated Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1", "deliverable 2"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-02", Label: "Milestone"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "event",
+						Label:                 "CNCF Meetup - Austin",
+						URL:                   "https://community.cncf.io/cncf-meetup-austin/",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "virtual",
+					},
+				},
+			},
+		},
+		{
+			name: "update without metadata fields clears them",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Updated Committee",
+				Category:   "governance",
+			},
+			expected: model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Updated Committee",
+				Category:   "governance",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.CommitteeBase)
+		})
+	}
+}
+
+func TestConvertBaseToResponse_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     *model.CommitteeBase
+		expected *committeeservice.CommitteeBaseWithReadonlyAttributes
+	}{
+		{
+			name: "base with populated metadata fields",
+			base: &model.CommitteeBase{
+				UID:          "committee-123",
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            "cncf-meetup-san-francisco",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "in-person",
+					},
+				},
+			},
+			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
+				UID:          stringPtr("committee-123"),
+				ProjectUID:   stringPtr("project-123"),
+				Name:         stringPtr("Test Committee"),
+				Category:     stringPtr("governance"),
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            stringPtr("cncf-meetup-san-francisco"),
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("in-person"),
+					},
+				},
+				Calendar: &struct {
+					Public bool
+				}{},
+			},
+		},
+		{
+			name: "base without any metadata fields",
+			base: &model.CommitteeBase{
+				UID:        "committee-456",
+				ProjectUID: "project-456",
+				Name:       "Minimal Committee",
+				Category:   "technical",
+			},
+			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
+				UID:        stringPtr("committee-456"),
+				ProjectUID: stringPtr("project-456"),
+				Name:       stringPtr("Minimal Committee"),
+				Category:   stringPtr("technical"),
+				Calendar: &struct {
+					Public bool
+				}{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertBaseToResponse(tt.base)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestValidateCreateCommitteeRequestBody_Metadata exercises the Goa-generated
+// validation for the new repository/key_dates fields on the
+// create-committee request body.
+func TestValidateCreateCommitteeRequestBody_Metadata(t *testing.T) {
+	validBody := func() *server.CreateCommitteeRequestBody {
+		return &server.CreateCommitteeRequestBody{
+			Name:         stringPtr("Test Committee"),
+			Category:     stringPtr("Board"),
+			ProjectUID:   stringPtr("5cf83bea-3f3d-4c1e-9c4e-000000000001"),
+			EnableVoting: boolPtr(true),
+		}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*server.CreateCommitteeRequestBody)
+		wantErr bool
+	}{
+		{
+			name:    "valid body with no metadata fields",
+			mutate:  func(_ *server.CreateCommitteeRequestBody) {},
+			wantErr: false,
+		},
+		{
+			name: "invalid repository URL rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				repo := "  "
+				b.Repository = &repo
+			},
+			wantErr: true,
+		},
+		{
+			name: "key_dates entry with non YYYY-MM date rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("2026-13-01"),
+						Label: stringPtr("Kickoff"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid key_dates accepted",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("2026-06"),
+						Label: stringPtr("Review"),
+					},
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := validBody()
+			tt.mutate(body)
+
+			err := server.ValidateCreateCommitteeRequestBody(body)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateUpdateCommitteeBaseRequestBody_Metadata exercises the same
+// validation on the update-committee-base request body, confirming the
+// update path enforces the identical rules as create.
+func TestValidateUpdateCommitteeBaseRequestBody_Metadata(t *testing.T) {
+	validBody := func() *server.UpdateCommitteeBaseRequestBody {
+		return &server.UpdateCommitteeBaseRequestBody{
+			Name:       stringPtr("Test Committee"),
+			Category:   stringPtr("Board"),
+			ProjectUID: stringPtr("5cf83bea-3f3d-4c1e-9c4e-000000000001"),
+		}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*server.UpdateCommitteeBaseRequestBody)
+		wantErr bool
+	}{
+		{
+			name:    "valid body with no metadata fields",
+			mutate:  func(_ *server.UpdateCommitteeBaseRequestBody) {},
+			wantErr: false,
+		},
+		{
+			name: "invalid repository URL rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				repo := "  "
+				b.Repository = &repo
+			},
+			wantErr: true,
+		},
+		{
+			name: "key_dates entry with non YYYY-MM date rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("06-2026"),
+						Label: stringPtr("Kickoff"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := validBody()
+			tt.mutate(body)
+
+			err := server.ValidateUpdateCommitteeBaseRequestBody(body)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateKeyDateRequestBody_InvalidDate confirms ValidateKeyDateRequestBody
+// rejects a date that isn't in YYYY-MM form.
+func TestValidateKeyDateRequestBody_InvalidDate(t *testing.T) {
+	err := server.ValidateKeyDateRequestBody(&server.KeyDateRequestBody{
+		Date:  stringPtr("2026-1"),
+		Label: stringPtr("Kickoff"),
+	})
+	assert.Error(t, err)
+}
+
 // Helper functions for creating pointers to primitives
 func stringPtr(s string) *string {
 	return &s
@@ -1518,4 +1972,8 @@ func stringPtr(s string) *string {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

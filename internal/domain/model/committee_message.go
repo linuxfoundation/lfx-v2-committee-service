@@ -47,6 +47,14 @@ type CommitteeMemberCreatedEventData struct {
 	SkipNotification bool `json:"skip_notification,omitempty"`
 }
 
+// CommitteeMemberDeletedEventData is the payload for committee_member.deleted events.
+// It embeds the member (flattened in JSON, so consumers that decode a plain
+// CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
+type CommitteeMemberDeletedEventData struct {
+	*CommitteeMember
+	SkipNotification bool `json:"skip_notification,omitempty"`
+}
+
 // CommitteeIndexerMessage is a NATS message schema for sending messages related to committees CRUD operations.
 type CommitteeIndexerMessage struct {
 	Action  MessageAction     `json:"action"`
@@ -139,11 +147,12 @@ type ResourceType string
 
 // ResourceType constants for the resource type of a committee event.
 const (
-	ResourceCommitteeMember   ResourceType = "committee_member"
-	ResourceCommittee         ResourceType = "committee"
-	ResourceCommitteeSettings ResourceType = "committee_settings"
-	ResourceCommitteeDocument ResourceType = "committee_document"
-	ResourceCommitteeLink     ResourceType = "committee_link"
+	ResourceCommitteeMember      ResourceType = "committee_member"
+	ResourceCommittee            ResourceType = "committee"
+	ResourceCommitteeSettings    ResourceType = "committee_settings"
+	ResourceCommitteeDocument    ResourceType = "committee_document"
+	ResourceCommitteeLink        ResourceType = "committee_link"
+	ResourceCommitteeApplication ResourceType = "committee_application"
 )
 
 // CommitteeSettingsUpdateEventData carries the before and after images of a committee settings update.
@@ -194,6 +203,8 @@ func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, actio
 		return e.buildCommitteeDocument(ctx, resource, action, input)
 	case ResourceCommitteeLink:
 		return e.buildCommitteeLink(ctx, resource, action, input)
+	case ResourceCommitteeApplication:
+		return e.buildCommitteeApplication(ctx, resource, action, input)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -241,18 +252,19 @@ func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource Res
 		}
 		e.Data = createData
 	case ActionDeleted:
-		// For delete, expect CommitteeMember
-		member, ok := input.(*CommitteeMember)
-		if !ok || member == nil {
+		// For delete, expect CommitteeMemberDeletedEventData which carries the member
+		// plus the request-scoped skip_notification flag.
+		deletedData, ok := input.(*CommitteeMemberDeletedEventData)
+		if !ok || deletedData == nil || deletedData.CommitteeMember == nil {
 			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
 				"resource", resource,
 				"action", action,
-				"expected", "*CommitteeMember",
+				"expected", "*CommitteeMemberDeletedEventData",
 				"got", fmt.Sprintf("%T", input),
 			)
 			return nil, fmt.Errorf("invalid input type, got %T", input)
 		}
-		e.Data = member
+		e.Data = deletedData
 	case ActionUpdated:
 		// For updates, expect CommitteeMemberUpdateEventData
 		updateData, ok := input.(*CommitteeMemberUpdateEventData)
@@ -367,6 +379,33 @@ func (e *CommitteeEvent) buildCommitteeLink(ctx context.Context, resource Resour
 		return nil, fmt.Errorf("invalid input type, got %T", input)
 	}
 	e.Data = link
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeApplication(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeApplicationSubmittedSubject
+	case ActionUpdated:
+		e.Subject = constants.CommitteeApplicationUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_application resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	application, ok := input.(*CommitteeApplication)
+	if !ok || application == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeApplication",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = application
 
 	return e, nil
 }

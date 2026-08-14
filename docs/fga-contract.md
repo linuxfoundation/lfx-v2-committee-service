@@ -28,6 +28,18 @@ All messages use the generic FGA message format on the following NATS subjects:
 
 Each message carries `object_type`, `operation`, and a `data` map. The sections below describe the `data` contents for each operation.
 
+### Delivery and `X-Sync`
+
+`lfx.fga-sync.update_access`, `lfx.fga-sync.delete_access`, `lfx.fga-sync.member_put`, and `lfx.fga-sync.member_remove` are always sent with core NATS publish. Publication is asynchronous: `X-Sync: true` does not wait for fga-sync processing or OpenFGA convergence. `X-Sync` continues to request synchronous processing for applicable downstream operations, including indexer messages.
+
+For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds.
+
+Committee deletion preserves its stricter existing error behavior: storage deletion occurs first, then an immediate NATS readiness, serialization, core-publish, or indexer error is returned to the HTTP layer. Making `delete_access` asynchronous eliminates its FGA request/reply and reply-timeout errors; synchronous indexer errors remain possible when `X-Sync: true`. The defensive committee-invite delete branch remains best-effort and logs publication failures.
+
+A successful core publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
+
+`member_put` and `member_remove` publication follows the same asymmetry as committee writes: create and update publish errors are logged and best-effort, while `DeleteMember` still returns an immediate publish error after the member record is deleted. `AcceptInvite` no longer uses request/reply for `member_put`; access checks issued immediately after acceptance may not yet see the membership.
+
 ---
 
 ## Committee
@@ -160,7 +172,7 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 
 ### delete_access (Delete)
 
-Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Removes all FGA tuples for the `committee_invite:{uid}` object.
+The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. No current production callsite invokes this branch.
 
 ---
 
@@ -178,5 +190,5 @@ Published to `lfx.fga-sync.delete_access` when a committee invite is deleted. Re
 | Create committee invite | `committee_invite` | `lfx.fga-sync.update_access` | `invitee` relation omitted when invitee has no LFID yet |
 | Update committee invite | `committee_invite` | `lfx.fga-sync.update_access` | Same invitee-resolution logic as create |
 | Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
-| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Removes all tuples for the invite object |
+| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no current production callsite invokes it (see [delete_access](#delete_access-delete)) |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |

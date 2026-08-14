@@ -123,6 +123,14 @@ type Service interface {
 	// 404 when no brief exists for the window (generate one first), 400 when
 	// brief_text is empty.
 	UpdateCurrentWeeklyBrief(context.Context, *UpdateCurrentWeeklyBriefPayload) (res *GroupWeeklyBriefWithReadonlyAttributes, err error)
+	// Post the current weekly brief to the committee's configured Slack Incoming
+	// Webhook URL. Only Slack Incoming Webhooks (hooks.slack.com) are currently
+	// supported; other chat platforms are not supported. The caller must supply
+	// the revision from GET /current as an optimistic-concurrency guard. Returns
+	// 404 when no brief exists for the current window, 400 when the brief is not
+	// in a shareable state (generated, edited, or approved), 409 when the revision
+	// is stale, 422 when no chat webhook URL is configured in committee settings.
+	ShareWeeklyBriefToChat(context.Context, *ShareWeeklyBriefToChatPayload) (err error)
 }
 
 // Auther defines the authorization functions to be implemented by the service.
@@ -145,7 +153,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [40]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief"}
+var MethodNames = [41]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -188,6 +196,8 @@ type ApproveApplicationPayload struct {
 	ApplicationUID string
 	// Notes from the reviewer
 	ReviewerNotes *string
+	// When true, send an acceptance email to the applicant. Defaults to false.
+	Notify bool
 }
 
 // CommitteeApplicationWithReadonlyAttributes is the result type of the
@@ -205,6 +215,15 @@ type CommitteeApplicationWithReadonlyAttributes struct {
 	Status string
 	// Notes from the reviewer
 	ReviewerNotes *string
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 }
@@ -249,6 +268,17 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// The name of the project this committee belongs to
 	ProjectName *string
 	// The name of the SSO group - read-only
@@ -280,8 +310,10 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	FileSize *int64
 	// MIME type of the file
 	ContentType *string
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -328,6 +360,17 @@ type CommitteeFullWithReadonlyAttributes struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// The name of the SSO group - read-only
 	SsoGroupName *string
 	// The total number of members in this committee
@@ -394,8 +437,10 @@ type CommitteeLinkFolderWithReadonlyAttributes struct {
 	CommitteeUID *string
 	// Folder name
 	Name *string
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -417,8 +462,10 @@ type CommitteeLinkWithReadonlyAttributes struct {
 	URL *string
 	// Optional description
 	Description *string
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string
+	// User who created this resource
+	CreatedBy *CommitteeUser
+	// User who last updated this resource
+	UpdatedBy *CommitteeUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -535,8 +582,10 @@ type CreateCommitteeLinkFolderPayload struct {
 	UID *string
 	// Folder name
 	Name string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -557,8 +606,10 @@ type CreateCommitteeLinkPayload struct {
 	Description *string
 	// Optional folder UID to place this link in
 	FolderUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -569,12 +620,18 @@ type CreateCommitteeMemberPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
-	// When true, suppress the invite/notification email sent to the new member
-	// (used for silent bulk imports)
+	// When true, suppress the notification email sent to the committee member
+	// (whether added or removed)
 	SkipNotification bool
+	// When true, skip auth-service enrichment: the username, name, and avatar from
+	// the request body are stored as-is without email→username lookup or profile
+	// metadata backfill. Intended for trusted sync callers.
+	SkipEnrichment bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// User's LF ID
@@ -629,8 +686,10 @@ type CreateCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Project UID this committee belongs to -- v2 uid, not related to v1 id
 	// directly
@@ -667,6 +726,17 @@ type CreateCommitteePayload struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -679,6 +749,12 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
 	// Users who can audit this committee
@@ -692,8 +768,10 @@ type CreateInvitePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -738,8 +816,10 @@ type DeleteCommitteeDocumentPayload struct {
 	DocumentUID string
 	// If-Match header value for conditional requests
 	IfMatch string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -756,8 +836,10 @@ type DeleteCommitteeLinkFolderPayload struct {
 	UID *string
 	// Committee folder UID
 	FolderUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -774,8 +856,10 @@ type DeleteCommitteeLinkPayload struct {
 	UID *string
 	// Committee link UID
 	LinkUID *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -788,9 +872,14 @@ type DeleteCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
+	// When true, suppress the notification email sent to the committee member
+	// (whether added or removed)
+	SkipNotification bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -806,8 +895,10 @@ type DeleteCommitteePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -824,6 +915,27 @@ type DownloadCommitteeDocumentPayload struct {
 	UID *string
 	// Committee document UID
 	DocumentUID *string
+}
+
+// A single source-labeled external entity linked to a committee (e.g. an OCG
+// group or event).
+type ExternalSource struct {
+	// The external platform that owns this linked entity
+	Provider string
+	// The type of entity in the external platform
+	EntityType string
+	// Human-readable label for the linked external entity
+	Label string
+	// The URL of the linked external entity
+	URL string
+	// The identifier of the entity within the external platform
+	ExternalID *string
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string
 }
 
 // GenerateWeeklyBriefPayload is the payload type of the committee-service
@@ -1075,6 +1187,8 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	WindowEnd *string
 	// Lifecycle state
 	State *string
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string
 	// Brief body markdown text
 	BriefText *string
 	// Sources considered by the generator
@@ -1108,11 +1222,21 @@ type JoinCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
+}
+
+// A single entry in a committee's key-dates timeline.
+type KeyDate struct {
+	// The month of the key date, in YYYY-MM format
+	Date string
+	// Label describing the key date
+	Label string
 }
 
 // LeaveCommitteePayload is the payload type of the committee-service service
@@ -1122,8 +1246,10 @@ type LeaveCommitteePayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
@@ -1240,6 +1366,8 @@ type RejectApplicationPayload struct {
 	ApplicationUID string
 	// Notes from the reviewer
 	ReviewerNotes *string
+	// When true, send a rejection email to the applicant. Defaults to false.
+	Notify bool
 }
 
 // RevokeInvitePayload is the payload type of the committee-service service
@@ -1255,6 +1383,19 @@ type RevokeInvitePayload struct {
 	InviteUID string
 }
 
+// ShareWeeklyBriefToChatPayload is the payload type of the committee-service
+// service share-weekly-brief-to-chat method.
+type ShareWeeklyBriefToChatPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Optimistic-concurrency token from GET /current
+	Revision uint64
+}
+
 // SubmitApplicationPayload is the payload type of the committee-service
 // service submit-application method.
 type SubmitApplicationPayload struct {
@@ -1262,13 +1403,27 @@ type SubmitApplicationPayload struct {
 	BearerToken *string
 	// Version of the API
 	Version string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Application message
 	Message *string
+	// When true, send email notifications to committee writers about the new
+	// application. Defaults to false.
+	Notify bool
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
 }
 
 // UpdateCommitteeBasePayload is the payload type of the committee-service
@@ -1280,8 +1435,10 @@ type UpdateCommitteeBasePayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -1320,6 +1477,17 @@ type UpdateCommitteeBasePayload struct {
 	ParentUID *string
 	// How new members can join this committee
 	JoinMode string
+	// The URL of the committee's code repository
+	Repository *string
+	// The scope of the committee, as a list of bullet points
+	Scope []string
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDate
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSource
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service
@@ -1331,9 +1499,15 @@ type UpdateCommitteeMemberPayload struct {
 	Version string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
+	// When true, skip auth-service enrichment: the username, name, and avatar from
+	// the request body are stored as-is without email→username lookup or profile
+	// metadata backfill. Intended for trusted sync callers.
+	SkipEnrichment bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -1392,8 +1566,10 @@ type UpdateCommitteeSettingsPayload struct {
 	Version *string
 	// If-Match header value for conditional requests
 	IfMatch *string
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID *string
@@ -1409,6 +1585,12 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
 	// Users who can audit this committee
@@ -1451,8 +1633,10 @@ type UploadCommitteeDocumentPayload struct {
 	ContentType string
 	// File content
 	File []byte
-	// Determines if the operation should be synchronous (true) or asynchronous
-	// (false, default)
+	// Requests synchronous processing for applicable downstream operations,
+	// including indexer messages. FGA update_access, delete_access, member_put,
+	// and member_remove publications remain asynchronous and do not wait for FGA
+	// processing or OpenFGA convergence.
 	XSync bool
 }
 
@@ -1509,6 +1693,15 @@ type GroupWeeklyBriefThrottleExceededError struct {
 
 type InternalServerError struct {
 	// Error message
+	Message string
+}
+
+// Returned when share-to-chat is attempted but no chat webhook URL is
+// configured for the committee.
+type NoChatWebhookError struct {
+	// Stable machine code
+	Code string
+	// Human-readable description
 	Message string
 }
 
@@ -1639,6 +1832,23 @@ func (e *InternalServerError) ErrorName() string {
 // GoaErrorName returns "internal-server-error".
 func (e *InternalServerError) GoaErrorName() string {
 	return "InternalServerError"
+}
+
+// Error returns an error description.
+func (e *NoChatWebhookError) Error() string {
+	return "Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee."
+}
+
+// ErrorName returns "no-chat-webhook-error".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *NoChatWebhookError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "no-chat-webhook-error".
+func (e *NoChatWebhookError) GoaErrorName() string {
+	return "NoChatWebhook"
 }
 
 // Error returns an error description.

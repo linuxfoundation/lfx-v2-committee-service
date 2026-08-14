@@ -1,0 +1,13 @@
+{{- /* Copyright The Linux Foundation and each contributor to LFX. */ -}}
+{{- /* SPDX-License-Identifier: MIT */ -}}
+Hi {{.RecipientName}},
+
+Thank you for your interest in the {{.CommitteeName}} committee{{if .ProjectName}} in the {{.ProjectName}} project{{end}} in LFX Self-Serve. After review, your application has not been approved at this time.
+{{if .ReviewerNotes}}
+Note from the reviewer:
+{{.ReviewerNotes}}
+{{end}}
+If you have questions, please reach out to the committee administrators directly.
+
+---
+© The Linux Foundation

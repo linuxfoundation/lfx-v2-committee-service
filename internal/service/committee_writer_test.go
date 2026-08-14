@@ -4,8 +4,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,6 +170,11 @@ func (w *TestMockCommitteeWriter) IndexMemberByOrganization(ctx context.Context,
 func (w *TestMockCommitteeWriter) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.IndexMemberByEmail(ctx, member)
+}
+
+func (w *TestMockCommitteeWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.IndexMemberByUsername(ctx, member)
 }
 
 // Implement CommitteeInviteWriter interface
@@ -665,6 +674,98 @@ func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_UpdateAccessRouting(t *testing.T) {
+	operations := []struct {
+		name             string
+		wantIndexerCalls int
+		run              func(t *testing.T, orchestrator CommitteeWriter, sync bool)
+	}{
+		{
+			name:             "create committee",
+			wantIndexerCalls: 2,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.Create(context.Background(), &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						ProjectUID: "project-1",
+						Name:       "Committee",
+						Category:   "governance",
+					},
+					CommitteeSettings: &model.CommitteeSettings{},
+				}, sync)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "update committee base",
+			wantIndexerCalls: 1,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.Update(context.Background(), &model.Committee{
+					CommitteeBase: model.CommitteeBase{
+						UID:        "committee-1",
+						ProjectUID: "project-1",
+						Name:       "Committee",
+						Category:   "technical",
+					},
+				}, 1, sync)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "update committee settings",
+			wantIndexerCalls: 1,
+			run: func(t *testing.T, orchestrator CommitteeWriter, sync bool) {
+				_, err := orchestrator.UpdateSettings(context.Background(), &model.CommitteeSettings{
+					UID:                   "committee-1",
+					BusinessEmailRequired: true,
+				}, 1, sync)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, operation := range operations {
+		for _, sync := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/sync=%t", operation.name, sync), func(t *testing.T) {
+				repo := mock.NewMockRepository()
+				repo.ClearAll()
+				repo.AddProject("project-1", "test-project", "Test Project")
+				if operation.name != "create committee" {
+					repo.AddCommittee(&model.Committee{
+						CommitteeBase: model.CommitteeBase{
+							UID:        "committee-1",
+							ProjectUID: "project-1",
+							Name:       "Committee",
+							Category:   "governance",
+						},
+						CommitteeSettings: &model.CommitteeSettings{
+							UID: "committee-1",
+						},
+					})
+				}
+
+				publisher := &mock.MockCommitteePublisher{}
+				orchestrator := NewCommitteeWriterOrchestrator(
+					WithCommitteeRetriever(mock.NewMockCommitteeReader(repo)),
+					WithCommitteeWriter(NewTestMockCommitteeWriter(repo)),
+					WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+					WithCommitteePublisher(publisher),
+				)
+
+				operation.run(t, orchestrator, sync)
+
+				assert.Len(t, publisher.IndexerSyncValues, operation.wantIndexerCalls)
+				for _, indexerSync := range publisher.IndexerSyncValues {
+					assert.Equal(t, sync, indexerSync)
+				}
+				assert.Equal(t, 1, publisher.UpdateAccessCallCount)
+				assert.Equal(t, 0, publisher.MemberPutCallCount)
+				assert.Equal(t, 0, publisher.MemberRemoveCallCount)
+				assert.NotNil(t, publisher.LastUpdateAccessMessage)
+			})
+		}
+	}
+}
+
 func TestCommitteeWriterOrchestrator_checkReserveSSOName(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -922,7 +1023,28 @@ func (p *MockCommitteePublisherWithError) Indexer(ctx context.Context, subject s
 	return nil
 }
 
-func (p *MockCommitteePublisherWithError) Access(ctx context.Context, subject string, message any, sync bool) error {
+func (p *MockCommitteePublisherWithError) UpdateAccess(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
+func (p *MockCommitteePublisherWithError) DeleteAccess(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
+func (p *MockCommitteePublisherWithError) MemberPut(ctx context.Context, message any) error {
+	if p.accessError != nil {
+		return p.accessError
+	}
+	return nil
+}
+
+func (p *MockCommitteePublisherWithError) MemberRemove(ctx context.Context, message any) error {
 	if p.accessError != nil {
 		return p.accessError
 	}
@@ -1014,6 +1136,41 @@ func TestCommitteeWriterOrchestrator_Create_PublishingErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCommitteeWriterOrchestrator_Create_PublishFailureDoesNotLogSuccess(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	repo := mock.NewMockRepository()
+	repo.ClearAll()
+	repo.AddProject("project-1", "test-project", "Test Project")
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(repo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(repo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+		WithCommitteePublisher(&MockCommitteePublisherWithError{
+			accessError: errors.New("access publishing failed"),
+		}),
+	)
+
+	result, err := orchestrator.Create(context.Background(), &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			ProjectUID: "project-1",
+			Name:       "Test Committee",
+			Category:   "governance",
+		},
+		CommitteeSettings: &model.CommitteeSettings{},
+	}, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, logs.String(), "failed to publish")
+	assert.NotContains(t, logs.String(), "messages published successfully")
 }
 
 func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
@@ -1776,6 +1933,86 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_WritersAuditorsPreservation(
 	}
 }
 
+func TestCommitteeWriterOrchestrator_UpdateSettings_ChatWebhookURLSemantics(t *testing.T) {
+	storedURL := "https://hooks.slack.example.org/services/TXXXXXXXX/BXXXXXXXX/placeholder"
+	newURL := "https://hooks.slack.example.org/services/TYYYYYYYY/BYYYYYYYY/newtoken"
+	emptyStr := ""
+
+	tests := []struct {
+		name        string
+		existingURL *string
+		updateURL   *string // nil = omitted, ptr("") = explicit clear, ptr(url) = replace
+		wantURL     *string
+	}{
+		{
+			name:        "omitting field preserves existing URL",
+			existingURL: &storedURL,
+			updateURL:   nil,
+			wantURL:     &storedURL,
+		},
+		{
+			name:        "empty string clears existing URL",
+			existingURL: &storedURL,
+			updateURL:   &emptyStr,
+			wantURL:     nil,
+		},
+		{
+			name:        "new HTTPS URL replaces existing",
+			existingURL: &storedURL,
+			updateURL:   &newURL,
+			wantURL:     &newURL,
+		},
+		{
+			name:        "omitting field when no URL stored leaves it nil",
+			existingURL: nil,
+			updateURL:   nil,
+			wantURL:     nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			existingCommittee := &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID:            "committee-1",
+					ChatWebhookURL: tc.existingURL,
+					CreatedAt:      time.Now().Add(-24 * time.Hour),
+					UpdatedAt:      time.Now().Add(-1 * time.Hour),
+				},
+			}
+			mockRepo.AddCommittee(existingCommittee)
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			updateSettings := &model.CommitteeSettings{
+				UID:            "committee-1",
+				ChatWebhookURL: tc.updateURL,
+			}
+
+			result, err := orchestrator.UpdateSettings(context.Background(), updateSettings, uint64(1), false)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.wantURL, result.ChatWebhookURL)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -2034,11 +2271,55 @@ func TestCommitteeWriterOrchestrator_Delete(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_DeleteAccessRouting(t *testing.T) {
+	for _, sync := range []bool{true, false} {
+		t.Run(fmt.Sprintf("sync=%t", sync), func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID: "committee-1",
+				},
+			})
+
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(publisher),
+			)
+
+			err := orchestrator.Delete(context.Background(), "committee-1", 1, sync)
+
+			require.NoError(t, err)
+			assert.Equal(t, []bool{sync, sync}, publisher.IndexerSyncValues)
+			assert.Equal(t, 1, publisher.DeleteAccessCallCount)
+			assert.Zero(t, publisher.MemberPutCallCount)
+			assert.Zero(t, publisher.MemberRemoveCallCount)
+
+			msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "committee", msg.ObjectType)
+			assert.Equal(t, "delete_access", msg.Operation)
+			assert.Equal(t, fgatypes.GenericDeleteData{UID: "committee-1"}, msg.Data)
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
 		indexerError   error
 		accessError    error
+		sync           bool
 		expectComplete bool
 	}{
 		{
@@ -2051,6 +2332,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 			name:           "indexer error fails delete",
 			indexerError:   errors.New("indexer publishing failed"),
 			accessError:    nil,
+			sync:           true,
 			expectComplete: false,
 		},
 		{
@@ -2063,6 +2345,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 			name:           "both publishing errors fail delete",
 			indexerError:   errors.New("indexer publishing failed"),
 			accessError:    errors.New("access publishing failed"),
+			sync:           true,
 			expectComplete: false,
 		},
 	}
@@ -2112,7 +2395,7 @@ func TestCommitteeWriterOrchestrator_Delete_PublishingErrors(t *testing.T) {
 
 			// Execute
 			ctx := context.Background()
-			err := orchestrator.Delete(ctx, "committee-1", uint64(1), false)
+			err := orchestrator.Delete(ctx, "committee-1", uint64(1), tc.sync)
 
 			// Validate
 			if tc.expectComplete {
@@ -2319,6 +2602,75 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 			result := orchestrator.buildMemberAccessControlMessage(ctx, tc.member, tc.action)
 
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
+	tests := []struct {
+		name               string
+		committee          *model.Committee
+		wantAliases        []string
+		wantDisplayNameTag string
+		wantFulltext       string
+	}{
+		{
+			name: "distinct display_name included in aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-1",
+					ProjectUID:  "proj-1",
+					Name:        "TSC",
+					DisplayName: "Technical Steering Committee",
+				},
+			},
+			wantAliases:        []string{"TSC", "Technical Steering Committee"},
+			wantDisplayNameTag: "display_name:Technical Steering Committee",
+			wantFulltext:       "TSC Technical Steering Committee",
+		},
+		{
+			name: "display_name matching name is deduplicated",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "uid-2",
+					ProjectUID:  "proj-2",
+					Name:        "TSC",
+					DisplayName: "TSC",
+				},
+			},
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "display_name:TSC",
+			wantFulltext:       "TSC",
+		},
+		{
+			name: "empty display_name omitted from aliases and tags",
+			committee: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "uid-3",
+					ProjectUID: "proj-3",
+					Name:       "TSC",
+				},
+			},
+			wantAliases:        []string{"TSC"},
+			wantDisplayNameTag: "",
+			wantFulltext:       "TSC",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := buildCommitteeIndexingConfig(tc.committee)
+			assert.Equal(t, tc.wantAliases, cfg.NameAndAliases)
+
+			var foundTag string
+			for _, tag := range cfg.Tags {
+				if strings.HasPrefix(tag, "display_name:") {
+					foundTag = tag
+					break
+				}
+			}
+			assert.Equal(t, tc.wantDisplayNameTag, foundTag, "display_name tag")
+			assert.Equal(t, tc.wantFulltext, cfg.Fulltext, "fulltext")
 		})
 	}
 }

@@ -53,6 +53,17 @@ type CreateCommitteeRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -65,6 +76,12 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -109,6 +126,17 @@ type UpdateCommitteeBaseRequestBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode *string `form:"join_mode,omitempty" json:"join_mode,omitempty" xml:"join_mode,omitempty"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateRequestBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -126,6 +154,12 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
+	// Write-only: never returned from GET. Only Slack Incoming Webhooks
+	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
+	// are not supported. Send an empty string to clear a previously stored value;
+	// omit the field (or send null) to preserve the existing value.
+	ChatWebhookURL *string `form:"chat_webhook_url,omitempty" json:"chat_webhook_url,omitempty" xml:"chat_webhook_url,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserRequestBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -278,6 +312,18 @@ type AcceptInviteRequestBody struct {
 type SubmitApplicationRequestBody struct {
 	// Application message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// When true, send email notifications to committee writers about the new
+	// application. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
 // ApproveApplicationRequestBody is the type of the "committee-service" service
@@ -285,6 +331,8 @@ type SubmitApplicationRequestBody struct {
 type ApproveApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send an acceptance email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // RejectApplicationRequestBody is the type of the "committee-service" service
@@ -292,6 +340,8 @@ type ApproveApplicationRequestBody struct {
 type RejectApplicationRequestBody struct {
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// When true, send a rejection email to the applicant. Defaults to false.
+	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
 // CreateCommitteeLinkRequestBody is the type of the "committee-service"
@@ -347,6 +397,13 @@ type UpdateCurrentWeeklyBriefRequestBody struct {
 	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
 }
 
+// ShareWeeklyBriefToChatRequestBody is the type of the "committee-service"
+// service "share-weekly-brief-to-chat" endpoint HTTP request body.
+type ShareWeeklyBriefToChatRequestBody struct {
+	// Optimistic-concurrency token from GET /current
+	Revision *uint64 `form:"revision,omitempty" json:"revision,omitempty" xml:"revision,omitempty"`
+}
+
 // CreateCommitteeResponseBody is the type of the "committee-service" service
 // "create-committee" endpoint HTTP response body.
 type CreateCommitteeResponseBody struct {
@@ -387,6 +444,17 @@ type CreateCommitteeResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the SSO group - read-only
 	SsoGroupName *string `form:"sso_group_name,omitempty" json:"sso_group_name,omitempty" xml:"sso_group_name,omitempty"`
 	// The total number of members in this committee
@@ -457,6 +525,17 @@ type UpdateCommitteeBaseResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -844,6 +923,15 @@ type GetApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -863,6 +951,15 @@ type SubmitApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -942,6 +1039,15 @@ type RejectApplicationResponseBody struct {
 	Status string `form:"status" json:"status" xml:"status"`
 	// Notes from the reviewer
 	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -1029,8 +1135,10 @@ type CreateCommitteeLinkResponseBody struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1054,8 +1162,10 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1081,8 +1191,10 @@ type UploadCommitteeDocumentResponseBody struct {
 	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1125,6 +1237,8 @@ type UpdateCurrentWeeklyBriefResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -2527,6 +2641,94 @@ type UpdateCurrentWeeklyBriefServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// ShareWeeklyBriefToChatBadRequestResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "BadRequest" error.
+type ShareWeeklyBriefToChatBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ShareWeeklyBriefToChatForbiddenResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "Forbidden" error.
+type ShareWeeklyBriefToChatForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ShareWeeklyBriefToChatRevisionConflictResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "RevisionConflict" error.
+type ShareWeeklyBriefToChatRevisionConflictResponseBody struct {
+	// Stable machine code
+	Code string `form:"code" json:"code" xml:"code"`
+	// Current server-side revision of the brief
+	Revision uint64 `form:"revision" json:"revision" xml:"revision"`
+}
+
+// ShareWeeklyBriefToChatInternalServerErrorResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "InternalServerError" error.
+type ShareWeeklyBriefToChatInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ShareWeeklyBriefToChatNoChatWebhookResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "NoChatWebhook" error.
+type ShareWeeklyBriefToChatNoChatWebhookResponseBody struct {
+	// Stable machine code
+	Code string `form:"code" json:"code" xml:"code"`
+	// Human-readable description
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ShareWeeklyBriefToChatNotFoundResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "NotFound" error.
+type ShareWeeklyBriefToChatNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ShareWeeklyBriefToChatServiceUnavailableResponseBody is the type of the
+// "committee-service" service "share-weekly-brief-to-chat" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type ShareWeeklyBriefToChatServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// KeyDateResponseBody is used to define fields on response body types.
+type KeyDateResponseBody struct {
+	// The month of the key date, in YYYY-MM format
+	Date string `form:"date" json:"date" xml:"date"`
+	// Label describing the key date
+	Label string `form:"label" json:"label" xml:"label"`
+}
+
+// ExternalSourceResponseBody is used to define fields on response body types.
+type ExternalSourceResponseBody struct {
+	// The external platform that owns this linked entity
+	Provider string `form:"provider" json:"provider" xml:"provider"`
+	// The type of entity in the external platform
+	EntityType string `form:"entity_type" json:"entity_type" xml:"entity_type"`
+	// Human-readable label for the linked external entity
+	Label string `form:"label" json:"label" xml:"label"`
+	// The URL of the linked external entity
+	URL string `form:"url" json:"url" xml:"url"`
+	// The identifier of the entity within the external platform
+	ExternalID *string `form:"external_id,omitempty" json:"external_id,omitempty" xml:"external_id,omitempty"`
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string `form:"external_category,omitempty" json:"external_category,omitempty" xml:"external_category,omitempty"`
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string `form:"external_region,omitempty" json:"external_region,omitempty" xml:"external_region,omitempty"`
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string `form:"external_event_category,omitempty" json:"external_event_category,omitempty" xml:"external_event_category,omitempty"`
+}
+
 // CommitteeUserResponseBody is used to define fields on response body types.
 type CommitteeUserResponseBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -2579,6 +2781,17 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	ParentUID *string `form:"parent_uid,omitempty" json:"parent_uid,omitempty" xml:"parent_uid,omitempty"`
 	// How new members can join this committee
 	JoinMode string `form:"join_mode" json:"join_mode" xml:"join_mode"`
+	// The URL of the committee's code repository
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty" xml:"repository,omitempty"`
+	// The scope of the committee, as a list of bullet points
+	Scope []string `form:"scope,omitempty" json:"scope,omitempty" xml:"scope,omitempty"`
+	// The deliverables of the committee, as a list of bullet points
+	Deliverables []string `form:"deliverables,omitempty" json:"deliverables,omitempty" xml:"deliverables,omitempty"`
+	// Timeline of important dates for the committee
+	KeyDates []*KeyDateResponseBody `form:"key_dates,omitempty" json:"key_dates,omitempty" xml:"key_dates,omitempty"`
+	// External source-labeled entities linked to this committee (e.g. OCG groups
+	// or events)
+	ExternalSources []*ExternalSourceResponseBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
 	// The name of the project this committee belongs to
 	ProjectName *string `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
 	// The name of the SSO group - read-only
@@ -2735,8 +2948,10 @@ type CommitteeLinkWithReadonlyAttributesResponseBody struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2758,12 +2973,26 @@ type CommitteeLinkWithReadonlyAttributesResponse struct {
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	// LF username of the user who added the link (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeUserResponse is used to define fields on response body types.
+type CommitteeUserResponse struct {
+	// URL to the user's avatar image; empty when none.
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// The user's email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// Display name of the user
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User identifier (LF ID / sub)
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 }
 
 // CommitteeLinkFolderWithReadonlyAttributesResponseBody is used to define
@@ -2775,8 +3004,10 @@ type CommitteeLinkFolderWithReadonlyAttributesResponseBody struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2792,8 +3023,10 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// LF username of the user who created the folder (auto-populated from JWT)
-	CreatedByUsername *string `form:"created_by_username,omitempty" json:"created_by_username,omitempty" xml:"created_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2819,8 +3052,10 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
-	// LF username of the uploader (auto-populated from JWT)
-	UploadedByUsername *string `form:"uploaded_by_username,omitempty" json:"uploaded_by_username,omitempty" xml:"uploaded_by_username,omitempty"`
+	// User who created this resource
+	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2841,6 +3076,8 @@ type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
+	// Machine-readable reason for the error state; absent on non-error briefs
+	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
 	// Sources considered by the generator
@@ -2895,6 +3132,34 @@ type GroupWeeklyBriefThrottleResponseBody struct {
 	WindowResetsAt *string `form:"window_resets_at,omitempty" json:"window_resets_at,omitempty" xml:"window_resets_at,omitempty"`
 }
 
+// KeyDateRequestBody is used to define fields on request body types.
+type KeyDateRequestBody struct {
+	// The month of the key date, in YYYY-MM format
+	Date *string `form:"date,omitempty" json:"date,omitempty" xml:"date,omitempty"`
+	// Label describing the key date
+	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
+}
+
+// ExternalSourceRequestBody is used to define fields on request body types.
+type ExternalSourceRequestBody struct {
+	// The external platform that owns this linked entity
+	Provider *string `form:"provider,omitempty" json:"provider,omitempty" xml:"provider,omitempty"`
+	// The type of entity in the external platform
+	EntityType *string `form:"entity_type,omitempty" json:"entity_type,omitempty" xml:"entity_type,omitempty"`
+	// Human-readable label for the linked external entity
+	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
+	// The URL of the linked external entity
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// The identifier of the entity within the external platform
+	ExternalID *string `form:"external_id,omitempty" json:"external_id,omitempty" xml:"external_id,omitempty"`
+	// The community-managed category of the entity in the external platform
+	ExternalCategory *string `form:"external_category,omitempty" json:"external_category,omitempty" xml:"external_category,omitempty"`
+	// The community-managed region of the entity in the external platform
+	ExternalRegion *string `form:"external_region,omitempty" json:"external_region,omitempty" xml:"external_region,omitempty"`
+	// The community-managed event category of the entity in the external platform
+	ExternalEventCategory *string `form:"external_event_category,omitempty" json:"external_event_category,omitempty" xml:"external_event_category,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -2926,6 +3191,7 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		DisplayName:           res.DisplayName,
 		ParentUID:             res.ParentUID,
 		JoinMode:              res.JoinMode,
+		Repository:            res.Repository,
 		SsoGroupName:          res.SsoGroupName,
 		TotalMembers:          res.TotalMembers,
 		TotalVotingRepos:      res.TotalVotingRepos,
@@ -2978,6 +3244,30 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	if res.Scope != nil {
+		body.Scope = make([]string, len(res.Scope))
+		for i, val := range res.Scope {
+			body.Scope[i] = val
+		}
+	}
+	if res.Deliverables != nil {
+		body.Deliverables = make([]string, len(res.Deliverables))
+		for i, val := range res.Deliverables {
+			body.Deliverables[i] = val
+		}
+	}
+	if res.KeyDates != nil {
+		body.KeyDates = make([]*KeyDateResponseBody, len(res.KeyDates))
+		for i, val := range res.KeyDates {
+			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
+		}
+	}
+	if res.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.ExternalSources))
+		for i, val := range res.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
 		}
 	}
 	{
@@ -3039,6 +3329,7 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 		DisplayName:      res.CommitteeBase.DisplayName,
 		ParentUID:        res.CommitteeBase.ParentUID,
 		JoinMode:         res.CommitteeBase.JoinMode,
+		Repository:       res.CommitteeBase.Repository,
 		ProjectName:      res.CommitteeBase.ProjectName,
 		SsoGroupName:     res.CommitteeBase.SsoGroupName,
 		TotalMembers:     res.CommitteeBase.TotalMembers,
@@ -3089,6 +3380,30 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 			body.JoinMode = "invite_only"
 		}
 	}
+	if res.CommitteeBase.Scope != nil {
+		body.Scope = make([]string, len(res.CommitteeBase.Scope))
+		for i, val := range res.CommitteeBase.Scope {
+			body.Scope[i] = val
+		}
+	}
+	if res.CommitteeBase.Deliverables != nil {
+		body.Deliverables = make([]string, len(res.CommitteeBase.Deliverables))
+		for i, val := range res.CommitteeBase.Deliverables {
+			body.Deliverables[i] = val
+		}
+	}
+	if res.CommitteeBase.KeyDates != nil {
+		body.KeyDates = make([]*KeyDateResponseBody, len(res.CommitteeBase.KeyDates))
+		for i, val := range res.CommitteeBase.KeyDates {
+			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
+		}
+	}
+	if res.CommitteeBase.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.CommitteeBase.ExternalSources))
+		for i, val := range res.CommitteeBase.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
+		}
+	}
 	{
 		var zero bool
 		if body.HasMailingList == zero {
@@ -3118,6 +3433,7 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		DisplayName:      res.DisplayName,
 		ParentUID:        res.ParentUID,
 		JoinMode:         res.JoinMode,
+		Repository:       res.Repository,
 		ProjectName:      res.ProjectName,
 		SsoGroupName:     res.SsoGroupName,
 		TotalMembers:     res.TotalMembers,
@@ -3166,6 +3482,30 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		var zero string
 		if body.JoinMode == zero {
 			body.JoinMode = "invite_only"
+		}
+	}
+	if res.Scope != nil {
+		body.Scope = make([]string, len(res.Scope))
+		for i, val := range res.Scope {
+			body.Scope[i] = val
+		}
+	}
+	if res.Deliverables != nil {
+		body.Deliverables = make([]string, len(res.Deliverables))
+		for i, val := range res.Deliverables {
+			body.Deliverables[i] = val
+		}
+	}
+	if res.KeyDates != nil {
+		body.KeyDates = make([]*KeyDateResponseBody, len(res.KeyDates))
+		for i, val := range res.KeyDates {
+			body.KeyDates[i] = marshalCommitteeserviceKeyDateToKeyDateResponseBody(val)
+		}
+	}
+	if res.ExternalSources != nil {
+		body.ExternalSources = make([]*ExternalSourceResponseBody, len(res.ExternalSources))
+		for i, val := range res.ExternalSources {
+			body.ExternalSources[i] = marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(val)
 		}
 	}
 	{
@@ -3797,6 +4137,20 @@ func NewGetApplicationResponseBody(res *committeeservice.CommitteeApplicationWit
 			body.Status = "pending"
 		}
 	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
 	return body
 }
 
@@ -3817,6 +4171,20 @@ func NewSubmitApplicationResponseBody(res *committeeservice.CommitteeApplication
 		var zero string
 		if body.Status == zero {
 			body.Status = "pending"
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
 		}
 	}
 	return body
@@ -3930,6 +4298,20 @@ func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplication
 			body.Status = "pending"
 		}
 	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
 	return body
 }
 
@@ -4026,15 +4408,20 @@ func NewJoinCommitteeResponseBody(res *committeeservice.CommitteeMemberFullWithR
 // service.
 func NewGetCommitteeLinkResponseBody(res *committeeservice.GetCommitteeLinkResult) *GetCommitteeLinkResponseBody {
 	body := &GetCommitteeLinkResponseBody{
-		UID:               res.CommitteeLink.UID,
-		CommitteeUID:      res.CommitteeLink.CommitteeUID,
-		FolderUID:         res.CommitteeLink.FolderUID,
-		Name:              res.CommitteeLink.Name,
-		URL:               res.CommitteeLink.URL,
-		Description:       res.CommitteeLink.Description,
-		CreatedByUsername: res.CommitteeLink.CreatedByUsername,
-		CreatedAt:         res.CommitteeLink.CreatedAt,
-		UpdatedAt:         res.CommitteeLink.UpdatedAt,
+		UID:          res.CommitteeLink.UID,
+		CommitteeUID: res.CommitteeLink.CommitteeUID,
+		FolderUID:    res.CommitteeLink.FolderUID,
+		Name:         res.CommitteeLink.Name,
+		URL:          res.CommitteeLink.URL,
+		Description:  res.CommitteeLink.Description,
+		CreatedAt:    res.CommitteeLink.CreatedAt,
+		UpdatedAt:    res.CommitteeLink.UpdatedAt,
+	}
+	if res.CommitteeLink.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLink.CreatedBy)
+	}
+	if res.CommitteeLink.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLink.UpdatedBy)
 	}
 	return body
 }
@@ -4055,15 +4442,20 @@ func NewListCommitteeLinksResponseBody(res []*committeeservice.CommitteeLinkWith
 // service.
 func NewCreateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithReadonlyAttributes) *CreateCommitteeLinkResponseBody {
 	body := &CreateCommitteeLinkResponseBody{
-		UID:               res.UID,
-		CommitteeUID:      res.CommitteeUID,
-		FolderUID:         res.FolderUID,
-		Name:              res.Name,
-		URL:               res.URL,
-		Description:       res.Description,
-		CreatedByUsername: res.CreatedByUsername,
-		CreatedAt:         res.CreatedAt,
-		UpdatedAt:         res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		URL:          res.URL,
+		Description:  res.Description,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4073,12 +4465,17 @@ func NewCreateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithR
 // "committee-service" service.
 func NewGetCommitteeLinkFolderResponseBody(res *committeeservice.GetCommitteeLinkFolderResult) *GetCommitteeLinkFolderResponseBody {
 	body := &GetCommitteeLinkFolderResponseBody{
-		UID:               res.CommitteeLinkFolder.UID,
-		CommitteeUID:      res.CommitteeLinkFolder.CommitteeUID,
-		Name:              res.CommitteeLinkFolder.Name,
-		CreatedByUsername: res.CommitteeLinkFolder.CreatedByUsername,
-		CreatedAt:         res.CommitteeLinkFolder.CreatedAt,
-		UpdatedAt:         res.CommitteeLinkFolder.UpdatedAt,
+		UID:          res.CommitteeLinkFolder.UID,
+		CommitteeUID: res.CommitteeLinkFolder.CommitteeUID,
+		Name:         res.CommitteeLinkFolder.Name,
+		CreatedAt:    res.CommitteeLinkFolder.CreatedAt,
+		UpdatedAt:    res.CommitteeLinkFolder.UpdatedAt,
+	}
+	if res.CommitteeLinkFolder.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLinkFolder.CreatedBy)
+	}
+	if res.CommitteeLinkFolder.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeLinkFolder.UpdatedBy)
 	}
 	return body
 }
@@ -4099,12 +4496,17 @@ func NewListCommitteeLinkFoldersResponseBody(res []*committeeservice.CommitteeLi
 // "committee-service" service.
 func NewCreateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *CreateCommitteeLinkFolderResponseBody {
 	body := &CreateCommitteeLinkFolderResponseBody{
-		UID:               res.UID,
-		CommitteeUID:      res.CommitteeUID,
-		Name:              res.Name,
-		CreatedByUsername: res.CreatedByUsername,
-		CreatedAt:         res.CreatedAt,
-		UpdatedAt:         res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		Name:         res.Name,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4114,17 +4516,22 @@ func NewCreateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLin
 // "committee-service" service.
 func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocumentWithReadonlyAttributes) *UploadCommitteeDocumentResponseBody {
 	body := &UploadCommitteeDocumentResponseBody{
-		UID:                res.UID,
-		CommitteeUID:       res.CommitteeUID,
-		FolderUID:          res.FolderUID,
-		Name:               res.Name,
-		Description:        res.Description,
-		FileName:           res.FileName,
-		FileSize:           res.FileSize,
-		ContentType:        res.ContentType,
-		UploadedByUsername: res.UploadedByUsername,
-		CreatedAt:          res.CreatedAt,
-		UpdatedAt:          res.UpdatedAt,
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		Description:  res.Description,
+		FileName:     res.FileName,
+		FileSize:     res.FileSize,
+		ContentType:  res.ContentType,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.UpdatedBy)
 	}
 	return body
 }
@@ -4134,17 +4541,22 @@ func NewUploadCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocum
 // service.
 func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocumentResult) *GetCommitteeDocumentResponseBody {
 	body := &GetCommitteeDocumentResponseBody{
-		UID:                res.CommitteeDocument.UID,
-		CommitteeUID:       res.CommitteeDocument.CommitteeUID,
-		FolderUID:          res.CommitteeDocument.FolderUID,
-		Name:               res.CommitteeDocument.Name,
-		Description:        res.CommitteeDocument.Description,
-		FileName:           res.CommitteeDocument.FileName,
-		FileSize:           res.CommitteeDocument.FileSize,
-		ContentType:        res.CommitteeDocument.ContentType,
-		UploadedByUsername: res.CommitteeDocument.UploadedByUsername,
-		CreatedAt:          res.CommitteeDocument.CreatedAt,
-		UpdatedAt:          res.CommitteeDocument.UpdatedAt,
+		UID:          res.CommitteeDocument.UID,
+		CommitteeUID: res.CommitteeDocument.CommitteeUID,
+		FolderUID:    res.CommitteeDocument.FolderUID,
+		Name:         res.CommitteeDocument.Name,
+		Description:  res.CommitteeDocument.Description,
+		FileName:     res.CommitteeDocument.FileName,
+		FileSize:     res.CommitteeDocument.FileSize,
+		ContentType:  res.CommitteeDocument.ContentType,
+		CreatedAt:    res.CommitteeDocument.CreatedAt,
+		UpdatedAt:    res.CommitteeDocument.UpdatedAt,
+	}
+	if res.CommitteeDocument.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.CreatedBy)
+	}
+	if res.CommitteeDocument.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.CommitteeDocument.UpdatedBy)
 	}
 	return body
 }
@@ -4187,6 +4599,7 @@ func NewUpdateCurrentWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBr
 		WindowStart:          res.WindowStart,
 		WindowEnd:            res.WindowEnd,
 		State:                res.State,
+		ErrorReason:          res.ErrorReason,
 		BriefText:            res.BriefText,
 		PromptVersion:        res.PromptVersion,
 		Model:                res.Model,
@@ -5905,6 +6318,78 @@ func NewUpdateCurrentWeeklyBriefServiceUnavailableResponseBody(res *committeeser
 	return body
 }
 
+// NewShareWeeklyBriefToChatBadRequestResponseBody builds the HTTP response
+// body from the result of the "share-weekly-brief-to-chat" endpoint of the
+// "committee-service" service.
+func NewShareWeeklyBriefToChatBadRequestResponseBody(res *committeeservice.BadRequestError) *ShareWeeklyBriefToChatBadRequestResponseBody {
+	body := &ShareWeeklyBriefToChatBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatForbiddenResponseBody builds the HTTP response body
+// from the result of the "share-weekly-brief-to-chat" endpoint of the
+// "committee-service" service.
+func NewShareWeeklyBriefToChatForbiddenResponseBody(res *committeeservice.ForbiddenError) *ShareWeeklyBriefToChatForbiddenResponseBody {
+	body := &ShareWeeklyBriefToChatForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatRevisionConflictResponseBody builds the HTTP
+// response body from the result of the "share-weekly-brief-to-chat" endpoint
+// of the "committee-service" service.
+func NewShareWeeklyBriefToChatRevisionConflictResponseBody(res *committeeservice.GroupWeeklyBriefRevisionConflictError) *ShareWeeklyBriefToChatRevisionConflictResponseBody {
+	body := &ShareWeeklyBriefToChatRevisionConflictResponseBody{
+		Code:     res.Code,
+		Revision: res.Revision,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "share-weekly-brief-to-chat" endpoint
+// of the "committee-service" service.
+func NewShareWeeklyBriefToChatInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ShareWeeklyBriefToChatInternalServerErrorResponseBody {
+	body := &ShareWeeklyBriefToChatInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatNoChatWebhookResponseBody builds the HTTP response
+// body from the result of the "share-weekly-brief-to-chat" endpoint of the
+// "committee-service" service.
+func NewShareWeeklyBriefToChatNoChatWebhookResponseBody(res *committeeservice.NoChatWebhookError) *ShareWeeklyBriefToChatNoChatWebhookResponseBody {
+	body := &ShareWeeklyBriefToChatNoChatWebhookResponseBody{
+		Code:    res.Code,
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatNotFoundResponseBody builds the HTTP response body
+// from the result of the "share-weekly-brief-to-chat" endpoint of the
+// "committee-service" service.
+func NewShareWeeklyBriefToChatNotFoundResponseBody(res *committeeservice.NotFoundError) *ShareWeeklyBriefToChatNotFoundResponseBody {
+	body := &ShareWeeklyBriefToChatNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewShareWeeklyBriefToChatServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "share-weekly-brief-to-chat" endpoint
+// of the "committee-service" service.
+func NewShareWeeklyBriefToChatServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ShareWeeklyBriefToChatServiceUnavailableResponseBody {
+	body := &ShareWeeklyBriefToChatServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewCreateCommitteePayload builds a committee-service service
 // create-committee endpoint payload.
 func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string, bearerToken *string, xSync bool) *committeeservice.CreateCommitteePayload {
@@ -5918,8 +6403,10 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 		ChatChannel:    body.ChatChannel,
 		DisplayName:    body.DisplayName,
 		ParentUID:      body.ParentUID,
+		Repository:     body.Repository,
 		LastReviewedAt: body.LastReviewedAt,
 		LastReviewedBy: body.LastReviewedBy,
+		ChatWebhookURL: body.ChatWebhookURL,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -5971,6 +6458,30 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
+		}
+	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
+		}
 	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
@@ -6024,6 +6535,7 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 		ChatChannel: body.ChatChannel,
 		DisplayName: body.DisplayName,
 		ParentUID:   body.ParentUID,
+		Repository:  body.Repository,
 	}
 	if body.EnableVoting != nil {
 		v.EnableVoting = *body.EnableVoting
@@ -6067,6 +6579,30 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 	if body.JoinMode == nil {
 		v.JoinMode = "invite_only"
 	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
+		}
+	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
+		}
+	}
 	v.UID = &uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -6107,6 +6643,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 		BusinessEmailRequired: *body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	if body.MemberVisibility != nil {
 		v.MemberVisibility = *body.MemberVisibility
@@ -6143,7 +6680,7 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 
 // NewCreateCommitteeMemberPayload builds a committee-service service
 // create-committee-member endpoint payload.
-func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool) *committeeservice.CreateCommitteeMemberPayload {
+func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool, skipEnrichment bool) *committeeservice.CreateCommitteeMemberPayload {
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           *body.Email,
@@ -6221,6 +6758,7 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	v.BearerToken = bearerToken
 	v.XSync = xSync
 	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
 
 	return v
 }
@@ -6270,7 +6808,7 @@ func NewReassignOrgCommitteeSeatPayload(body *ReassignOrgCommitteeSeatRequestBod
 
 // NewUpdateCommitteeMemberPayload builds a committee-service service
 // update-committee-member endpoint payload.
-func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeMemberPayload {
+func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool, skipEnrichment bool) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           *body.Email,
@@ -6349,13 +6887,14 @@ func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipEnrichment = skipEnrichment
 
 	return v
 }
 
 // NewDeleteCommitteeMemberPayload builds a committee-service service
 // delete-committee-member endpoint payload.
-func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeMemberPayload {
+func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool, skipNotification bool) *committeeservice.DeleteCommitteeMemberPayload {
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
@@ -6363,6 +6902,7 @@ func NewDeleteCommitteeMemberPayload(uid string, memberUID string, version strin
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v
 }
@@ -6479,6 +7019,26 @@ func NewSubmitApplicationPayload(body *SubmitApplicationRequestBody, uid string,
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
 	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
@@ -6493,6 +7053,12 @@ func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid strin
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
 	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
+	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
 	v.Version = version
@@ -6506,6 +7072,12 @@ func NewApproveApplicationPayload(body *ApproveApplicationRequestBody, uid strin
 func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string, applicationUID string, version string, bearerToken *string) *committeeservice.RejectApplicationPayload {
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+	}
+	if body.Notify != nil {
+		v.Notify = *body.Notify
+	}
+	if body.Notify == nil {
+		v.Notify = false
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -6744,6 +7316,19 @@ func NewUpdateCurrentWeeklyBriefPayload(body *UpdateCurrentWeeklyBriefRequestBod
 	return v
 }
 
+// NewShareWeeklyBriefToChatPayload builds a committee-service service
+// share-weekly-brief-to-chat endpoint payload.
+func NewShareWeeklyBriefToChatPayload(body *ShareWeeklyBriefToChatRequestBody, uid string, version *string, bearerToken *string) *committeeservice.ShareWeeklyBriefToChatPayload {
+	v := &committeeservice.ShareWeeklyBriefToChatPayload{
+		Revision: *body.Revision,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
 // ValidateCreateCommitteeRequestBody runs the validations defined on
 // Create-CommitteeRequestBody
 func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err error) {
@@ -6765,8 +7350,8 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		}
 	}
 	if body.Category != nil {
-		if !(*body.Category == "Ambassador" || *body.Category == "Board" || *body.Category == "Code of Conduct" || *body.Category == "Committers" || *body.Category == "Expert Group" || *body.Category == "Finance Committee" || *body.Category == "Government Advisory Council" || *body.Category == "Legal Committee" || *body.Category == "Maintainers" || *body.Category == "Marketing Committee/Sub Committee" || *body.Category == "Marketing Mailing List" || *body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || *body.Category == "Other" || *body.Category == "Product Security" || *body.Category == "Special Interest Group" || *body.Category == "Technical Advisory Committee" || *body.Category == "Technical Mailing List" || *body.Category == "Technical Oversight Committee" || *body.Category == "Technical Steering Committee" || *body.Category == "Working Group") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", *body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
+		if !(*body.Category == "Ambassador" || *body.Category == "Board" || *body.Category == "Code of Conduct" || *body.Category == "Committers" || *body.Category == "Expert Group" || *body.Category == "Finance Committee" || *body.Category == "Government Advisory Council" || *body.Category == "Legal Committee" || *body.Category == "Maintainers" || *body.Category == "Marketing Committee/Sub Committee" || *body.Category == "Marketing Mailing List" || *body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || *body.Category == "Newsletter" || *body.Category == "Other" || *body.Category == "Product Security" || *body.Category == "Special Interest Group" || *body.Category == "Technical Advisory Committee" || *body.Category == "Technical Mailing List" || *body.Category == "Technical Oversight Committee" || *body.Category == "Technical Steering Committee" || *body.Category == "Working Group") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", *body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Newsletter", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
 		}
 	}
 	if body.Description != nil {
@@ -6778,7 +7363,7 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 	}
 	if body.Website != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.MailingList != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -6801,12 +7386,62 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if len(body.Scope) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+	}
+	for _, e := range body.Scope {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.Deliverables) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+	}
+	for _, e := range body.Deliverables {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.KeyDates) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if len(body.ExternalSources) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+	}
+	for _, e := range body.ExternalSources {
+		if e != nil {
+			if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://hooks\\.slack\\.com/[^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 		}
 	}
 	for _, e := range body.Writers {
@@ -6847,8 +7482,8 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 		}
 	}
 	if body.Category != nil {
-		if !(*body.Category == "Ambassador" || *body.Category == "Board" || *body.Category == "Code of Conduct" || *body.Category == "Committers" || *body.Category == "Expert Group" || *body.Category == "Finance Committee" || *body.Category == "Government Advisory Council" || *body.Category == "Legal Committee" || *body.Category == "Maintainers" || *body.Category == "Marketing Committee/Sub Committee" || *body.Category == "Marketing Mailing List" || *body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || *body.Category == "Other" || *body.Category == "Product Security" || *body.Category == "Special Interest Group" || *body.Category == "Technical Advisory Committee" || *body.Category == "Technical Mailing List" || *body.Category == "Technical Oversight Committee" || *body.Category == "Technical Steering Committee" || *body.Category == "Working Group") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", *body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
+		if !(*body.Category == "Ambassador" || *body.Category == "Board" || *body.Category == "Code of Conduct" || *body.Category == "Committers" || *body.Category == "Expert Group" || *body.Category == "Finance Committee" || *body.Category == "Government Advisory Council" || *body.Category == "Legal Committee" || *body.Category == "Maintainers" || *body.Category == "Marketing Committee/Sub Committee" || *body.Category == "Marketing Mailing List" || *body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || *body.Category == "Newsletter" || *body.Category == "Other" || *body.Category == "Product Security" || *body.Category == "Special Interest Group" || *body.Category == "Technical Advisory Committee" || *body.Category == "Technical Mailing List" || *body.Category == "Technical Oversight Committee" || *body.Category == "Technical Steering Committee" || *body.Category == "Working Group") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", *body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Newsletter", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
 		}
 	}
 	if body.Description != nil {
@@ -6860,7 +7495,7 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 	}
 	if body.Website != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.MailingList != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -6883,6 +7518,48 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", *body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
 	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+	}
+	if body.Repository != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if len(body.Scope) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+	}
+	for _, e := range body.Scope {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.Deliverables) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+	}
+	for _, e := range body.Deliverables {
+		if utf8.RuneCountInString(e) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+		}
+	}
+	if len(body.KeyDates) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
+	}
+	for _, e := range body.KeyDates {
+		if e != nil {
+			if err2 := ValidateKeyDateRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if len(body.ExternalSources) > 50 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+	}
+	for _, e := range body.ExternalSources {
+		if e != nil {
+			if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -6898,6 +7575,14 @@ func ValidateUpdateCommitteeSettingsRequestBody(body *UpdateCommitteeSettingsReq
 	if body.MemberVisibility != nil {
 		if !(*body.MemberVisibility == "hidden" || *body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", *body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+	}
+	if body.ChatWebhookURL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://hooks\\.slack\\.com/[^\\s]*$"))
+	}
+	if body.ChatWebhookURL != nil {
+		if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
 		}
 	}
 	for _, e := range body.Writers {
@@ -7165,6 +7850,16 @@ func ValidateSubmitApplicationRequestBody(body *SubmitApplicationRequestBody) (e
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
 		}
 	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+	}
 	return
 }
 
@@ -7282,6 +7977,104 @@ func ValidateUpdateCurrentWeeklyBriefRequestBody(body *UpdateCurrentWeeklyBriefR
 	if body.Revision != nil {
 		if *body.Revision < 1 {
 			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", *body.Revision, 1, true))
+		}
+	}
+	return
+}
+
+// ValidateShareWeeklyBriefToChatRequestBody runs the validations defined on
+// Share-Weekly-Brief-To-ChatRequestBody
+func ValidateShareWeeklyBriefToChatRequestBody(body *ShareWeeklyBriefToChatRequestBody) (err error) {
+	if body.Revision == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("revision", "body"))
+	}
+	if body.Revision != nil {
+		if *body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", *body.Revision, 1, true))
+		}
+	}
+	return
+}
+
+// ValidateKeyDateRequestBody runs the validations defined on
+// key-dateRequestBody
+func ValidateKeyDateRequestBody(body *KeyDateRequestBody) (err error) {
+	if body.Date == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("date", "body"))
+	}
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.Date != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.date", *body.Date, "^\\d{4}-(0[1-9]|1[0-2])$"))
+	}
+	if body.Label != nil {
+		if utf8.RuneCountInString(*body.Label) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", *body.Label, utf8.RuneCountInString(*body.Label), 200, false))
+		}
+	}
+	return
+}
+
+// ValidateExternalSourceRequestBody runs the validations defined on
+// external-sourceRequestBody
+func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err error) {
+	if body.Provider == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("provider", "body"))
+	}
+	if body.EntityType == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("entity_type", "body"))
+	}
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.Provider != nil {
+		if !(*body.Provider == "ocg") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.provider", *body.Provider, []any{"ocg"}))
+		}
+	}
+	if body.EntityType != nil {
+		if !(*body.EntityType == "community" || *body.EntityType == "group" || *body.EntityType == "event") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.entity_type", *body.EntityType, []any{"community", "group", "event"}))
+		}
+	}
+	if body.Label != nil {
+		if utf8.RuneCountInString(*body.Label) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.label", *body.Label, utf8.RuneCountInString(*body.Label), 200, false))
+		}
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.ExternalID != nil {
+		if utf8.RuneCountInString(*body.ExternalID) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_id", *body.ExternalID, utf8.RuneCountInString(*body.ExternalID), 200, false))
+		}
+	}
+	if body.ExternalCategory != nil {
+		if utf8.RuneCountInString(*body.ExternalCategory) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_category", *body.ExternalCategory, utf8.RuneCountInString(*body.ExternalCategory), 200, false))
+		}
+	}
+	if body.ExternalRegion != nil {
+		if utf8.RuneCountInString(*body.ExternalRegion) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_region", *body.ExternalRegion, utf8.RuneCountInString(*body.ExternalRegion), 200, false))
+		}
+	}
+	if body.ExternalEventCategory != nil {
+		if utf8.RuneCountInString(*body.ExternalEventCategory) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_event_category", *body.ExternalEventCategory, utf8.RuneCountInString(*body.ExternalEventCategory), 200, false))
 		}
 	}
 	return

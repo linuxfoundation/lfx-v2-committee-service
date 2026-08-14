@@ -21,9 +21,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -38,6 +38,7 @@ type messageHandlerOrchestrator struct {
 	emailSender                 port.EmailSender
 	inviteSender                port.InviteSender
 	userReader                  port.UserReader
+	projectReader               port.ProjectReader
 	linkReader                  port.CommitteeLinkReader
 	lfxSelfServeBaseURL         string
 	weeklyBriefGenerator        GroupWeeklyBriefGenerator
@@ -102,6 +103,14 @@ func WithUserReaderForMessageHandler(reader port.UserReader) messageHandlerOrche
 	}
 }
 
+// WithProjectReaderForMessageHandler sets the project reader used for the project-writers fallback
+// in application submitted notifications.
+func WithProjectReaderForMessageHandler(reader port.ProjectReader) messageHandlerOrchestratorOption {
+	return func(m *messageHandlerOrchestrator) {
+		m.projectReader = reader
+	}
+}
+
 // WithLinkReaderForMessageHandler sets the link reader used to resolve folder names in document/link notifications.
 func WithLinkReaderForMessageHandler(reader port.CommitteeLinkReader) messageHandlerOrchestratorOption {
 	return func(m *messageHandlerOrchestrator) {
@@ -151,12 +160,24 @@ func (m *messageHandlerOrchestrator) HandleGenerateWeeklyBriefRequested(ctx cont
 		"force", event.Force,
 	)
 
+	// Re-read current settings rather than relying on the snapshot in the event:
+	// fulfillment is async and can wait/retry for minutes, during which a
+	// committee may change from basic_profile to hidden. Fail closed — default
+	// to hidden so a transient read error never leaks names into a stored brief.
+	membersHidden := true
+	if m.committeeReader != nil {
+		if settings, _, errSettings := m.committeeReader.GetSettings(ctx, event.CommitteeUID); errSettings == nil && settings != nil {
+			membersHidden = settings.MemberVisibility != "basic_profile"
+		}
+	}
+
 	return m.weeklyBriefGenerator.Fulfill(ctx, GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  event.CommitteeUID,
 		CommitteeName: event.CommitteeName,
 		ProjectName:   event.ProjectName,
 		Force:         event.Force,
 		Now:           event.RequestedAt,
+		MembersHidden: membersHidden,
 	})
 }
 
@@ -439,7 +460,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 			continue
 		}
 
-		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false); errUpdate != nil {
+		if _, errUpdate := m.committeeWriterOrchestrator.UpdateMember(ctx, member, revision, false, false); errUpdate != nil {
 			slog.ErrorContext(ctx, "failed to update member during sync",
 				"member_uid", member.UID, "committee_uid", data.CommitteeUID, "error", errUpdate)
 			syncErrors = append(syncErrors, errUpdate)
@@ -548,6 +569,218 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	return nil
 }
 
+// V1UserDeletedEvent is the payload published by v1-sync-helper on "lfx.v1-sync-helper.user.deleted"
+// when a merged user record is soft-deleted. Username is the user's LFID; Email is the deleted
+// account's primary email when available so scrubbers can distinguish LFID reuse.
+type V1UserDeletedEvent struct {
+	Username string `json:"username"`
+	Email    string `json:"email,omitempty"`
+}
+
+// usernameMatches reports whether storedUsername represents the same LFID as deletedUsername,
+// using the same TrimSpace+ToLower normalization as BuildUsernameIndexKey.
+func usernameMatches(deletedUsername, storedUsername string) bool {
+	deleted := strings.TrimSpace(deletedUsername)
+	stored := strings.TrimSpace(storedUsername)
+	if deleted == "" || stored == "" {
+		return false
+	}
+	return strings.EqualFold(deleted, stored)
+}
+
+// emailMatches reports whether two email addresses refer to the same mailbox.
+func emailMatches(deletedEmail, storedEmail string) bool {
+	deleted := strings.ToLower(strings.TrimSpace(deletedEmail))
+	stored := strings.ToLower(strings.TrimSpace(storedEmail))
+	if deleted == "" || stored == "" {
+		return false
+	}
+	return deleted == stored
+}
+
+// HandleUserDeleted scrubs the deleted user's username from committee members and settings.
+// Best-effort: partial failures are logged but do not block the overall scrub.
+func (m *messageHandlerOrchestrator) HandleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var event V1UserDeletedEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal V1UserDeletedEvent — discarding", "error", err)
+		return nil, nil
+	}
+	if strings.TrimSpace(event.Username) == "" {
+		slog.WarnContext(ctx, "user.deleted event missing username — nothing to scrub")
+		return nil, nil
+	}
+
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+	ctx = log.AppendCtx(ctx, slog.String("username", redaction.Redact(event.Username)))
+
+	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data")
+
+	m.scrubUsernameFromMembers(ctx, event.Username, event.Email)
+	m.scrubUsernameFromSettings(ctx, event.Username, event.Email)
+	return nil, nil
+}
+
+// scrubUsernameFromMembers clears the username from committee member records that match the
+// deleted user's LFID. Uses the committee-members username secondary index for an efficient lookup.
+func (m *messageHandlerOrchestrator) scrubUsernameFromMembers(ctx context.Context, username, deletedEmail string) {
+	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
+		slog.WarnContext(ctx, "committee reader/writer not configured — skipping member username scrub")
+		return
+	}
+
+	members, err := m.committeeReader.ListMembersByUsername(ctx, username)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members by username for scrub",
+			"error", err, "username", redaction.Redact(username))
+		return
+	}
+
+	slog.InfoContext(ctx, "scrubbing username from committee members",
+		"username", redaction.Redact(username), "count", len(members))
+
+	for _, member := range members {
+		const maxRetries = 4
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			current, revision, err := m.committeeReader.GetMember(ctx, member.CommitteeUID, member.UID)
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to fetch committee member for username scrub",
+					"error", err, "member_uid", member.UID, "committee_uid", member.CommitteeUID)
+				break
+			}
+			if !usernameMatches(username, current.Username) {
+				slog.DebugContext(ctx, "committee member username already cleared or reassigned — skipping",
+					"member_uid", member.UID)
+				break
+			}
+			if deletedEmail != "" {
+				if current.Email == "" {
+					slog.DebugContext(ctx, "committee member username matches but entry is email-less — skipping",
+						"member_uid", member.UID)
+					break
+				}
+				if !emailMatches(deletedEmail, current.Email) {
+					slog.DebugContext(ctx, "committee member username matches but email differs — skipping reuse guard",
+						"member_uid", member.UID)
+					break
+				}
+			}
+
+			current.Username = ""
+			if _, err := m.committeeWriterOrchestrator.UpdateMember(ctx, current, revision, false, true); err != nil {
+				var conflictErr errors.Conflict
+				if stderrors.As(err, &conflictErr) && attempt < maxRetries-1 {
+					slog.DebugContext(ctx, "revision conflict scrubbing member username — retrying",
+						"attempt", attempt+1, "member_uid", member.UID)
+					continue
+				}
+				slog.ErrorContext(ctx, "failed to clear username from committee member",
+					"error", err, "member_uid", member.UID, "committee_uid", member.CommitteeUID)
+				break
+			}
+			slog.InfoContext(ctx, "cleared username from committee member",
+				"member_uid", member.UID, "committee_uid", member.CommitteeUID,
+				"username", redaction.Redact(username))
+			break
+		}
+	}
+}
+
+// scrubUsernameFromSettings clears the username from committee settings writers/auditors
+// that match the deleted user's LFID. Full scan: no username index exists for settings
+// (mirrors HandleInviteAccepted pattern).
+func (m *messageHandlerOrchestrator) scrubUsernameFromSettings(ctx context.Context, username, deletedEmail string) {
+	if m.committeeReader == nil || m.committeeWriterOrchestrator == nil {
+		slog.WarnContext(ctx, "committee reader/writer not configured — skipping settings username scrub")
+		return
+	}
+
+	allUIDs, err := m.committeeReader.ListAllUIDs(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee UIDs for settings username scrub", "error", err)
+		return
+	}
+
+	slog.InfoContext(ctx, "scrubbing username from committee settings",
+		"username", redaction.Redact(username), "committee_count", len(allUIDs))
+
+	for _, committeeUID := range allUIDs {
+		m.scrubUsernameFromOneCommitteeSettings(ctx, committeeUID, username, deletedEmail)
+	}
+}
+
+// scrubUsernameFromOneCommitteeSettings fetches settings for a single committee, clears the
+// username on any writer/auditor entry that matches, and persists.
+func (m *messageHandlerOrchestrator) scrubUsernameFromOneCommitteeSettings(ctx context.Context, committeeUID, username, deletedEmail string) {
+	const maxRetries = 4
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		settings, revision, err := m.committeeReader.GetSettings(ctx, committeeUID)
+		if err != nil {
+			slog.DebugContext(ctx, "failed to get settings for username scrub — skipping",
+				"error", err, "committee_uid", committeeUID)
+			return
+		}
+		if settings == nil {
+			return
+		}
+
+		changed := false
+		for i := range settings.Writers {
+			w := &settings.Writers[i]
+			if !usernameMatches(username, w.Username) {
+				continue
+			}
+			if deletedEmail != "" {
+				if w.Email == "" {
+					continue
+				}
+				if !emailMatches(deletedEmail, w.Email) {
+					continue
+				}
+			}
+			w.Username = ""
+			changed = true
+		}
+		for i := range settings.Auditors {
+			a := &settings.Auditors[i]
+			if !usernameMatches(username, a.Username) {
+				continue
+			}
+			if deletedEmail != "" {
+				if a.Email == "" {
+					continue
+				}
+				if !emailMatches(deletedEmail, a.Email) {
+					continue
+				}
+			}
+			a.Username = ""
+			changed = true
+		}
+
+		if !changed {
+			return
+		}
+
+		if _, err := m.committeeWriterOrchestrator.UpdateSettings(ctx, settings, revision, false); err != nil {
+			var conflictErr errors.Conflict
+			if stderrors.As(err, &conflictErr) && attempt < maxRetries-1 {
+				slog.DebugContext(ctx, "revision conflict scrubbing settings username — retrying",
+					"attempt", attempt+1, "committee_uid", committeeUID)
+				continue
+			}
+			slog.ErrorContext(ctx, "failed to clear username from committee settings",
+				"error", err, "committee_uid", committeeUID)
+			return
+		}
+
+		slog.InfoContext(ctx, "cleared username from committee settings writers/auditors",
+			"committee_uid", committeeUID, "username", redaction.Redact(username))
+		return
+	}
+}
+
 // NewMessageHandlerOrchestrator creates a new message handler orchestrator using the option pattern
 func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) port.MessageHandler {
 	m := &messageHandlerOrchestrator{}
@@ -652,8 +885,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberCreated(ctx context.Co
 		slog.WarnContext(ctx, "failed to send member notification email",
 			"error", sendErr, "committee_uid", member.CommitteeUID)
 	} else {
-		slog.DebugContext(ctx, "sent member notification email",
-			"committee_uid", member.CommitteeUID)
+		slog.InfoContext(ctx, "sent member notification email",
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+			"recipient_email", redaction.RedactEmail(member.Email),
+			"username", redaction.Redact(member.Username))
 	}
 
 	return nil, nil
@@ -692,8 +928,11 @@ func (m *messageHandlerOrchestrator) sendMemberInvite(ctx context.Context, membe
 		return err
 	}
 
-	slog.DebugContext(ctx, "sent member invite request",
-		"committee_uid", member.CommitteeUID, "invite_uid", result.InviteUID)
+	slog.InfoContext(ctx, "sent member invite request",
+		"committee_uid", member.CommitteeUID,
+		"member_uid", member.UID,
+		"recipient_email", redaction.RedactEmail(member.Email),
+		"invite_uid", result.InviteUID)
 	return nil
 }
 
@@ -768,7 +1007,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 			// not freshly added. They already received the invite email; a second email would be
 			// confusing and redundant.
 			if kind == roleChangeKindAdded && u.Email != "" && wasInvitedInOldSettings(u.Email, data.OldSettings) {
-				slog.DebugContext(gctx, "skipping notification — user promoted from invite to LFID",
+				slog.DebugContext(gctx, "skipping notification — email was already present in old settings",
 					"committee_uid", data.CommitteeUID)
 				return nil
 			}
@@ -812,8 +1051,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 					return nil
 				}
 
-				slog.DebugContext(gctx, "sent settings invite request",
-					"committee_uid", data.CommitteeUID, "invite_uid", result.InviteUID)
+				slog.InfoContext(gctx, "sent settings invite request",
+					"committee_uid", data.CommitteeUID,
+					"recipient_email", redaction.RedactEmail(u.Email),
+					"invite_uid", result.InviteUID,
+					"kind", kind)
 
 				return nil
 			}
@@ -881,8 +1123,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeSettingsUpdated(ctx context.
 				slog.WarnContext(gctx, "failed to send settings notification email",
 					"error", sendErr, "committee_uid", data.CommitteeUID, "kind", kind)
 			} else {
-				slog.DebugContext(gctx, "sent settings notification email",
-					"committee_uid", data.CommitteeUID, "kind", kind)
+				slog.InfoContext(gctx, "sent settings notification email",
+					"committee_uid", data.CommitteeUID,
+					"recipient_email", redaction.RedactEmail(u.Email),
+					"username", redaction.Redact(u.Username),
+					"kind", kind)
 			}
 			return nil
 		})
@@ -928,6 +1173,22 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(event.Recipient.Email))
 
+	// Publish FGA invitee tuples upfront — before the full committee scan — so the user can
+	// see their pending invites in the UI immediately after LFID acceptance. The UI can then
+	// call AcceptInvite on the now-visible invite without any backend polling.
+	// Guard: skip when FGA publishing is disabled (committeePublisher == nil).
+	// TODO(LFXV2-2238): replace ListAllInvites with an email→committee index so this avoids a full scan.
+	if m.committeePublisher != nil {
+		invitesByCommittee := m.fetchInvitesByEmail(ctx, normalizedEmail)
+		for committeeUID := range invitesByCommittee {
+			m.publishInviteeFGAForCommittee(ctx, inviteAcceptedEnrichment{
+				committeeUID:       committeeUID,
+				username:           event.AcceptedBy,
+				invitesByCommittee: invitesByCommittee,
+			})
+		}
+	}
+
 	// Full scan (LFXV2-2238): per committee, load settings and list members to reconcile email-only records.
 	allUIDs, listErr := m.committeeReader.ListAllUIDs(ctx)
 	if listErr != nil {
@@ -942,28 +1203,24 @@ func (m *messageHandlerOrchestrator) HandleInviteAccepted(ctx context.Context, m
 	firstName, lastName, fullName := m.resolveInvitedName(resolveCtx, event.AcceptedBy, event.Recipient.Name)
 	resolveCancel()
 
-	// Pre-fetch all invites once and filter to the accepting email. This avoids an O(committees × invites)
-	// full-bucket scan that would result from calling ListInvites per committee inside the loop.
-	// The result is partitioned per committee inside publishInviteeFGAForCommittee.
-	// Guard: skip the scan entirely when FGA publishing is disabled (committeePublisher == nil).
-	var invitesByCommittee map[string][]*model.CommitteeInvite
-	if m.committeePublisher != nil {
-		invitesByCommittee = m.fetchInvitesByEmail(ctx, normalizedEmail)
-	}
-
+	var g errgroup.Group
+	g.SetLimit(10)
 	for _, committeeUID := range allUIDs {
-		m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
-			writeCtx:           writeCtx,
-			committeeUID:       committeeUID,
-			normalizedEmail:    normalizedEmail,
-			username:           event.AcceptedBy,
-			inviteUID:          event.UID,
-			firstName:          firstName,
-			lastName:           lastName,
-			fullName:           fullName,
-			invitesByCommittee: invitesByCommittee,
+		g.Go(func() error {
+			m.enrichInvitedUserInCommittee(ctx, inviteAcceptedEnrichment{
+				writeCtx:        writeCtx,
+				committeeUID:    committeeUID,
+				normalizedEmail: normalizedEmail,
+				username:        event.AcceptedBy,
+				inviteUID:       event.UID,
+				firstName:       firstName,
+				lastName:        lastName,
+				fullName:        fullName,
+			})
+			return nil
 		})
 	}
+	_ = g.Wait()
 
 	return nil, nil
 }
@@ -986,13 +1243,11 @@ type inviteAcceptedEnrichment struct {
 
 // enrichInvitedUserInCommittee enriches every email-only Writers, Auditors, and Members record
 // for e.normalizedEmail in the given committee. Invite role is ignored — acceptance always
-// reconciles all resource data for the recipient email. It also publishes the FGA invitee
-// relation for every committee invite (any status) that matches the recipient email, so the
-// newly created LFID user can see their full invite history.
+// reconciles all resource data for the recipient email. FGA invitee tuples are published
+// upfront in HandleInviteAccepted before this scan runs, so they are not repeated here.
 func (m *messageHandlerOrchestrator) enrichInvitedUserInCommittee(ctx context.Context, e inviteAcceptedEnrichment) {
 	m.enrichInvitedUserInCommitteeSettings(ctx, e)
 	m.enrichInvitedUserInCommitteeMembers(ctx, e)
-	m.publishInviteeFGAForCommittee(ctx, e)
 }
 
 // fetchInvitesByEmail calls ListAllInvites once and returns a map of committeeUID → invites
@@ -1045,7 +1300,7 @@ func (m *messageHandlerOrchestrator) publishInviteeFGAForCommittee(ctx context.C
 				},
 			},
 		}
-		if pubErr := m.committeePublisher.Access(ctx, fgaconstants.GenericUpdateAccessSubject, msg, false); pubErr != nil {
+		if pubErr := m.committeePublisher.UpdateAccess(ctx, msg); pubErr != nil {
 			slog.WarnContext(ctx, "failed to publish FGA invitee grant for committee invite",
 				"invite_uid", invite.UID, "committee_uid", e.committeeUID,
 				"username", redaction.Redact(e.username), "error", pubErr)
@@ -1148,8 +1403,7 @@ func (m *messageHandlerOrchestrator) enrichInvitedCommitteeMember(ctx context.Co
 			member.LastName = e.lastName
 		}
 
-		inviteCtx := contextWithSkipMemberUsernameEmailResolution(e.writeCtx)
-		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(inviteCtx, member, revision, false)
+		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(e.writeCtx, member, revision, false, true)
 		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
@@ -1295,20 +1549,23 @@ func diffNewCommitteeUsers(oldList, newList []model.CommitteeUser) []model.Commi
 }
 
 // wasInvitedInOldSettings returns true if the given email was already present in old settings
-// as an email-only (non-LFID, Username == "") entry — meaning the user was previously invited
-// and is now being promoted. Used to suppress duplicate notification emails on LFID promotion.
+// in any form (LFID or email-only). This covers two cases:
+//   - LFID promotion: old entry was email-only (invite), new entry has a username.
+//   - Username scrub: old entry had both username and email; username was cleared, so
+//     classifyCommitteeUsers sees the email-only entry as newly added. Without this guard
+//     the scrub would re-invite the deleted user.
 func wasInvitedInOldSettings(email string, old *model.CommitteeSettings) bool {
 	if old == nil {
 		return false
 	}
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	for _, u := range old.GetWriters() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
 	for _, u := range old.GetAuditors() {
-		if u.Username == "" && strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
+		if strings.ToLower(strings.TrimSpace(u.Email)) == normalized {
 			return true
 		}
 	}
@@ -1356,11 +1613,25 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		return nil, nil
 	}
 
-	var member model.CommitteeMember
-	if err := json.Unmarshal(raw, &member); err != nil {
-		slog.WarnContext(ctx, "cannot decode CommitteeMember from committee_member.deleted event", "error", err)
+	// Decode the deleted-event payload into the typed wrapper so the
+	// request-scoped skip_notification flag is parsed alongside the member. On a
+	// malformed payload we fail safe by suppressing the notification rather than
+	// defaulting to send.
+	var deleted model.CommitteeMemberDeletedEventData
+	if err := json.Unmarshal(raw, &deleted); err != nil {
+		slog.WarnContext(ctx, "cannot decode CommitteeMemberDeletedEventData from committee_member.deleted event — suppressing notification", "error", err)
 		return nil, nil
 	}
+	if deleted.CommitteeMember == nil {
+		slog.WarnContext(ctx, "committee_member.deleted event missing member payload — suppressing notification")
+		return nil, nil
+	}
+	if deleted.SkipNotification {
+		slog.DebugContext(ctx, "skipping member-deleted notification — skip_notification flag set",
+			"committee_uid", deleted.CommitteeUID)
+		return nil, nil
+	}
+	member := *deleted.CommitteeMember
 
 	if member.Username == "" {
 		slog.DebugContext(ctx, "skipping member-deleted notification — non-LF user",
@@ -1414,8 +1685,11 @@ func (m *messageHandlerOrchestrator) HandleCommitteeMemberDeleted(ctx context.Co
 		slog.WarnContext(ctx, "failed to send member-deleted notification email",
 			"error", sendErr, "committee_uid", member.CommitteeUID)
 	} else {
-		slog.DebugContext(ctx, "sent member-deleted notification email",
-			"committee_uid", member.CommitteeUID)
+		slog.InfoContext(ctx, "sent member-deleted notification email",
+			"committee_uid", member.CommitteeUID,
+			"member_uid", member.UID,
+			"recipient_email", redaction.RedactEmail(member.Email),
+			"username", redaction.Redact(member.Username))
 	}
 
 	return nil, nil
@@ -1689,8 +1963,8 @@ func (m *messageHandlerOrchestrator) reconcileUsernamesForEmail(ctx context.Cont
 
 // promoteEmailOnlyMemberUsername sets the username on an email-only committee member seat and
 // persists it via UpdateMember. It retries on revision conflicts (up to maxRetries), skips seats
-// that are already promoted or whose email no longer matches (index lag), and uses
-// contextWithSkipMemberUsernameEmailResolution so UpdateMember does not re-run the auth lookup.
+// that are already promoted or whose email no longer matches (index lag), and passes
+// skipEnrichment=true so UpdateMember does not re-run the auth lookup.
 func (m *messageHandlerOrchestrator) promoteEmailOnlyMemberUsername(writeCtx context.Context, committeeUID, memberUID, username, email string) error {
 	const maxRetries = 3
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
@@ -1714,8 +1988,8 @@ func (m *messageHandlerOrchestrator) promoteEmailOnlyMemberUsername(writeCtx con
 		member.Username = username
 
 		updated, writeErr := m.committeeWriterOrchestrator.UpdateMember(
-			contextWithSkipMemberUsernameEmailResolution(writeCtx),
-			member, revision, false,
+			writeCtx,
+			member, revision, false, true,
 		)
 		if writeErr != nil {
 			var conflictErr errors.Conflict

@@ -5,6 +5,9 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,9 +19,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	internalservice "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
@@ -27,9 +30,9 @@ func testCtx(principal string) context.Context {
 	return context.WithValue(context.Background(), constants.PrincipalContextID, principal)
 }
 
-// mockReaderForPrincipalEmail maps the principal's Auth0 sub to the caller's email for EmailsByAuthToken.
+// mockReaderForPrincipalEmail maps the principal to the caller's email for EmailsByAuthToken.
 func mockReaderForPrincipalEmail(principal, email string) *mockUserReader {
-	return newMockUserReader(authpkg.MapUsernameToAuthSub(principal), email)
+	return newMockUserReader(strings.TrimSpace(principal), email)
 }
 
 // mockUserReader is a simple in-memory UserReader for tests.
@@ -39,6 +42,7 @@ type mockUserReader struct {
 	usernames   map[string]string              // email → username (for UsernameByEmail)
 	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
+	emailsErr   error                          // if set, returned by EmailsByAuthToken for all calls
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
@@ -81,6 +85,9 @@ func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (str
 }
 
 func (m *mockUserReader) EmailsByAuthToken(_ context.Context, authToken string) (*model.UserEmails, error) {
+	if m.emailsErr != nil {
+		return nil, m.emailsErr
+	}
 	if authToken == "" {
 		return nil, errs.NewValidation("mock: auth token is empty")
 	}
@@ -103,14 +110,15 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, sub string) 
 
 // Mock orchestrator for testing service layer
 type mockCommitteeWriterOrchestrator struct {
-	deleteError       error
-	deleteCalls       []deleteCall
-	updateMember      *model.CommitteeMember
-	updateMemberErr   error
-	updateMemberCalls []updateMemberCall
-	createMember      *model.CommitteeMember
-	createMemberErr   error
-	createMemberCalls []*model.CommitteeMember
+	deleteError          error
+	deleteCalls          []deleteCall
+	updateMember         *model.CommitteeMember
+	updateMemberErr      error
+	updateMemberCalls    []updateMemberCall
+	createMember         *model.CommitteeMember
+	createMemberErr      error
+	createMemberCalls    []*model.CommitteeMember
+	createMemberSyncArgs []bool
 }
 
 type updateMemberCall struct {
@@ -139,8 +147,9 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 	return errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.createMemberCalls = append(m.createMemberCalls, member)
+	m.createMemberSyncArgs = append(m.createMemberSyncArgs, sync)
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}
@@ -150,7 +159,7 @@ func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, memb
 	return nil, errs.NewUnexpected("not implemented for test")
 }
 
-func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
+func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.updateMemberCalls = append(m.updateMemberCalls, updateMemberCall{member: member, revision: revision})
 	if m.updateMemberErr != nil {
 		return nil, m.updateMemberErr
@@ -158,7 +167,7 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 	return m.updateMember, nil
 }
 
-func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
+func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{uid: uid, revision: revision})
 	return m.deleteError
 }
@@ -166,13 +175,13 @@ func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid 
 // ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
 // the created member (an extra delete) if the delete fails, so reassign tests can assert the calls.
 func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
-	created, err := m.CreateMember(ctx, newMember, sync)
+	created, err := m.CreateMember(ctx, newMember, sync, false)
 	if err != nil {
 		return nil, err
 	}
-	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		if created != nil && created.UID != "" {
-			_ = m.DeleteMember(ctx, created.UID, 0, sync) // rollback attempt
+			_ = m.DeleteMember(ctx, created.UID, 0, sync, false) // rollback attempt
 		}
 		return nil, errDelete
 	}
@@ -227,6 +236,109 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	}
 
 	return svc, mockOrchestrator, mockRepo
+}
+
+func TestPublishInviteAccessControlMessage(t *testing.T) {
+	invite := &model.CommitteeInvite{
+		UID:          "invite-1",
+		CommitteeUID: "committee-1",
+		InviteeEmail: "invitee@example.com",
+	}
+	tests := []struct {
+		name              string
+		action            model.MessageAction
+		sync              bool
+		userReader        *mockUserReader
+		wantRelation      map[string][]string
+		wantExclusions    []string
+		wantUpdateAccess  int
+		wantDeleteAccess  int
+		deleteAccessError error
+	}{
+		{
+			name:             "resolved username",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee"),
+			wantRelation:     map[string][]string{constants.RelationInvitee: {"invitee"}},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "missing username",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, ""),
+			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "username lookup failure",
+			action:           model.ActionCreated,
+			userReader:       newMockUserReader(),
+			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "defensive delete action with sync enabled",
+			action:           model.ActionDeleted,
+			sync:             true,
+			userReader:       newMockUserReader(),
+			wantDeleteAccess: 1,
+		},
+		{
+			name:             "defensive delete action with sync disabled",
+			action:           model.ActionDeleted,
+			sync:             false,
+			userReader:       newMockUserReader(),
+			wantDeleteAccess: 1,
+		},
+		{
+			name:              "defensive delete publish failure remains best effort",
+			action:            model.ActionDeleted,
+			sync:              true,
+			userReader:        newMockUserReader(),
+			wantDeleteAccess:  1,
+			deleteAccessError: stderrors.New("delete_access publish failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			publisher := &mock.MockCommitteePublisher{
+				DeleteAccessError: tt.deleteAccessError,
+			}
+			svc := &committeeServicesrvc{
+				publisher:  publisher,
+				userReader: tt.userReader,
+			}
+
+			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, tt.sync)
+
+			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
+			assert.Equal(t, tt.wantDeleteAccess, publisher.DeleteAccessCallCount)
+			assert.Zero(t, publisher.MemberPutCallCount)
+			assert.Zero(t, publisher.MemberRemoveCallCount)
+			if tt.action == model.ActionDeleted {
+				msg, ok := publisher.LastDeleteAccessMessage.(fgatypes.GenericFGAMessage)
+				require.True(t, ok)
+				assert.Equal(t, "committee_invite", msg.ObjectType)
+				assert.Equal(t, "delete_access", msg.Operation)
+				assert.Equal(t, fgatypes.GenericDeleteData{UID: invite.UID}, msg.Data)
+				return
+			}
+
+			msg, ok := publisher.LastUpdateAccessMessage.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "committee_invite", msg.ObjectType)
+			assert.Equal(t, "update_access", msg.Operation)
+			data, ok := msg.Data.(fgatypes.GenericAccessData)
+			require.True(t, ok)
+			assert.Equal(t, invite.UID, data.UID)
+			assert.Equal(t, map[string][]string{
+				constants.RelationCommittee: {invite.CommitteeUID},
+			}, data.References)
+			assert.Equal(t, tt.wantRelation, data.Relations)
+			assert.Equal(t, tt.wantExclusions, data.ExcludeRelations)
+		})
+	}
 }
 
 func TestDeleteCommitteeMember(t *testing.T) {
@@ -783,6 +895,15 @@ func TestCreateInvite(t *testing.T) {
 				assert.Equal(t, "Technical Advisory Committee", call.Resource.Name)
 				assert.Equal(t, "group", call.Resource.Type)
 				assert.Equal(t, "https://app.test.lfx.dev/project/groups/"+tt.payload.UID, call.ReturnURL)
+				assert.Equal(t, *result.UID, call.CustomClaims["committee_invite_uid"], "CustomClaims must carry the persisted invite UID so the BFF can accept unambiguously")
+				assert.Equal(t, "true", call.CustomClaims["organization_required"], "CustomClaims must carry organization_required so the BFF can prompt for org without an email fetch")
+				assert.Equal(t, "Technical Advisory Committee", call.CustomClaims["committee_name"], "CustomClaims must carry committee_name for the org-collection dialog header")
+				assert.Contains(t, call.CustomClaims, "organization_name", "organization_name key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_name"], "CustomClaims organization_name must be empty when no org is pre-filled")
+				assert.Contains(t, call.CustomClaims, "organization_id", "organization_id key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_id"], "CustomClaims organization_id must be empty when no org is pre-filled")
+				assert.Contains(t, call.CustomClaims, "organization_website", "organization_website key must be present even when empty")
+				assert.Equal(t, "", call.CustomClaims["organization_website"], "CustomClaims organization_website must be empty when no org is pre-filled")
 			}
 		})
 	}
@@ -803,6 +924,7 @@ func TestCreateInvite_Organization(t *testing.T) {
 
 	t.Run("stores organization from payload", func(t *testing.T) {
 		svc, _, _ := setupServiceTestWithRepo()
+		sender := svc.inviteSender.(*mockInviteSender)
 
 		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 			UID:          "committee-1",
@@ -815,10 +937,19 @@ func TestCreateInvite_Organization(t *testing.T) {
 		assert.Equal(t, "The Linux Foundation", *result.Organization.Name)
 		require.NotNil(t, result.Organization.Website)
 		assert.Equal(t, "https://linuxfoundation.org", *result.Organization.Website)
+
+		// Verify that org fields are embedded in the JWT claims for the BFF to read.
+		require.Len(t, sender.calls, 1)
+		call := sender.calls[0]
+		assert.Equal(t, "true", call.CustomClaims["organization_required"])
+		assert.Equal(t, "The Linux Foundation", call.CustomClaims["organization_name"], "pre-filled org name must be embedded in CustomClaims")
+		assert.Equal(t, "", call.CustomClaims["organization_id"], "org ID is nil in sampleInviteOrganizationPayload so claim must be empty")
+		assert.Equal(t, "https://linuxfoundation.org", call.CustomClaims["organization_website"], "pre-filled org website must be embedded in CustomClaims")
 	})
 
 	t.Run("optional on open committee", func(t *testing.T) {
 		svc, _, _ := setupServiceTestWithRepo()
+		sender := svc.inviteSender.(*mockInviteSender)
 
 		result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 			UID:          "committee-2",
@@ -827,6 +958,19 @@ func TestCreateInvite_Organization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Nil(t, result.Organization)
+
+		// committee-2 has BusinessEmailRequired=false and EnableVoting=false, so organization
+		// is not required; the claim must reflect that so the BFF accepts without prompting.
+		require.Len(t, sender.calls, 1)
+		call := sender.calls[0]
+		assert.Equal(t, "false", call.CustomClaims["organization_required"], "open committee must emit organization_required=false")
+		assert.Equal(t, "Security Committee", call.CustomClaims["committee_name"])
+		assert.Contains(t, call.CustomClaims, "organization_name")
+		assert.Equal(t, "", call.CustomClaims["organization_name"])
+		assert.Contains(t, call.CustomClaims, "organization_id")
+		assert.Equal(t, "", call.CustomClaims["organization_id"])
+		assert.Contains(t, call.CustomClaims, "organization_website")
+		assert.Equal(t, "", call.CustomClaims["organization_website"])
 	})
 
 	t.Run("reinstate preserves stored organization", func(t *testing.T) {
@@ -918,6 +1062,15 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	// ("Member"), not the committee role ("chair") which lives on the persisted
 	// invite record and is applied on acceptance.
 	assert.Equal(t, "Member", sender.calls[0].Role)
+	assert.Equal(t, revoked.UID, sender.calls[0].CustomClaims["committee_invite_uid"], "reinstated invite must carry its own UID in CustomClaims")
+	assert.Equal(t, "true", sender.calls[0].CustomClaims["organization_required"], "reinstated invite must carry organization_required in CustomClaims")
+	assert.Equal(t, "Technical Advisory Committee", sender.calls[0].CustomClaims["committee_name"], "reinstated invite must carry committee_name in CustomClaims")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_name", "organization_name key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_name"], "reinstated invite must carry empty organization_name when no org pre-filled")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_id", "organization_id key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_id"], "reinstated invite must carry empty organization_id when no org pre-filled")
+	assert.Contains(t, sender.calls[0].CustomClaims, "organization_website", "organization_website key must be present even when empty")
+	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_website"], "reinstated invite must carry empty organization_website when no org pre-filled")
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
@@ -1177,28 +1330,54 @@ func TestRevokeInvite_NotFound(t *testing.T) {
 
 func TestAcceptInvite(t *testing.T) {
 	tests := []struct {
-		name        string
-		seedStatus  string
-		principal   string
-		expectError bool
+		name                     string
+		seedStatus               string
+		seedMember               *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
+		principal                string
+		inviteeEmail             string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expectError              bool
+		expectResult             bool // false means nil result is acceptable
+		expectCreateMemberCalled bool // whether AcceptInvite reaches the CreateMember call at all
 	}{
 		{
-			name:        "successful accept of pending invite",
-			seedStatus:  "pending",
-			principal:   "accept@example.com",
-			expectError: false,
+			name:                     "successful accept of pending invite",
+			seedStatus:               "pending",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
-			name:        "successful accept of previously declined invite",
-			seedStatus:  "declined",
-			principal:   "accept@example.com",
-			expectError: false,
+			name:                     "successful accept of previously declined invite",
+			seedStatus:               "declined",
+			principal:                "accept@example.com",
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
 		},
 		{
-			name:        "cannot accept already accepted invite",
-			seedStatus:  "accepted",
-			principal:   "accept@example.com",
-			expectError: true,
+			name:       "already accepted invite returns success (idempotent) — member found",
+			seedStatus: "accepted",
+			seedMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "existing-member-uid",
+					CommitteeUID: "committee-1",
+					Email:        "accept@example.com",
+					Status:       "Active",
+				},
+			},
+			principal:    "accept@example.com",
+			expectError:  false,
+			expectResult: true,
+		},
+		{
+			// Use a distinct email to avoid matching the member seeded by the previous sub-test
+			// (the global mock repo is a singleton, so state leaks between subtests).
+			name:         "already accepted invite with no member record returns conflict",
+			seedStatus:   "accepted",
+			principal:    "no-member-accept@example.com",
+			inviteeEmail: "no-member-accept@example.com",
+			expectError:  true,
 		},
 		{
 			name:        "cannot accept revoked invite",
@@ -1213,14 +1392,22 @@ func TestAcceptInvite(t *testing.T) {
 			svc, mockOrch, repo := setupServiceTestWithRepo()
 			svc.userReader = mockReaderForPrincipalEmail(tt.principal, tt.principal)
 
+			inviteeEmail := tt.inviteeEmail
+			if inviteeEmail == "" {
+				inviteeEmail = tt.principal
+			}
 			invite := &model.CommitteeInvite{
 				UID:          "invite-accept-test",
 				CommitteeUID: "committee-1",
-				InviteeEmail: "accept@example.com",
+				InviteeEmail: inviteeEmail,
 				Status:       tt.seedStatus,
 				CreatedAt:    time.Now(),
 			}
 			repo.AddCommitteeInvite(invite)
+
+			if tt.seedMember != nil {
+				repo.AddCommitteeMember(tt.seedMember.CommitteeUID, tt.seedMember)
+			}
 
 			mockOrch.createMember = &model.CommitteeMember{
 				CommitteeMemberBase: model.CommitteeMemberBase{
@@ -1242,8 +1429,22 @@ func TestAcceptInvite(t *testing.T) {
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, result)
-				assert.Equal(t, "Active", result.Status)
+				if tt.expectResult {
+					require.NotNil(t, result)
+					assert.Equal(t, "Active", result.Status)
+				}
+			}
+
+			// AcceptInvite must always pass sync=false to CreateMember (LFXV2-2856): membership
+			// FGA publishing is asynchronous-only, and a regression to sync=true would reintroduce
+			// the request/reply indexer timeout this change removed. Idempotent/error paths
+			// short-circuit before reaching CreateMember, so assert the call happens exactly when
+			// expected rather than only inspecting the last recorded arg.
+			if tt.expectCreateMemberCalled {
+				require.Len(t, mockOrch.createMemberSyncArgs, 1)
+				assert.False(t, mockOrch.createMemberSyncArgs[0], "AcceptInvite must call CreateMember with sync=false")
+			} else {
+				assert.Empty(t, mockOrch.createMemberSyncArgs, "AcceptInvite must not call CreateMember on this path")
 			}
 		})
 	}
@@ -1354,12 +1555,12 @@ func TestAcceptInvite_Organization(t *testing.T) {
 		assert.Equal(t, "https://payload.org", member.Organization.Website)
 	})
 
-	t.Run("ignores partial payload without organization ID", func(t *testing.T) {
+	t.Run("uses payload name and website without organization ID", func(t *testing.T) {
 		svc, mockOrch, repo := setupServiceTestWithRepo()
 		svc.userReader = mockReaderForPrincipalEmail("accept@example.com", "accept@example.com")
 
 		repo.AddCommitteeInvite(&model.CommitteeInvite{
-			UID:          "invite-org-merge",
+			UID:          "invite-org-name-website",
 			CommitteeUID: "committee-1",
 			InviteeEmail: "accept@example.com",
 			Status:       "pending",
@@ -1378,25 +1579,28 @@ func TestAcceptInvite_Organization(t *testing.T) {
 			},
 		}
 
-		overrideName := "Payload Org"
+		payloadName := "Payload Org"
+		payloadWebsite := "https://payload.org"
 		_, err := svc.AcceptInvite(testCtx("accept@example.com"), &committeeservice.AcceptInvitePayload{
 			UID:       "committee-1",
-			InviteUID: "invite-org-merge",
+			InviteUID: "invite-org-name-website",
 			Body: &committeeservice.AcceptInviteOptionalBody{
 				Organization: &struct {
 					ID      *string
 					Name    *string
 					Website *string
 				}{
-					Name: &overrideName,
+					Name:    &payloadName,
+					Website: &payloadWebsite,
 				},
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, mockOrch.createMemberCalls, 1)
 		member := mockOrch.createMemberCalls[0]
-		assert.Equal(t, "Invite Org", member.Organization.Name)
-		assert.Equal(t, "https://invite.org", member.Organization.Website)
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://payload.org", member.Organization.Website)
+		assert.Empty(t, member.Organization.ID)
 	})
 
 	t.Run("falls back to invite organization", func(t *testing.T) {
@@ -1838,6 +2042,174 @@ func TestApproveApplication_WrongCommittee(t *testing.T) {
 	var nfErr *committeeservice.NotFoundError
 	require.ErrorAs(t, err, &nfErr)
 	assert.Contains(t, nfErr.Message, "application not found in this committee")
+}
+
+func TestSubmitApplication_WithOrganization(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+	svc.userReader = mockReaderForPrincipalEmail("applicant-with-org@example.com", "applicant-with-org@example.com")
+
+	orgID := "0012400001ABCDEF"
+	orgName := "Acme Corp"
+	orgWebsite := "https://acme.com"
+	msg := "I'd like to join"
+
+	ctx := testCtx("applicant-with-org@example.com")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID:     "committee-1",
+		Message: &msg,
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{
+			ID:      &orgID,
+			Name:    &orgName,
+			Website: &orgWebsite,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	stored, _, err := repo.GetApplication(ctx, *result.UID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.Organization, "organization should be stored on the application record")
+	assert.Equal(t, orgID, stored.Organization.ID)
+	assert.Equal(t, orgName, stored.Organization.Name)
+	assert.Equal(t, orgWebsite, stored.Organization.Website)
+}
+
+func TestSubmitApplication_WithoutOrganization(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+	svc.userReader = mockReaderForPrincipalEmail("applicant-no-org@example.com", "applicant-no-org@example.com")
+
+	ctx := testCtx("applicant-no-org@example.com")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID: "committee-1",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	stored, _, err := repo.GetApplication(ctx, *result.UID)
+	require.NoError(t, err)
+	assert.Nil(t, stored.Organization, "organization should be nil when not provided")
+}
+
+func TestSubmitApplication_RejectedApp_OrgReplaced(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+
+	originalOrg := &model.CommitteeMemberOrganization{ID: "old-sfid", Name: "OldCorp", Website: "https://old.com"}
+	rejected := &model.CommitteeApplication{
+		UID:            "rejected-app-with-org",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "reapplicant-org-replace@example.com",
+		Status:         "rejected",
+		Organization:   originalOrg,
+		CreatedAt:      time.Now(),
+	}
+	repo.AddCommitteeApplication(rejected)
+
+	svc.userReader = mockReaderForPrincipalEmail("reapplicant-org-replace@example.com", "reapplicant-org-replace@example.com")
+	newOrgID := "0012400001NEWID0"
+	newOrgName := "NewCorp"
+	newOrgWebsite := "https://newcorp.com"
+	newMsg := "I've improved since last time"
+	ctx := testCtx("reapplicant-org-replace@example.com")
+
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID:     "committee-1",
+		Message: &newMsg,
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{
+			ID:      &newOrgID,
+			Name:    &newOrgName,
+			Website: &newOrgWebsite,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, rejected.UID, *result.UID, "should reinstate the existing application")
+	assert.Equal(t, "pending", result.Status)
+
+	stored, _, err := repo.GetApplication(ctx, rejected.UID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.Organization, "organization should be replaced on reinstatement")
+	assert.Equal(t, newOrgID, stored.Organization.ID)
+	assert.Equal(t, newOrgName, stored.Organization.Name)
+	assert.Equal(t, newOrgWebsite, stored.Organization.Website)
+}
+
+func TestApproveApplication_OrganizationPropagatedToMember(t *testing.T) {
+	tests := []struct {
+		name        string
+		appUID      string
+		appEmail    string
+		appOrg      *model.CommitteeMemberOrganization
+		wantOrgID   string
+		wantOrgName string
+	}{
+		{
+			name:        "organization from application is seeded onto created member",
+			appUID:      "app-org-propagation-with-org",
+			appEmail:    "org-propagation-with@example.com",
+			appOrg:      &model.CommitteeMemberOrganization{ID: "0012400001SFIDXX", Name: "Acme Corp", Website: "https://acme.com"},
+			wantOrgID:   "0012400001SFIDXX",
+			wantOrgName: "Acme Corp",
+		},
+		{
+			name:        "no organization on application leaves member organization empty",
+			appUID:      "app-org-propagation-no-org",
+			appEmail:    "org-propagation-without@example.com",
+			appOrg:      nil,
+			wantOrgID:   "",
+			wantOrgName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+
+			app := &model.CommitteeApplication{
+				UID:            tt.appUID,
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: tt.appEmail,
+				Status:         "pending",
+				Organization:   tt.appOrg,
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(app)
+
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-1",
+					Email:        tt.appEmail,
+					Status:       "Active",
+				},
+			}
+
+			notes := "Welcome aboard"
+			_, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: tt.appUID,
+				ReviewerNotes:  &notes,
+			})
+
+			require.NoError(t, err)
+			require.Len(t, mockOrch.createMemberCalls, 1)
+			createdMember := mockOrch.createMemberCalls[0]
+			assert.Equal(t, tt.wantOrgID, createdMember.Organization.ID)
+			assert.Equal(t, tt.wantOrgName, createdMember.Organization.Name)
+		})
+	}
 }
 
 func TestRejectApplication(t *testing.T) {
@@ -2629,10 +3001,9 @@ func TestOrgSeatFromMember_AvatarUsername(t *testing.T) {
 
 func TestEnrichMemberOrganization_AuthServiceMetadata(t *testing.T) {
 	principal := "user@corp.com"
-	authSub := authpkg.MapUsernameToAuthSub(principal)
 	reader := &metadataByKeyReader{
 		metadata: map[string]*model.UserMetadata{
-			authSub: {Organization: "Example Corp"},
+			principal: {Organization: "Example Corp"},
 		},
 	}
 	svc := &committeeServicesrvc{userReader: reader}
@@ -2679,4 +3050,281 @@ func TestEnrichAllRoleFields_NilUserReader(t *testing.T) {
 	}
 	err := svc.enrichAllRoleFields(context.Background(), p.Writers, p.Auditors)
 	assert.Error(t, err)
+}
+
+func TestSafeClaimValue(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("short value passes through unchanged", func(t *testing.T) {
+		s := "hello"
+		assert.Equal(t, s, safeClaimValue(ctx, s, "test_claim", "invite-1"))
+	})
+
+	t.Run("empty string passes through", func(t *testing.T) {
+		assert.Equal(t, "", safeClaimValue(ctx, "", "test_claim", "invite-1"))
+	})
+
+	t.Run("exactly 1024 bytes passes through", func(t *testing.T) {
+		s := string(make([]byte, 1024))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, s, result)
+	})
+
+	t.Run("1025 bytes returns empty string", func(t *testing.T) {
+		s := string(make([]byte, 1025))
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "oversized value must be omitted, not truncated")
+	})
+
+	t.Run("multibyte rune crossing byte 1024 returns empty string", func(t *testing.T) {
+		// Build a string that is exactly 1023 ASCII bytes followed by a 3-byte UTF-8 rune
+		// (U+4E2D '中'). Total length is 1026 bytes — over limit.
+		prefix := string(make([]byte, 1023))
+		s := prefix + "中" // "中" is 3 UTF-8 bytes
+		assert.Greater(t, len(s), 1024)
+		result := safeClaimValue(ctx, s, "test_claim", "invite-1")
+		assert.Equal(t, "", result, "value with multibyte rune crossing the limit must be omitted")
+	})
+}
+
+// testCtxWithEmail builds a context with both principal and email context values,
+// simulating what JWTAuth populates after parsing a Heimdall JWT with an email claim.
+func testCtxWithEmail(principal, email string) context.Context {
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, principal)
+	return context.WithValue(ctx, constants.EmailContextID, email)
+}
+
+// withEmailsErr configures the error returned by EmailsByAuthToken for all calls and returns the receiver for chaining.
+func (m *mockUserReader) withEmailsErr(err error) *mockUserReader {
+	m.emailsErr = err
+	return m
+}
+
+// mockUserReaderNotFound returns a mockUserReader that returns a NotFound error for all
+// EmailsByAuthToken calls, simulating an auth-service propagation delay for new LFID users.
+func mockUserReaderNotFound() *mockUserReader {
+	return newMockUserReader().withEmailsErr(errs.NewNotFound("the user does not exist"))
+}
+
+// TestAcceptInvite_NewUserEmailFallback tests the propagation-race fallback: when
+// auth-service returns NOT_FOUND for a new user, resolveCallerEmail uses the email
+// claim stored in the request context from the Heimdall JWT.
+func TestAcceptInvite_NewUserEmailFallback(t *testing.T) {
+	const inviteeEmail = "newuser@example.com"
+	const principal = "newuser"
+
+	t.Run("NOT_FOUND + JWT email matches invitee — accept succeeds", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-new-user",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "new-member-uid",
+				CommitteeUID: "committee-1",
+				Email:        inviteeEmail,
+				Status:       "Active",
+			},
+		}
+
+		ctx := testCtxWithEmail(principal, inviteeEmail)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-new-user",
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "Active", result.Status)
+	})
+
+	t.Run("NOT_FOUND + no JWT email in context — returns error", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-no-email",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		// Context has principal but no email — simulates M2M or old-format token
+		ctx := testCtx(principal)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-no-email",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-NOT_FOUND error + JWT email present — returns original error (no fallback)", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		unexpectedErr := errs.NewServiceUnavailable("NATS timeout")
+		svc.userReader = newMockUserReader().withEmailsErr(unexpectedErr)
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-nats-err",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		ctx := testCtxWithEmail(principal, inviteeEmail)
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-nats-err",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		// Must be the original upstream error, not a fallback or forbidden
+		assert.NotNil(t, err)
+		var forbiddenErr *committeeservice.ForbiddenError
+		assert.False(t, stderrors.As(err, &forbiddenErr), "non-NOT_FOUND error must not become Forbidden")
+	})
+
+	t.Run("NOT_FOUND + JWT email does not match invitee — returns Forbidden", func(t *testing.T) {
+		svc, _, repo := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-wrong-email",
+			CommitteeUID: "committee-1",
+			InviteeEmail: inviteeEmail,
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+
+		// JWT email belongs to a different user
+		ctx := testCtxWithEmail(principal, "someone-else@example.com")
+		result, err := svc.AcceptInvite(ctx, &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-wrong-email",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var forbiddenErr *committeeservice.ForbiddenError
+		require.ErrorAs(t, err, &forbiddenErr)
+		assert.Contains(t, forbiddenErr.Message, "you are not the invitee")
+	})
+}
+
+// TestResolveCallerEmail tests resolveCallerEmail directly, covering the primary auth-service
+// path and the NOT_FOUND JWT email fallback without going through a full AcceptInvite call.
+func TestResolveCallerEmail(t *testing.T) {
+	const principal = "testuser"
+	const primaryEmail = "testuser@example.com"
+
+	t.Run("auth-service returns primary email", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail(principal, primaryEmail)
+
+		ctx := testCtx(principal)
+		got, err := svc.resolveCallerEmail(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primaryEmail, got)
+	})
+
+	t.Run("NOT_FOUND + verified JWT email in context — returns JWT email", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		ctx := testCtxWithEmail(principal, primaryEmail)
+		got, err := svc.resolveCallerEmail(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primaryEmail, got)
+	})
+
+	t.Run("NOT_FOUND + no JWT email in context — propagates NOT_FOUND", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = mockUserReaderNotFound()
+
+		ctx := testCtx(principal)
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+		var notFoundErr errs.NotFound
+		assert.True(t, stderrors.As(err, &notFoundErr), "expected NotFound, got %T: %v", err, err)
+	})
+
+	t.Run("non-NOT_FOUND error — not suppressed by fallback", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().withEmailsErr(errs.NewServiceUnavailable("NATS timeout"))
+
+		ctx := testCtxWithEmail(principal, primaryEmail)
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+		var unavailErr errs.ServiceUnavailable
+		assert.True(t, stderrors.As(err, &unavailErr), "non-NOT_FOUND error must propagate unchanged, got %T: %v", err, err)
+		assert.Contains(t, unavailErr.Error(), "NATS timeout")
+	})
+
+	t.Run("missing principal — returns validation error before any reader call", func(t *testing.T) {
+		svc, _, _ := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader()
+
+		ctx := context.Background() // no principal in context
+		_, err := svc.resolveCallerEmail(ctx)
+		require.Error(t, err)
+	})
+}
+
+// stubAuthenticator is a test-only Authenticator that returns fixed values.
+type stubAuthenticator struct {
+	principal string
+	email     string
+	err       error
+}
+
+func (s *stubAuthenticator) ParsePrincipal(_ context.Context, _ string, _ *slog.Logger) (string, string, error) {
+	return s.principal, s.email, s.err
+}
+
+// TestJWTAuth_ContextPropagation verifies that JWTAuth stores both the principal and the
+// email claim returned by ParsePrincipal into the request context.
+func TestJWTAuth_ContextPropagation(t *testing.T) {
+	t.Run("principal and email both stored in context", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{principal: "testuser", email: "testuser@example.com"},
+		}
+		ctx, err := svc.JWTAuth(context.Background(), "token", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "testuser", ctx.Value(constants.PrincipalContextID))
+		assert.Equal(t, "testuser@example.com", ctx.Value(constants.EmailContextID))
+	})
+
+	t.Run("empty email (M2M token) stored as empty string in context", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{principal: "svc-account", email: ""},
+		}
+		ctx, err := svc.JWTAuth(context.Background(), "token", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "svc-account", ctx.Value(constants.PrincipalContextID))
+		assert.Equal(t, "", ctx.Value(constants.EmailContextID))
+	})
+
+	t.Run("auth error propagated — context unchanged", func(t *testing.T) {
+		svc := &committeeServicesrvc{
+			auth: &stubAuthenticator{err: errs.NewValidation("bad token")},
+		}
+		// Seed a pre-existing value to verify JWTAuth doesn't wipe caller context on error.
+		type callerKey struct{}
+		seedCtx := context.WithValue(context.Background(), callerKey{}, "seed-value")
+		returnedCtx, err := svc.JWTAuth(seedCtx, "bad", nil)
+		require.Error(t, err)
+		assert.Equal(t, "seed-value", returnedCtx.Value(callerKey{}), "pre-existing context values must be preserved on auth error")
+		assert.Nil(t, returnedCtx.Value(constants.PrincipalContextID), "principal must not be set in context on auth error")
+		assert.Nil(t, returnedCtx.Value(constants.EmailContextID), "email must not be set in context on auth error")
+	})
 }

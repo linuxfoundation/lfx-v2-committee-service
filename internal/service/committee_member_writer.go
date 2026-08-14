@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,28 +19,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
-
-// updateMemberContextKey marks UpdateMember options on a context.
-type updateMemberContextKey struct{}
-
-type updateMemberContext struct {
-	skipUsernameEmailResolution bool
-}
-
-// contextWithSkipMemberUsernameEmailResolution skips auth email→username lookup in UpdateMember.
-// Used when invite acceptance sets username from accepted_by, matching Writers/Auditors enrichment.
-func contextWithSkipMemberUsernameEmailResolution(ctx context.Context) context.Context {
-	return context.WithValue(ctx, updateMemberContextKey{}, updateMemberContext{skipUsernameEmailResolution: true})
-}
-
-func skipMemberUsernameEmailResolution(ctx context.Context) bool {
-	opts, ok := ctx.Value(updateMemberContextKey{}).(updateMemberContext)
-	return ok && opts.skipUsernameEmailResolution
-}
 
 // type committeeWriterOrchestrator from committee_writer.go
 
@@ -98,7 +80,7 @@ func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, key
 }
 
 // CreateMember creates a new committee member includes validation and rollback support
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "creating committee member",
 		"committee_uid", member.CommitteeUID,
 		"member_email", redaction.RedactEmail(member.Email),
@@ -118,7 +100,9 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	)
 	defer func() {
 		if err := recover(); err != nil || rollbackRequired {
-			uc.deleteMemberKeys(ctx, keys, rollbackRequired)
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			uc.deleteMemberKeys(cleanupCtx, keys, rollbackRequired)
 		}
 	}()
 
@@ -166,7 +150,16 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"business_email_required", settings.BusinessEmailRequired,
 	)
 
-	// Step 2: Validate member against committee requirements (domain validation)
+	// Step 2a: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
+	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+		slog.WarnContext(ctx, "organization id resolution unavailable; keeping organization id unchanged",
+			"error", errOrg,
+			"organization_id", member.Organization.ID,
+			"organization_name", member.Organization.Name,
+		)
+	}
+
+	// Step 2b: Validate member against committee requirements (domain validation)
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
 	if errValidation := member.Validate(fullCommittee); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed",
@@ -194,7 +187,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 
 	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
 	// Clear first so a failed lookup never leaves an unverified value at rest.
-	if member.Email != "" {
+	if member.Email != "" && !skipEnrichment {
 		member.Username = ""
 		slog.DebugContext(ctx, "resolving username from email",
 			"email", redaction.RedactEmail(member.Email),
@@ -309,6 +302,22 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errEmailIndex
 	}
 
+	// Step 8e: Write the username→member secondary index so the user-deleted scrub can find all
+	// committee seats for a given LFID via a server-side filtered scan rather than a full bucket scan.
+	// No-op (empty key) for members with no username.
+	usernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+	if usernameIndexKey != "" {
+		keys = append(keys, usernameIndexKey)
+	}
+	if errUsernameIndex != nil {
+		slog.ErrorContext(ctx, "failed to write committee member username index",
+			"error", errUsernameIndex,
+			"member_uid", member.UID,
+		)
+		rollbackRequired = true
+		return nil, errUsernameIndex
+	}
+
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
@@ -346,7 +355,7 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 }
 
 // UpdateMember updates an existing committee member
-func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	slog.DebugContext(ctx, "executing update committee member use case",
 		"member_uid", member.UID,
 		"committee_uid", member.CommitteeUID,
@@ -464,6 +473,19 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
+	member.Organization.ID = strings.TrimSpace(member.Organization.ID)
+	trimmedExistingOrgID := strings.TrimSpace(existing.Organization.ID)
+	if member.Organization.ID != trimmedExistingOrgID {
+		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+			slog.WarnContext(ctx, "organization id resolution unavailable during update; keeping organization id unchanged",
+				"error", errOrg,
+				"organization_id", member.Organization.ID,
+				"organization_name", member.Organization.Name,
+				"member_uid", member.UID,
+			)
+		}
+	}
+
 	if errValidation := member.ValidateUpdate(fullCommittee, existing); errValidation != nil {
 		slog.ErrorContext(ctx, "committee member validation failed during update",
 			"error", errValidation,
@@ -535,8 +557,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	// Resolve username from email when auth can map the email to an LFID.
 	// When lookup fails or returns empty, keep the stored username only if the email did not change.
 	// If the email changed, clear username to avoid persisting a username/email mismatch.
-	// Invite acceptance skips this block and persists accepted_by directly (see contextWithSkipMemberUsernameEmailResolution).
-	if member.Email != "" && !skipMemberUsernameEmailResolution(ctx) {
+	// Invite acceptance and X-Skip-Enrichment skip this block and persist caller-supplied identity.
+	if member.Email != "" && !skipEnrichment {
 		slog.DebugContext(ctx, "resolving username from email during update",
 			"email", redaction.RedactEmail(member.Email),
 			"stored_username", redaction.Redact(existing.Username),
@@ -654,6 +676,32 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		}
 	}
 
+	// Step 7c: Reconcile the username→member secondary index when the username changes.
+	// Write the new entry first (tracked for rollback), then mark the old one stale for
+	// post-update cleanup. Members with no new username skip the write; members with no old
+	// username skip the stale-key append.
+	oldUsernameHash := existing.BuildUsernameIndexKey(ctx)
+	newUsernameHash := member.BuildUsernameIndexKey(ctx)
+	if oldUsernameHash != newUsernameHash {
+		if newUsernameHash != "" {
+			newUsernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
+			if newUsernameIndexKey != "" {
+				newKeys = append(newKeys, newUsernameIndexKey)
+			}
+			if errUsernameIndex != nil {
+				slog.ErrorContext(ctx, "failed to write username index during member update",
+					"error", errUsernameIndex,
+					"member_uid", member.UID,
+				)
+				rollbackRequired = true
+				return nil, errUsernameIndex
+			}
+		}
+		if oldUsernameHash != "" {
+			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, oldUsernameHash, existing.UID))
+		}
+	}
+
 	// Step 8: Update the member in storage
 	updatedMember, errUpdate := uc.committeeWriter.UpdateMember(ctx, member, revision)
 	if errUpdate != nil {
@@ -714,7 +762,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 }
 
 // DeleteMember removes a committee member
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool) error {
+func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
 	slog.DebugContext(ctx, "executing delete committee member use case",
 		"member_uid", uid,
 		"revision", revision,
@@ -769,6 +817,11 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, emailHash, existing.UID))
 	}
 
+	// Build username→member secondary index key so it is cleaned up on delete.
+	if usernameHash := existing.BuildUsernameIndexKey(ctx); usernameHash != "" {
+		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existing.UID))
+	}
+
 	slog.DebugContext(ctx, "secondary indices identified for member deletion",
 		"member_uid", uid,
 		"indices_count", len(indicesToDelete),
@@ -796,7 +849,8 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 
 	// Step 5: Publish indexer message for member deletion
 	deleteEventData := &model.CommitteeMemberMessageData{
-		Member: existing,
+		Member:           existing,
+		SkipNotification: skipNotification,
 	}
 	if errPublish := uc.publishMemberMessages(ctx, model.ActionDeleted, deleteEventData, sync); errPublish != nil {
 		slog.ErrorContext(ctx, "failed to publish member deletion message",
@@ -836,13 +890,13 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 
 	// Create the replacement holder first. CreateMember owns its own internal rollback for partial
 	// create failures, so on error nothing is left behind and the old seat is untouched.
-	created, errCreate := uc.CreateMember(ctx, newMember, sync)
+	created, errCreate := uc.CreateMember(ctx, newMember, sync, false)
 	if errCreate != nil {
 		return nil, errCreate
 	}
 
 	// Delete the old holder. On success the reassign is complete.
-	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync); errDelete != nil {
+	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		// DeleteMember can fail after the old seat is already gone (e.g. a post-commit indexer publish
 		// failed). Re-read the old seat to decide what to do: we only roll back the new seat when we can
 		// POSITIVELY confirm the old holder still exists. If the re-read itself fails we cannot tell
@@ -878,7 +932,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {
-				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync)
+				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync, false)
 			} else {
 				errRollback = errGet
 			}
@@ -951,6 +1005,61 @@ func (uc *committeeWriterOrchestrator) validateOrganizationExists(ctx context.Co
 	// This could involve calling LFX organization service or similar
 	// For now, we'll just validate that organization name is not empty
 
+	return nil
+}
+
+// b2bOrgLookupTimeout bounds the member-service NATS lookup in sanitizeMemberOrganization
+// so member create/update does not inherit an unbounded caller context.
+const b2bOrgLookupTimeout = 10 * time.Second
+
+// sanitizeMemberOrganization validates organization.id against member-service b2b_org lookup.
+// When the id is not found, it clears organization.id and returns nil so create/update continues
+// with organization name and website only (LFXV2-2400). Infrastructure lookup errors are returned
+// to callers, which fail-open (warn and keep the submitted id).
+func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
+	if org == nil {
+		return nil
+	}
+
+	org.ID = strings.TrimSpace(org.ID)
+	if org.ID == "" {
+		return nil
+	}
+	// Pre-filter: clear ids that aren't SFID-shaped before the lookup.
+	// Callers fail-open on lookup error (warn + keep org.ID), so only SFID-shaped
+	// ids may be retained through a transient NATS error (FR-005 / T017).
+	if !utils.IsSFIDShaped(org.ID) {
+		slog.InfoContext(ctx, "clearing organization id that is not SFID-shaped",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
+	if uc.b2bOrgResolver == nil {
+		slog.DebugContext(ctx, "b2b org resolver not configured; skipping organization id resolution check")
+		return nil
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
+	defer cancel()
+
+	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(lookupCtx, org.ID)
+	if err != nil {
+		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
+	}
+	if !found {
+		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+		)
+		org.ID = ""
+		return nil
+	}
+
+	org.ID = utils.NormalizeAccountSFID(sfid)
 	return nil
 }
 
@@ -1060,6 +1169,9 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				nameAndAliases = append(nameAndAliases, v)
 			}
 		}
+		if data.Member.FirstName != "" && data.Member.LastName != "" {
+			nameAndAliases = append(nameAndAliases, fmt.Sprintf("%s %s", data.Member.FirstName, data.Member.LastName))
+		}
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             data.Member.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
@@ -1104,8 +1216,11 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			SkipNotification: data.SkipNotification,
 		}
 	case model.ActionDeleted:
-		// For delete, use the member directly
-		eventInput = data.Member
+		// For delete, carry the request-scoped skip-notification flag alongside the member.
+		eventInput = &model.CommitteeMemberDeletedEventData{
+			CommitteeMember:  data.Member,
+			SkipNotification: data.SkipNotification,
+		}
 	}
 
 	eventMessage := model.CommitteeEvent{}
@@ -1133,6 +1248,12 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			// Only publish access message if username is present
 			// Without a username, there's no user identity to grant access to in FGA
 			if data.Member.Username == "" {
+				// If username was cleared on update (e.g. user-deleted scrub), revoke the old FGA tuple
+				// so the deleted identity no longer holds the member relation on this committee.
+				if action == model.ActionUpdated && data.OldMember != nil && data.OldMember.Username != "" {
+					oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
+					return uc.committeePublisher.MemberRemove(ctx, oldAccessMsg)
+				}
 				slog.DebugContext(ctx, "skipping access message for member without username",
 					"member_uid", data.Member.UID,
 					"action", action,
@@ -1145,16 +1266,15 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 				data.OldMember.Username != "" &&
 				data.OldMember.Username != data.Member.Username {
 				oldAccessMsg := uc.buildMemberAccessControlMessage(ctx, data.OldMember, model.ActionDeleted)
-				if err := uc.committeePublisher.Access(ctx, fgaconstants.GenericMemberRemoveSubject, oldAccessMsg, sync); err != nil {
+				if err := uc.committeePublisher.MemberRemove(ctx, oldAccessMsg); err != nil {
 					return err
 				}
 			}
 
-			subject := fgaconstants.GenericMemberPutSubject
 			if action == model.ActionDeleted {
-				subject = fgaconstants.GenericMemberRemoveSubject
+				return uc.committeePublisher.MemberRemove(ctx, accessControlMessage)
 			}
-			return uc.committeePublisher.Access(ctx, subject, accessControlMessage, sync)
+			return uc.committeePublisher.MemberPut(ctx, accessControlMessage)
 		},
 	}
 

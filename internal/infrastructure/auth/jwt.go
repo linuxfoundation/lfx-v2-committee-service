@@ -32,8 +32,12 @@ type JWTAuthConfig struct {
 	JWKSURL string
 	// Audience is the intended audience for the JWT token
 	Audience string
-	// MockLocalPrincipal is used for local development to bypass JWT validation
+	// MockLocalPrincipal, when set via JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL, is returned
+	// instead of parsing the JWT principal.
 	MockLocalPrincipal string
+	// MockLocalEmail, when set via JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL, is returned
+	// with the mock principal.
+	MockLocalEmail string
 }
 
 var (
@@ -47,6 +51,7 @@ var (
 // token.
 type HeimdallClaims struct {
 	Principal string `json:"principal"`
+	Email     string `json:"email"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -64,10 +69,18 @@ type JWTAuth struct {
 	config    JWTAuthConfig
 }
 
-// ParsePrincipal extracts the principal from the JWT claims.
-func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, error) {
+// ParsePrincipal extracts the principal and email from the JWT claims.
+// Email is present when Authelia's oidc_contextualizer resolves it; it is empty
+// for M2M or anonymous tokens.
+func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
+	// When JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL is set, return it instead of the JWT principal.
+	if j.config.MockLocalPrincipal != "" {
+		logger.DebugContext(ctx, "JWT authentication is disabled, using configured mock principal")
+		return j.config.MockLocalPrincipal, j.config.MockLocalEmail, nil
+	}
+
 	if j.validator == nil {
-		return "", errors.New("JWT validator is not set up")
+		return "", "", errors.New("JWT validator is not set up")
 	}
 
 	parsedJWT, err := j.validator.ValidateToken(ctx, token)
@@ -82,20 +95,20 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 				errString = errString[:firstColon+secondColon+1]
 			}
 		}
-		return "", errors.New(errString)
+		return "", "", errors.New(errString)
 	}
 
 	claims, ok := parsedJWT.(*validator.ValidatedClaims)
 	if !ok {
-		return "", errors.New("failed to get validated authorization claims")
+		return "", "", errors.New("failed to get validated authorization claims")
 	}
 
 	customClaims, ok := claims.CustomClaims.(*HeimdallClaims)
 	if !ok {
-		return "", errors.New("failed to get custom authorization claims")
+		return "", "", errors.New("failed to get custom authorization claims")
 	}
 
-	return customClaims.Principal, nil
+	return customClaims.Principal, customClaims.Email, nil
 }
 
 // NewJWTAuth creates a new JWT authentication service

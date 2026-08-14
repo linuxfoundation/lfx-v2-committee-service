@@ -26,6 +26,10 @@ import (
 // produces identical output.
 type FakeAdapter struct{}
 
+// PromptVersion implements port.AIAdapter. The fake adapter does not use a
+// configurable prompt template, so it always returns the fixed label "fake".
+func (a *FakeAdapter) PromptVersion() string { return "fake" }
+
 // NewFakeAdapter returns a new deterministic fake AI adapter.
 func NewFakeAdapter() *FakeAdapter {
 	return &FakeAdapter{}

@@ -17,7 +17,7 @@ func LookupByTag(obj any, tagType, tagValue string) (any, bool) {
 	v := reflect.ValueOf(obj)
 	t := reflect.TypeOf(obj)
 
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil, false
 		}

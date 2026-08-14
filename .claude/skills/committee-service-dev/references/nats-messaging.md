@@ -27,6 +27,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 "lfx.mailing-list-api.committee_mailing_list.changed" // handled by internal/service/message_handler.go (updates has_mailing_list + re-index)
 "lfx.invite-service.invite_accepted"                  // published by the invite service after it processes a self-serve acceptance (enriched event embedding the invite record); handled by HandleInviteAccepted (owned by lfx-v2-invite-service: inviteapi.InviteServiceAcceptedSubject)
 "lfx.user-email.changed"                              // consumed via durable JetStream (user-email-events stream, consumer committee-service-user-email-sync); payload: model.UserEmailEvent {type, email, timestamp}; producers: lfx-v1-sync-helper and others; alternate_email_added → promotes all email-only seats matching the address to the resolved LFID username (ListMembersByEmail + UsernameByEmail + UpdateMember); other event types are no-ops pending defined semantics
+"lfx.v1-sync-helper.user.deleted"                     // published by v1-sync-helper when a merged user record is soft-deleted; handled by HandleUserDeleted to scrub the username from committee members and settings writers/auditors (pkg/constants/subjects.go: V1SyncHelperUserDeletedSubject)
 ```
 
 ### Self-consumed event subjects
@@ -39,8 +40,10 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_settings.updated"    // emitted after settings updates; consumed to drive the LFID settings-invite flow
 "lfx.committee-api.committee_member.created"       // also self-consumed (re-index / role-notification paths)
 "lfx.committee-api.committee_member.deleted"       // also self-consumed
-"lfx.committee-api.committee_document.created"     // also self-consumed (document-upload notification emails to committee members)
-"lfx.committee-api.committee_link.created"         // also self-consumed (link-added notification emails to committee members)
+"lfx.committee-api.committee_document.created"      // also self-consumed (document-upload notification emails to committee members)
+"lfx.committee-api.committee_link.created"          // also self-consumed (link-added notification emails to committee members)
+"lfx.committee-api.committee_application.submitted" // also self-consumed (fan-out notification emails to LFID writers on new application)
+"lfx.committee-api.committee_application.updated"   // also self-consumed (applicant decision email on approve/reject)
 "lfx.committee-api.weekly_brief.generate_requested" // consumed by the durable weekly-brief generate consumer (NOT via the queue subscription)
 ```
 
@@ -64,8 +67,10 @@ These are published by this service and also subscribed by this service (queue
 "lfx.committee-api.committee_member.created"
 "lfx.committee-api.committee_member.updated"
 "lfx.committee-api.committee_member.deleted"
-"lfx.committee-api.committee_document.created"     // emitted by internal/service/document_writer.go after a document upload
-"lfx.committee-api.committee_link.created"         // emitted by internal/service/link_writer.go after a link create
+"lfx.committee-api.committee_document.created"      // emitted by internal/service/document_writer.go after a document upload
+"lfx.committee-api.committee_link.created"          // emitted by internal/service/link_writer.go after a link create
+"lfx.committee-api.committee_application.submitted" // emitted after an application is submitted or reinstated; consumed to notify LFID writers
+"lfx.committee-api.committee_application.updated"   // emitted after an application is approved or rejected; consumed to notify the applicant
 "lfx.committee-api.weekly_brief.generate_requested" // emitted by POST /committees/{uid}/weekly-briefs/generate after the brief is claimed
 ```
 

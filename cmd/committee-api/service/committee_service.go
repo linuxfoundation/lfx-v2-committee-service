@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,12 +26,10 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
-	authpkg "github.com/linuxfoundation/lfx-v2-committee-service/pkg/auth"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
-	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -56,6 +55,7 @@ type committeeServicesrvc struct {
 	weeklyBriefReader           service.GroupWeeklyBriefDataReader
 	weeklyBriefGenerator        service.GroupWeeklyBriefGenerator
 	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
+	weeklyBriefSharer           service.GroupWeeklyBriefDataSharer
 	orgSeatReader               port.OrgCommitteeSeatReader
 }
 
@@ -63,8 +63,9 @@ type committeeServicesrvc struct {
 // for the "jwt" security scheme.
 func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme *security.JWTScheme) (context.Context, error) {
 
-	// Parse the Heimdall-authorized principal from the token
-	principal, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
+	// Parse the Heimdall-authorized principal and email from the token.
+	// Email is non-empty for user JWTs (set by Authelia's oidc_contextualizer); empty for M2M/anonymous.
+	principal, email, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
 	if err != nil {
 		slog.ErrorContext(ctx, "committeeService.jwt-auth",
 			"error", err,
@@ -74,6 +75,7 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 	}
 
 	ctx = context.WithValue(ctx, constants.PrincipalContextID, principal)
+	ctx = context.WithValue(ctx, constants.EmailContextID, email)
 	return ctx, nil
 }
 
@@ -284,11 +286,12 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	request := s.convertMemberPayloadToDomain(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, request)
+	if !p.SkipEnrichment {
+		s.enrichMember(ctx, request)
+	}
 
 	// Execute use case
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, request, p.XSync, p.SkipEnrichment)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -588,11 +591,12 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
 
-	// If no username was supplied, resolve it from email and enrich profile fields.
-	s.enrichMember(ctx, committeeMember)
+	if !p.SkipEnrichment {
+		s.enrichMember(ctx, committeeMember)
+	}
 
 	// Execute use case
-	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync)
+	updatedMember, err := s.committeeWriterOrchestrator.UpdateMember(ctx, committeeMember, parsedRevision, p.XSync, p.SkipEnrichment)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -625,7 +629,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	}
 
 	// Execute delete use case
-	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync)
+	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync, p.SkipNotification)
 	if errDelete != nil {
 		return wrapError(ctx, errDelete)
 	}
@@ -831,6 +835,15 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
 	// Match the parallel "add committee member" path in message_handler.go
 	// sendMemberInvite and pass "Member".
+
+	// Extract org fields before building claims — Organization is a pointer.
+	var orgName, orgID, orgWebsite string
+	if invite.Organization != nil {
+		orgName = invite.Organization.Name
+		orgID = invite.Organization.ID
+		orgWebsite = invite.Organization.Website
+	}
+
 	_, err := s.inviteSender.SendInvite(dispatchCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(invite.InviteeEmail),
@@ -846,6 +859,18 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		},
 		Role:      "Member",
 		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		// Emit variable-length values only when they are within the invite-service's 1024-byte
+		// per-claim limit. If a value would exceed the limit it is omitted (empty string) and
+		// a warning is logged — relaying a truncated value downstream is worse than omitting it,
+		// because the consumer treats non-empty claims as authoritative and would persist broken data.
+		CustomClaims: map[string]string{
+			"committee_invite_uid":  invite.UID,
+			"organization_required": strconv.FormatBool(invite.OrganizationRequired),
+			"committee_name":        safeClaimValue(ctx, invite.CommitteeName, "committee_name", invite.UID),
+			"organization_name":     safeClaimValue(ctx, orgName, "organization_name", invite.UID),
+			"organization_id":       safeClaimValue(ctx, orgID, "organization_id", invite.UID),
+			"organization_website":  safeClaimValue(ctx, orgWebsite, "organization_website", invite.UID),
+		},
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to dispatch committee invite email",
@@ -854,6 +879,20 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	}
 	slog.DebugContext(ctx, "dispatched committee invite email",
 		"committee_uid", committee.UID, "invite_uid", invite.UID)
+}
+
+// safeClaimValue returns s when it is within the invite-service's 1024-byte per-claim limit.
+// If s exceeds the limit it logs a warning and returns "" so the consumer falls back to
+// its no-value behaviour rather than persisting a truncated (and therefore broken) string.
+func safeClaimValue(ctx context.Context, s, claimKey, inviteUID string) string {
+	const maxClaimValueBytes = 1024
+	if len(s) <= maxClaimValueBytes {
+		return s
+	}
+	slog.WarnContext(ctx, "claim value exceeds invite-service limit — omitting from JWT",
+		"claim_key", claimKey, "invite_uid", inviteUID,
+		"byte_length", len(s), "limit", maxClaimValueBytes)
+	return ""
 }
 
 // RevokeInvite revokes a pending or declined invite
@@ -888,7 +927,9 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	return nil
 }
 
-// AcceptInvite accepts a pending or previously-declined invite and creates a committee member
+// AcceptInvite accepts a pending or previously-declined invite and creates a committee member.
+// Idempotent for already-accepted invites: returns the existing member when found, or 409 Conflict
+// when the invite is accepted but no matching member record exists (data inconsistency).
 func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeservice.AcceptInvitePayload) (*committeeservice.CommitteeMemberFullWithReadonlyAttributes, error) {
 	slog.DebugContext(ctx, "committeeService.accept-invite",
 		"committee_uid", p.UID,
@@ -913,7 +954,23 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the invitee for this invite"))
 	}
 
-	if invite.Status == "accepted" || invite.Status == "revoked" {
+	if invite.Status == "revoked" {
+		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	if invite.Status == "accepted" {
+		// Idempotent: the invite is already accepted (e.g. caller retrying a prior successful HTTP acceptance).
+		// Find and return the existing member so the caller can treat this as a success.
+		members, listErr := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
+		if listErr != nil {
+			return nil, wrapError(ctx, listErr)
+		}
+		for _, m := range members {
+			if m != nil && strings.EqualFold(m.CommitteeUID, p.UID) {
+				return s.convertMemberDomainToFullResponse(m), nil
+			}
+		}
+		// Invite is accepted but no matching member record found — data inconsistency.
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
 	}
 
@@ -939,7 +996,12 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	}
 	s.enrichMember(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	// sync=false: member_put is always asynchronous FGA publish now (LFXV2-2856), so an access
+	// check immediately after this returns may still 403 until fga-sync converges. This is a
+	// deliberate revert of PR #163's sync=true workaround, not a regression of LFXV2-2645 — the
+	// eventual-consistency window is mitigated by client-side polling in Self Serve (LFXV2-2890),
+	// which must ship before this change.
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1057,6 +1119,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	if p.Message != nil {
 		application.Message = *p.Message
 	}
+	if p.Organization != nil {
+		application.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
+	}
 
 	// Check uniqueness — allow reapplying if the existing application is rejected
 	_, errUnique := s.storage.UniqueApplication(ctx, application)
@@ -1092,11 +1157,17 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		if p.Message != nil {
 			rejectedApp.Message = *p.Message
 		}
+		if p.Organization != nil {
+			rejectedApp.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
+		}
 		if errUpdate := s.storage.UpdateApplication(ctx, rejectedApp, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
 		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
+		if p.Notify {
+			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
+		}
 
 		return s.convertApplicationDomainToResponse(rejectedApp), nil
 	}
@@ -1106,6 +1177,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
+	if p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionCreated, application)
+	}
 
 	return s.convertApplicationDomainToResponse(application), nil
 }
@@ -1139,12 +1213,27 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 			Status:       "Active",
 		},
 	}
+	// Seed org from the stored application when present. The applicant confirmed their
+	// organization at submission time, so we trust that value over profile metadata
+	// enrichment (which only fills Name, not ID/website required for org-gated committees).
+	if application.Organization != nil {
+		member.Organization = *application.Organization
+	}
 
 	// Resolve username and profile fields from the applicant's email.
 	s.enrichMember(ctx, member)
 	s.enrichMemberOrganization(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false)
+	// When the caller opts in to the application-accepted email (notify: true)
+	// and the applicant has a resolved LFID, suppress the generic member-added
+	// role notification — the accepted email already covers the approval.
+	// Email-only applicants (no LFID) are excluded from this suppression so the
+	// invite-service path still fires for them.
+	if p.Notify && member.Username != "" {
+		member.SkipNotification = true
+	}
+
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, false, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1160,6 +1249,9 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	if p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	}
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }
@@ -1194,6 +1286,9 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	if p.Notify {
+		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
+	}
 
 	return s.convertApplicationDomainToResponse(application), nil
 }
@@ -1236,7 +1331,7 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 	s.enrichMember(ctx, member)
 	s.enrichMemberOrganization(ctx, member)
 
-	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync)
+	response, err := s.committeeWriterOrchestrator.CreateMember(ctx, member, p.XSync, false)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
@@ -1279,7 +1374,7 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 	}
 
 	// Use orchestrator (not direct storage) to ensure event publishing and cleanup
-	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync); err != nil {
+	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync, false); err != nil {
 		return wrapError(ctx, err)
 	}
 
@@ -1306,8 +1401,8 @@ func (s *committeeServicesrvc) Livez(ctx context.Context) (res []byte, err error
 	return []byte("OK\n"), nil
 }
 
-// resolveCallerEmail looks up the primary email for the authenticated caller by converting
-// their LFX username (principal) to an Auth0 sub and sending it to auth-service via NATS
+// resolveCallerEmail looks up the primary email for the authenticated caller by sending
+// their principal (LFID username or JWT sub) to auth-service via NATS
 // (lfx.auth-service.user_emails.read).
 func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, error) {
 	if s.userReader == nil {
@@ -1315,17 +1410,25 @@ func (s *committeeServicesrvc) resolveCallerEmail(ctx context.Context) (string, 
 	}
 
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	principal = strings.TrimSpace(principal)
 	if principal == "" {
 		return "", errors.NewValidation("unable to determine user identity from token")
 	}
 
-	authSub := authpkg.MapUsernameToAuthSub(principal)
-	if authSub == "" {
-		return "", errors.NewValidation("unable to determine user identity from token")
-	}
-
-	userEmails, err := s.userReader.EmailsByAuthToken(ctx, authSub)
+	userEmails, err := s.userReader.EmailsByAuthToken(ctx, principal)
 	if err != nil {
+		// New LFID users are not yet propagated to auth-service immediately after registration.
+		// Fall back to the email claim from the Heimdall JWT (populated by Authelia's
+		// oidc_contextualizer) so the invite can be accepted without waiting for propagation.
+		var notFoundErr errors.NotFound
+		if stderrors.As(err, &notFoundErr) {
+			if ctxEmail, _ := ctx.Value(constants.EmailContextID).(string); ctxEmail != "" {
+				slog.InfoContext(ctx, "resolveCallerEmail: auth-service user not found, using JWT email claim as fallback",
+					"principal", redaction.Redact(principal),
+				)
+				return ctxEmail, nil
+			}
+		}
 		return "", err
 	}
 
@@ -1422,7 +1525,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 //
 // For delete it writes a delete_access message to clean up all tuples for the invite object.
 // Publishing is best-effort: failures are logged but do not fail the request.
-func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, sync bool) {
+func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, _ bool) {
 	var msg fgatypes.GenericFGAMessage
 
 	if action == model.ActionDeleted {
@@ -1471,12 +1574,14 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 		}
 	}
 
-	subject := fgaconstants.GenericUpdateAccessSubject
+	var pubErr error
 	if action == model.ActionDeleted {
-		subject = fgaconstants.GenericDeleteAccessSubject
+		pubErr = s.publisher.DeleteAccess(ctx, msg)
+	} else {
+		pubErr = s.publisher.UpdateAccess(ctx, msg)
 	}
 
-	if pubErr := s.publisher.Access(ctx, subject, msg, sync); pubErr != nil {
+	if pubErr != nil {
 		slog.WarnContext(ctx, "failed to publish invite access control message",
 			"error", pubErr,
 			"action", string(action),
@@ -1529,6 +1634,29 @@ func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Cont
 	if pubErr := s.publisher.Indexer(ctx, constants.IndexCommitteeApplicationSubject, built, sync); pubErr != nil {
 		slog.WarnContext(ctx, "failed to publish application indexer message",
 			"error", pubErr,
+			"action", string(action),
+			"application_uid", application.UID,
+		)
+	}
+}
+
+// publishApplicationEvent publishes a domain event for application state changes so that
+// downstream notification handlers can react to them. Best-effort: failures are logged but
+// do not fail the HTTP request.
+func (s *committeeServicesrvc) publishApplicationEvent(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication) {
+	event := model.CommitteeEvent{}
+	built, err := event.Build(ctx, model.ResourceCommitteeApplication, action, application)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to build application event",
+			"error", err,
+			"action", string(action),
+			"application_uid", application.UID,
+		)
+		return
+	}
+	if err := s.publisher.Event(ctx, built.Subject, built, false); err != nil {
+		slog.WarnContext(ctx, "failed to publish application event",
+			"error", err,
 			"action", string(action),
 			"application_uid", application.UID,
 		)
@@ -1750,7 +1878,8 @@ func (s *committeeServicesrvc) lookupUserMetadata(ctx context.Context, keys ...s
 
 // enrichMemberOrganization fills organization.Name from auth-service profile metadata when
 // missing. It does not set ID or website; org-gated committees still require a complete
-// organization from the invite record or accept payload before member validation runs.
+// organization from the invite record, application record, or accept payload before member
+// validation runs. This enrichment is a last-resort fallback for non-gated cases.
 func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, member *model.CommitteeMember) {
 	if member.Organization.ID != "" {
 		return
@@ -1766,9 +1895,6 @@ func (s *committeeServicesrvc) enrichMemberOrganization(ctx context.Context, mem
 	}
 	if principal != "" {
 		metadataKeys = append(metadataKeys, principal)
-		if authSub := authpkg.MapUsernameToAuthSub(principal); authSub != "" && authSub != principal {
-			metadataKeys = append(metadataKeys, authSub)
-		}
 	}
 	if meta := s.lookupUserMetadata(ctx, metadataKeys...); meta != nil && strings.TrimSpace(meta.Organization) != "" {
 		member.Organization.Name = strings.TrimSpace(meta.Organization)
@@ -1792,6 +1918,7 @@ func NewCommitteeService(
 	weeklyBriefReader service.GroupWeeklyBriefDataReader,
 	weeklyBriefGenerator service.GroupWeeklyBriefGenerator,
 	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
+	weeklyBriefSharer service.GroupWeeklyBriefDataSharer,
 	orgSeatReader port.OrgCommitteeSeatReader,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
@@ -1810,6 +1937,7 @@ func NewCommitteeService(
 		weeklyBriefReader:           weeklyBriefReader,
 		weeklyBriefGenerator:        weeklyBriefGenerator,
 		weeklyBriefWriter:           weeklyBriefWriter,
+		weeklyBriefSharer:           weeklyBriefSharer,
 		orgSeatReader:               orgSeatReader,
 	}
 }
@@ -1889,6 +2017,10 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	if !b.UpdatedAt.IsZero() {
 		v := b.UpdatedAt.UTC().Format(time.RFC3339)
 		out.UpdatedAt = &v
+	}
+	if b.State == model.GroupWeeklyBriefStateError && b.ErrorReason != "" {
+		v := b.ErrorReason
+		out.ErrorReason = &v
 	}
 	if b.BriefText != "" {
 		v := b.BriefText
@@ -1995,12 +2127,22 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	// computes exactly the same window as the synchronous claim.
 	now := time.Now().UTC()
 
+	// Default to hidden — matches the API schema default (dsl.Default("hidden"))
+	// and the migration backfill. Any settings read failure (transient NATS
+	// error, missing record) leaves membersHidden=true so names never leak.
+	// Only names after a successful read of "basic_profile".
+	membersHidden := true
+	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil {
+		membersHidden = settings.MemberVisibility != "basic_profile"
+	}
+
 	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  p.UID,
 		CommitteeName: base.Name,
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		Now:           now,
+		MembersHidden: membersHidden,
 	})
 	if errClaim != nil {
 		return nil, wrapError(ctx, errClaim)
@@ -2015,6 +2157,7 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		RequestedAt:   now,
+		MembersHidden: membersHidden,
 	}
 	if errPub := s.publisher.Event(ctx, constants.GenerateWeeklyBriefRequestedSubject, event, false); errPub != nil {
 		slog.ErrorContext(ctx, "failed to publish weekly-brief generate-requested event",
@@ -2085,6 +2228,39 @@ func (s *committeeServicesrvc) UpdateCurrentWeeklyBrief(ctx context.Context, p *
 	return domainGroupWeeklyBriefToGoa(updated), nil
 }
 
+// ShareWeeklyBriefToChat posts the current weekly brief to the committee's
+// configured Slack Incoming Webhook URL. Authorization (committee writer
+// relation) is enforced at the edge by Heimdall.
+func (s *committeeServicesrvc) ShareWeeklyBriefToChat(ctx context.Context, p *committeeservice.ShareWeeklyBriefToChatPayload) error {
+	slog.DebugContext(ctx, "committeeService.share-weekly-brief-to-chat",
+		"committee_uid", p.UID,
+		"revision", p.Revision,
+	)
+
+	if s.weeklyBriefSharer == nil {
+		return wrapError(ctx, errors.NewServiceUnavailable("weekly brief sharer is not configured"))
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404 for the committee
+	// rather than 404 for a missing brief.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return wrapError(ctx, err)
+	}
+	if base == nil {
+		return wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if err := s.weeklyBriefSharer.ShareToChat(ctx, service.GroupWeeklyBriefShareInput{
+		CommitteeUID: p.UID,
+		Revision:     p.Revision,
+		Now:          time.Now().UTC(),
+	}); err != nil {
+		return wrapError(ctx, err)
+	}
+	return nil
+}
+
 // ListCommitteeLinks returns all links for a committee, optionally filtered by folder.
 func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *committeeservice.ListCommitteeLinksPayload) (res []*committeeservice.CommitteeLinkWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.list-committee-links", "committee_uid", p.UID)
@@ -2103,6 +2279,7 @@ func (s *committeeServicesrvc) ListCommitteeLinks(ctx context.Context, p *commit
 		if p.FolderUID != nil && (l.FolderUID == nil || *l.FolderUID != *p.FolderUID) {
 			continue
 		}
+		l.CreatedBy, l.UpdatedBy = s.normalizeLegacyAuditUsers(l.CreatedBy, l.UpdatedBy)
 		result = append(result, domainLinkToGoa(l))
 	}
 	return result, nil
@@ -2116,16 +2293,17 @@ func (s *committeeServicesrvc) CreateCommitteeLink(ctx context.Context, p *commi
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	link := &model.CommitteeLink{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		URL:               p.URL,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		link.Description = *p.Description
@@ -2149,6 +2327,8 @@ func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committe
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	link.CreatedBy, link.UpdatedBy = s.normalizeAuditUsers(ctx, link.CreatedBy, link.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkResult{
@@ -2188,6 +2368,7 @@ func (s *committeeServicesrvc) ListCommitteeLinkFolders(ctx context.Context, p *
 
 	result := make([]*committeeservice.CommitteeLinkFolderWithReadonlyAttributes, 0, len(folders))
 	for _, f := range folders {
+		f.CreatedBy, f.UpdatedBy = s.normalizeLegacyAuditUsers(f.CreatedBy, f.UpdatedBy)
 		result = append(result, domainFolderToGoa(f))
 	}
 	return result, nil
@@ -2201,6 +2382,8 @@ func (s *committeeServicesrvc) GetCommitteeLinkFolder(ctx context.Context, p *co
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	folder.CreatedBy, folder.UpdatedBy = s.normalizeAuditUsers(ctx, folder.CreatedBy, folder.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeLinkFolderResult{
@@ -2217,15 +2400,16 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 		return nil, wrapError(ctx, err)
 	}
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		CommitteeUID:      *p.UID,
-		Name:              p.Name,
-		CreatedByUsername: principal,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 
 	created, err := s.linkWriter.CreateLinkFolder(ctx, folder, p.XSync)
@@ -2266,16 +2450,14 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		FolderUID:    l.FolderUID,
 		Name:         &name,
 		URL:          &url,
+		CreatedBy:    committeeUserToGoa(l.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(l.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if l.Description != "" {
 		desc := l.Description
 		res.Description = &desc
-	}
-	if l.CreatedByUsername != "" {
-		v := l.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2292,12 +2474,10 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		UID:          &uid,
 		CommitteeUID: &committeeUID,
 		Name:         &name,
+		CreatedBy:    committeeUserToGoa(f.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(f.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
-	}
-	if f.CreatedByUsername != "" {
-		v := f.CreatedByUsername
-		res.CreatedByUsername = &v
 	}
 	return res
 }
@@ -2308,8 +2488,8 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *committeeservice.UploadCommitteeDocumentPayload) (res *committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.upload-committee-document", "committee_uid", p.UID)
 
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
-	if principal == "" {
+	createdBy, updatedBy := s.stampAuditUsers(ctx)
+	if createdBy == nil {
 		return nil, errors.NewValidation("unable to determine user identity from token")
 	}
 
@@ -2325,9 +2505,10 @@ func (s *committeeServicesrvc) UploadCommitteeDocument(ctx context.Context, p *c
 	}
 
 	doc := &model.CommitteeDocument{
-		CommitteeUID:       p.UID,
-		Name:               p.Name,
-		UploadedByUsername: principal,
+		CommitteeUID: p.UID,
+		Name:         p.Name,
+		CreatedBy:    createdBy,
+		UpdatedBy:    updatedBy,
 	}
 	if p.Description != nil {
 		doc.Description = *p.Description
@@ -2353,6 +2534,8 @@ func (s *committeeServicesrvc) GetCommitteeDocument(ctx context.Context, p *comm
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
+
+	doc.CreatedBy, doc.UpdatedBy = s.normalizeAuditUsers(ctx, doc.CreatedBy, doc.UpdatedBy, "", "")
 
 	revisionStr := fmt.Sprintf("%d", revision)
 	return &committeeservice.GetCommitteeDocumentResult{
@@ -2418,16 +2601,14 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 		FileName:     &fileName,
 		FileSize:     &fileSize,
 		ContentType:  &contentType,
+		CreatedBy:    committeeUserToGoa(d.CreatedBy),
+		UpdatedBy:    committeeUserToGoa(d.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
 	if d.Description != "" {
 		v := d.Description
 		res.Description = &v
-	}
-	if d.UploadedByUsername != "" {
-		v := d.UploadedByUsername
-		res.UploadedByUsername = &v
 	}
 	if d.FolderUID != nil {
 		res.FolderUID = d.FolderUID

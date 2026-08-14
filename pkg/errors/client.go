@@ -141,6 +141,24 @@ func NewEditedBriefExists(revision uint64) EditedBriefExists {
 	}
 }
 
+// NoChatWebhook is returned when a share-to-chat request is attempted but
+// no chat_webhook_url is stored in the committee settings.
+type NoChatWebhook struct {
+	base
+}
+
+// Error returns the error message for NoChatWebhook.
+func (e NoChatWebhook) Error() string {
+	return e.error()
+}
+
+// NewNoChatWebhook creates a NoChatWebhook error.
+func NewNoChatWebhook() NoChatWebhook {
+	return NoChatWebhook{
+		base: base{message: "no chat webhook URL is configured for this committee"},
+	}
+}
+
 // RevisionMismatch is a 409 specific to the weekly-brief edit/save flow —
 // returned when the caller's optimistic-concurrency token does not match the
 // brief's current revision (someone else edited in the meantime). Distinguished

@@ -17,7 +17,8 @@ var (
 )
 
 // MapUsernameToAuthSub converts an LFX username to the Auth0 user_id format used by the
-// Auth0 Management API (auth0|{userID}). Not used for v2 service writes or JWT impersonation.
+// Auth0 Management API (auth0|{userID}). Not used for auth-service lookups, v2 service writes,
+// or JWT impersonation — auth-service accepts LFID usernames directly.
 //
 // The mapping logic:
 //   - Safe usernames (matching safeNameRE and not hexUserRE): use directly as userID

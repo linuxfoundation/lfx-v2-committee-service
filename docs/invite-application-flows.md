@@ -63,13 +63,27 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
 - After the invite record is persisted (create or reinstate), the service dispatches a best-effort send-invite request to the invite service (`lfx.invite-service.send_invite`, `dispatchInviteEmail` in `cmd/committee-api/service/committee_service.go`) so the invitee receives an email. The request uses the invite-service permission vocabulary with `role: "Member"` (the committee role on the invite record is applied after acceptance). Dispatch is best-effort: `inviteSender.SendInvite` failures are logged (`failed to dispatch committee invite email` with `error`, `committee_uid`, `invite_uid`) and do not fail the API call. There is no automatic retry of a failed send, and committee-service exposes no dedicated "resend" endpoint. Recovery is via the invite lifecycle: revoke the invite and re-invite the same email (`POST /committees/{uid}/invites`), which reinstates the record and re-triggers `dispatchInviteEmail`.
 
+  The request includes six `CustomClaims` (JWT `map[string]string`) so the BFF ([lfx-self-serve](https://github.com/linuxfoundation/lfx-self-serve)) can accept the invite on LFID registration without a secondary email-indexed fetch:
+
+  | Claim key | Value | Notes |
+  |---|---|---|
+  | `committee_invite_uid` | `invite.UID` | UID of this specific committee invite record; lets the BFF resolve the exact invite without an email query |
+  | `organization_required` | `"true"` / `"false"` | String-formatted bool (Go `map[string]string` constraint); derived from `invite.OrganizationRequired` |
+  | `committee_name` | `invite.CommitteeName` | Used by the BFF as the org-collection dialog header |
+  | `organization_name` | `invite.Organization.Name` | Empty string when `Organization` is nil |
+  | `organization_id` | `invite.Organization.ID` | Salesforce SFID; empty string when `Organization` is nil |
+  | `organization_website` | `invite.Organization.Website` | Empty string when `Organization` is nil |
+
+  All variable-length claims (`committee_name`, `organization_name`, `organization_id`, `organization_website`) are validated against the invite-service's 1024-byte per-claim limit before dispatch. Values that would exceed the limit are omitted (sent as empty string) and a warning is logged — relaying a truncated value is worse than omitting it, because the consumer treats non-empty claims as authoritative. **Note:** these custom claims are only present on invites dispatched via the API (`POST /committees/{uid}/invites`); the NATS-triggered `sendMemberInvite` path does not include them.
+
 **Accepting an invite** (`POST .../accept`):
-- Only the invitee (matched by their primary email from the auth-service) can accept their own invite.
+- Only the invitee can accept their own invite. The caller's email is resolved via the two-phase identity resolution described in [Identity Resolution](#identity-resolution): auth-service primary email (primary path) or the Heimdall JWT `email` claim (fallback for new accounts not yet propagated).
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
-- Blocked from: `accepted` (already done), `revoked` (invite was withdrawn).
-- On success: creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
-- Returns the created committee member.
+- Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
+- **Idempotent for `accepted` status:** if the invite is already `accepted` (e.g. when the caller retries a prior successful HTTP acceptance), the endpoint looks up the existing committee member by email and returns it as a success (`200 OK`). If no matching member record is found despite the accepted status (data inconsistency), returns `409 Conflict`.
+- On success (from `pending`/`declined`): creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
+- Returns the created or existing committee member.
 
 **Declining an invite** (`POST .../decline`):
 - Only the invitee can decline.
@@ -107,21 +121,30 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 
 **Submitting an application** (`POST /committees/{uid}/applications`):
 - Only available when `join_mode: application`.
-- The applicant's identity is resolved via the auth-service (see [Identity Resolution](#identity-resolution)).
+- The applicant's identity is resolved via the two-phase strategy described in [Identity Resolution](#identity-resolution) (auth-service primary path with JWT email claim fallback).
 - Creates a new application with `status: pending`.
+- Optional body field `organization` (`id`, `name`, `website`) stores the applicant's confirmed organization on the application record when provided. This is the organization the applicant selected in the join dialog.
 - If an application for the same email already exists in this committee:
-  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared and `message` is updated if provided.
+  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
   - Any other status (`pending`, `approved`) — returns `409 Conflict`.
 
 **Approving an application** (`POST .../approve`):
 - Only allowed when `status: pending`.
 - On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry.
+- The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
 **Rejecting an application** (`POST .../reject`):
 - Only allowed when `status: pending`.
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
+
+**Email notifications (opt-in via `notify` request field, default `false`):**
+- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
+- **Approved** — when `ApproveApplication` is called with `notify: true` and succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address. The generic member-added role notification is suppressed for LFID applicants when `notify: true` (the application-accepted email covers the same intent); email-only applicants still receive the invite-service invite.
+- **Rejected** — when `RejectApplication` is called with `notify: true` and succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
+- Writers without an LFID (no `Username`) or without a known email address are skipped — both are required for a direct email.
+- All sends are best-effort: failures are logged with `"committee_uid"` and (for submitted) `"username"` (redacted) and never propagate to callers.
 
 ---
 
@@ -137,13 +160,16 @@ When `join_mode: open`, any authenticated user can join without an invite or app
 
 ## Identity Resolution
 
-Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. Because the JWT issued by Heimdall contains only the user's `principal` (LFX username), the service maps that username to an Auth0 sub (`auth0|{userID}`) and resolves the email at request time via a NATS request/reply call to the auth-service:
+Endpoints that act on behalf of the caller (accept/decline invite, submit application, join, leave) need the caller's **email address** to match records or create members. The JWT issued by Heimdall contains the user's `principal` (LFX username) and, for standard user logins, an `email` claim populated by Authelia's `oidc_contextualizer` from the OIDC userinfo endpoint. The service resolves the caller's email using the following two-phase strategy:
 
-- **Subject:** `lfx.auth-service.user_emails.read`
-- **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username via `pkg/auth.MapUsernameToAuthSub` (safe usernames are used directly; unsafe/legacy usernames are SHA-512 hashed and base58-encoded to ~88 characters). See `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`.
-- **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
+1. **Primary path — auth-service lookup:** The `principal` is mapped to an Auth0 sub (`auth0|{userID}`) and the service issues a NATS request/reply call to the auth-service:
+   - **Subject:** `lfx.auth-service.user_emails.read`
+   - **Request payload:** JSON `{"user":{"auth_token":"auth0|{userID}"}}` where `{userID}` is derived from the caller's LFX username via `pkg/auth.MapUsernameToAuthSub` (safe usernames are used directly; unsafe/legacy usernames are SHA-512 hashed and base58-encoded to ~88 characters). See `UserEmailsNATSRequest` in `internal/infrastructure/nats/models.go`.
+   - **Response:** JSON with `{ "success": true, "data": { "primary_email": "...", "alternate_emails": [...] } }`
 
-The service uses `primary_email` from the response. Lookup failures map to HTTP status as follows: validation errors (missing principal, or no primary email in the response) → `400 Bad Request`; auth-service user not found (`success=false` from `user_emails.read`, or no email data returned) → `404 Not Found`; auth-service or NATS unavailable (transport failure) → `503 Service Unavailable`.
+2. **Fallback — JWT email claim (new-user propagation race):** For brand-new LFID accounts, Auth0 may not have propagated the user to auth-service by the time the first authenticated request arrives. When auth-service returns `user not found` AND the Heimdall JWT carries a non-empty `email` claim, the service uses that JWT email claim as the caller's identity instead of returning 404. The verification guarantee is enforced at the Heimdall pipeline level: the `oidc_contextualizer` fetches the OIDC userinfo and Heimdall fails the request if `email_verified` is not `true`, so an unverified address can never reach the service. `ParsePrincipal` returns the email claim directly — no per-service gate is needed. M2M tokens and anonymous tokens produce no contextualizer output and therefore carry no `email` claim, so they do not benefit from this fallback. **Deployment note:** this fallback requires the lfx-platform Helm chart change (Heimdall `fail` on unverified email) and the `use_oidc_contextualizer: true` ArgoCD flag to be deployed first.
+
+The service uses `primary_email` from the auth-service response (primary path) or the JWT `email` claim (fallback). Lookup failures map to HTTP status as follows: validation errors (missing principal, or no primary email in the response) → `400 Bad Request`; auth-service user not found AND no JWT email fallback available → `404 Not Found`; auth-service or NATS unavailable (transport failure) → `503 Service Unavailable`.
 
 ---
 
@@ -228,8 +254,9 @@ The handler requires `uid` (invite UID), `accepted_by` (new LFID username), and 
 
 1. Validate the event (`uid`, `accepted_by`, `recipient.email`); discard if any are missing.
 2. Normalize `recipient.email` (lowercase, trimmed).
-3. List **all** committee UIDs (`ListAllUIDs`; a full scan today — see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for the planned email-index lookup).
-4. For each committee, `enrichInvitedUserInCommittee` reconciles every email-only record matching that email. The invite `role` is **ignored** — acceptance always reconciles all resource data for the recipient email:
+3. **(Upfront FGA phase)** Fetch all `CommitteeInvite` records for the normalized email (`fetchInvitesByEmail` via `ListAllInvites`). For each committee that has a matching invite, publish an FGA `invitee` tuple for every invite record (`publishInviteeFGAForCommittee`). This runs before the enrichment scan so the invite is immediately visible in the self-serve UI and the user can call `AcceptInvite` without waiting for the full scan to complete. See [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238) for the planned email-index that will replace the `ListAllInvites` full-bucket scan.
+4. List **all** committee UIDs (`ListAllUIDs`; a full scan — see [LFXV2-2238](https://linuxfoundation.atlassian.net/browse/LFXV2-2238)).
+5. Enrich up to **10 committees concurrently** (bounded errgroup). For each committee, `enrichInvitedUserInCommittee` reconciles every email-only record matching that email. The invite `role` is **ignored** — acceptance always reconciles all resource data for the recipient email:
    - **Settings:** all email-only Writers and Auditors (`username == ""`) — set `username` from `accepted_by` via `UpdateSettings`, retrying up to 3 times on revision conflicts. `UpdateSettings` fires FGA and indexer messages and publishes `committee_settings.updated`.
    - **Members:** email-only roster rows — set `username` from `accepted_by` via `UpdateMember` (revision-conflict retries), same as Writers/Auditors. No auth email lookup on this path.
 
@@ -287,3 +314,32 @@ nats kv get --server "$NATS_URL" committee-members <member_uid>
 | LFID invite flow (this section) | Email-only Writers, Auditors, Members | `lfx.invite-service.invite_accepted` enriches matching rows with `username` |
 
 Both can apply to the same person over time; enrichment matches by **email**, not invite UID on resource rows.
+
+## Notification Suppression (skip_notification)
+
+Both the member-create and member-delete endpoints accept an `X-Skip-Notification` header (`skip_notification` in the Goa payload) that suppresses outbound emails for that specific request. This is the mechanism used by V1/PCC-origin callers (e.g. `lfx-v1-sync-helper`) to prevent notification emails from firing on sync-driven writes.
+
+### Member created (`POST /committees/{uid}/members`)
+
+When `X-Skip-Notification: true` is set:
+- `CommitteeMemberCreatedEventData.SkipNotification` is set to `true` in the `committee_member.created` NATS event payload.
+- `HandleCommitteeMemberCreated` short-circuits before sending either the direct notification email or the invite-service invite.
+
+### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
+
+When `X-Skip-Notification: true` is set:
+- `CommitteeMemberDeletedEventData.SkipNotification` is set to `true` in the `committee_member.deleted` NATS event payload.
+- `HandleCommitteeMemberDeleted` short-circuits before sending the removal notification email.
+
+### NATS event payload shapes
+
+`committee_member.created` data is a `CommitteeMemberCreatedEventData` (JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`).
+
+`committee_member.deleted` data is a `CommitteeMemberDeletedEventData` (same shape: JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`). Consumers that previously decoded a bare `CommitteeMember` from deleted events continue to work because the struct embeds `*CommitteeMember` and the extra field is `omitempty`.
+
+### Scope
+
+`skip_notification` only gates the **notification email** for the affected member. It does not suppress:
+- Indexer messages (`lfx.index.*`) — those are always published.
+- FGA access-control messages — those are always published.
+- Settings-change emails (`HandleCommitteeSettingsUpdated`) — those are not gated by this flag.

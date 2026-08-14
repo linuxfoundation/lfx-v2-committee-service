@@ -38,6 +38,7 @@ func NewMockRepository() *MockRepository {
 			committeeMembers:      make(map[string]map[string]*model.CommitteeMember),
 			projectSlugs:          make(map[string]string),
 			projectNames:          make(map[string]string),
+			projectWriters:        make(map[string][]model.CommitteeUser),
 			committeeIndexKeys:    make(map[string]*model.Committee),
 			memberIndexKeys:       make(map[string]map[string]*model.CommitteeMember),
 			committeeInvites:      make(map[string]*model.CommitteeInvite),
@@ -223,6 +224,7 @@ type MockRepository struct {
 	committeeMembers   map[string]map[string]*model.CommitteeMember // committeeUID -> memberUID -> member
 	projectSlugs       map[string]string                            // projectUID -> slug
 	projectNames       map[string]string                            // projectUID -> name
+	projectWriters     map[string][]model.CommitteeUser             // projectUID -> writers
 	committeeIndexKeys map[string]*model.Committee                  // indexKey -> committee
 	memberIndexKeys    map[string]map[string]*model.CommitteeMember // committeeUID -> indexKey -> member
 	// Invite and application storage
@@ -459,6 +461,31 @@ func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) (
 	for _, committeeMembers := range m.committeeMembers {
 		for _, member := range committeeMembers {
 			if strings.TrimSpace(strings.ToLower(member.Email)) != normalized {
+				continue
+			}
+			memberCopy := *member
+			members = append(members, &memberCopy)
+		}
+	}
+	return members, nil
+}
+
+// ListMembersByUsername retrieves all committee members whose normalized username matches the given
+// LFID, scanning all committees. Mirrors the real storage index behavior for tests.
+func (m *MockRepository) ListMembersByUsername(ctx context.Context, username string) ([]*model.CommitteeMember, error) {
+	slog.DebugContext(ctx, "mock repository: listing committee members by username")
+
+	normalized := strings.TrimSpace(strings.ToLower(username))
+	if normalized == "" {
+		return nil, errors.NewValidation("username cannot be empty")
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var members []*model.CommitteeMember
+	for _, committeeMembers := range m.committeeMembers {
+		for _, member := range committeeMembers {
+			if strings.TrimSpace(strings.ToLower(member.Username)) != normalized {
 				continue
 			}
 			memberCopy := *member
@@ -804,6 +831,21 @@ func (w *MockCommitteeWriter) IndexMemberByEmail(ctx context.Context, member *mo
 	return key, nil
 }
 
+// IndexMemberByUsername records the by-username secondary index entry. In the mock this is a
+// no-op; it returns the key the real storage would write (empty when the member has no username)
+// so callers can track it for rollback.
+func (w *MockCommitteeWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
+	slog.DebugContext(ctx, "mock committee writer: indexing member by username",
+		"member_uid", member.UID,
+	)
+	hash := member.BuildUsernameIndexKey(ctx)
+	if hash == "" {
+		return "", nil
+	}
+	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
+	return key, nil
+}
+
 // ================== CommitteeInviteReader implementation ==================
 
 // GetInvite retrieves a committee invite by UID
@@ -1040,6 +1082,21 @@ func (r *MockProjectRetriever) Slug(ctx context.Context, uid string) (string, er
 	return slug, nil
 }
 
+// Writers returns the writers list for a given project UID.
+func (r *MockProjectRetriever) Writers(ctx context.Context, uid string) ([]model.CommitteeUser, error) {
+	slog.DebugContext(ctx, "mock project retriever: getting writers", "uid", uid)
+
+	r.mock.mu.RLock()
+	defer r.mock.mu.RUnlock()
+
+	writers, exists := r.mock.projectWriters[uid]
+	if !exists {
+		return []model.CommitteeUser{}, nil
+	}
+
+	return writers, nil
+}
+
 // Helper functions
 
 // NewMockCommitteeReader creates a mock committee reader
@@ -1105,6 +1162,14 @@ func (m *MockRepository) AddProjectName(uid, name string) {
 	defer m.mu.Unlock()
 
 	m.projectNames[uid] = name
+}
+
+// AddProjectWriters sets the writers list for a project UID (useful for testing).
+func (m *MockRepository) AddProjectWriters(uid string, writers []model.CommitteeUser) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.projectWriters[uid] = writers
 }
 
 // AddProject adds both project slug and name mappings (useful for testing)
@@ -1176,24 +1241,88 @@ func (m *MockRepository) GetCommitteeMemberCount(committeeUID string) int {
 }
 
 // MockCommitteePublisher implements CommitteePublisher interface for testing
-type MockCommitteePublisher struct{}
+type MockCommitteePublisher struct {
+	mu sync.Mutex
+	// LastIndexerMessage captures the most recently published indexer message for assertions.
+	LastIndexerMessage any
+	IndexerSyncValues  []bool
+	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
+	LastUpdateAccessMessage any
+	UpdateAccessCallCount   int
+	// LastDeleteAccessMessage captures the most recent asynchronous delete_access message.
+	LastDeleteAccessMessage any
+	DeleteAccessCallCount   int
+	DeleteAccessError       error
+	// LastMemberPutMessage captures the most recent asynchronous member_put message.
+	LastMemberPutMessage any
+	MemberPutCallCount   int
+	// LastMemberRemoveMessage captures the most recent asynchronous member_remove message.
+	LastMemberRemoveMessage any
+	MemberRemoveCallCount   int
+}
 
 // Indexer simulates publishing an indexer message
-func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any, sync bool) error {
+func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, message any, synced bool) error {
+	p.mu.Lock()
+	p.LastIndexerMessage = message
+	p.IndexerSyncValues = append(p.IndexerSyncValues, synced)
+	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
 		"message_type", "indexer",
-		"sync", sync,
+		"sync", synced,
 	)
 	return nil
 }
 
-// Access simulates publishing an access message
-func (p *MockCommitteePublisher) Access(ctx context.Context, subject string, message any, sync bool) error {
-	slog.InfoContext(ctx, "mock publisher: access message published",
-		"subject", subject,
+// UpdateAccess simulates publishing an asynchronous update_access message.
+func (p *MockCommitteePublisher) UpdateAccess(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastUpdateAccessMessage = message
+	p.UpdateAccessCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: update_access message published",
 		"message_type", "access",
-		"sync", sync,
+	)
+	return nil
+}
+
+// DeleteAccess simulates publishing an asynchronous delete_access message.
+func (p *MockCommitteePublisher) DeleteAccess(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastDeleteAccessMessage = message
+	p.DeleteAccessCallCount++
+	err := p.DeleteAccessError
+	p.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	slog.InfoContext(ctx, "mock publisher: delete_access message published",
+		"message_type", "access",
+	)
+	return nil
+}
+
+// MemberPut simulates publishing an asynchronous member_put message.
+func (p *MockCommitteePublisher) MemberPut(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastMemberPutMessage = message
+	p.MemberPutCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: member_put message published",
+		"message_type", "access",
+	)
+	return nil
+}
+
+// MemberRemove simulates publishing an asynchronous member_remove message.
+func (p *MockCommitteePublisher) MemberRemove(ctx context.Context, message any) error {
+	p.mu.Lock()
+	p.LastMemberRemoveMessage = message
+	p.MemberRemoveCallCount++
+	p.mu.Unlock()
+	slog.InfoContext(ctx, "mock publisher: member_remove message published",
+		"message_type", "access",
 	)
 	return nil
 }

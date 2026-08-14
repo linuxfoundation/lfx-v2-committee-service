@@ -61,7 +61,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeDocumentCreated(ctx context.
 		documentName:      doc.Name,
 		fileName:          doc.FileName,
 		folderName:        m.resolveFolderName(ctx, doc.CommitteeUID, doc.FolderUID),
-		createdByUsername: doc.UploadedByUsername,
+		createdByUsername: model.AuditCreatorUsername(doc.CreatedBy),
 	}
 
 	m.handleContentCreated(ctx, item)
@@ -109,7 +109,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeLinkCreated(ctx context.Cont
 		documentName:      link.Name,
 		url:               safeURL,
 		folderName:        m.resolveFolderName(ctx, link.CommitteeUID, link.FolderUID),
-		createdByUsername: link.CreatedByUsername,
+		createdByUsername: model.AuditCreatorUsername(link.CreatedBy),
 	}
 
 	m.handleContentCreated(ctx, item)
@@ -198,8 +198,11 @@ func (m *messageHandlerOrchestrator) handleContentCreated(ctx context.Context, i
 				slog.WarnContext(gctx, "failed to send content notification email",
 					"error", sendErr, "committee_uid", item.committeeUID)
 			} else {
-				slog.DebugContext(gctx, "sent content notification email",
-					"committee_uid", item.committeeUID, "document_type", item.documentType)
+				slog.InfoContext(gctx, "sent content notification email",
+					"committee_uid", item.committeeUID,
+					"recipient_email", redaction.RedactEmail(email),
+					"username", redaction.Redact(recipient.username),
+					"document_type", item.documentType)
 			}
 			return nil
 		})

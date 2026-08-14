@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"strings"
@@ -84,11 +85,45 @@ func TestJWTAuthParsePrincipalNilValidator(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "some-token", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 	assert.Contains(t, err.Error(), "JWT validator is not set up")
+}
+
+func TestJWTAuthParsePrincipalMockMode(t *testing.T) {
+	t.Run("principal only", func(t *testing.T) {
+		jwtAuth := &JWTAuth{
+			validator: nil,
+			config: JWTAuthConfig{
+				MockLocalPrincipal: "test-user",
+			},
+		}
+
+		principal, email, err := jwtAuth.ParsePrincipal(context.Background(), "any-token", slog.Default())
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-user", principal)
+		assert.Empty(t, email)
+	})
+
+	t.Run("principal and email", func(t *testing.T) {
+		jwtAuth := &JWTAuth{
+			validator: nil,
+			config: JWTAuthConfig{
+				MockLocalPrincipal: "test-user",
+				MockLocalEmail:     "test-user@example.com",
+			},
+		}
+
+		principal, email, err := jwtAuth.ParsePrincipal(context.Background(), "any-token", slog.Default())
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-user", principal)
+		assert.Equal(t, "test-user@example.com", email)
+	})
 }
 
 func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {
@@ -103,10 +138,11 @@ func TestJWTAuthParsePrincipalEmptyToken(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	principal, err := jwtAuth.ParsePrincipal(ctx, "", logger)
+	principal, email, err := jwtAuth.ParsePrincipal(ctx, "", logger)
 
 	assert.Error(t, err)
 	assert.Empty(t, principal)
+	assert.Empty(t, email)
 }
 
 func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
@@ -135,10 +171,11 @@ func TestJWTAuthParsePrincipalInvalidToken(t *testing.T) {
 			testName = testName[:50]
 		}
 		t.Run(testName, func(t *testing.T) {
-			principal, err := jwtAuth.ParsePrincipal(ctx, token, logger)
+			principal, email, err := jwtAuth.ParsePrincipal(ctx, token, logger)
 
 			assert.Error(t, err)
 			assert.Empty(t, principal)
+			assert.Empty(t, email)
 			// Should not contain sensitive information
 			assert.NotContains(t, err.Error(), "go-jose/go-jose/jwt")
 		})
@@ -269,4 +306,38 @@ func TestErrorMessageSanitization(t *testing.T) {
 		})
 		_ = i // Use i to avoid unused variable warning
 	}
+}
+
+// TestHeimdallClaimsEmailJSONDecoding verifies that the json:"email" tag is
+// correct by deserializing JWT claim JSON (as the validator does at runtime) and
+// asserting the field is populated. A wrong tag (e.g. json:"Email") would make
+// this test fail while struct-literal tests would still pass.
+// email_verified is no longer a downstream JWT claim — Heimdall blocks the pipeline
+// when the oidc_contextualizer returns an unverified email, so the guarantee is
+// enforced at the infrastructure layer rather than in each service.
+func TestHeimdallClaimsEmailJSONDecoding(t *testing.T) {
+	t.Run("email present in claims JSON", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser","email":"testuser@example.com"}`
+		var claims HeimdallClaims
+		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
+		assert.Equal(t, "testuser", claims.Principal)
+		assert.Equal(t, "testuser@example.com", claims.Email)
+		assert.NoError(t, claims.Validate(context.Background()))
+
+		// Marshal back and assert the JSON tag is exactly lowercase.
+		// json.Unmarshal is case-insensitive, so a wrong tag like json:"Email" would still
+		// unmarshal correctly but would produce "Email" in the output — catching that here.
+		marshaled, err := json.Marshal(claims)
+		require.NoError(t, err)
+		assert.Contains(t, string(marshaled), `"email":"testuser@example.com"`)
+	})
+
+	t.Run("email absent from claims JSON (M2M or anonymous token)", func(t *testing.T) {
+		claimsJSON := `{"principal":"testuser"}`
+		var claims HeimdallClaims
+		require.NoError(t, json.Unmarshal([]byte(claimsJSON), &claims))
+		assert.Equal(t, "testuser", claims.Principal)
+		assert.Empty(t, claims.Email)
+		assert.NoError(t, claims.Validate(context.Background()))
+	})
 }

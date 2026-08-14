@@ -35,6 +35,7 @@ var _ = dsl.Service("committee-service", func() {
 			CommitteeBaseAttributes()
 
 			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
 
 			WritersAttribute()
 			AuditorsAttribute()
@@ -228,6 +229,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			CommitteeUIDAttribute()
 			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
 
 			WritersAttribute()
 			AuditorsAttribute()
@@ -304,6 +306,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			XSyncAttribute()
 			SkipNotificationAttribute()
+			SkipEnrichmentAttribute()
 			CommitteeUIDAttribute()
 
 			CommitteeMemberCreateAttributes()
@@ -326,6 +329,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("x_sync:X-Sync")
 			dsl.Header("skip_notification:X-Skip-Notification")
+			dsl.Header("skip_enrichment:X-Skip-Enrichment")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -490,6 +494,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			IfMatchAttribute()
 			XSyncAttribute()
+			SkipEnrichmentAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
@@ -514,6 +519,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
 			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_enrichment:X-Skip-Enrichment")
 			dsl.Response(dsl.StatusOK)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -534,6 +540,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			IfMatchAttribute()
 			XSyncAttribute()
+			SkipNotificationAttribute()
 			CommitteeUIDAttribute()
 			MemberUIDAttribute()
 
@@ -554,6 +561,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("if_match:If-Match")
 			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
@@ -806,6 +814,13 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("I would like to join the TSC to contribute my expertise.")
 			})
 
+			dsl.Attribute("notify", dsl.Boolean, "When true, send email notifications to committee writers about the new application. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			OrganizationInfoAttributes()
+
 			dsl.Required("version", "uid")
 		})
 
@@ -850,6 +865,11 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("Approved based on contribution history.")
 			})
 
+			dsl.Attribute("notify", dsl.Boolean, "When true, send an acceptance email to the applicant. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
 			dsl.Required("version", "uid", "application_uid")
 		})
 
@@ -890,6 +910,11 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Attribute("reviewer_notes", dsl.String, "Notes from the reviewer", func() {
 				dsl.MaxLength(2000)
 				dsl.Example("Does not meet current requirements.")
+			})
+
+			dsl.Attribute("notify", dsl.Boolean, "When true, send a rejection email to the applicant. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
 			})
 
 			dsl.Required("version", "uid", "application_uid")
@@ -1600,6 +1625,51 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
 			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("share-weekly-brief-to-chat", func() {
+		dsl.Description("Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. " +
+			"Only Slack Incoming Webhooks (hooks.slack.com) are currently supported; other chat platforms are not supported. " +
+			"The caller must supply the revision from GET /current as an optimistic-concurrency guard. " +
+			"Returns 404 when no brief exists for the current window, 400 when the brief is not in a " +
+			"shareable state (generated, edited, or approved), 409 when the revision is stale, " +
+			"422 when no chat webhook URL is configured in committee settings.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from GET /current", func() {
+				dsl.Minimum(1)
+				dsl.Example(uint64(7))
+			})
+			dsl.Required("uid", "revision")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Brief is not in a shareable state")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found, or no brief exists for the current window")
+		dsl.Error("RevisionConflict", GroupWeeklyBriefRevisionConflictError, "The revision token is stale")
+		dsl.Error("NoChatWebhook", NoChatWebhookError, "No chat webhook URL is configured for this committee")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/share-to-chat")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("NoChatWebhook", dsl.StatusUnprocessableEntity)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})

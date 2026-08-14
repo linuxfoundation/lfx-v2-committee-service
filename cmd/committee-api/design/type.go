@@ -32,6 +32,11 @@ func CommitteeBaseAttributes() {
 	DisplayNameAttribute()
 	ParentCommitteeUIDAttribute()
 	JoinModeAttribute()
+	RepositoryAttribute()
+	ScopeAttribute()
+	DeliverablesAttribute()
+	KeyDatesAttribute()
+	ExternalSourcesAttribute()
 }
 
 // CommitteeSettings is the DSL type for a committee settings.
@@ -176,6 +181,7 @@ func CategoryAttribute() {
 			"Marketing Committee/Sub Committee",
 			"Marketing Mailing List",
 			"Marketing Oversight Committee/Marketing Advisory Committee",
+			"Newsletter",
 			"Other",
 			"Product Security",
 			"Special Interest Group",
@@ -197,12 +203,136 @@ func DescriptionAttribute() {
 	})
 }
 
+// urlPattern validates an HTTP(S) URL (used by website and repository attributes).
+// The scheme is mandatory to reject non-HTTP schemes (e.g. javascript:, data:) that
+// would otherwise pass dsl.FormatURI as syntactically valid URIs.
+const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
+
+// slackWebhookURLPattern validates a Slack Incoming Webhook URL or an empty string.
+// Restricts the hostname to hooks.slack.com so the API enforces at write time the
+// same host allowlist that WebhookSender.Send enforces at send time.
+// Empty string is the explicit clear signal (see ChatWebhookURLAttribute).
+const slackWebhookURLPattern = `^$|^https://hooks\.slack\.com/[^\s]*$`
+
 // WebsiteAttribute is the DSL attribute for committee website.
 func WebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "The website URL of the committee", func() {
 		dsl.Format(dsl.FormatURI)
-		dsl.Pattern(`^(https?://)?[^\s/$.?#].[^\s]*$`)
+		dsl.Pattern(urlPattern)
 		dsl.Example("https://committee.example.org")
+	})
+}
+
+// RepositoryAttribute is the DSL attribute for committee repository URL.
+func RepositoryAttribute() {
+	dsl.Attribute("repository", dsl.String, "The URL of the committee's code repository", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.Example("https://github.com/example/repo")
+	})
+}
+
+// ScopeAttribute is the DSL attribute for committee scope bullet points.
+func ScopeAttribute() {
+	dsl.Attribute("scope", dsl.ArrayOf(dsl.String), "The scope of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Define governance for the project", "Review and approve major architectural changes"})
+	})
+}
+
+// DeliverablesAttribute is the DSL attribute for committee deliverables bullet points.
+func DeliverablesAttribute() {
+	dsl.Attribute("deliverables", dsl.ArrayOf(dsl.String), "The deliverables of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Quarterly technical roadmap", "Annual governance review"})
+	})
+}
+
+// keyDateFormatPattern validates a month-only date in YYYY-MM format.
+const keyDateFormatPattern = `^\d{4}-(0[1-9]|1[0-2])$`
+
+// KeyDateType is the DSL type for a single entry in a committee's key-dates timeline.
+var KeyDateType = dsl.Type("key-date", func() {
+	dsl.Description("A single entry in a committee's key-dates timeline.")
+	dsl.Attribute("date", dsl.String, "The month of the key date, in YYYY-MM format", func() {
+		dsl.Pattern(keyDateFormatPattern)
+		dsl.Example("2026-04")
+	})
+	dsl.Attribute("label", dsl.String, "Label describing the key date", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Charter renewal")
+	})
+	dsl.Required("date", "label")
+})
+
+// KeyDatesAttribute is the DSL attribute for a committee's key-dates timeline.
+func KeyDatesAttribute() {
+	dsl.Attribute("key_dates", dsl.ArrayOf(KeyDateType), "Timeline of important dates for the committee", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{"date": "2026-04", "label": "Charter renewal"},
+		})
+	})
+}
+
+// ExternalSourceType is the DSL type for a single external source linked to a committee.
+var ExternalSourceType = dsl.Type("external-source", func() {
+	dsl.Description("A single source-labeled external entity linked to a committee (e.g. an OCG group or event).")
+	dsl.Attribute("provider", dsl.String, "The external platform that owns this linked entity", func() {
+		dsl.Enum("ocg")
+		dsl.Example("ocg")
+	})
+	dsl.Attribute("entity_type", dsl.String, "The type of entity in the external platform", func() {
+		dsl.Enum("community", "group", "event")
+		dsl.Example("group")
+	})
+	dsl.Attribute("label", dsl.String, "Human-readable label for the linked external entity", func() {
+		dsl.MaxLength(200)
+		dsl.Example("CNCF Meetup - San Francisco")
+	})
+	dsl.Attribute("url", dsl.String, "The URL of the linked external entity", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://community.cncf.io/cncf-meetup-san-francisco/")
+	})
+	dsl.Attribute("external_id", dsl.String, "The identifier of the entity within the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("cncf-meetup-san-francisco")
+	})
+	dsl.Attribute("external_category", dsl.String, "The community-managed category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Meetup")
+	})
+	dsl.Attribute("external_region", dsl.String, "The community-managed region of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("North America")
+	})
+	dsl.Attribute("external_event_category", dsl.String, "The community-managed event category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Virtual")
+	})
+	dsl.Required("provider", "entity_type", "label", "url")
+})
+
+// ExternalSourcesAttribute is the DSL attribute for a committee's linked external sources.
+func ExternalSourcesAttribute() {
+	dsl.Attribute("external_sources", dsl.ArrayOf(ExternalSourceType), "External source-labeled entities linked to this committee (e.g. OCG groups or events)", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{
+				"provider":    "ocg",
+				"entity_type": "group",
+				"label":       "CNCF Meetup - San Francisco",
+				"url":         "https://community.cncf.io/cncf-meetup-san-francisco/",
+			},
+		})
 	})
 }
 
@@ -332,6 +462,26 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	})
 })
 
+// ResourceAuditUserAttributes adds created_by and updated_by user profile objects.
+func ResourceAuditUserAttributes() {
+	dsl.Attribute("created_by", CommitteeUserType, "User who created this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "alexlee",
+			"name":     "Alex Lee",
+			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "alexlee",
+			"name":     "Alex Lee",
+			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+}
+
 // WritersAttribute is the DSL attribute for committee writers.
 func WritersAttribute() {
 	dsl.Attribute("writers", dsl.ArrayOf(CommitteeUserType), "Users who can edit/modify this committee", func() {
@@ -373,15 +523,25 @@ func BearerTokenAttribute() {
 
 // XSyncAttribute is the DSL attribute for X-Sync header (for synchronous/asynchronous operations).
 func XSyncAttribute() {
-	dsl.Attribute("x_sync", dsl.Boolean, "Determines if the operation should be synchronous (true) or asynchronous (false, default)", func() {
+	dsl.Attribute("x_sync", dsl.Boolean, "Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.", func() {
 		dsl.Default(false)
 		dsl.Example(true)
 	})
 }
 
-// SkipNotificationAttribute is the DSL attribute for suppressing the member notification.
+// SkipNotificationAttribute is the DSL attribute for suppressing the member notification email
+// (whether the member is being added or removed).
 func SkipNotificationAttribute() {
-	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)", func() {
+	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the notification email sent to the committee member (whether added or removed)", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// SkipEnrichmentAttribute is the DSL attribute for skipping auth-service enrichment on
+// committee member writes (email→username lookup and profile metadata backfill).
+func SkipEnrichmentAttribute() {
+	dsl.Attribute("skip_enrichment", dsl.Boolean, "When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.", func() {
 		dsl.Default(false)
 		dsl.Example(true)
 	})
@@ -874,6 +1034,21 @@ func ChatChannelAttribute() {
 	})
 }
 
+// ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
+// This field is write-only: accepted on create and PUT settings, never returned from GET.
+// Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
+// Only Slack Incoming Webhooks (hooks.slack.com) are supported. Other chat platforms
+// are not supported and URLs pointing to other hosts are rejected at both write and send time.
+func ChatWebhookURLAttribute() {
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. "+
+		"Write-only: never returned from GET. "+
+		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. "+
+		"Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
+		dsl.Pattern(slackWebhookURLPattern)
+		dsl.MaxLength(500)
+	})
+}
+
 // InviteUIDAttribute is the DSL attribute for invite UID in URL paths.
 func InviteUIDAttribute() {
 	dsl.Attribute("invite_uid", dsl.String, "Committee invite UID", func() {
@@ -952,6 +1127,7 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.MaxLength(2000)
 		dsl.Example("Approved based on contribution history.")
 	})
+	OrganizationInfoAttributes()
 	CreatedAtAttribute()
 })
 
@@ -1039,9 +1215,7 @@ var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-
 		dsl.MaxLength(200)
 		dsl.Example("Meeting Notes")
 	})
-	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who created the folder (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
@@ -1074,9 +1248,7 @@ var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly
 		dsl.MaxLength(2000)
 		dsl.Example("Confluence wiki — architecture decisions log")
 	})
-	dsl.Attribute("created_by_username", dsl.String, "LF username of the user who added the link (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })
@@ -1123,6 +1295,7 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
 		dsl.Example("generated")
 	})
+	dsl.Attribute("error_reason", dsl.String, "Machine-readable reason for the error state; absent on non-error briefs")
 	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
 		dsl.MaxLength(20000)
 	})
@@ -1273,6 +1446,19 @@ var GroupWeeklyBriefRevisionConflictError = dsl.Type("group-weekly-brief-revisio
 	dsl.Required("code", "revision")
 })
 
+// NoChatWebhookError is the 409 body returned by
+// POST /committees/{uid}/weekly-briefs/share-to-chat when no chat_webhook_url
+// is configured in the committee settings.
+var NoChatWebhookError = dsl.Type("no-chat-webhook-error", func() {
+	dsl.Description("Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("no_chat_webhook")
+		dsl.Example("no_chat_webhook")
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable description")
+	dsl.Required("code", "message")
+})
+
 // ─── Committee Document Types ───
 
 // DocumentUIDAttribute is the DSL attribute for document UID in URL paths.
@@ -1318,9 +1504,7 @@ var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-
 	dsl.Attribute("content_type", dsl.String, "MIME type of the file", func() {
 		dsl.Example("application/pdf")
 	})
-	dsl.Attribute("uploaded_by_username", dsl.String, "LF username of the uploader (auto-populated from JWT)", func() {
-		dsl.Example("alexlee")
-	})
+	ResourceAuditUserAttributes()
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 })

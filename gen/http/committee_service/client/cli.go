@@ -26,14 +26,14 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"yb2\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", body.ProjectUID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Name) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 100, false))
 		}
-		if !(body.Category == "Ambassador" || body.Category == "Board" || body.Category == "Code of Conduct" || body.Category == "Committers" || body.Category == "Expert Group" || body.Category == "Finance Committee" || body.Category == "Government Advisory Council" || body.Category == "Legal Committee" || body.Category == "Maintainers" || body.Category == "Marketing Committee/Sub Committee" || body.Category == "Marketing Mailing List" || body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || body.Category == "Other" || body.Category == "Product Security" || body.Category == "Special Interest Group" || body.Category == "Technical Advisory Committee" || body.Category == "Technical Mailing List" || body.Category == "Technical Oversight Committee" || body.Category == "Technical Steering Committee" || body.Category == "Working Group") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
+		if !(body.Category == "Ambassador" || body.Category == "Board" || body.Category == "Code of Conduct" || body.Category == "Committers" || body.Category == "Expert Group" || body.Category == "Finance Committee" || body.Category == "Government Advisory Council" || body.Category == "Legal Committee" || body.Category == "Maintainers" || body.Category == "Marketing Committee/Sub Committee" || body.Category == "Marketing Mailing List" || body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || body.Category == "Newsletter" || body.Category == "Other" || body.Category == "Product Security" || body.Category == "Special Interest Group" || body.Category == "Technical Advisory Committee" || body.Category == "Technical Mailing List" || body.Category == "Technical Oversight Committee" || body.Category == "Technical Steering Committee" || body.Category == "Working Group") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Newsletter", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
 		}
 		if body.Description != nil {
 			if utf8.RuneCountInString(*body.Description) > 2000 {
@@ -44,7 +44,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 		}
 		if body.Website != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 		}
 		if body.MailingList != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -65,11 +65,61 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application" || body.JoinMode == "closed") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
 		}
+		if body.Repository != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+		}
+		if body.Repository != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+		if len(body.Scope) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+		}
+		for _, e := range body.Scope {
+			if utf8.RuneCountInString(e) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+			}
+		}
+		if len(body.Deliverables) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+		}
+		for _, e := range body.Deliverables {
+			if utf8.RuneCountInString(e) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+			}
+		}
+		if len(body.KeyDates) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
+		}
+		for _, e := range body.KeyDates {
+			if e != nil {
+				if err2 := ValidateKeyDateRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
+		if len(body.ExternalSources) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+		}
+		for _, e := range body.ExternalSources {
+			if e != nil {
+				if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 		}
 		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://hooks\\.slack\\.com/[^\\s]*$"))
+		}
+		if body.ChatWebhookURL != nil {
+			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+			}
 		}
 		for _, e := range body.Writers {
 			if e != nil {
@@ -131,11 +181,13 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		DisplayName:           body.DisplayName,
 		ParentUID:             body.ParentUID,
 		JoinMode:              body.JoinMode,
+		Repository:            body.Repository,
 		BusinessEmailRequired: body.BusinessEmailRequired,
 		LastReviewedAt:        body.LastReviewedAt,
 		LastReviewedBy:        body.LastReviewedBy,
 		MemberVisibility:      body.MemberVisibility,
 		ShowMeetingAttendees:  body.ShowMeetingAttendees,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -179,6 +231,30 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		var zero string
 		if v.JoinMode == zero {
 			v.JoinMode = "invite_only"
+		}
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = marshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
+		}
+	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = marshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
 		}
 	}
 	{
@@ -264,14 +340,14 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeBaseBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"join_mode\": \"open\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"requires_review\": true,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", body.ProjectUID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Name) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 100, false))
 		}
-		if !(body.Category == "Ambassador" || body.Category == "Board" || body.Category == "Code of Conduct" || body.Category == "Committers" || body.Category == "Expert Group" || body.Category == "Finance Committee" || body.Category == "Government Advisory Council" || body.Category == "Legal Committee" || body.Category == "Maintainers" || body.Category == "Marketing Committee/Sub Committee" || body.Category == "Marketing Mailing List" || body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || body.Category == "Other" || body.Category == "Product Security" || body.Category == "Special Interest Group" || body.Category == "Technical Advisory Committee" || body.Category == "Technical Mailing List" || body.Category == "Technical Oversight Committee" || body.Category == "Technical Steering Committee" || body.Category == "Working Group") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
+		if !(body.Category == "Ambassador" || body.Category == "Board" || body.Category == "Code of Conduct" || body.Category == "Committers" || body.Category == "Expert Group" || body.Category == "Finance Committee" || body.Category == "Government Advisory Council" || body.Category == "Legal Committee" || body.Category == "Maintainers" || body.Category == "Marketing Committee/Sub Committee" || body.Category == "Marketing Mailing List" || body.Category == "Marketing Oversight Committee/Marketing Advisory Committee" || body.Category == "Newsletter" || body.Category == "Other" || body.Category == "Product Security" || body.Category == "Special Interest Group" || body.Category == "Technical Advisory Committee" || body.Category == "Technical Mailing List" || body.Category == "Technical Oversight Committee" || body.Category == "Technical Steering Committee" || body.Category == "Working Group") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.category", body.Category, []any{"Ambassador", "Board", "Code of Conduct", "Committers", "Expert Group", "Finance Committee", "Government Advisory Council", "Legal Committee", "Maintainers", "Marketing Committee/Sub Committee", "Marketing Mailing List", "Marketing Oversight Committee/Marketing Advisory Committee", "Newsletter", "Other", "Product Security", "Special Interest Group", "Technical Advisory Committee", "Technical Mailing List", "Technical Oversight Committee", "Technical Steering Committee", "Working Group"}))
 		}
 		if body.Description != nil {
 			if utf8.RuneCountInString(*body.Description) > 2000 {
@@ -282,7 +358,7 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.website", *body.Website, goa.FormatURI))
 		}
 		if body.Website != nil {
-			err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^(https?://)?[^\\s/$.?#].[^\\s]*$"))
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.website", *body.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 		}
 		if body.MailingList != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.mailing_list", *body.MailingList, goa.FormatEmail))
@@ -302,6 +378,48 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		}
 		if !(body.JoinMode == "open" || body.JoinMode == "invite_only" || body.JoinMode == "application" || body.JoinMode == "closed") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.join_mode", body.JoinMode, []any{"open", "invite_only", "application", "closed"}))
+		}
+		if body.Repository != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.repository", *body.Repository, goa.FormatURI))
+		}
+		if body.Repository != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.repository", *body.Repository, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+		if len(body.Scope) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope", body.Scope, len(body.Scope), 50, false))
+		}
+		for _, e := range body.Scope {
+			if utf8.RuneCountInString(e) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.scope[*]", e, utf8.RuneCountInString(e), 500, false))
+			}
+		}
+		if len(body.Deliverables) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables", body.Deliverables, len(body.Deliverables), 50, false))
+		}
+		for _, e := range body.Deliverables {
+			if utf8.RuneCountInString(e) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.deliverables[*]", e, utf8.RuneCountInString(e), 500, false))
+			}
+		}
+		if len(body.KeyDates) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.key_dates", body.KeyDates, len(body.KeyDates), 50, false))
+		}
+		for _, e := range body.KeyDates {
+			if e != nil {
+				if err2 := ValidateKeyDateRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
+		if len(body.ExternalSources) > 50 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_sources", body.ExternalSources, len(body.ExternalSources), 50, false))
+		}
+		for _, e := range body.ExternalSources {
+			if e != nil {
+				if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
 		}
 		if err != nil {
 			return nil, err
@@ -363,6 +481,7 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		DisplayName:     body.DisplayName,
 		ParentUID:       body.ParentUID,
 		JoinMode:        body.JoinMode,
+		Repository:      body.Repository,
 	}
 	{
 		var zero bool
@@ -406,6 +525,30 @@ func BuildUpdateCommitteeBasePayload(committeeServiceUpdateCommitteeBaseBody str
 		var zero string
 		if v.JoinMode == zero {
 			v.JoinMode = "invite_only"
+		}
+	}
+	if body.Scope != nil {
+		v.Scope = make([]string, len(body.Scope))
+		for i, val := range body.Scope {
+			v.Scope[i] = val
+		}
+	}
+	if body.Deliverables != nil {
+		v.Deliverables = make([]string, len(body.Deliverables))
+		for i, val := range body.Deliverables {
+			v.Deliverables[i] = val
+		}
+	}
+	if body.KeyDates != nil {
+		v.KeyDates = make([]*committeeservice.KeyDate, len(body.KeyDates))
+		for i, val := range body.KeyDates {
+			v.KeyDates[i] = marshalKeyDateRequestBodyToCommitteeserviceKeyDate(val)
+		}
+	}
+	if body.ExternalSources != nil {
+		v.ExternalSources = make([]*committeeservice.ExternalSource, len(body.ExternalSources))
+		for i, val := range body.ExternalSources {
+			v.ExternalSources[i] = marshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
 		}
 	}
 	v.UID = &uid
@@ -518,13 +661,21 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 	{
 		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeSettingsBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"mtv\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 		}
 		if !(body.MemberVisibility == "hidden" || body.MemberVisibility == "basic_profile") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.member_visibility", body.MemberVisibility, []any{"hidden", "basic_profile"}))
+		}
+		if body.ChatWebhookURL != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.chat_webhook_url", *body.ChatWebhookURL, "^$|^https://hooks\\.slack\\.com/[^\\s]*$"))
+		}
+		if body.ChatWebhookURL != nil {
+			if utf8.RuneCountInString(*body.ChatWebhookURL) > 500 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.chat_webhook_url", *body.ChatWebhookURL, utf8.RuneCountInString(*body.ChatWebhookURL), 500, false))
+			}
 		}
 		for _, e := range body.Writers {
 			if e != nil {
@@ -591,6 +742,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		LastReviewedBy:        body.LastReviewedBy,
 		MemberVisibility:      body.MemberVisibility,
 		ShowMeetingAttendees:  body.ShowMeetingAttendees,
+		ChatWebhookURL:        body.ChatWebhookURL,
 	}
 	{
 		var zero string
@@ -627,7 +779,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 
 // BuildCreateCommitteeMemberPayload builds the payload for the
 // committee-service create-committee-member endpoint from CLI flags.
-func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string) (*committeeservice.CreateCommitteeMemberPayload, error) {
+func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody string, committeeServiceCreateCommitteeMemberUID string, committeeServiceCreateCommitteeMemberVersion string, committeeServiceCreateCommitteeMemberBearerToken string, committeeServiceCreateCommitteeMemberXSync string, committeeServiceCreateCommitteeMemberSkipNotification string, committeeServiceCreateCommitteeMemberSkipEnrichment string) (*committeeservice.CreateCommitteeMemberPayload, error) {
 	var err error
 	var body CreateCommitteeMemberRequestBody
 	{
@@ -746,6 +898,15 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 			}
 		}
 	}
+	var skipEnrichment bool
+	{
+		if committeeServiceCreateCommitteeMemberSkipEnrichment != "" {
+			skipEnrichment, err = strconv.ParseBool(committeeServiceCreateCommitteeMemberSkipEnrichment)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipEnrichment, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.CreateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -827,6 +988,7 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	v.BearerToken = bearerToken
 	v.XSync = xSync
 	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
 
 	return v, nil
 }
@@ -1021,7 +1183,7 @@ func BuildReassignOrgCommitteeSeatPayload(committeeServiceReassignOrgCommitteeSe
 
 // BuildUpdateCommitteeMemberPayload builds the payload for the
 // committee-service update-committee-member endpoint from CLI flags.
-func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
+func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody string, committeeServiceUpdateCommitteeMemberUID string, committeeServiceUpdateCommitteeMemberMemberUID string, committeeServiceUpdateCommitteeMemberVersion string, committeeServiceUpdateCommitteeMemberBearerToken string, committeeServiceUpdateCommitteeMemberIfMatch string, committeeServiceUpdateCommitteeMemberXSync string, committeeServiceUpdateCommitteeMemberSkipEnrichment string) (*committeeservice.UpdateCommitteeMemberPayload, error) {
 	var err error
 	var body UpdateCommitteeMemberRequestBody
 	{
@@ -1145,6 +1307,15 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 			}
 		}
 	}
+	var skipEnrichment bool
+	{
+		if committeeServiceUpdateCommitteeMemberSkipEnrichment != "" {
+			skipEnrichment, err = strconv.ParseBool(committeeServiceUpdateCommitteeMemberSkipEnrichment)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipEnrichment, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
 		Email:           body.Email,
@@ -1227,13 +1398,14 @@ func BuildUpdateCommitteeMemberPayload(committeeServiceUpdateCommitteeMemberBody
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipEnrichment = skipEnrichment
 
 	return v, nil
 }
 
 // BuildDeleteCommitteeMemberPayload builds the payload for the
 // committee-service delete-committee-member endpoint from CLI flags.
-func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string, committeeServiceDeleteCommitteeMemberXSync string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
+func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID string, committeeServiceDeleteCommitteeMemberMemberUID string, committeeServiceDeleteCommitteeMemberVersion string, committeeServiceDeleteCommitteeMemberBearerToken string, committeeServiceDeleteCommitteeMemberIfMatch string, committeeServiceDeleteCommitteeMemberXSync string, committeeServiceDeleteCommitteeMemberSkipNotification string) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 	var err error
 	var uid string
 	{
@@ -1282,6 +1454,15 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 			}
 		}
 	}
+	var skipNotification bool
+	{
+		if committeeServiceDeleteCommitteeMemberSkipNotification != "" {
+			skipNotification, err = strconv.ParseBool(committeeServiceDeleteCommitteeMemberSkipNotification)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipNotification, must be BOOL")
+			}
+		}
+	}
 	v := &committeeservice.DeleteCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
@@ -1289,6 +1470,7 @@ func BuildDeleteCommitteeMemberPayload(committeeServiceDeleteCommitteeMemberUID 
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch
 	v.XSync = xSync
+	v.SkipNotification = skipNotification
 
 	return v, nil
 }
@@ -1634,11 +1816,21 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceSubmitApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"message\": \"I would like to join the TSC to contribute my expertise.\",\n      \"notify\": false,\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
 		}
 		if body.Message != nil {
 			if utf8.RuneCountInString(*body.Message) > 2000 {
 				err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+			}
+		}
+		if body.Organization != nil {
+			if body.Organization.Name != nil {
+				if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+					err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+				}
+			}
+			if body.Organization.Website != nil {
+				err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 			}
 		}
 		if err != nil {
@@ -1680,6 +1872,27 @@ func BuildSubmitApplicationPayload(committeeServiceSubmitApplicationBody string,
 	}
 	v := &committeeservice.SubmitApplicationPayload{
 		Message: body.Message,
+		Notify:  body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
 	}
 	v.UID = uid
 	v.Version = version
@@ -1697,7 +1910,7 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	{
 		err = json.Unmarshal([]byte(committeeServiceApproveApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Approved based on contribution history.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1742,6 +1955,13 @@ func BuildApproveApplicationPayload(committeeServiceApproveApplicationBody strin
 	}
 	v := &committeeservice.ApproveApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -1759,7 +1979,7 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	{
 		err = json.Unmarshal([]byte(committeeServiceRejectApplicationBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }'")
 		}
 		if body.ReviewerNotes != nil {
 			if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
@@ -1804,6 +2024,13 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	}
 	v := &committeeservice.RejectApplicationPayload{
 		ReviewerNotes: body.ReviewerNotes,
+		Notify:        body.Notify,
+	}
+	{
+		var zero bool
+		if v.Notify == zero {
+			v.Notify = false
+		}
 	}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
@@ -2009,7 +2236,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"vao\",\n      \"folder_uid\": \"26ffc95d-19b3-4264-bd42-f535e0d919c7\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"2o4\",\n      \"folder_uid\": \"656e47ad-6c34-4eeb-8c2c-4fb8b85fcb40\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2362,7 +2589,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quae velit voluptate.\",\n      \"description\": \"fi3\",\n      \"file\": \"VWxsYW0gdG90YW0gcXVvIGNvbnNlcXVhdHVyLg==\",\n      \"file_name\": \"Error pariatur debitis corrupti numquam consequatur.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Nisi harum quam magnam nihil.\",\n      \"description\": \"0jc\",\n      \"file\": \"T2ZmaWNpYSBldCB2ZXJpdGF0aXMu\",\n      \"file_name\": \"Voluptatem esse.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
@@ -2729,6 +2956,59 @@ func BuildUpdateCurrentWeeklyBriefPayload(committeeServiceUpdateCurrentWeeklyBri
 	v := &committeeservice.UpdateCurrentWeeklyBriefPayload{
 		BriefText: body.BriefText,
 		Revision:  body.Revision,
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
+// BuildShareWeeklyBriefToChatPayload builds the payload for the
+// committee-service share-weekly-brief-to-chat endpoint from CLI flags.
+func BuildShareWeeklyBriefToChatPayload(committeeServiceShareWeeklyBriefToChatBody string, committeeServiceShareWeeklyBriefToChatUID string, committeeServiceShareWeeklyBriefToChatVersion string, committeeServiceShareWeeklyBriefToChatBearerToken string) (*committeeservice.ShareWeeklyBriefToChatPayload, error) {
+	var err error
+	var body ShareWeeklyBriefToChatRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceShareWeeklyBriefToChatBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"revision\": 7\n   }'")
+		}
+		if body.Revision < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.revision", body.Revision, 1, true))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceShareWeeklyBriefToChatUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceShareWeeklyBriefToChatVersion != "" {
+			version = &committeeServiceShareWeeklyBriefToChatVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceShareWeeklyBriefToChatBearerToken != "" {
+			bearerToken = &committeeServiceShareWeeklyBriefToChatBearerToken
+		}
+	}
+	v := &committeeservice.ShareWeeklyBriefToChatPayload{
+		Revision: body.Revision,
 	}
 	v.UID = uid
 	v.Version = version

@@ -84,6 +84,7 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 	}
 	u.Path = appendPath(u.Path, "/query/resources")
 	q := u.Query()
+	q.Set("v", "1")
 	q.Set("type", v.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
 	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))

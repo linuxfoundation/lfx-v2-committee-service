@@ -996,6 +996,7 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 			bearerToken      *string
 			xSync            bool
 			skipNotification bool
+			skipEnrichment   bool
 
 			params = mux.Vars(r)
 		)
@@ -1032,10 +1033,20 @@ func DecodeCreateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				skipNotification = v
 			}
 		}
+		{
+			skipEnrichmentRaw := r.Header.Get("X-Skip-Enrichment")
+			if skipEnrichmentRaw != "" {
+				v, err2 := strconv.ParseBool(skipEnrichmentRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_enrichment", skipEnrichmentRaw, "boolean"))
+				}
+				skipEnrichment = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification)
+		payload := NewCreateCommitteeMemberPayload(&body, uid, version, bearerToken, xSync, skipNotification, skipEnrichment)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -1600,12 +1611,13 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 		}
 
 		var (
-			uid         string
-			memberUID   string
-			version     string
-			bearerToken *string
-			ifMatch     *string
-			xSync       bool
+			uid            string
+			memberUID      string
+			version        string
+			bearerToken    *string
+			ifMatch        *string
+			xSync          bool
+			skipEnrichment bool
 
 			params = mux.Vars(r)
 		)
@@ -1638,10 +1650,20 @@ func DecodeUpdateCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipEnrichmentRaw := r.Header.Get("X-Skip-Enrichment")
+			if skipEnrichmentRaw != "" {
+				v, err2 := strconv.ParseBool(skipEnrichmentRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_enrichment", skipEnrichmentRaw, "boolean"))
+				}
+				skipEnrichment = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewUpdateCommitteeMemberPayload(&body, uid, memberUID, version, bearerToken, ifMatch, xSync)
+		payload := NewUpdateCommitteeMemberPayload(&body, uid, memberUID, version, bearerToken, ifMatch, xSync, skipEnrichment)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -1749,13 +1771,14 @@ func EncodeDeleteCommitteeMemberResponse(encoder func(context.Context, http.Resp
 func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 	return func(r *http.Request) (*committeeservice.DeleteCommitteeMemberPayload, error) {
 		var (
-			uid         string
-			memberUID   string
-			version     string
-			bearerToken *string
-			ifMatch     *string
-			xSync       bool
-			err         error
+			uid              string
+			memberUID        string
+			version          string
+			bearerToken      *string
+			ifMatch          *string
+			xSync            bool
+			skipNotification bool
+			err              error
 
 			params = mux.Vars(r)
 		)
@@ -1788,10 +1811,20 @@ func DecodeDeleteCommitteeMemberRequest(mux goahttp.Muxer, decoder func(*http.Re
 				xSync = v
 			}
 		}
+		{
+			skipNotificationRaw := r.Header.Get("X-Skip-Notification")
+			if skipNotificationRaw != "" {
+				v, err2 := strconv.ParseBool(skipNotificationRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_notification", skipNotificationRaw, "boolean"))
+				}
+				skipNotification = v
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		payload := NewDeleteCommitteeMemberPayload(uid, memberUID, version, bearerToken, ifMatch, xSync)
+		payload := NewDeleteCommitteeMemberPayload(uid, memberUID, version, bearerToken, ifMatch, xSync, skipNotification)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -5582,6 +5615,219 @@ func EncodeUpdateCurrentWeeklyBriefError(encoder func(context.Context, http.Resp
 	}
 }
 
+// EncodeShareWeeklyBriefToChatResponse returns an encoder for responses
+// returned by the committee-service share-weekly-brief-to-chat endpoint.
+func EncodeShareWeeklyBriefToChatResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+}
+
+// DecodeShareWeeklyBriefToChatRequest returns a decoder for requests sent to
+// the committee-service share-weekly-brief-to-chat endpoint.
+func DecodeShareWeeklyBriefToChatRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ShareWeeklyBriefToChatPayload, error) {
+	return func(r *http.Request) (*committeeservice.ShareWeeklyBriefToChatPayload, error) {
+		var (
+			body ShareWeeklyBriefToChatRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateShareWeeklyBriefToChatRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid         string
+			version     *string
+			bearerToken *string
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewShareWeeklyBriefToChatPayload(&body, uid, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeShareWeeklyBriefToChatError returns an encoder for errors returned by
+// the share-weekly-brief-to-chat committee-service endpoint.
+func EncodeShareWeeklyBriefToChatError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
+			return enc.Encode(body)
+		case "RevisionConflict":
+			var res *committeeservice.GroupWeeklyBriefRevisionConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatRevisionConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NoChatWebhook":
+			var res *committeeservice.NoChatWebhookError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatNoChatWebhookResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewShareWeeklyBriefToChatServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate builds a value of type
+// *committeeservice.KeyDate from a value of type *KeyDateRequestBody.
+func unmarshalKeyDateRequestBodyToCommitteeserviceKeyDate(v *KeyDateRequestBody) *committeeservice.KeyDate {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.KeyDate{
+		Date:  *v.Date,
+		Label: *v.Label,
+	}
+
+	return res
+}
+
+// unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource builds a
+// value of type *committeeservice.ExternalSource from a value of type
+// *ExternalSourceRequestBody.
+func unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(v *ExternalSourceRequestBody) *committeeservice.ExternalSource {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.ExternalSource{
+		Provider:              *v.Provider,
+		EntityType:            *v.EntityType,
+		Label:                 *v.Label,
+		URL:                   *v.URL,
+		ExternalID:            v.ExternalID,
+		ExternalCategory:      v.ExternalCategory,
+		ExternalRegion:        v.ExternalRegion,
+		ExternalEventCategory: v.ExternalEventCategory,
+	}
+
+	return res
+}
+
 // unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -5594,6 +5840,41 @@ func unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser(v *Committ
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceKeyDateToKeyDateResponseBody builds a value of type
+// *KeyDateResponseBody from a value of type *committeeservice.KeyDate.
+func marshalCommitteeserviceKeyDateToKeyDateResponseBody(v *committeeservice.KeyDate) *KeyDateResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &KeyDateResponseBody{
+		Date:  v.Date,
+		Label: v.Label,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceExternalSourceToExternalSourceResponseBody builds a
+// value of type *ExternalSourceResponseBody from a value of type
+// *committeeservice.ExternalSource.
+func marshalCommitteeserviceExternalSourceToExternalSourceResponseBody(v *committeeservice.ExternalSource) *ExternalSourceResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &ExternalSourceResponseBody{
+		Provider:              v.Provider,
+		EntityType:            v.EntityType,
+		Label:                 v.Label,
+		URL:                   v.URL,
+		ExternalID:            v.ExternalID,
+		ExternalCategory:      v.ExternalCategory,
+		ExternalRegion:        v.ExternalRegion,
+		ExternalEventCategory: v.ExternalEventCategory,
 	}
 
 	return res
@@ -5649,15 +5930,37 @@ func marshalCommitteeserviceOrgCommitteeSeatToOrgCommitteeSeatResponseBody(v *co
 // value of type *committeeservice.CommitteeLinkWithReadonlyAttributes.
 func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWithReadonlyAttributesResponse(v *committeeservice.CommitteeLinkWithReadonlyAttributes) *CommitteeLinkWithReadonlyAttributesResponse {
 	res := &CommitteeLinkWithReadonlyAttributesResponse{
-		UID:               v.UID,
-		CommitteeUID:      v.CommitteeUID,
-		FolderUID:         v.FolderUID,
-		Name:              v.Name,
-		URL:               v.URL,
-		Description:       v.Description,
-		CreatedByUsername: v.CreatedByUsername,
-		CreatedAt:         v.CreatedAt,
-		UpdatedAt:         v.UpdatedAt,
+		UID:          v.UID,
+		CommitteeUID: v.CommitteeUID,
+		FolderUID:    v.FolderUID,
+		Name:         v.Name,
+		URL:          v.URL,
+		Description:  v.Description,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+	}
+	if v.CreatedBy != nil {
+		res.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.CreatedBy)
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.UpdatedBy)
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeUserToCommitteeUserResponse builds a value
+// of type *CommitteeUserResponse from a value of type
+// *committeeservice.CommitteeUser.
+func marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v *committeeservice.CommitteeUser) *CommitteeUserResponse {
+	if v == nil {
+		return nil
+	}
+	res := &CommitteeUserResponse{
+		Avatar:   v.Avatar,
+		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
 	}
 
 	return res
@@ -5669,12 +5972,17 @@ func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWi
 // *committeeservice.CommitteeLinkFolderWithReadonlyAttributes.
 func marshalCommitteeserviceCommitteeLinkFolderWithReadonlyAttributesToCommitteeLinkFolderWithReadonlyAttributesResponse(v *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *CommitteeLinkFolderWithReadonlyAttributesResponse {
 	res := &CommitteeLinkFolderWithReadonlyAttributesResponse{
-		UID:               v.UID,
-		CommitteeUID:      v.CommitteeUID,
-		Name:              v.Name,
-		CreatedByUsername: v.CreatedByUsername,
-		CreatedAt:         v.CreatedAt,
-		UpdatedAt:         v.UpdatedAt,
+		UID:          v.UID,
+		CommitteeUID: v.CommitteeUID,
+		Name:         v.Name,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+	}
+	if v.CreatedBy != nil {
+		res.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.CreatedBy)
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.UpdatedBy)
 	}
 
 	return res
@@ -5694,6 +6002,7 @@ func marshalCommitteeserviceGroupWeeklyBriefWithReadonlyAttributesToGroupWeeklyB
 		WindowStart:          v.WindowStart,
 		WindowEnd:            v.WindowEnd,
 		State:                v.State,
+		ErrorReason:          v.ErrorReason,
 		BriefText:            v.BriefText,
 		PromptVersion:        v.PromptVersion,
 		Model:                v.Model,

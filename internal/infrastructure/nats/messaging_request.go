@@ -47,6 +47,22 @@ func (m *messageRequest) Name(ctx context.Context, uid string) (string, error) {
 	return m.get(ctx, constants.ProjectGetNameSubject, uid)
 }
 
+// Writers retrieves the writers list for the given project UID via a NATS request.
+// Returns an empty slice when the project has no writers configured.
+func (m *messageRequest) Writers(ctx context.Context, uid string) ([]model.CommitteeUser, error) {
+	_, msg, err := m.client.requestWithSpan(ctx, constants.ProjectGetWritersSubject, []byte(uid))
+	if err != nil {
+		return nil, fmt.Errorf("get_writers request failed for project %s: %w", uid, err)
+	}
+
+	var writers []model.CommitteeUser
+	if err := json.Unmarshal(msg.Data, &writers); err != nil {
+		return nil, fmt.Errorf("failed to decode get_writers response: %w", err)
+	}
+
+	return writers, nil
+}
+
 // UsernameByEmail resolves the registered LFID username for the given primary email address.
 // The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
 func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {
@@ -73,8 +89,9 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 	return body, nil
 }
 
-// EmailsByAuthToken retrieves all email addresses for a user by sending their Auth0 subject
-// (auth0|{userID}) as auth_token to the NATS subject lfx.auth-service.user_emails.read.
+// EmailsByAuthToken retrieves all email addresses for a user by sending their principal
+// (LFID username, JWT principal, or provider-qualified sub) as auth_token to the NATS
+// subject lfx.auth-service.user_emails.read.
 func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string) (*model.UserEmails, error) {
 	if authToken == "" {
 		return nil, errors.NewValidation("auth token must not be empty")
@@ -99,10 +116,19 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 
 	if !response.Success {
 		errMsg := response.Error
-		if errMsg == "" {
-			errMsg = "user not found"
+		// Only classify as NotFound when auth-service explicitly signals a missing user.
+		// Other success:false responses (validation errors, internal errors) must not be
+		// treated as NotFound: the resolveCallerEmail fallback uses NotFound as the signal
+		// to proceed with the JWT email, so a misclassified validation error would
+		// silently bypass the intended error path.
+		lower := strings.ToLower(errMsg)
+		if strings.Contains(lower, "not found") || strings.Contains(lower, "does not exist") {
+			return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
 		}
-		return nil, errors.NewNotFound(fmt.Sprintf("user emails not found: %s", errMsg))
+		// Empty error field or any other message is unexpected — do not classify as NotFound.
+		// An empty success:false response is a malformed envelope, not a confirmed missing-user signal.
+		// Misclassifying it as NotFound would trigger the resolveCallerEmail JWT email fallback.
+		return nil, errors.NewUnexpected(fmt.Sprintf("auth-service user emails request failed: %s", errMsg))
 	}
 
 	if response.Data == nil {
@@ -123,10 +149,18 @@ func (m *messageRequest) EmailsByAuthToken(ctx context.Context, authToken string
 }
 
 // UserMetadataByPrincipal retrieves profile metadata for a user from the auth service by principal.
+//
+// The principal is sent as-is (trimmed): LFID username, JWT principal, or provider-qualified sub.
+// A genuine "no such user" reply (see isUserMissError) is a NotFound miss; other failures surface
+// as Unexpected so callers can tell an auth-service outage apart from an absent user.
 func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal string) (*model.UserMetadata, error) {
-	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(principal))
+	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthUserMetadataReadSubject, []byte(strings.TrimSpace(principal)))
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(string(msg.Data)) == "" {
+		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
 	}
 
 	var response UserMetadataNATSResponse
@@ -135,6 +169,9 @@ func (m *messageRequest) UserMetadataByPrincipal(ctx context.Context, principal 
 	}
 
 	if !response.Success || response.Data == nil {
+		if response.Error != "" && !isUserMissError(response.Error) {
+			return nil, errors.NewUnexpected(fmt.Sprintf("user metadata lookup failed for principal %s: %s", redaction.Redact(principal), response.Error))
+		}
 		return nil, errors.NewNotFound(fmt.Sprintf("user metadata not found for principal: %s", redaction.Redact(principal)))
 	}
 

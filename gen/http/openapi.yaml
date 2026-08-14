@@ -34,7 +34,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -175,7 +175,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -259,7 +259,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -328,7 +328,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -623,7 +623,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -777,7 +777,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -957,7 +957,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1108,7 +1108,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1171,7 +1171,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1530,7 +1530,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1607,7 +1607,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1730,7 +1730,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1876,7 +1876,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -1939,13 +1939,19 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
                 - name: X-Skip-Notification
                   in: header
-                  description: When true, suppress the invite/notification email sent to the new member (used for silent bulk imports)
+                  description: When true, suppress the notification email sent to the committee member (whether added or removed)
+                  required: false
+                  type: boolean
+                  default: false
+                - name: X-Skip-Enrichment
+                  in: header
+                  description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
                   required: false
                   type: boolean
                   default: false
@@ -2102,7 +2108,13 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  required: false
+                  type: boolean
+                  default: false
+                - name: X-Skip-Enrichment
+                  in: header
+                  description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
                   required: false
                   type: boolean
                   default: false
@@ -2190,7 +2202,13 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  required: false
+                  type: boolean
+                  default: false
+                - name: X-Skip-Notification
+                  in: header
+                  description: When true, suppress the notification email sent to the committee member (whether added or removed)
                   required: false
                   type: boolean
                   default: false
@@ -2320,7 +2338,7 @@ paths:
                   type: string
                 - name: X-Sync
                   in: header
-                  description: Determines if the operation should be synchronous (true) or asynchronous (false, default)
+                  description: Requests synchronous processing for applicable downstream operations, including indexer messages. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
                   required: false
                   type: boolean
                   default: false
@@ -2602,6 +2620,90 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/weekly-briefs/share-to-chat:
+        post:
+            tags:
+                - committee-service
+            summary: share-weekly-brief-to-chat committee-service
+            description: Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. Only Slack Incoming Webhooks (hooks.slack.com) are currently supported; other chat platforms are not supported. The caller must supply the revision from GET /current as an optimistic-concurrency guard. Returns 404 when no brief exists for the current window, 400 when the brief is not in a shareable state (generated, edited, or approved), 409 when the revision is stale, 422 when no chat webhook URL is configured in committee settings.
+            operationId: committee-service#share-weekly-brief-to-chat
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: Share-Weekly-Brief-To-ChatRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceShareWeeklyBriefToChatRequestBody'
+                    required:
+                        - revision
+            responses:
+                "204":
+                    description: No Content response.
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefRevisionConflictError'
+                        required:
+                            - code
+                            - revision
+                "422":
+                    description: Unprocessable Entity response.
+                    schema:
+                        $ref: '#/definitions/NoChatWebhookError'
+                        required:
+                            - code
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/b2b-org/{uid}/seats:
         get:
             tags:
@@ -2846,6 +2948,28 @@ definitions:
                 description: Application message from the applicant
                 example: I would like to join the TSC to contribute my expertise.
                 maxLength: 2000
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
@@ -2870,6 +2994,10 @@ definitions:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             message: I would like to join the TSC to contribute my expertise.
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
             reviewer_notes: Approved based on contribution history.
             status: pending
             uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -2905,6 +3033,7 @@ definitions:
                     - Marketing Committee/Sub Committee
                     - Marketing Mailing List
                     - Marketing Oversight Committee/Marketing Advisory Committee
+                    - Newsletter
                     - Other
                     - Product Security
                     - Special Interest Group
@@ -2918,6 +3047,17 @@ definitions:
                 description: The chat channel URL or identifier for the committee
                 example: https://slack.example.org/channels/tsc
                 maxLength: 500
+            deliverables:
+                type: array
+                items:
+                    type: string
+                    example: oq6
+                    maxLength: 500
+                description: The deliverables of the committee, as a list of bullet points
+                example:
+                    - Quarterly technical roadmap
+                    - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -2933,6 +3073,17 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            external_sources:
+                type: array
+                items:
+                    $ref: '#/definitions/ExternalSource'
+                description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                example:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
+                maxItems: 50
             has_mailing_list:
                 type: boolean
                 description: Whether the committee has any associated mailing lists
@@ -2948,6 +3099,15 @@ definitions:
                     - invite_only
                     - application
                     - closed
+            key_dates:
+                type: array
+                items:
+                    $ref: '#/definitions/KeyDate'
+                description: Timeline of important dates for the committee
+                example:
+                    - date: 2026-04
+                      label: Charter renewal
+                maxItems: 50
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -2978,11 +3138,28 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
+            repository:
+                type: string
+                description: The URL of the committee's code repository
+                example: https://github.com/example/repo
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            scope:
+                type: array
+                items:
+                    type: string
+                    example: z4l
+                    maxLength: 500
+                description: The scope of the committee, as a list of bullet points
+                example:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
+                maxItems: 50
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -3014,25 +3191,40 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
         description: A base representation of LFX committees with readonly attributes.
         example:
             calendar:
                 public: true
             category: Technical Steering Committee
             chat_channel: https://slack.example.org/channels/tsc
+            deliverables:
+                - Quarterly technical roadmap
+                - Annual governance review
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            external_sources:
+                - entity_type: group
+                  label: CNCF Meetup - San Francisco
+                  provider: ocg
+                  url: https://community.cncf.io/cncf-meetup-san-francisco/
             has_mailing_list: true
             join_mode: open
+            key_dates:
+                - date: 2026-04
+                  label: Charter renewal
             mailing_list: tsc@lists.example.org
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_name: Linux Foundation Project
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
+            repository: https://github.com/example/repo
             requires_review: true
+            scope:
+                - Define governance for the project
+                - Review and approve major architectural changes
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
             total_members: 15
@@ -3057,6 +3249,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             description:
                 type: string
                 description: Optional description
@@ -3093,14 +3287,17 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
-            uploaded_by_username:
-                type: string
-                description: LF username of the uploader (auto-populated from JWT)
-                example: alexlee
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             content_type: application/pdf
             created_at: "2023-01-15T10:30:00Z"
+            created_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             description: Technical architecture decisions for Q1 2025
             file_name: architecture-decisions-q1-2025.pdf
             file_size: 204800
@@ -3108,7 +3305,11 @@ definitions:
             name: Architecture Decision Record
             uid: d1e2f3a4-b5c6-7890-defa-123456789012
             updated_at: "2023-06-20T14:45:30Z"
-            uploaded_by_username: alexlee
+            updated_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
     CommitteeFullWithReadonlyAttributes:
         title: CommitteeFullWithReadonlyAttributes
         type: object
@@ -3156,6 +3357,7 @@ definitions:
                     - Marketing Committee/Sub Committee
                     - Marketing Mailing List
                     - Marketing Oversight Committee/Marketing Advisory Committee
+                    - Newsletter
                     - Other
                     - Product Security
                     - Special Interest Group
@@ -3169,6 +3371,17 @@ definitions:
                 description: The chat channel URL or identifier for the committee
                 example: https://slack.example.org/channels/tsc
                 maxLength: 500
+            deliverables:
+                type: array
+                items:
+                    type: string
+                    example: 2lj
+                    maxLength: 500
+                description: The deliverables of the committee, as a list of bullet points
+                example:
+                    - Quarterly technical roadmap
+                    - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -3184,6 +3397,17 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            external_sources:
+                type: array
+                items:
+                    $ref: '#/definitions/ExternalSource'
+                description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                example:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
+                maxItems: 50
             has_mailing_list:
                 type: boolean
                 description: Whether the committee has any associated mailing lists
@@ -3199,6 +3423,15 @@ definitions:
                     - invite_only
                     - application
                     - closed
+            key_dates:
+                type: array
+                items:
+                    $ref: '#/definitions/KeyDate'
+                description: Timeline of important dates for the committee
+                example:
+                    - date: 2026-04
+                      label: Charter renewal
+                maxItems: 50
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -3241,11 +3474,28 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
+            repository:
+                type: string
+                description: The URL of the committee's code repository
+                example: https://github.com/example/repo
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            scope:
+                type: array
+                items:
+                    type: string
+                    example: lvl
+                    maxLength: 500
+                description: The scope of the committee, as a list of bullet points
+                example:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
+                maxItems: 50
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -3282,7 +3532,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             writers:
                 type: array
                 items:
@@ -3304,11 +3554,22 @@ definitions:
                 public: true
             category: Technical Steering Committee
             chat_channel: https://slack.example.org/channels/tsc
+            deliverables:
+                - Quarterly technical roadmap
+                - Annual governance review
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            external_sources:
+                - entity_type: group
+                  label: CNCF Meetup - San Francisco
+                  provider: ocg
+                  url: https://community.cncf.io/cncf-meetup-san-francisco/
             has_mailing_list: true
             join_mode: open
+            key_dates:
+                - date: 2026-04
+                  label: Charter renewal
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             mailing_list: tsc@lists.example.org
@@ -3317,7 +3578,11 @@ definitions:
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
+            repository: https://github.com/example/repo
             requires_review: true
+            scope:
+                - Define governance for the project
+                - Review and approve major architectural changes
             show_meeting_attendees: false
             sso_group_enabled: true
             sso_group_name: lfx-committee-group
@@ -3425,10 +3690,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_username:
-                type: string
-                description: LF username of the user who created the folder (auto-populated from JWT)
-                example: alexlee
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             name:
                 type: string
                 description: Folder name
@@ -3444,14 +3707,25 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
         description: A folder for organizing committee links.
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_username: alexlee
+            created_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             name: Meeting Notes
             uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             updated_at: "2023-06-20T14:45:30Z"
+            updated_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
     CommitteeLinkWithReadonlyAttributes:
         title: CommitteeLinkWithReadonlyAttributes
         type: object
@@ -3466,10 +3740,8 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
-            created_by_username:
-                type: string
-                description: LF username of the user who added the link (auto-populated from JWT)
-                example: alexlee
+            created_by:
+                $ref: '#/definitions/CommitteeUser'
             description:
                 type: string
                 description: Optional description
@@ -3495,6 +3767,8 @@ definitions:
                 description: The timestamp when the resource was last updated (read-only)
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
             url:
                 type: string
                 description: The URL this link points to
@@ -3504,12 +3778,21 @@ definitions:
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
-            created_by_username: alexlee
+            created_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             description: Confluence wiki — architecture decisions log
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Technical Architecture Decision Records
             uid: c1d2e3f4-a5b6-7890-cdef-123456789012
             updated_at: "2023-06-20T14:45:30Z"
+            updated_by:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             url: https://confluence.example.com/architecture-decisions
     CommitteeMemberFullWithReadonlyAttributes:
         title: CommitteeMemberFullWithReadonlyAttributes
@@ -3723,12 +4006,18 @@ definitions:
         title: CommitteeServiceApproveApplicationRequestBody
         type: object
         properties:
+            notify:
+                type: boolean
+                description: When true, send an acceptance email to the applicant. Defaults to false.
+                default: false
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
                 example: Approved based on contribution history.
                 maxLength: 2000
         example:
+            notify: false
             reviewer_notes: Approved based on contribution history.
     CommitteeServiceCreateCommitteeLinkFolderRequestBody:
         title: CommitteeServiceCreateCommitteeLinkFolderRequestBody
@@ -3750,12 +4039,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: "287"
+                example: 4qt
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 74716d5c-f7a8-4527-ae14-7aa23b2af4db
+                example: 8ece09ba-89b9-4892-9648-0a0aaf4fe104
                 format: uuid
             name:
                 type: string
@@ -3768,8 +4057,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: 5o7
-            folder_uid: 836400f7-e52b-4e05-922b-5779e5d6bfe9
+            description: d5r
+            folder_uid: d5b157a9-e164-4a65-a6a0-b50bebe622f5
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -3996,6 +4285,7 @@ definitions:
                     - Marketing Committee/Sub Committee
                     - Marketing Mailing List
                     - Marketing Oversight Committee/Marketing Advisory Committee
+                    - Newsletter
                     - Other
                     - Product Security
                     - Special Interest Group
@@ -4009,6 +4299,23 @@ definitions:
                 description: The chat channel URL or identifier for the committee
                 example: https://slack.example.org/channels/tsc
                 maxLength: 500
+            chat_webhook_url:
+                type: string
+                description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
+                example: i5o
+                pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
+                maxLength: 500
+            deliverables:
+                type: array
+                items:
+                    type: string
+                    example: m45
+                    maxLength: 500
+                description: The deliverables of the committee, as a list of bullet points
+                example:
+                    - Quarterly technical roadmap
+                    - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -4024,6 +4331,17 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            external_sources:
+                type: array
+                items:
+                    $ref: '#/definitions/ExternalSource'
+                description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                example:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
+                maxItems: 50
             join_mode:
                 type: string
                 description: How new members can join this committee
@@ -4034,6 +4352,15 @@ definitions:
                     - invite_only
                     - application
                     - closed
+            key_dates:
+                type: array
+                items:
+                    $ref: '#/definitions/KeyDate'
+                description: Timeline of important dates for the committee
+                example:
+                    - date: 2026-04
+                      label: Charter renewal
+                maxItems: 50
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4076,11 +4403,28 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
+            repository:
+                type: string
+                description: The URL of the committee's code repository
+                example: https://github.com/example/repo
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            scope:
+                type: array
+                items:
+                    type: string
+                    example: ijw
+                    maxLength: 500
+                description: The scope of the committee, as a list of bullet points
+                example:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
+                maxItems: 50
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -4096,7 +4440,7 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             writers:
                 type: array
                 items:
@@ -4118,10 +4462,22 @@ definitions:
                 public: true
             category: Technical Steering Committee
             chat_channel: https://slack.example.org/channels/tsc
+            chat_webhook_url: aaq
+            deliverables:
+                - Quarterly technical roadmap
+                - Annual governance review
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            external_sources:
+                - entity_type: group
+                  label: CNCF Meetup - San Francisco
+                  provider: ocg
+                  url: https://community.cncf.io/cncf-meetup-san-francisco/
             join_mode: open
+            key_dates:
+                - date: 2026-04
+                  label: Charter renewal
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             mailing_list: tsc@lists.example.org
@@ -4130,7 +4486,11 @@ definitions:
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
+            repository: https://github.com/example/repo
             requires_review: true
+            scope:
+                - Define governance for the project
+                - Review and approve major architectural changes
             show_meeting_attendees: false
             sso_group_enabled: true
             website: https://committee.example.org
@@ -4254,13 +4614,33 @@ definitions:
         title: CommitteeServiceRejectApplicationRequestBody
         type: object
         properties:
+            notify:
+                type: boolean
+                description: When true, send a rejection email to the applicant. Defaults to false.
+                default: false
+                example: false
             reviewer_notes:
                 type: string
                 description: Notes from the reviewer
                 example: Does not meet current requirements.
                 maxLength: 2000
         example:
+            notify: false
             reviewer_notes: Does not meet current requirements.
+    CommitteeServiceShareWeeklyBriefToChatRequestBody:
+        title: CommitteeServiceShareWeeklyBriefToChatRequestBody
+        type: object
+        properties:
+            revision:
+                type: integer
+                description: Optimistic-concurrency token from GET /current
+                example: 7
+                format: int64
+                minimum: 1
+        example:
+            revision: 7
+        required:
+            - revision
     CommitteeServiceSubmitApplicationRequestBody:
         title: CommitteeServiceSubmitApplicationRequestBody
         type: object
@@ -4270,8 +4650,40 @@ definitions:
                 description: Application message
                 example: I would like to join the TSC to contribute my expertise.
                 maxLength: 2000
+            notify:
+                type: boolean
+                description: When true, send email notifications to committee writers about the new application. Defaults to false.
+                default: false
+                example: false
+            organization:
+                type: object
+                properties:
+                    id:
+                        type: string
+                        description: Organization ID
+                        example: org-123456
+                    name:
+                        type: string
+                        description: Organization name
+                        example: The Linux Foundation
+                        maxLength: 200
+                    website:
+                        type: string
+                        description: Organization website URL
+                        example: https://linuxfoundation.org
+                        format: uri
+                description: Organization information for the committee member
+                example:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
         example:
             message: I would like to join the TSC to contribute my expertise.
+            notify: false
+            organization:
+                id: org-123456
+                name: The Linux Foundation
+                website: https://linuxfoundation.org
     CommitteeServiceUpdateCommitteeBaseRequestBody:
         title: CommitteeServiceUpdateCommitteeBaseRequestBody
         type: object
@@ -4304,6 +4716,7 @@ definitions:
                     - Marketing Committee/Sub Committee
                     - Marketing Mailing List
                     - Marketing Oversight Committee/Marketing Advisory Committee
+                    - Newsletter
                     - Other
                     - Product Security
                     - Special Interest Group
@@ -4317,6 +4730,17 @@ definitions:
                 description: The chat channel URL or identifier for the committee
                 example: https://slack.example.org/channels/tsc
                 maxLength: 500
+            deliverables:
+                type: array
+                items:
+                    type: string
+                    example: vg3
+                    maxLength: 500
+                description: The deliverables of the committee, as a list of bullet points
+                example:
+                    - Quarterly technical roadmap
+                    - Annual governance review
+                maxItems: 50
             description:
                 type: string
                 description: The description of the committee
@@ -4332,6 +4756,17 @@ definitions:
                 description: Whether voting is enabled for this committee
                 default: false
                 example: true
+            external_sources:
+                type: array
+                items:
+                    $ref: '#/definitions/ExternalSource'
+                description: External source-labeled entities linked to this committee (e.g. OCG groups or events)
+                example:
+                    - entity_type: group
+                      label: CNCF Meetup - San Francisco
+                      provider: ocg
+                      url: https://community.cncf.io/cncf-meetup-san-francisco/
+                maxItems: 50
             join_mode:
                 type: string
                 description: How new members can join this committee
@@ -4342,6 +4777,15 @@ definitions:
                     - invite_only
                     - application
                     - closed
+            key_dates:
+                type: array
+                items:
+                    $ref: '#/definitions/KeyDate'
+                description: Timeline of important dates for the committee
+                example:
+                    - date: 2026-04
+                      label: Charter renewal
+                maxItems: 50
             mailing_list:
                 type: string
                 description: The mailing list email address for the committee
@@ -4367,11 +4811,28 @@ definitions:
                 description: General committee visibility/access permissions
                 default: false
                 example: true
+            repository:
+                type: string
+                description: The URL of the committee's code repository
+                example: https://github.com/example/repo
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
             requires_review:
                 type: boolean
                 description: Whether this committee is expected to be reviewed
                 default: false
                 example: true
+            scope:
+                type: array
+                items:
+                    type: string
+                    example: z5b
+                    maxLength: 500
+                description: The scope of the committee, as a list of bullet points
+                example:
+                    - Define governance for the project
+                    - Review and approve major architectural changes
+                maxItems: 50
             sso_group_enabled:
                 type: boolean
                 description: Whether SSO group integration is enabled
@@ -4382,22 +4843,37 @@ definitions:
                 description: The website URL of the committee
                 example: https://committee.example.org
                 format: uri
-                pattern: ^(https?://)?[^\s/$.?#].[^\s]*$
+                pattern: ^https?://[^\s/$.?#][^\s]*$
         example:
             calendar:
                 public: true
             category: Technical Steering Committee
             chat_channel: https://slack.example.org/channels/tsc
+            deliverables:
+                - Quarterly technical roadmap
+                - Annual governance review
             description: Main technical oversight committee for the project
             display_name: TSC Committee Calendar
             enable_voting: true
+            external_sources:
+                - entity_type: group
+                  label: CNCF Meetup - San Francisco
+                  provider: ocg
+                  url: https://community.cncf.io/cncf-meetup-san-francisco/
             join_mode: open
+            key_dates:
+                - date: 2026-04
+                  label: Charter renewal
             mailing_list: tsc@lists.example.org
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             public: true
+            repository: https://github.com/example/repo
             requires_review: true
+            scope:
+                - Define governance for the project
+                - Review and approve major architectural changes
             sso_group_enabled: true
             website: https://committee.example.org
         required:
@@ -4597,6 +5073,12 @@ definitions:
                 description: Whether business email is required for committee members
                 default: false
                 example: false
+            chat_webhook_url:
+                type: string
+                description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
+                example: 67l
+                pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
+                maxLength: 500
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -4636,6 +5118,7 @@ definitions:
                   name: John Doe
                   username: auditor_user_id1
             business_email_required: false
+            chat_webhook_url: uon
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
@@ -4681,55 +5164,57 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Veniam assumenda.
+                example: Et quasi sapiente maxime facilis.
             description:
                 type: string
                 description: Optional description
-                example: svp
+                example: gsk
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 70
-                    - 97
-                    - 99
-                    - 101
-                    - 114
-                    - 101
+                    - 85
+                    - 116
                     - 32
+                    - 113
+                    - 117
                     - 97
-                    - 100
-                    - 105
-                    - 112
+                    - 109
+                    - 32
+                    - 113
+                    - 117
                     - 105
                     - 115
-                    - 99
-                    - 105
-                    - 32
+                    - 113
+                    - 117
                     - 97
-                    - 114
-                    - 99
-                    - 104
-                    - 105
-                    - 116
-                    - 101
-                    - 99
-                    - 116
-                    - 111
+                    - 109
                     - 32
+                    - 101
+                    - 116
+                    - 32
+                    - 101
+                    - 110
+                    - 105
+                    - 109
+                    - 32
+                    - 118
+                    - 111
                     - 108
+                    - 117
+                    - 112
+                    - 116
                     - 97
-                    - 98
-                    - 111
-                    - 114
-                    - 101
+                    - 116
+                    - 117
+                    - 109
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Eligendi adipisci nisi totam.
+                example: Minima exercitationem et animi dicta.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -4741,57 +5226,40 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Eos aut dolor ea et.
-            description: dnp
+            content_type: Rem similique.
+            description: vua
             file:
-                - 80
-                - 97
-                - 114
-                - 105
-                - 97
-                - 116
-                - 117
-                - 114
-                - 32
-                - 113
-                - 117
-                - 111
-                - 32
-                - 108
-                - 97
-                - 98
-                - 111
-                - 114
-                - 105
-                - 111
-                - 115
-                - 97
-                - 109
-                - 32
-                - 113
-                - 117
-                - 105
-                - 115
-                - 113
-                - 117
-                - 97
-                - 109
-                - 32
-                - 104
-                - 97
-                - 114
-                - 117
-                - 109
-                - 32
-                - 113
-                - 117
+                - 83
                 - 97
                 - 101
-                - 114
+                - 112
+                - 101
+                - 32
+                - 111
+                - 99
+                - 99
+                - 97
+                - 101
+                - 99
                 - 97
                 - 116
+                - 105
+                - 32
+                - 105
+                - 108
+                - 108
+                - 111
+                - 32
+                - 97
+                - 117
+                - 116
+                - 32
+                - 117
+                - 110
+                - 100
+                - 101
                 - 46
-            file_name: Qui odit dolor temporibus eius.
+            file_name: Sed sed.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -4925,6 +5393,71 @@ definitions:
             message: The resource already exists.
         required:
             - message
+    ExternalSource:
+        title: ExternalSource
+        type: object
+        properties:
+            entity_type:
+                type: string
+                description: The type of entity in the external platform
+                example: group
+                enum:
+                    - community
+                    - group
+                    - event
+            external_category:
+                type: string
+                description: The community-managed category of the entity in the external platform
+                example: Meetup
+                maxLength: 200
+            external_event_category:
+                type: string
+                description: The community-managed event category of the entity in the external platform
+                example: Virtual
+                maxLength: 200
+            external_id:
+                type: string
+                description: The identifier of the entity within the external platform
+                example: cncf-meetup-san-francisco
+                maxLength: 200
+            external_region:
+                type: string
+                description: The community-managed region of the entity in the external platform
+                example: North America
+                maxLength: 200
+            label:
+                type: string
+                description: Human-readable label for the linked external entity
+                example: CNCF Meetup - San Francisco
+                maxLength: 200
+            provider:
+                type: string
+                description: The external platform that owns this linked entity
+                example: ocg
+                enum:
+                    - ocg
+            url:
+                type: string
+                description: The URL of the linked external entity
+                example: https://community.cncf.io/cncf-meetup-san-francisco/
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
+                maxLength: 2048
+        description: A single source-labeled external entity linked to a committee (e.g. an OCG group or event).
+        example:
+            entity_type: group
+            external_category: Meetup
+            external_event_category: Virtual
+            external_id: cncf-meetup-san-francisco
+            external_region: North America
+            label: CNCF Meetup - San Francisco
+            provider: ocg
+            url: https://community.cncf.io/cncf-meetup-san-francisco/
+        required:
+            - provider
+            - entity_type
+            - label
+            - url
     ForbiddenError:
         title: ForbiddenError
         type: object
@@ -4948,9 +5481,10 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: zhe
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                error_reason: Iste praesentium autem.
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -4959,15 +5493,19 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: zl1
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5014,9 +5552,10 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: sub
+                brief_text: zhe
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                error_reason: Iste praesentium autem.
                 last_edited_at: "2026-05-18T14:03:00Z"
                 last_edited_by: jsmith
                 model: fake
@@ -5025,15 +5564,19 @@ definitions:
                 regeneration_count: 0
                 revision: 7
                 source_refs:
-                    - excerpt: 0jc
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: zl1
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5077,7 +5620,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: rj0
+                example: c2z
                 maxLength: 5000
             id:
                 type: string
@@ -5093,7 +5636,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: tel
+            excerpt: mok
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5198,7 +5741,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: zxj
+                example: sem
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5210,6 +5753,10 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            error_reason:
+                type: string
+                description: Machine-readable reason for the error state; absent on non-error briefs
+                example: Quia sunt labore itaque repellat.
             last_edited_at:
                 type: string
                 description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -5249,11 +5796,19 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: 0jc
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
+                    - excerpt: zl1
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: zl1
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: zl1
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5289,9 +5844,10 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: vuy
+            brief_text: zoi
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
+            error_reason: Eveniet quas enim eveniet.
             last_edited_at: "2026-05-18T14:03:00Z"
             last_edited_by: jsmith
             model: fake
@@ -5300,19 +5856,11 @@ definitions:
             regeneration_count: 0
             revision: 7
             source_refs:
-                - excerpt: 0jc
+                - excerpt: zl1
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
-                - excerpt: 0jc
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
-                - excerpt: 0jc
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
-                - excerpt: 0jc
+                - excerpt: zl1
                   id: https://meet.example.org/abc123
                   kind: meeting
                   title: 2026-05-12 weekly sync
@@ -5333,6 +5881,48 @@ definitions:
         example:
             message: An internal server error occurred.
         required:
+            - message
+    KeyDate:
+        title: KeyDate
+        type: object
+        properties:
+            date:
+                type: string
+                description: The month of the key date, in YYYY-MM format
+                example: 2026-04
+                pattern: ^\d{4}-(0[1-9]|1[0-2])$
+            label:
+                type: string
+                description: Label describing the key date
+                example: Charter renewal
+                maxLength: 200
+        description: A single entry in a committee's key-dates timeline.
+        example:
+            date: 2026-04
+            label: Charter renewal
+        required:
+            - date
+            - label
+    NoChatWebhookError:
+        title: NoChatWebhookError
+        type: object
+        properties:
+            code:
+                type: string
+                description: Stable machine code
+                example: no_chat_webhook
+                enum:
+                    - no_chat_webhook
+            message:
+                type: string
+                description: Human-readable description
+                example: Doloremque et consequatur nostrum eos.
+        description: No chat webhook URL is configured for this committee
+        example:
+            code: no_chat_webhook
+            message: Porro qui quaerat ipsam.
+        required:
+            - code
             - message
     NotFoundError:
         title: NotFoundError
@@ -5555,27 +6145,27 @@ definitions:
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       username: user123
                       voting_status: Voting Rep
-                    - appointed_by: Community
-                      avatar: https://example.com/avatar.png
-                      committee_category: Board
-                      committee_name: Technical Steering Committee
-                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      email: user@example.com
-                      first_name: John
-                      is_org_editable: true
-                      job_title: Chief Technology Officer
-                      last_name: Doe
-                      organization_id: 001B000000IqhSLIAZ
-                      project_slug: example-foundation
-                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      reason: This seat is foundation-controlled.
-                      role_name: Chair
-                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                      username: user123
-                      voting_status: Voting Rep
         example:
             page_token: eyJvIjoxMDB9
             seats:
+                - appointed_by: Community
+                  avatar: https://example.com/avatar.png
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  project_slug: example-foundation
+                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
+                  voting_status: Voting Rep
                 - appointed_by: Community
                   avatar: https://example.com/avatar.png
                   committee_category: Board

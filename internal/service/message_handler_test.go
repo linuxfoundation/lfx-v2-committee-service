@@ -503,14 +503,18 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 	})
 }
 
-// spyCommitteePublisher records Indexer calls so tests can assert on them.
+// spyCommitteePublisher records publisher calls so tests can assert on them.
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
-	// capturedAccessSubjects records the NATS subject for each Access call.
+	// capturedAccessSubjects records the subject for each UpdateAccess call.
 	capturedAccessSubjects []string
-	// capturedAccessMsgs records the raw message value for each Access call.
+	// capturedAccessMsgs records the raw message value for each UpdateAccess call.
 	capturedAccessMsgs []any
+	// capturedMemberPutMsgs records messages sent through MemberPut.
+	capturedMemberPutMsgs []any
+	// capturedMemberRemoveMsgs records messages sent through MemberRemove.
+	capturedMemberRemoveMsgs []any
 }
 
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
@@ -518,9 +522,20 @@ func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any
 	s.lastSubject = subject
 	return nil
 }
-func (s *spyCommitteePublisher) Access(_ context.Context, subject string, msg any, _ bool) error {
-	s.capturedAccessSubjects = append(s.capturedAccessSubjects, subject)
+func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
+	s.capturedAccessSubjects = append(s.capturedAccessSubjects, fgaconstants.GenericUpdateAccessSubject)
 	s.capturedAccessMsgs = append(s.capturedAccessMsgs, msg)
+	return nil
+}
+func (s *spyCommitteePublisher) DeleteAccess(_ context.Context, _ any) error {
+	return nil
+}
+func (s *spyCommitteePublisher) MemberPut(_ context.Context, msg any) error {
+	s.capturedMemberPutMsgs = append(s.capturedMemberPutMsgs, msg)
+	return nil
+}
+func (s *spyCommitteePublisher) MemberRemove(_ context.Context, msg any) error {
+	s.capturedMemberRemoveMsgs = append(s.capturedMemberRemoveMsgs, msg)
 	return nil
 }
 func (s *spyCommitteePublisher) Event(_ context.Context, _ string, _ any, _ bool) error {
@@ -656,14 +671,17 @@ func (m *mockStreamMessenger) Data() []byte    { return m.data }
 
 // spyCommitteeWriterOrchestrator records Update, UpdateMember, and UpdateSettings calls and can be configured to fail.
 type spyCommitteeWriterOrchestrator struct {
+	mu sync.Mutex
+
 	updateCalls      int
 	updateErr        error
 	updatedCommittee *model.Committee
 
-	updateMemberCalls int
-	updateMemberErr   error
-	updateMemberErrs  []error
-	updatedMembers    []*model.CommitteeMember
+	updateMemberCalls      int
+	updateMemberErr        error
+	updateMemberErrs       []error
+	updatedMembers         []*model.CommitteeMember
+	capturedSkipEnrichment []bool
 
 	updateSettingsCalls int
 	updateSettingsErr   error
@@ -677,11 +695,15 @@ func (s *spyCommitteeWriterOrchestrator) Create(_ context.Context, _ *model.Comm
 	return nil, nil
 }
 func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Committee, _ uint64, _ bool) (*model.Committee, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateCalls++
 	s.updatedCommittee = c
 	return c, s.updateErr
 }
 func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateSettingsCalls++
 	// Deep-copy the snapshot so later in-place mutations by the handler don't overwrite it.
 	snap := *settings
@@ -699,13 +721,16 @@ func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, setti
 func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ uint64, _ bool) error {
 	return nil
 }
-func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
+func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool, _ bool) (*model.CommitteeMember, error) {
 	return nil, nil
 }
-func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool) (*model.CommitteeMember, error) {
+func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateMemberCalls++
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
+	s.capturedSkipEnrichment = append(s.capturedSkipEnrichment, skipEnrichment)
 	if len(s.updateMemberErrs) > 0 {
 		err := s.updateMemberErrs[0]
 		s.updateMemberErrs = s.updateMemberErrs[1:]
@@ -713,7 +738,7 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	}
 	return member, s.updateMemberErr
 }
-func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool) error {
+func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
 	return nil
 }
 func (s *spyCommitteeWriterOrchestrator) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
@@ -1616,8 +1641,16 @@ func TestDiffNewCommitteeUsers(t *testing.T) {
 
 func buildMemberDeletedPayload(t *testing.T, member *model.CommitteeMember) []byte {
 	t.Helper()
+	return buildMemberDeletedPayloadWithSkip(t, member, false)
+}
+
+func buildMemberDeletedPayloadWithSkip(t *testing.T, member *model.CommitteeMember, skipNotification bool) []byte {
+	t.Helper()
 	event := model.CommitteeEvent{}
-	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionDeleted, member)
+	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionDeleted, &model.CommitteeMemberDeletedEventData{
+		CommitteeMember:  member,
+		SkipNotification: skipNotification,
+	})
 	require.NoError(t, err)
 	data, err := json.Marshal(built)
 	require.NoError(t, err)
@@ -1687,6 +1720,11 @@ func TestHandleCommitteeMemberDeleted(t *testing.T) {
 			msgData:        buildMemberDeletedPayload(t, lfidMember),
 			emailSenderErr: assert.AnError,
 			wantEmailCount: 1,
+		},
+		{
+			name:           "skip_notification set — no email sent",
+			msgData:        buildMemberDeletedPayloadWithSkip(t, lfidMember, true),
+			wantEmailCount: 0,
 		},
 		{
 			name:           "invalid JSON — handler returns nil without panic",
