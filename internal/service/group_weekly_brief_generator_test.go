@@ -755,11 +755,11 @@ func TestDerivePrivateSourcePresent_AISummaries(t *testing.T) {
 		summaries := []port.MeetingAISummaryActivity{
 			{Title: "Public Summary", Private: false},
 		}
-		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes))
+		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes, nil))
 	})
 
 	t.Run("no summaries, no other private sources → false", func(t *testing.T) {
-		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes))
+		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes, nil))
 	})
 }
 
@@ -934,14 +934,14 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	}
 
 	t.Run("membersHidden=false includes names", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, false)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, false)
 		require.Len(t, claims, 1)
 		assert.Contains(t, claims[0].Summary, "Jane Doe")
 		assert.Contains(t, claims[0].Summary, "John Smith")
 	})
 
 	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, true)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, true)
 		require.Len(t, claims, 1)
 		assert.NotContains(t, claims[0].Summary, "Jane")
 		assert.NotContains(t, claims[0].Summary, "Doe")
@@ -1054,4 +1054,34 @@ func TestVoteParticipationExcerpt_NoTally_WithInvitation_UsesResponseCounts(t *t
 func TestVoteParticipationExcerpt_NoTallyNoInvitation_ReturnsEmpty(t *testing.T) {
 	v := port.VoteActivity{VoteID: "v1"}
 	assert.Equal(t, "", voteParticipationExcerpt(v))
+}
+
+// ── surveyResponseLabel ───────────────────────────────────────────────────────
+
+func TestSurveyResponseLabel_NoRecipients_ReturnsEmpty(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 0, TotalResponses: 0}
+	assert.Equal(t, "", surveyResponseLabel(sv))
+}
+
+func TestSurveyResponseLabel_FormatsResponseCount(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
+	assert.Equal(t, " — 14 of 30 responded", surveyResponseLabel(sv))
+}
+
+// ── surveyParticipationExcerpt ────────────────────────────────────────────────
+
+func TestSurveyParticipationExcerpt_NoRecipients_ReturnsEmpty(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1"}
+	assert.Equal(t, "", surveyParticipationExcerpt(sv))
+}
+
+func TestSurveyParticipationExcerpt_FormatsWithPercentage(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
+	got := surveyParticipationExcerpt(sv)
+	assert.Equal(t, "14 of 30 responded (46%)", got)
+}
+
+func TestSurveyParticipationExcerpt_FullResponse_100Percent(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 10, TotalResponses: 10}
+	assert.Equal(t, "10 of 10 responded (100%)", surveyParticipationExcerpt(sv))
 }
