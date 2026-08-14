@@ -642,7 +642,7 @@ func TestConvertSettingsToResponse(t *testing.T) {
 			name: "has_chat_webhook true when webhook URL is set",
 			settings: &model.CommitteeSettings{
 				UID:            "committee-789",
-				ChatWebhookURL: stringPtr("https://hooks.slack.com/services/T000/B000/xxxx"),
+				ChatWebhookURL: stringPtr("webhook-url-placeholder"),
 				CreatedAt:      createdAt,
 				UpdatedAt:      updatedAt,
 			},
