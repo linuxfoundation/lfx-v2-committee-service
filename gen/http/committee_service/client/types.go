@@ -573,6 +573,10 @@ type UpdateCommitteeSettingsResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has a Slack webhook configured for sharing the weekly
+	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
+	// never returned.
+	HasChatWebhook *bool `form:"has_chat_webhook,omitempty" json:"has_chat_webhook,omitempty" xml:"has_chat_webhook,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2865,6 +2869,10 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has a Slack webhook configured for sharing the weekly
+	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
+	// never returned.
+	HasChatWebhook *bool `form:"has_chat_webhook,omitempty" json:"has_chat_webhook,omitempty" xml:"has_chat_webhook,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -4318,6 +4326,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.HasChatWebhook != nil {
+		v.HasChatWebhook = *body.HasChatWebhook
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
@@ -4338,6 +4349,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 		for i, val := range body.Auditors {
 			v.Auditors[i] = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(val)
 		}
+	}
+	if body.HasChatWebhook == nil {
+		v.HasChatWebhook = false
 	}
 	res := &committeeservice.GetCommitteeSettingsResult{
 		CommitteeSettings: v,
@@ -4397,6 +4411,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.HasChatWebhook != nil {
+		v.HasChatWebhook = *body.HasChatWebhook
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
@@ -4417,6 +4434,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 		for i, val := range body.Auditors {
 			v.Auditors[i] = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(val)
 		}
+	}
+	if body.HasChatWebhook == nil {
+		v.HasChatWebhook = false
 	}
 
 	return v

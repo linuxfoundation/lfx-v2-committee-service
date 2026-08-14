@@ -573,6 +573,10 @@ type UpdateCommitteeSettingsResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has a Slack webhook configured for sharing the weekly
+	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
+	// never returned.
+	HasChatWebhook bool `form:"has_chat_webhook" json:"has_chat_webhook" xml:"has_chat_webhook"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -2825,6 +2829,10 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
+	// Whether the committee has a Slack webhook configured for sharing the weekly
+	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
+	// never returned.
+	HasChatWebhook bool `form:"has_chat_webhook" json:"has_chat_webhook" xml:"has_chat_webhook"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -3528,6 +3536,7 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 		LastReviewedBy:        res.CommitteeSettings.LastReviewedBy,
 		MemberVisibility:      res.CommitteeSettings.MemberVisibility,
 		ShowMeetingAttendees:  res.CommitteeSettings.ShowMeetingAttendees,
+		HasChatWebhook:        res.CommitteeSettings.HasChatWebhook,
 		CreatedAt:             res.CommitteeSettings.CreatedAt,
 		UpdatedAt:             res.CommitteeSettings.UpdatedAt,
 	}
@@ -3561,6 +3570,12 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
 		}
 	}
+	{
+		var zero bool
+		if body.HasChatWebhook == zero {
+			body.HasChatWebhook = false
+		}
+	}
 	return body
 }
 
@@ -3575,6 +3590,7 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		LastReviewedBy:        res.LastReviewedBy,
 		MemberVisibility:      res.MemberVisibility,
 		ShowMeetingAttendees:  res.ShowMeetingAttendees,
+		HasChatWebhook:        res.HasChatWebhook,
 		CreatedAt:             res.CreatedAt,
 		UpdatedAt:             res.UpdatedAt,
 	}
@@ -3606,6 +3622,12 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		body.Auditors = make([]*CommitteeUserResponseBody, len(res.Auditors))
 		for i, val := range res.Auditors {
 			body.Auditors[i] = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(val)
+		}
+	}
+	{
+		var zero bool
+		if body.HasChatWebhook == zero {
+			body.HasChatWebhook = false
 		}
 	}
 	return body
