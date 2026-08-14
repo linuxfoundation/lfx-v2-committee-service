@@ -722,6 +722,27 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 	}, client)
 }
 
+// VoteResultSourceImpl builds the vote result source. It queries the
+// query service for `vote_result` resources tagged by vote_uid. Results are
+// indexed by the lfx-v2-voting-service once the PollResults DynamoDB table
+// and lfx-v1-sync-helper stream handler are live. Until then, queries return
+// zero results and the brief degrades to participation-count-only claim labels.
+// The resource type defaults to m2m.DefaultVoteResultType and can be overridden
+// via QUERY_VOTE_RESULT_TYPE.
+func VoteResultSourceImpl(ctx context.Context) port.VoteResultSource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; vote result source disabled — brief will omit vote tallies")
+		return nil
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewVoteResultSource(m2m.VoteResultSourceConfig{
+		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_VOTE_RESULT_TYPE"), // empty → DefaultVoteResultType inside NewVoteResultSource
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
 // OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
 // synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
 // by-organization secondary index.
@@ -886,6 +907,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithMeetingAISummarySource(MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
 		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
+		usecaseSvc.WithVoteResultSource(VoteResultSourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
 		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
 	)

@@ -88,13 +88,39 @@ type MailingListSource interface {
 	ListMailingListActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]MailingListActivity, error)
 }
 
+// VoteChoiceResult is the per-choice vote count for one answer option,
+// returned by VoteResultSource.
+type VoteChoiceResult struct {
+	ChoiceID   string
+	ChoiceText string
+	VoteCount  int
+	Percentage float64
+}
+
+// VoteTally is the aggregated result for a single closed vote, returned by
+// VoteResultSource. It covers the first (and usually only) poll question.
+type VoteTally struct {
+	NumRecipients int
+	NumVotesCast  int
+	NumAbstained  int
+	// ChoiceResults is the per-choice breakdown for the first poll question.
+	// For simple yes/no votes this has two entries; ranked-choice and
+	// multi-question votes may have more.
+	ChoiceResults []VoteChoiceResult
+}
+
 // VoteActivity is one vote/poll record relevant to the window.
 type VoteActivity struct {
-	VoteID  string
-	Subject string
-	URL     string
-	Outcome string
-	Private bool
+	VoteID          string
+	Name            string
+	URL             string
+	Status          string // "Open", "Closed", etc. as returned by the voting service
+	ResponseCount   int    // num_response_received
+	InvitationCount int    // total_voting_request_invitations
+	// Tally is populated by the generator after fetching vote results from
+	// VoteResultSource. Nil when the vote is still open or results are
+	// unavailable (graceful degrade — brief is still generated without tally).
+	Tally *VoteTally
 }
 
 // VoteSource returns vote/poll activity in the window.
@@ -105,6 +131,15 @@ type VoteActivity struct {
 // unset the live impl degrades to zero votes.
 type VoteSource interface {
 	ListVoteActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]VoteActivity, error)
+}
+
+// VoteResultSource fetches aggregated vote results for a single closed vote.
+// It queries the query service for indexed vote_result resources
+// (?type=vote_result&tags=vote_uid:{uid}). The source is optional; when nil
+// or when QUERY_SERVICE_URL is unset, the generator omits tally data from the
+// brief and degrades gracefully to participation-count-only claim labels.
+type VoteResultSource interface {
+	GetVoteResults(ctx context.Context, voteUID string) (*VoteTally, error)
 }
 
 // WeeklyMemberActivity bundles the joined / updated member sets for one
