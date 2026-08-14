@@ -189,12 +189,12 @@ func (m *messageHandlerOrchestrator) HandleCommitteeGetAttribute(ctx context.Con
 
 	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 	ctx = log.AppendCtx(ctx, slog.String("attribute", attribute))
-	slog.DebugContext(ctx, "committee get name request")
+	slog.DebugContext(ctx, "committee get attribute request")
 
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewValidation(fmt.Sprintf("invalid committee UID %q in get_attribute request", uid), err)
 	}
 
 	// Use the committee reader to get the committee base information
@@ -270,7 +270,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 	// Validate that the committee ID is a valid UUID.
 	_, err := uuid.Parse(uid)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewValidation(fmt.Sprintf("invalid committee UID %q in list_members request", uid), err)
 	}
 
 	// Check if the committee exists first
@@ -301,7 +301,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeListMembers(ctx context.Cont
 func (m *messageHandlerOrchestrator) HandleCommitteeMailingListChanged(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	var event model.CommitteeMailingListChangedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		return nil, err
+		return nil, errors.NewValidation("failed to unmarshal CommitteeMailingListChangedEvent", err)
 	}
 
 	if event.CommitteeUID == "" {
@@ -356,7 +356,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		return nil, err
+		return nil, errors.NewValidation("failed to unmarshal CommitteeEvent in committee_updated handler", err)
 	}
 
 	// event.Data is map[string]interface{} after JSON round-trip; re-marshal to decode into the concrete type.
@@ -457,7 +457,7 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		return err
+		return errors.NewValidation("failed to unmarshal CommitteeEvent in total_members_sync handler", err)
 	}
 
 	rawData, err := json.Marshal(event.Data)
