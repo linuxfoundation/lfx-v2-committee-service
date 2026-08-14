@@ -123,7 +123,7 @@ func WithVoteSource(s port.VoteSource) GroupWeeklyBriefGeneratorOption {
 
 // WithVoteResultSource wires the vote-result-source port. This is optional —
 // when nil, brief generation continues without per-choice tallies (graceful
-// degrade). Deployments that do not set VOTING_SERVICE_URL omit this source.
+// degrade). Deployments that do not set QUERY_SERVICE_URL omit this source.
 func WithVoteResultSource(s port.VoteResultSource) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.voteResults = s }
 }
@@ -865,10 +865,13 @@ func voteTallyLabel(v port.VoteActivity) string {
 	}
 	parts := make([]string, 0, len(v.Tally.ChoiceResults))
 	for _, c := range v.Tally.ChoiceResults {
-		label := c.ChoiceText
+		label := strings.TrimSpace(c.ChoiceText)
 		if label == "" {
-			label = c.ChoiceID
+			label = strings.TrimSpace(c.ChoiceID)
 		}
+		label = strings.ReplaceAll(label, "\n", " ")
+		label = strings.ReplaceAll(label, "\r", " ")
+		label = truncateRunes(label, 80)
 		parts = append(parts, fmt.Sprintf("%d %s", c.VoteCount, label))
 	}
 	tally := strings.Join(parts, ", ")

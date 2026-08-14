@@ -151,6 +151,7 @@ func main() {
 		usecaseSvc.WithMeetingSource(meetingSource),
 		usecaseSvc.WithMailingListSource(mailingListSource),
 		usecaseSvc.WithVoteSource(voteSource),
+		usecaseSvc.WithVoteResultSource(service.VoteResultSourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
 		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithAIAdapter(aiAdapter),

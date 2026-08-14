@@ -134,10 +134,10 @@ type VoteSource interface {
 }
 
 // VoteResultSource fetches aggregated vote results for a single closed vote.
-// It calls the voting service's results endpoint directly (not the query
-// service) because per-choice tallies are computed at runtime from individual
-// ballot records and are not indexed. The source is optional; when nil or when
-// VOTING_SERVICE_URL is unset, the generator omits tally data from the brief.
+// It queries the query service for indexed vote_result resources
+// (?type=vote_result&tags=vote_uid:{uid}). The source is optional; when nil
+// or when QUERY_SERVICE_URL is unset, the generator omits tally data from the
+// brief and degrades gracefully to participation-count-only claim labels.
 type VoteResultSource interface {
 	GetVoteResults(ctx context.Context, voteUID string) (*VoteTally, error)
 }
