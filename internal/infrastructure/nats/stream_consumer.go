@@ -161,12 +161,16 @@ func (c *NATSClient) StartUserEmailConsumer(
 	ctx context.Context,
 	handler func(ctx context.Context, msg port.StreamMessenger) error,
 ) (func(), error) {
+	// MaxDeliver is set higher than other consumers because NotFound from the auth service
+	// is a designed NAK path (propagation lag after alternate_email_added). The nakDelay
+	// exponential formula gives ~8.5 min of jitter headroom at attempt 10, so a 10-delivery
+	// budget covers realistic propagation windows without exhausting too eagerly.
 	cfg := jetstream.ConsumerConfig{
 		Name:           constants.ConsumerNameUserEmailSync,
 		Durable:        constants.ConsumerNameUserEmailSync,
 		FilterSubjects: []string{constants.UserEmailChangedSubject},
 		AckPolicy:      jetstream.AckExplicitPolicy,
-		MaxDeliver:     3,
+		MaxDeliver:     10,
 		AckWait:        30 * time.Second,
 	}
 
