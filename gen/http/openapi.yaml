@@ -5291,6 +5291,11 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            has_chat_webhook:
+                type: boolean
+                description: Whether the committee has a Slack webhook configured for sharing the weekly brief. True when chat_webhook_url is set to a non-empty value; false otherwise. The raw URL is never returned.
+                default: false
+                example: true
             last_reviewed_at:
                 type: string
                 description: The timestamp when the committee was last reviewed in RFC3339 format
@@ -5342,6 +5347,7 @@ definitions:
                   username: auditor_user_id1
             business_email_required: false
             created_at: "2023-01-15T10:30:00Z"
+            has_chat_webhook: true
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden

@@ -38,6 +38,7 @@ type CommitteeSettings struct {
 	ShowMeetingAttendees  bool            `json:"show_meeting_attendees"`
 	MemberVisibility      string          `json:"member_visibility"`
 	ChatWebhookURL        *string         `json:"chat_webhook_url,omitempty"`
+	HasChatWebhook        bool            `json:"has_chat_webhook"`
 	LastReviewedAt        *string         `json:"last_reviewed_at,omitempty"`
 	LastReviewedBy        *string         `json:"last_reviewed_by,omitempty"`
 	Writers               []CommitteeUser `json:"writers"`

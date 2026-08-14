@@ -638,6 +638,36 @@ func TestConvertSettingsToResponse(t *testing.T) {
 				BusinessEmailRequired: false,
 			},
 		},
+		{
+			name: "has_chat_webhook true when webhook URL is set",
+			settings: &model.CommitteeSettings{
+				UID:            "committee-789",
+				ChatWebhookURL: stringPtr("webhook-url-placeholder"),
+				CreatedAt:      createdAt,
+				UpdatedAt:      updatedAt,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:            stringPtr("committee-789"),
+				HasChatWebhook: true,
+				CreatedAt:      stringPtr("2023-01-01T12:00:00Z"),
+				UpdatedAt:      stringPtr("2023-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "has_chat_webhook false when webhook URL is empty string",
+			settings: &model.CommitteeSettings{
+				UID:            "committee-000",
+				ChatWebhookURL: stringPtr(""),
+				CreatedAt:      createdAt,
+				UpdatedAt:      updatedAt,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:            stringPtr("committee-000"),
+				HasChatWebhook: false,
+				CreatedAt:      stringPtr("2023-01-01T12:00:00Z"),
+				UpdatedAt:      stringPtr("2023-01-02T12:00:00Z"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
