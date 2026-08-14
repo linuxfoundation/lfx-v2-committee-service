@@ -732,7 +732,8 @@ func VoteSourceImpl(ctx context.Context) port.VoteSource {
 func VoteResultSourceImpl(ctx context.Context) port.VoteResultSource {
 	baseURL := os.Getenv("QUERY_SERVICE_URL")
 	if baseURL == "" {
-		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; vote result source will return nil tallies")
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; vote result source disabled — brief will omit vote tallies")
+		return nil
 	}
 	client := m2mHTTPClient(ctx)
 	return m2m.NewVoteResultSource(m2m.VoteResultSourceConfig{

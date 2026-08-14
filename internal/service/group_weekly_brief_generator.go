@@ -524,9 +524,10 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 		excerpt := voteParticipationExcerpt(v)
 		ref := model.SourceRef{Kind: "vote", ID: v.VoteID, Title: v.Name, Excerpt: excerpt}
 		refs = append(refs, ref)
-		// Vote tallies are server-computed integers — safe to include in the
-		// claim label (not user-controlled free text). Name is still passed
-		// through claimLabel to sanitize newlines and apply the 80-rune cap.
+		// Vote counts are server-computed integers; choice labels (ChoiceText/
+		// ChoiceID) are source-derived free text sanitized in voteTallyLabel via
+		// TrimSpace, newline removal, and an 80-rune cap. Name passes through
+		// claimLabel for the same treatment.
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "vote-" + v.VoteID,
 			Summary: claimLabel("vote", v.Name) + voteTallyLabel(v),
