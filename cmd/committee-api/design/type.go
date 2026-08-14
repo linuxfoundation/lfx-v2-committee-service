@@ -119,6 +119,8 @@ var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-
 	WritersAttribute()
 	AuditorsAttribute()
 
+	HasChatWebhookAttribute()
+
 	CreatedAtAttribute()
 	UpdatedAtAttribute()
 
@@ -1031,6 +1033,17 @@ func ChatChannelAttribute() {
 	dsl.Attribute("chat_channel", dsl.String, "The chat channel URL or identifier for the committee", func() {
 		dsl.MaxLength(500)
 		dsl.Example("https://slack.example.org/channels/tsc")
+	})
+}
+
+// HasChatWebhookAttribute is the DSL attribute indicating whether a committee has a chat webhook configured.
+// This is a computed read-only boolean: true when chat_webhook_url is set and non-empty, false otherwise.
+// The raw URL is never returned; use this field to decide whether to show the "Share to Slack" action.
+func HasChatWebhookAttribute() {
+	dsl.Attribute("has_chat_webhook", dsl.Boolean, "Whether the committee has a Slack webhook configured for sharing the weekly brief. "+
+		"True when chat_webhook_url is set to a non-empty value; false otherwise. The raw URL is never returned.", func() {
+		dsl.Default(false)
+		dsl.Example(true)
 	})
 }
 
