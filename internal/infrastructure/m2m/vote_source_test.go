@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -75,9 +76,9 @@ func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
 	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
 
-	var capturedURL string
+	var capturedQuery url.Values
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedURL = r.URL.String()
+		capturedQuery = r.URL.Query()
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(queryEnvelope{Resources: nil})
 		_, _ = w.Write(body)
@@ -88,9 +89,10 @@ func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 	_, err := src.ListVoteActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
 
 	require.NoError(t, err)
-	assert.Contains(t, capturedURL, "end_time", "must filter by end_time, not start_time")
-	assert.NotContains(t, capturedURL, "start_time", "must not use start_time (field does not exist on v1_vote)")
-	assert.Contains(t, capturedURL, "committee%3Ac-1")
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("end_time[gte]"), "must use end_time[gte] with RFC3339Nano window start")
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("end_time[lte]"), "must use end_time[lte] with RFC3339Nano window end")
+	assert.Equal(t, "committee:c-1", capturedQuery.Get("tags"), "must tag by committee UID")
+	assert.Empty(t, capturedQuery["start_time"], "must not use start_time (field does not exist on v1_vote)")
 }
 
 // ── Malformed record is skipped ───────────────────────────────────────────────

@@ -108,7 +108,11 @@ func TestGetVoteResults_MapsChoicesFromFirstQuestion(t *testing.T) {
 	assert.Equal(t, "c1", got.ChoiceResults[0].ChoiceID)
 	assert.Equal(t, "Yes", got.ChoiceResults[0].ChoiceText)
 	assert.Equal(t, 6, got.ChoiceResults[0].VoteCount)
+	assert.Equal(t, 75.0, got.ChoiceResults[0].Percentage)
+	assert.Equal(t, "c2", got.ChoiceResults[1].ChoiceID)
 	assert.Equal(t, "No", got.ChoiceResults[1].ChoiceText)
+	assert.Equal(t, 2, got.ChoiceResults[1].VoteCount)
+	assert.Equal(t, 25.0, got.ChoiceResults[1].Percentage)
 }
 
 // ── Zero results (pipeline not live) ────────────────────────────────────────
@@ -168,7 +172,7 @@ func TestGetVoteResults_NoQuestions_ReturnsTallyWithoutChoices(t *testing.T) {
 	data := queryVoteResultData{
 		NumRecipients:       5,
 		NumVotesCast:        3,
-		NumAbstained:        0,
+		NumAbstained:        2,
 		PollQuestionsResult: nil,
 	}
 
@@ -185,5 +189,6 @@ func TestGetVoteResults_NoQuestions_ReturnsTallyWithoutChoices(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, 5, got.NumRecipients)
 	assert.Equal(t, 3, got.NumVotesCast)
+	assert.Equal(t, 2, got.NumAbstained)
 	assert.Empty(t, got.ChoiceResults)
 }
