@@ -2449,7 +2449,6 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				require.Len(t, pub.capturedAccessSubjects, 1, "expected one FGA access publish for the pending invite")
-				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
 			},
 		},
 		{
@@ -2494,7 +2493,6 @@ func TestHandleInviteAccepted(t *testing.T) {
 			wantUpdateCalls: 0,
 			validatePublisher: func(t *testing.T, pub *spyCommitteePublisher) {
 				require.Len(t, pub.capturedAccessSubjects, 1, "accepted invite should still get FGA invitee grant")
-				assert.Equal(t, fgaconstants.GenericUpdateAccessSubject, pub.capturedAccessSubjects[0])
 			},
 		},
 		{

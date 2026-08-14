@@ -1834,8 +1834,6 @@ func effectiveRoleUnchanged(oldRoles, newRoles []string) bool {
 	return roleSlicesEqual(oldDisplay, newDisplay)
 }
 
-// highestRole returns the single highest-privilege role from a slice.
-// "Writer" is considered higher than "Auditor" (maps to InviteRoleManage).
 // HandleUserEmailChanged reacts to a user-email change event from the durable user-email-events
 // stream. For alternate_email_added events it promotes all email-only committee member seats
 // associated with the address to the resolved LFID username via reconcileUsernamesForEmail.
@@ -2024,6 +2022,8 @@ func (m *messageHandlerOrchestrator) promoteEmailOnlyMemberUsername(writeCtx con
 	return nil
 }
 
+// highestRole returns the single highest-privilege role from a slice.
+// "Writer" is considered higher than "Auditor" (maps to InviteRoleManage).
 // Returns the first element if no known role is found.
 func highestRole(roles []string) string {
 	for _, r := range roles {
