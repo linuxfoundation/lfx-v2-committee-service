@@ -554,8 +554,8 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	// Users who can audit this committee
 	Auditors []*CommitteeUser
 	// Whether the committee has a Slack webhook configured for sharing the weekly
-	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
-	// never returned.
+	// brief. True when chat_webhook_url is set to a non-empty value; false
+	// otherwise. The raw URL is never returned.
 	HasChatWebhook bool
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string

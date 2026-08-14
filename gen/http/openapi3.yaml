@@ -6623,7 +6623,7 @@ components:
                     format: date-time
                 has_chat_webhook:
                     type: boolean
-                    description: Whether the committee has a Slack webhook configured for sharing the weekly brief. True when chat_webhook_url is set; false otherwise. The raw URL is never returned.
+                    description: Whether the committee has a Slack webhook configured for sharing the weekly brief. True when chat_webhook_url is set to a non-empty value; false otherwise. The raw URL is never returned.
                     default: false
                     example: true
                 last_reviewed_at:

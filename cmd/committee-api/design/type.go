@@ -1041,7 +1041,7 @@ func ChatChannelAttribute() {
 // The raw URL is never returned; use this field to decide whether to show the "Share to Slack" action.
 func HasChatWebhookAttribute() {
 	dsl.Attribute("has_chat_webhook", dsl.Boolean, "Whether the committee has a Slack webhook configured for sharing the weekly brief. "+
-		"True when chat_webhook_url is set; false otherwise. The raw URL is never returned.", func() {
+		"True when chat_webhook_url is set to a non-empty value; false otherwise. The raw URL is never returned.", func() {
 		dsl.Default(false)
 		dsl.Example(true)
 	})

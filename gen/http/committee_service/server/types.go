@@ -574,8 +574,8 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 	// Whether the committee has a Slack webhook configured for sharing the weekly
-	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
-	// never returned.
+	// brief. True when chat_webhook_url is set to a non-empty value; false
+	// otherwise. The raw URL is never returned.
 	HasChatWebhook bool `form:"has_chat_webhook" json:"has_chat_webhook" xml:"has_chat_webhook"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
@@ -2830,8 +2830,8 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Users who can audit this committee
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 	// Whether the committee has a Slack webhook configured for sharing the weekly
-	// brief. True when chat_webhook_url is set; false otherwise. The raw URL is
-	// never returned.
+	// brief. True when chat_webhook_url is set to a non-empty value; false
+	// otherwise. The raw URL is never returned.
 	HasChatWebhook bool `form:"has_chat_webhook" json:"has_chat_webhook" xml:"has_chat_webhook"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
