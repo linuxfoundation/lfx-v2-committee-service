@@ -6,12 +6,14 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/fields"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 )
 
 // CommitteeReader defines the interface for committee read operations
@@ -66,27 +68,41 @@ type committeeReaderOrchestrator struct {
 	committeeReader port.CommitteeReader
 }
 
+// rewrapWithUID embeds the committee UID into a storage error's message so
+// that boundary log lines which log err.Error() carry the identifier, even
+// when the enriched ctx does not reach the logging frame. Domain error types
+// (NotFound, Validation, Conflict) are re-created as their original type so
+// wrapError's HTTP-status type switch continues to produce the correct status
+// code. Generic errors are wrapped with fmt.Errorf to preserve the chain.
+func rewrapWithUID(uid string, err error) error {
+	var nf errs.NotFound
+	if errors.As(err, &nf) {
+		return errs.NewNotFound(fmt.Sprintf("committee %q: %s", uid, nf.Error()))
+	}
+	var v errs.Validation
+	if errors.As(err, &v) {
+		return errs.NewValidation(fmt.Sprintf("committee %q: %s", uid, v.Error()))
+	}
+	var c errs.Conflict
+	if errors.As(err, &c) {
+		return errs.NewConflict(fmt.Sprintf("committee %q: %s", uid, c.Error()))
+	}
+	return fmt.Errorf("committee %q: %w", uid, err)
+}
+
 // GetBase retrieves committee base information by UID
 func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
-	slog.DebugContext(ctx, "executing get committee base use case",
-		"committee_uid", uid,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	slog.DebugContext(ctx, "executing get committee base use case")
 
 	// Get committee base from storage
 	committeeBase, revision, err := rc.committeeReader.GetBase(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base",
-			"error", err,
-			"committee_uid", uid,
-		)
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(uid, err)
 	}
 
-	slog.DebugContext(ctx, "committee base retrieved successfully",
-		"committee_uid", uid,
-		"revision", revision,
-	)
+	slog.DebugContext(ctx, "committee base retrieved successfully", "revision", revision)
 
 	return committeeBase, revision, nil
 }
@@ -94,24 +110,16 @@ func (rc *committeeReaderOrchestrator) GetBase(ctx context.Context, uid string) 
 // GetSettings retrieves committee settings by UID
 func (rc *committeeReaderOrchestrator) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 
-	slog.DebugContext(ctx, "executing get committee settings use case",
-		"committee_uid", uid,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
+	slog.DebugContext(ctx, "executing get committee settings use case")
 
 	// Get committee settings from storage
 	committeeSettings, revision, err := rc.committeeReader.GetSettings(ctx, uid)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee settings",
-			"error", err,
-			"committee_uid", uid,
-		)
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(uid, err)
 	}
 
-	slog.DebugContext(ctx, "committee settings retrieved successfully",
-		"committee_uid", uid,
-		"revision", revision,
-	)
+	slog.DebugContext(ctx, "committee settings retrieved successfully", "revision", revision)
 
 	return committeeSettings, revision, nil
 }
@@ -155,47 +163,28 @@ func (rc *committeeReaderOrchestrator) GetMemberRevision(ctx context.Context, me
 // GetMember retrieves a committee member by committee UID and member UID
 func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeUID, memberUID string) (*model.CommitteeMember, uint64, error) {
 
-	slog.DebugContext(ctx, "executing get committee member use case",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
+	ctx = log.AppendCtx(ctx, slog.String("member_uid", memberUID))
+	slog.DebugContext(ctx, "executing get committee member use case")
 
 	// First, verify that the committee exists
 	_, _, err := rc.committeeReader.GetBase(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee base - committee does not exist",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(committeeUID, err)
 	}
 
 	// Get committee member from storage
 	committeeMember, revision, err := rc.committeeReader.GetMember(ctx, memberUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get committee member",
-			"error", err,
-			"committee_uid", committeeUID,
-			"member_uid", memberUID,
-		)
-		return nil, 0, err
+		return nil, 0, rewrapWithUID(committeeUID, err)
 	}
 
 	// Verify that the member belongs to the requested committee
 	if committeeMember.CommitteeUID != committeeUID {
-		slog.ErrorContext(ctx, "committee member does not belong to the requested committee",
-			"committee_uid", committeeUID,
-			"member_uid", memberUID,
-			"member_committee_uid", committeeMember.CommitteeUID,
-		)
 		return nil, 0, errs.NewValidation("committee member does not belong to the requested committee")
 	}
 
-	slog.DebugContext(ctx, "committee member retrieved successfully",
-		"committee_uid", committeeUID,
-		"member_uid", memberUID,
-		"revision", revision,
-	)
+	slog.DebugContext(ctx, "committee member retrieved successfully", "revision", revision)
 
 	return committeeMember, revision, nil
 }
@@ -203,24 +192,16 @@ func (rc *committeeReaderOrchestrator) GetMember(ctx context.Context, committeeU
 // ListMembersByCommittee retrieves all members for a given committee UID
 func (rc *committeeReaderOrchestrator) ListMembersByCommittee(ctx context.Context, committeeUID string) ([]*model.CommitteeMember, error) {
 
-	slog.DebugContext(ctx, "executing list committee members use case",
-		"committee_uid", committeeUID,
-	)
+	ctx = log.AppendCtx(ctx, slog.String("committee_uid", committeeUID))
+	slog.DebugContext(ctx, "executing list committee members use case")
 
 	// Get all committee members from storage
 	members, err := rc.committeeReader.ListMembersByCommittee(ctx, committeeUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list committee members",
-			"error", err,
-			"committee_uid", committeeUID,
-		)
-		return nil, err
+		return nil, rewrapWithUID(committeeUID, err)
 	}
 
-	slog.DebugContext(ctx, "committee members retrieved successfully",
-		"committee_uid", committeeUID,
-		"member_count", len(members),
-	)
+	slog.DebugContext(ctx, "committee members retrieved successfully", "member_count", len(members))
 
 	return members, nil
 }
