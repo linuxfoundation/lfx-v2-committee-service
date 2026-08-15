@@ -140,8 +140,9 @@ func (s *SurveySource) ListSurveyActivityForWindow(ctx context.Context, committe
 			}
 		}
 
-		// Client-side guard: only keep surveys whose cutoff falls in the window.
-		if cutoff.Before(windowStart) || cutoff.After(windowEnd) {
+		// Client-side guard: only keep surveys whose cutoff falls in the window
+		// and has already passed — excluding surveys still collecting responses.
+		if cutoff.Before(windowStart) || cutoff.After(windowEnd) || cutoff.After(time.Now()) {
 			continue
 		}
 

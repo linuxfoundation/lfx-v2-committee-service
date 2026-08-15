@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -932,6 +933,6 @@ func surveyParticipationExcerpt(sv port.SurveyActivity) string {
 	if sv.TotalRecipients == 0 {
 		return ""
 	}
-	pct := int(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100)
+	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
 	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
 }
