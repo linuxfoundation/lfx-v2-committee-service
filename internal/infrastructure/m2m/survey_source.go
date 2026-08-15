@@ -31,7 +31,7 @@ type SurveySourceConfig struct {
 //
 //	GET {BaseURL}/query/resources
 //	    ?type={Type}&tags=committee_uid:{uid}
-//	    &survey_cutoff_date[gte]={windowStart}&survey_cutoff_date[lte]={windowEnd}
+//	    &date_field=survey_cutoff_date&date_from={windowStart}&date_to={windowEnd}
 //
 // Per-committee response counts are extracted from the committees[] array in
 // each resource's data payload. Authentication is by a *http.Client carrying
@@ -91,8 +91,9 @@ func (s *SurveySource) ListSurveyActivityForWindow(ctx context.Context, committe
 	q.Set("type", s.cfg.Type)
 	q.Set("tags", "committee_uid:"+committeeUID)
 	// Ask the query service to filter by cutoff date within the window.
-	q.Set("survey_cutoff_date[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("survey_cutoff_date[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("date_field", "survey_cutoff_date")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)

@@ -70,8 +70,9 @@ func TestListSurveyActivityForWindow_RequestParameters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "survey", capturedQuery.Get("type"))
 	assert.Equal(t, "committee_uid:"+committeeUID, capturedQuery.Get("tags"))
-	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("survey_cutoff_date[gte]"))
-	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("survey_cutoff_date[lte]"))
+	assert.Equal(t, "survey_cutoff_date", capturedQuery.Get("date_field"))
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
 }
 
 // ── Field mapping and per-committee counts ────────────────────────────────────

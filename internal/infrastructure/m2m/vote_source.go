@@ -34,7 +34,7 @@ type VoteSourceConfig struct {
 // VoteSource is the live VoteSource adapter. It speaks
 //
 //	GET {BaseURL}/query/resources?type={Type}&tags=committee:{uid}
-//	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
+//	    &date_field=end_time&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
@@ -92,8 +92,9 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 	q.Set("tags", "committee:"+committeeUID)
 	// Filter by end_time: we want votes that closed within the window.
 	// The v1_vote resource has no start_time field; end_time is the close date.
-	q.Set("end_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("end_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("date_field", "end_time")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
