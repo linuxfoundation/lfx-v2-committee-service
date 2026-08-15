@@ -1025,6 +1025,8 @@ func TestFulfill_SurveySource_ClaimsAndRefsIncluded(t *testing.T) {
 		}
 	}
 	assert.True(t, foundClaim, "brief AI input must contain a claim for the survey")
+	assert.True(t, bw.putBrief.PrivateSourcePresent,
+		"survey is FGA access-controlled; brief must set private_source_present=true")
 }
 
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {

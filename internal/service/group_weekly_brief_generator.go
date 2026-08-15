@@ -661,9 +661,10 @@ func truncateRunes(s string, maxRunes int) string {
 
 // derivePrivateSourcePresent flags the brief as containing private source
 // material whenever members contributed (members are inherently private), any
-// meeting, mailing-list thread, or vote was marked private, or any AI meeting
+// meeting, mailing-list thread, or vote was marked private, any AI meeting
 // summary contributed (transcript content in a brief is always treated as
-// private regardless of the summary's own access level).
+// private regardless of the summary's own access level), or any survey
+// contributed (surveys are always FGA access-controlled, never public).
 func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity) bool {
 	if memberCount > 0 {
 		return true
@@ -681,10 +682,13 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 			return true
 		}
 	}
-	// VoteActivity and SurveyActivity have no Private flag — both are
-	// committee-scoped records treated as non-private for the banner guard.
+	// Surveys are access-controlled (FGA access_check_object: survey:{uid}) so
+	// any contributing survey makes the brief private.
+	if len(surveys) > 0 {
+		return true
+	}
+	// VoteActivity has no Private flag and is treated as non-private.
 	_ = votes
-	_ = surveys
 	return false
 }
 
