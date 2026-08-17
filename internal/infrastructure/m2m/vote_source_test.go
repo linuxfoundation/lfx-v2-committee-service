@@ -104,8 +104,8 @@ func TestListVoteActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	goodJSON, _ := json.Marshal(goodData)
 
 	body := []byte(`{"resources":[` +
-		`{"uid":"bad","data":[1,2,3]},` +
-		`{"uid":"good","data":` + string(goodJSON) + `}` +
+		`{"id":"bad","data":[1,2,3]},` +
+		`{"id":"good","data":` + string(goodJSON) + `}` +
 		`]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

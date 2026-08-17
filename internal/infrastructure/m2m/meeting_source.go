@@ -64,8 +64,12 @@ func NewMeetingSource(cfg MeetingSourceConfig, client *http.Client) *MeetingSour
 
 // queryResource is the loose envelope returned by the query-service. Only the
 // fields we care about are pulled out; unknown attributes are ignored.
+// queryResource represents a single resource returned by the query service.
+// The top-level "id" field is the OpenSearch document ID, which for all LFX
+// V2 native services is the resource's v2 UUID. Do not change the json tag to
+// "uid" — the query-service ResourceResponseBody serialises this field as "id".
 type queryResource struct {
-	UID  string          `json:"uid"`
+	UID  string          `json:"id"`
 	Data json.RawMessage `json:"data"`
 }
 

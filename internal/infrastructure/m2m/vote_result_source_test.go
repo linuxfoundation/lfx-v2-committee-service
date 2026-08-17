@@ -135,7 +135,7 @@ func TestGetVoteResults_EmptyResources_ReturnsNil(t *testing.T) {
 // ── Malformed data payload → nil, no error ───────────────────────────────────
 
 func TestGetVoteResults_MalformedData_ReturnsNil(t *testing.T) {
-	body := []byte(`{"resources":[{"uid":"vote-1","data":[1,2,3]}]}`)
+	body := []byte(`{"resources":[{"id":"vote-1","data":[1,2,3]}]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

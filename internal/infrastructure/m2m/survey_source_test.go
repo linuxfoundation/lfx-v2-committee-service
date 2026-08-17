@@ -202,8 +202,8 @@ func TestListSurveyActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	goodJSON, _ := json.Marshal(goodData)
 
 	body := []byte(`{"resources":[` +
-		`{"uid":"bad","data":[1,2,3]},` +
-		`{"uid":"good","data":` + string(goodJSON) + `}` +
+		`{"id":"bad","data":[1,2,3]},` +
+		`{"id":"good","data":` + string(goodJSON) + `}` +
 		`]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -258,4 +258,47 @@ func TestListSurveyActivityForWindow_UnparseableCutoffDate_Skipped(t *testing.T)
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+// ── Production-shaped fixture: "id" at top level, "uid" inside data ───────────
+//
+// The query-service ResourceResponseBody serialises the resource identifier as
+// top-level "id" (not "uid"). This test exercises the full decode path with a
+// response shape that mirrors what the real query service sends, confirming that
+// SurveyUID is populated from the top-level "id" field rather than decoding as
+// an empty string.
+
+func TestListSurveyActivityForWindow_ProductionShape_UIDDecodedFromTopLevelID(t *testing.T) {
+	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
+	cutoff := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+
+	// Mirror the production query-service envelope: top-level "id" carries the
+	// v2 UUID; "uid" is also present inside "data" (the survey indexer field).
+	body := []byte(`{"resources":[{` +
+		`"id":"survey-uid-1",` +
+		`"data":{` +
+		`"uid":"survey-uid-1",` +
+		`"survey_title":"Dev Experience Survey",` +
+		`"survey_status":"closed",` +
+		`"survey_cutoff_date":"` + cutoff.UTC().Format(time.RFC3339) + `",` +
+		`"collector_url":"https://www.surveymonkey.com/r/ABC123",` +
+		`"committees":[{"committee_uid":"c-target","total_recipients":20,"total_responses":14}]` +
+		`}}]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newSurveySource(t, srv)
+	got, err := src.ListSurveyActivityForWindow(context.Background(), "c-target", windowStart, windowEnd)
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "survey-uid-1", got[0].SurveyUID, "SurveyUID must be decoded from top-level id, not produce empty string")
+	assert.Equal(t, "Dev Experience Survey", got[0].Title)
+	assert.Equal(t, 20, got[0].TotalRecipients)
+	assert.Equal(t, 14, got[0].TotalResponses)
 }
