@@ -507,6 +507,8 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
+	// indexerErr, when non-nil, is returned by Indexer and then cleared so subsequent calls succeed.
+	indexerErr error
 	// capturedUpdateAccessMsgs records messages sent through the asynchronous-only operation.
 	capturedUpdateAccessMsgs []any
 	// capturedMemberPutMsgs records messages sent through the asynchronous-only member_put operation.
@@ -518,6 +520,11 @@ type spyCommitteePublisher struct {
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
 	s.indexerCallCount++
 	s.lastSubject = subject
+	if s.indexerErr != nil {
+		err := s.indexerErr
+		s.indexerErr = nil // clear so redelivery can succeed
+		return err
+	}
 	return nil
 }
 func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
@@ -1152,6 +1159,67 @@ func TestHandleCommitteeTotalMembersSync_MissingDependencies(t *testing.T) {
 // Helper function to create string pointer
 func messageHandlerStringPtr(s string) *string {
 	return &s
+}
+
+// TestHandleCommitteeTotalMembersSync_PublishFailureRedelivery verifies the
+// retry-safe behaviour of HandleCommitteeTotalMembersSync when the KV write
+// succeeds on first delivery but the indexer publish fails (causing a NAK).
+// On redelivery the storage layer reports no change (the count is already
+// correct), and the handler must still re-publish so the indexed value is
+// eventually consistent with the stored one.
+func TestHandleCommitteeTotalMembersSync_PublishFailureRedelivery(t *testing.T) {
+	ctx := context.Background()
+	committeeUID := uuid.New().String()
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          committeeUID,
+			ProjectUID:   "proj-1",
+			Name:         "Test Committee",
+			Category:     "technical",
+			TotalMembers: 1, // stale — one member already stored
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now(),
+		},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+	})
+
+	spy := &spyCommitteePublisher{indexerErr: fmt.Errorf("indexer unavailable")}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+		WithCommitteePublisherForMessageHandler(spy),
+	)
+
+	msg := &mockStreamMessenger{
+		subject: constants.CommitteeMemberCreatedSubject,
+		data:    buildTotalMembersSyncMsg(committeeUID),
+	}
+
+	// First delivery: KV write succeeds (stale 1 → 2), publish fails.
+	err := handler.HandleCommitteeTotalMembersSync(ctx, msg)
+	require.Error(t, err, "first delivery should fail when indexer publish fails")
+	assert.Equal(t, 1, spy.indexerCallCount, "indexer should have been attempted once on first delivery")
+
+	// Verify the KV write actually committed.
+	stored, _, errGet := mockRepo.GetBase(ctx, committeeUID)
+	require.NoError(t, errGet)
+	assert.Equal(t, 2, stored.TotalMembers, "KV value must have been written on first delivery")
+
+	// Second delivery (redelivery): storage now returns no-change, but the
+	// handler must still publish so the index catches up.
+	err = handler.HandleCommitteeTotalMembersSync(ctx, msg)
+	require.NoError(t, err, "redelivery should succeed once the indexer publish can proceed")
+	assert.Equal(t, 2, spy.indexerCallCount, "indexer must be called again on redelivery even when storage reports no change")
 }
 
 // ---------------------------------------------------------------------------
