@@ -579,7 +579,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
 
-**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command can (re-)index stored briefs in all states.
+**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission.
 
 ### Data Schema
 
@@ -596,7 +596,7 @@ _(none)_
 | `prompt_version` | string (optional) | Version identifier of the prompt used to generate the brief; omitted when empty. |
 | `model` | string (optional) | Identifier of the model used to generate the brief; omitted when empty. |
 | `regeneration_count` | int | Number of times the brief has been regenerated |
-| `private_source_present` | bool | Whether any source artifact used was private |
+| `private_source_present` | bool | Whether any source artifact used was private (e.g., member data, meeting transcripts, or surveys). **UI disclosure flag only** — indicates to the BFF/UI that the brief was informed by non-public sources; does not gate indexer or query-service access. See access model rationale in the Access Control section below. |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
 | `last_edited_at` | timestamp (optional) | Time of the most recent chair edit via `PUT /current`; omitted (`null` / absent) on briefs that have never been edited. Uses a pointer-typed field so the zero time is not emitted. |
@@ -621,6 +621,21 @@ _(none)_
 | `access_check_relation` | `viewer` |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
+
+> **Access model rationale (LFXV2-3046, decision: Manish Dixit, 2026-08-17).**
+> Weekly briefs use the `viewer` relation — the same relation used by the existing `GET /current`
+> REST endpoint (see `charts/lfx-v2-committee-service/templates/ruleset.yaml`). Visibility matches
+> the committee's own visibility: a public committee's briefs are queryable by anyone who can view
+> the committee, including briefs where `private_source_present: true`.
+>
+> This is intentional. `private_source_present` is a **UI disclosure flag**, not an access gate.
+> The brief is a synthesized narrative produced by the AI — the raw private artifacts (member
+> roster, meeting transcripts, mailing-list threads) are not exposed in the brief payload.
+> Restricting access to `member` would require a compound FGA relation that the
+> indexer/query-service infrastructure does not support today. If `private_source_present` briefs
+> require member-only access in a future iteration, introducing a compound relation is the right
+> fix (see PR #182, Jordan Ellis thread). Do not change `viewer` to `member` without also
+> implementing that infrastructure change.
 
 ### Search Behavior
 
