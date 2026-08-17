@@ -84,6 +84,7 @@ These are published by this service and also subscribed by this service (queue
 "lfx.index.committee_link"
 "lfx.index.committee_link_folder"
 "lfx.index.committee_document"
+"lfx.index.group_weekly_brief"
 ```
 
 ### FGA subjects (see `docs/fga-contract.md`)

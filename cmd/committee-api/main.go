@@ -156,11 +156,13 @@ func main() {
 		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
 		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithAIAdapter(aiAdapter),
+		usecaseSvc.WithGroupWeeklyBriefPublisher(committeePublisher),
 	)
 
 	weeklyBriefWriterUseCase := usecaseSvc.NewGroupWeeklyBriefWriterOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForWriter(weeklyBriefReader),
 		usecaseSvc.WithGroupWeeklyBriefWriterForWriter(weeklyBriefWriter),
+		usecaseSvc.WithGroupWeeklyBriefPublisherForWriter(committeePublisher),
 	)
 
 	weeklyBriefSharerUseCase := usecaseSvc.NewGroupWeeklyBriefSharerOrchestrator(

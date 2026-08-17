@@ -42,8 +42,10 @@ type RunContext struct {
 	Publisher         port.CommitteePublisher
 	UserReader        port.UserReader
 	DocumentAuditSync port.DocumentAuditSyncStorage
-	DryRun            bool
-	Args              []string // remaining args after command + subcommand, for subcommand flag parsing
+	// GroupWeeklyBriefReader provides direct access to brief storage for backfill subcommands.
+	GroupWeeklyBriefReader port.GroupWeeklyBriefReader
+	DryRun                 bool
+	Args                   []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

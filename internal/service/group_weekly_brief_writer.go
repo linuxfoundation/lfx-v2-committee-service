@@ -46,8 +46,9 @@ type GroupWeeklyBriefDataWriter interface {
 }
 
 type groupWeeklyBriefWriterOrchestrator struct {
-	reader port.GroupWeeklyBriefReader
-	writer port.GroupWeeklyBriefWriter
+	reader    port.GroupWeeklyBriefReader
+	writer    port.GroupWeeklyBriefWriter
+	publisher port.CommitteePublisher
 }
 
 // GroupWeeklyBriefWriterOption configures the orchestrator.
@@ -72,6 +73,14 @@ func WithGroupWeeklyBriefReaderForWriter(r port.GroupWeeklyBriefReader) GroupWee
 func WithGroupWeeklyBriefWriterForWriter(w port.GroupWeeklyBriefWriter) GroupWeeklyBriefWriterOption {
 	return func(o *groupWeeklyBriefWriterOrchestrator) {
 		o.writer = w
+	}
+}
+
+// WithGroupWeeklyBriefPublisherForWriter injects the publisher used to emit
+// indexer messages after a successful brief update.
+func WithGroupWeeklyBriefPublisherForWriter(p port.CommitteePublisher) GroupWeeklyBriefWriterOption {
+	return func(o *groupWeeklyBriefWriterOrchestrator) {
+		o.publisher = p
 	}
 }
 
@@ -136,7 +145,8 @@ func (o *groupWeeklyBriefWriterOrchestrator) Update(ctx context.Context, in Grou
 	// drives the CAS write.
 	current.BriefText = in.BriefText
 	current.State = model.GroupWeeklyBriefStateEdited
-	current.LastEditedAt = in.Now.UTC()
+	t := in.Now.UTC()
+	current.LastEditedAt = &t
 	current.LastEditedBy = in.EditedBy
 
 	updated, err := o.writer.PutGroupWeeklyBrief(ctx, current)
@@ -153,5 +163,6 @@ func (o *groupWeeklyBriefWriterOrchestrator) Update(ctx context.Context, in Grou
 		}
 		return nil, err
 	}
+	publishGroupWeeklyBriefIndex(ctx, o.publisher, updated)
 	return updated, nil
 }

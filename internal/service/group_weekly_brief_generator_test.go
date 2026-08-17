@@ -35,6 +35,10 @@ func (f *fakeBriefReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ stri
 	return f.brief, nil, f.err
 }
 
+func (f *fakeBriefReader) ListGroupWeeklyBriefIndexKeys(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 type fakeBriefWriter struct {
 	throttle      *model.GroupWeeklyBriefThrottle
 	putThrottle   *model.GroupWeeklyBriefThrottle
@@ -1194,4 +1198,118 @@ func TestSurveyParticipationExcerpt_FormatsWithPercentage(t *testing.T) {
 func TestSurveyParticipationExcerpt_FullResponse_100Percent(t *testing.T) {
 	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 10, TotalResponses: 10}
 	assert.Equal(t, "10 of 10 responded (100%)", surveyParticipationExcerpt(sv))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Publisher tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+// fakePublisher records indexer calls for assertion in publisher-path tests.
+// It is defined here so both the generator and writer test suites (same package)
+// can use it.
+type fakePublisher struct {
+	indexerSubjects []string
+	indexerMessages []any
+	indexerErr      error
+}
+
+func (p *fakePublisher) Indexer(_ context.Context, subject string, message any, _ bool) error {
+	p.indexerSubjects = append(p.indexerSubjects, subject)
+	p.indexerMessages = append(p.indexerMessages, message)
+	return p.indexerErr
+}
+func (p *fakePublisher) UpdateAccess(_ context.Context, _ any) error            { return nil }
+func (p *fakePublisher) DeleteAccess(_ context.Context, _ any) error            { return nil }
+func (p *fakePublisher) MemberPut(_ context.Context, _ any) error               { return nil }
+func (p *fakePublisher) MemberRemove(_ context.Context, _ any) error            { return nil }
+func (p *fakePublisher) Event(_ context.Context, _ string, _ any, _ bool) error { return nil }
+
+func TestFulfill_PublishesIndexerMessage_OnGenerated(t *testing.T) {
+	pub := &fakePublisher{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: []port.MeetingActivity{{UID: "m1", Title: "Sync"}}}),
+		WithGroupWeeklyBriefPublisher(pub),
+	)
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.Len(t, pub.indexerSubjects, 1, "expected exactly one indexer publish")
+	assert.Equal(t, "lfx.index.group_weekly_brief", pub.indexerSubjects[0])
+
+	got, ok := pub.indexerMessages[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "indexer payload must be *model.CommitteeIndexerMessage")
+	assert.Equal(t, model.ActionUpdated, got.Action)
+	assert.ElementsMatch(t, []string{
+		"b-1",
+		"group_weekly_brief_uid:b-1",
+		"committee_uid:c-1",
+		"state:generated",
+	}, got.Tags)
+	require.NotNil(t, got.IndexingConfig, "IndexingConfig must be populated for ActionUpdated")
+	assert.Equal(t, "b-1", got.IndexingConfig.ObjectID)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.AccessCheckObject)
+	assert.Equal(t, "viewer", got.IndexingConfig.AccessCheckRelation)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.HistoryCheckObject)
+	assert.Equal(t, "auditor", got.IndexingConfig.HistoryCheckRelation)
+	require.NotNil(t, got.IndexingConfig.Public, "Public flag must be explicitly set")
+	assert.False(t, *got.IndexingConfig.Public, "weekly briefs must never be indexed as public")
+}
+
+func TestFulfill_PublishesIndexerMessage_OnNoSourcesError(t *testing.T) {
+	pub := &fakePublisher{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithGroupWeeklyBriefPublisher(pub),
+	)
+	// All sources return empty → no_sources error state, but publish still fires.
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.Len(t, pub.indexerSubjects, 1, "expected exactly one indexer publish on no-sources path")
+	assert.Equal(t, "lfx.index.group_weekly_brief", pub.indexerSubjects[0])
+
+	got, ok := pub.indexerMessages[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "indexer payload must be *model.CommitteeIndexerMessage")
+	assert.Equal(t, model.ActionUpdated, got.Action)
+	assert.Contains(t, got.Tags, "state:error", "error-state brief must carry state:error tag")
+	require.NotNil(t, got.IndexingConfig, "IndexingConfig must be populated for ActionUpdated")
+	assert.Equal(t, "b-1", got.IndexingConfig.ObjectID)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.AccessCheckObject)
+	require.NotNil(t, got.IndexingConfig.Public)
+	assert.False(t, *got.IndexingConfig.Public, "weekly briefs must never be indexed as public")
+}
+
+func TestFulfill_PublishErrorIsNonFatal(t *testing.T) {
+	pub := &fakePublisher{indexerErr: errors.NewUnexpected("nats down", nil)}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: []port.MeetingActivity{{UID: "m1", Title: "Sync"}}}),
+		WithGroupWeeklyBriefPublisher(pub),
+	)
+	// A publisher failure must not cause Fulfill to return an error — the brief
+	// is persisted; the backfill CLI is the recovery path.
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+}
+
+func TestFulfill_NilPublisher_DoesNotPanic(t *testing.T) {
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: []port.MeetingActivity{{UID: "m1", Title: "Sync"}}}),
+		// No publisher wired — should be a no-op, not a panic.
+	)
+	require.NotPanics(t, func() {
+		_ = g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+			CommitteeUID: "c-1",
+			Now:          testNow,
+		})
+	})
 }

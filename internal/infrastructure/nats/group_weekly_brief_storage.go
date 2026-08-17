@@ -208,6 +208,33 @@ func (s *storage) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWee
 	return brief, nil
 }
 
+// ListGroupWeeklyBriefIndexKeys returns every live (non-deleted) key in the
+// group-weekly-brief-uid-index KV bucket. Each key has the form
+// "{committee_uid}.{yyyymmdd}" and is suitable for driving a full reindex or
+// backfill. An absent or unbound bucket is treated as empty and returns nil.
+func (s *storage) ListGroupWeeklyBriefIndexKeys(ctx context.Context) ([]string, error) {
+	idxBucket, err := s.client.GetOrBindKVStore(ctx, constants.KVBucketNameGroupWeeklyBriefUIDIndex)
+	if err != nil {
+		// GetOrBindKVStore wraps bucket-not-found (ErrBucketNotFound from
+		// jetstream) as ServiceUnavailable. Treat that as an absent index —
+		// a fresh deployment has no bucket yet — and return empty rather than
+		// propagating an error that would abort a backfill unnecessarily.
+		var su errs.ServiceUnavailable
+		if errors.As(err, &su) {
+			return nil, nil
+		}
+		return nil, errs.NewUnexpected("failed to bind weekly-brief uid index for key listing", err)
+	}
+	keys, err := idxBucket.Keys(ctx)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrNoKeysFound) {
+			return nil, nil
+		}
+		return nil, errs.NewUnexpected("failed to list weekly-brief uid index keys", err)
+	}
+	return keys, nil
+}
+
 // GetGroupWeeklyBriefThrottle returns the throttle entry for the given
 // (committee, window-start) pair. A miss returns (nil, nil).
 func (s *storage) GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID string, windowStart time.Time) (*model.GroupWeeklyBriefThrottle, error) {

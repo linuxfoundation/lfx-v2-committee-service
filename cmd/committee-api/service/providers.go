@@ -877,6 +877,10 @@ func (alwaysMissGroupWeeklyBriefReader) GetGroupWeeklyBriefForWindow(_ context.C
 	return nil, nil, nil
 }
 
+func (alwaysMissGroupWeeklyBriefReader) ListGroupWeeklyBriefIndexKeys(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 // CommitteeDocumentReaderWriterImpl initializes the committee document reader/writer implementation
 // using a dedicated infrastructure adapter (not the shared storage struct) so it can be swapped
 // to S3 or another backend by adding a new case here without touching domain or service code.
@@ -931,6 +935,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithSurveySource(SurveySourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
 		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
+		usecaseSvc.WithGroupWeeklyBriefPublisher(CommitteePublisherImpl(ctx)),
 	)
 
 	// Create message handler service

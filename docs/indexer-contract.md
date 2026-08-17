@@ -573,25 +573,13 @@ _(none)_
 
 ## Group Weekly Brief
 
-> **Status: planned, not yet emitted.** As of today the service does **not**
-> publish any `group_weekly_brief` indexer message. The `GroupWeeklyBrief`
-> entity is persisted in NATS KV (`group-weekly-briefs`) and served directly via
-> `GET /committees/{uid}/weekly-briefs/current`; there is no
-> `IndexGroupWeeklyBrief` subject constant in `pkg/constants/subjects.go` and no
-> publish path in `internal/service/`. This section is the authoritative
-> contract for the indexer emission that will be added in a later phase. The
-> data schema below mirrors the current `GroupWeeklyBrief` struct so the
-> emission, when wired, matches it.
-
 **Object type:** `group_weekly_brief`
 
-**NATS subject (planned):** `lfx.index.group_weekly_brief`
+**NATS subject:** `lfx.index.group_weekly_brief`
 
 **Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
 
-**Will be indexed on:** create, update, delete of a group weekly brief draft.
-
-> Published briefs will be a future separate entity; this entry covers the draft only.
+**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission.
 
 ### Data Schema
 
@@ -603,14 +591,16 @@ _(none)_
 | `window_end` | timestamp | End of the brief's reporting window (RFC3339) |
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
 | `error_reason` | string (optional) | Machine-readable reason for the `error` state; omitted on non-error briefs. Known values: `no_sources` (no activity in the lookback window), `ai_error` (AI generation failure). |
-| `brief_text` | string | Generated brief body; included in the indexed data payload |
-| `source_refs` | []object | References to the source artifacts the brief was generated from. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty |
-| `prompt_version` | string | Version identifier of the prompt used to generate the brief |
-| `model` | string | Identifier of the model used to generate the brief |
+| `brief_text` | string (optional) | Generated brief body; omitted when empty (e.g. `generating` or `error` state briefs). |
+| `source_refs` | []object (optional) | References to the source artifacts the brief was generated from; omitted when empty. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty. |
+| `prompt_version` | string (optional) | Version identifier of the prompt used to generate the brief; omitted when empty. |
+| `model` | string (optional) | Identifier of the model used to generate the brief; omitted when empty. |
 | `regeneration_count` | int | Number of times the brief has been regenerated |
-| `private_source_present` | bool | Whether any source artifact used was private |
+| `private_source_present` | bool | Whether any source artifact used was private. UI disclosure flag — does not gate query-service access (see Access Control). |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
+| `last_edited_at` | timestamp (optional) | Time of the most recent chair edit via `PUT /current`; omitted (`null` / absent) on briefs that have never been edited. Uses a pointer-typed field so the zero time is not emitted. |
+| `last_edited_by` | string (optional) | Heimdall principal (LFX username) who performed the most recent chair edit; omitted when `last_edited_at` is absent. |
 
 > **State lifecycle.** A brief is created in `generating` when a generate is requested — the request is accepted (202) and the source gather + LLM run asynchronously. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state (no activity in the window, or an AI/generation failure). Typical flow: `generating → generated → (edited) → approved`, with `error` reachable from `generating`. (`empty` is a reserved enum value; the current generate flow does not create briefs in the `empty` state.)
 
@@ -631,6 +621,11 @@ _(none)_
 | `access_check_relation` | `viewer` |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
+
+> **Access:** Brief visibility matches the committee's own visibility — if the committee is public,
+> any viewer can query briefs; if private, only members and elevated users (auditors/admins) can.
+> This mirrors the existing `GET /current` endpoint. `private_source_present` is a UI disclosure
+> flag for the BFF/UI; it does not restrict access at the indexer/query-service layer.
 
 ### Search Behavior
 

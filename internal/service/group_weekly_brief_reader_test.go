@@ -33,6 +33,10 @@ func (f *fakeGroupWeeklyBriefReader) GetGroupWeeklyBriefForWindow(_ context.Cont
 	return f.brief, f.throttle, f.err
 }
 
+func (f *fakeGroupWeeklyBriefReader) ListGroupWeeklyBriefIndexKeys(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func TestGroupWeeklyBriefReaderOrchestrator_GetCurrent_Hit(t *testing.T) {
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC) // Wednesday
 	wantStart, wantEnd := model.WeeklyWindow(now)

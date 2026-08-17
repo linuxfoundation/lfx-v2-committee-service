@@ -103,3 +103,7 @@ When the work is done and no more code commits are planned:
 - `lfx-v2-indexer-service` owns indexing infrastructure behavior and the `IndexerMessageEnvelope` contract.
 - `lfx-v2-helm` owns cross-service chart conventions; this repo only owns its own chart under `charts/lfx-v2-committee-service/`.
 - `lfx-v2-argocd` owns deployed values, image tags, and environment promotion.
+
+## Design Decisions
+
+**Weekly brief access model (LFXV2-3046):** `group_weekly_brief` uses `access_check_relation: viewer`, matching the committee's own visibility — public committees' briefs are visible to anyone who can view the group; private committees' briefs are visible only to members and elevated users. This mirrors `GET /current`. `private_source_present` is a UI disclosure flag only.

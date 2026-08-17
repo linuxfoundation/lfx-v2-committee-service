@@ -2053,7 +2053,7 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	}
 	// Edit-audit fields are only present once a chair has saved an edit; mirror
 	// the CreatedAt/UpdatedAt zero-time handling above.
-	if !b.LastEditedAt.IsZero() {
+	if b.LastEditedAt != nil && !b.LastEditedAt.IsZero() {
 		v := b.LastEditedAt.UTC().Format(time.RFC3339)
 		out.LastEditedAt = &v
 	}

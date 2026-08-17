@@ -118,6 +118,10 @@ func (r stubBriefReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ strin
 	return r.w.lastBrief, nil, nil
 }
 
+func (r stubBriefReader) ListGroupWeeklyBriefIndexKeys(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 type stubBriefWriter struct {
 	lastBrief    *model.GroupWeeklyBrief
 	lastThrottle *model.GroupWeeklyBriefThrottle
