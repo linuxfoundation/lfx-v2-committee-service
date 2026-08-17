@@ -103,7 +103,7 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 	if err != nil {
 		return nil, fmt.Errorf("invalid query-service base URL: %w", err)
 	}
-	u.Path = appendPath(u.Path, "/query/resources")
+	u = u.JoinPath("query/resources")
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", "v1_past_meeting")
