@@ -1605,6 +1605,61 @@ func TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation(t *testin
 	assert.True(t, result.HasMailingList)
 }
 
+// TestCommitteeWriterOrchestrator_Update_IgnoresExplicitComputedFieldOverride guards
+// the other direction: Update() is the client-facing base-update path and must never
+// let a caller-supplied value win for these computed fields, even if one is set on the
+// payload. Computed-field sync (total_members drift correction, has_mailing_list
+// toggling) must go through the dedicated storage writers (UpdateTotalMembers,
+// UpdateHasMailingList) instead — never through Update().
+func TestCommitteeWriterOrchestrator_Update_IgnoresExplicitComputedFieldOverride(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+	existingCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Original Committee",
+			Category:         "governance",
+			TotalMembers:     42,
+			TotalVotingRepos: 3,
+			HasMailingList:   true,
+		},
+	}
+	mockRepo.AddCommittee(existingCommittee)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	// A caller should never be able to smuggle a computed-field change through the
+	// generic Update() path — even an explicit, non-zero value must be ignored.
+	updateData := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Updated Committee",
+			Category:         "technical",
+			TotalMembers:     999,
+			TotalVotingRepos: 99,
+			HasMailingList:   false,
+		},
+	}
+
+	result, err := orchestrator.Update(context.Background(), updateData, uint64(1), false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Updated Committee", result.Name)
+	assert.Equal(t, 42, result.TotalMembers, "TotalMembers must be preserved from existing, not the caller's override")
+	assert.Equal(t, 3, result.TotalVotingRepos, "TotalVotingRepos must be preserved from existing, not the caller's override")
+	assert.True(t, result.HasMailingList, "HasMailingList must be preserved from existing, not the caller's override")
+}
+
 func TestCommitteeWriterOrchestrator_Update_SSO_Scenarios(t *testing.T) {
 	tests := []struct {
 		name           string
