@@ -977,10 +977,10 @@ func TestFulfill_SurveyFetchError_TriggersRetry(t *testing.T) {
 		Now:          testNow,
 	})
 	require.Error(t, err, "survey-only window with fetch error must return an error to trigger retry")
-	if bw.putBrief != nil {
-		assert.NotEqual(t, model.GroupWeeklyBriefStateError, bw.putBrief.State,
-			"brief must not be finalized as error when survey source is temporarily down")
-	}
+	assert.Equal(t, int32(0), bw.briefPutCount.Load(),
+		"brief must not be written when survey source is temporarily down")
+	assert.Nil(t, bw.putBrief,
+		"brief must not be finalized when survey source is temporarily down")
 }
 
 func TestFulfill_SurveySource_ClaimsAndRefsIncluded(t *testing.T) {

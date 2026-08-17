@@ -93,6 +93,8 @@ func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 	assert.Equal(t, "end_time", capturedQuery.Get("date_field"), "must use date_field=end_time")
 	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"), "must use date_from with RFC3339Nano window start")
 	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"), "must use date_to with RFC3339Nano window end")
+	assert.Empty(t, capturedQuery.Get("end_time[gte]"), "must not use deprecated bracket date filter end_time[gte]")
+	assert.Empty(t, capturedQuery.Get("end_time[lte]"), "must not use deprecated bracket date filter end_time[lte]")
 	assert.Equal(t, "committee_uid:c-1", capturedQuery.Get("tags"), "must tag by committee_uid per voting-service indexer contract")
 	assert.Empty(t, capturedQuery["start_time"], "must not use start_time (field does not exist on vote resource type)")
 }
