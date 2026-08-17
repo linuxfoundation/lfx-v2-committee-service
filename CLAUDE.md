@@ -106,18 +106,4 @@ When the work is done and no more code commits are planned:
 
 ## Design Decisions
 
-**Weekly brief access model — `viewer`, not `member` (LFXV2-3046, 2026-08-17).**
-The `group_weekly_brief` indexer contract uses `access_check_relation: viewer` — the same relation
-used by the existing `GET /current` REST endpoint. A public committee's weekly briefs are therefore
-queryable by anyone who can view the committee, even when `private_source_present: true`.
-
-`private_source_present` is a **UI disclosure flag**, not an access gate. It tells the BFF/UI
-that the brief was generated from non-public source artifacts (member activity, meeting transcripts,
-etc.), but the brief itself is a synthesized narrative — those raw artifacts are not exposed.
-Restricting access to `member` would require a compound FGA relation that the query-service
-infrastructure does not support. Decision owner: Manish Dixit (Slack #lfx-dev, 2026-08-17).
-
-Do not tighten `access_check_relation` to `member` on `group_weekly_brief` without first
-implementing the compound FGA relation in the query service. The full rationale, and the
-revisit path, is documented in `docs/indexer-contract.md` under the Group Weekly Brief
-Access Control section.
+**Weekly brief access model (LFXV2-3046):** `group_weekly_brief` uses `access_check_relation: viewer`, matching the committee's own visibility — public committees' briefs are visible to anyone who can view the group; private committees' briefs are visible only to members and elevated users. This mirrors `GET /current`. `private_source_present` is a UI disclosure flag only.
