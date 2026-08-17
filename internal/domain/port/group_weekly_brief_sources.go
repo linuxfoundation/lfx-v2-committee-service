@@ -75,6 +75,9 @@ type MailingListActivity struct {
 	URL      string
 	Excerpt  string
 	Private  bool
+	// SubscriberCount is the number of list subscribers at index time.
+	// Zero means the field was absent or unavailable from the source.
+	SubscriberCount int
 }
 
 // MailingListSource returns mailing-list threads active in the window.

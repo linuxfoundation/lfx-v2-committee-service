@@ -25,7 +25,9 @@ type WeeklyBriefInput struct {
 	// RawContext is a sanitized, fenced block of source excerpts that the
 	// adapter should include verbatim in the prompt for richer grounding.
 	// Each entry is delimited by a header line so the model can cite by source.
-	// Empty string when no approved AI summaries are available for the window.
+	// May contain AI meeting-summary blocks ("--- meeting: ... ---") and/or
+	// mailing-list thread excerpt blocks ("--- thread: ... ---"). Empty string
+	// when no approved summaries or list threads are available for the window.
 	RawContext string
 }
 

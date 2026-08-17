@@ -458,7 +458,19 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}
+	if len(mailing) > maxMailingListCount {
+		mailing = mailing[:maxMailingListCount]
+	}
 	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, in.MembersHidden)
+
+	meetingRawCtx := buildRawContext(summaries)
+	mailingRawCtx := buildMailingListRawContext(mailing)
+	rawContext := meetingRawCtx
+	if rawContext != "" && mailingRawCtx != "" {
+		rawContext = rawContext + "\n\n" + mailingRawCtx
+	} else if mailingRawCtx != "" {
+		rawContext = mailingRawCtx
+	}
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -467,7 +479,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		PeriodStart:   windowStart.UTC().Format(time.RFC3339),
 		PeriodEnd:     windowEnd.UTC().Format(time.RFC3339),
 		Claims:        claims,
-		RawContext:    buildRawContext(summaries),
+		RawContext:    rawContext,
 	}
 
 	aiOut, errAI := g.ai.GenerateWeeklyBrief(ctx, aiInput)
@@ -716,6 +728,17 @@ const maxSummaryContentLen = 3000
 // the model's context window across many meetings.
 const maxSummaryCount = 10
 
+// maxThreadExcerptLen caps each mailing-list thread's excerpt contribution to
+// the RawContext block. Threads are typically shorter than meeting summaries,
+// so a smaller budget prevents a single verbose thread from crowding out other
+// sources.
+const maxThreadExcerptLen = 1500
+
+// maxMailingListCount caps the total number of mailing-list threads included in
+// a brief's RawContext. A busy committee may have many threads per week; this
+// bound ensures mailing-list content doesn't crowd out meeting summaries.
+const maxMailingListCount = 15
+
 // collapseHyphens reduces every run of three or more consecutive hyphens to
 // "--". A single strings.ReplaceAll("---", "--") is insufficient: "----"
 // contains one non-overlapping "---" starting at position 0, which becomes
@@ -765,6 +788,48 @@ func buildRawContext(summaries []port.MeetingAISummaryActivity) string {
 		sanitized := collapseHyphens(s.Content)
 		sanitized = cleanSummary(sanitized)
 		sanitized = truncateRunes(sanitized, maxSummaryContentLen)
+
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(header)
+		b.WriteString("\n")
+		b.WriteString(sanitized)
+	}
+	return b.String()
+}
+
+// buildMailingListRawContext produces a fenced, sanitized block of mailing-list
+// thread excerpts for the weekly-brief prompt. Each thread is preceded by a
+// header line so the model can cite by subject. Returns an empty string when no
+// threads are provided.
+//
+// Sanitization mirrors buildRawContext: hyphen runs in subjects are collapsed to
+// prevent fence-header forgery; subjects are passed through cleanSummary to
+// strip newlines; excerpts are truncated to maxThreadExcerptLen runes. At most
+// maxMailingListCount threads are rendered.
+func buildMailingListRawContext(mailing []port.MailingListActivity) string {
+	if len(mailing) == 0 {
+		return ""
+	}
+	if len(mailing) > maxMailingListCount {
+		mailing = mailing[:maxMailingListCount]
+	}
+	var b strings.Builder
+	for _, ml := range mailing {
+		subject := collapseHyphens(cleanSummary(ml.Subject))
+		if subject == "" {
+			subject = "Untitled Thread"
+		}
+		header := "--- thread: " + truncateRunes(subject, 80)
+		if ml.SubscriberCount > 0 {
+			header += fmt.Sprintf(" (%d subscribers)", ml.SubscriberCount)
+		}
+		header += " ---"
+
+		sanitized := collapseHyphens(ml.Excerpt)
+		sanitized = cleanSummary(sanitized)
+		sanitized = truncateRunes(sanitized, maxThreadExcerptLen)
 
 		if b.Len() > 0 {
 			b.WriteString("\n\n")

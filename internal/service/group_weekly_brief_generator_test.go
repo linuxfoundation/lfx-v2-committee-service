@@ -756,6 +756,96 @@ func TestBuildRawContext(t *testing.T) {
 	}
 }
 
+// ── buildMailingListRawContext ────────────────────────────────────────────────
+
+func TestBuildMailingListRawContext(t *testing.T) {
+	tests := []struct {
+		name        string
+		mailing     []port.MailingListActivity
+		wantEmpty   bool
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:      "nil threads → empty string",
+			mailing:   nil,
+			wantEmpty: true,
+		},
+		{
+			name:      "empty slice → empty string",
+			mailing:   []port.MailingListActivity{},
+			wantEmpty: true,
+		},
+		{
+			name: "single thread without subscribers → header and excerpt",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-1", Subject: "Q3 planning", Excerpt: "We should coordinate with the infra team."},
+			},
+			contains: []string{"--- thread: Q3 planning ---", "We should coordinate with the infra team."},
+		},
+		{
+			name: "subscriber count present → included in header",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-2", Subject: "Governance update", Excerpt: "Discussed charter.", SubscriberCount: 42},
+			},
+			contains: []string{"--- thread: Governance update (42 subscribers) ---"},
+		},
+		{
+			name: "zero subscriber count → omitted from header",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-3", Subject: "No count", Excerpt: "Some text.", SubscriberCount: 0},
+			},
+			contains:    []string{"--- thread: No count ---"},
+			notContains: []string{"subscribers"},
+		},
+		{
+			name: "fence markers in excerpt are sanitized",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-4", Subject: "Safe Thread", Excerpt: "Intro --- separator --- end"},
+			},
+			contains: []string{"Intro -- separator -- end"},
+		},
+		{
+			name: "newlines in subject are normalized",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-5", Subject: "Title\nWith\nNewlines", Excerpt: "Content"},
+			},
+			contains: []string{"--- thread: Title With Newlines"},
+		},
+		{
+			name: "empty subject falls back to Untitled Thread",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-6", Subject: "", Excerpt: "Some content"},
+			},
+			contains: []string{"--- thread: Untitled Thread ---"},
+		},
+		{
+			name: "multiple threads → both headers present",
+			mailing: []port.MailingListActivity{
+				{ThreadID: "t-7", Subject: "Thread Alpha", Excerpt: "Content A"},
+				{ThreadID: "t-8", Subject: "Thread Beta", Excerpt: "Content B"},
+			},
+			contains: []string{"--- thread: Thread Alpha", "--- thread: Thread Beta", "Content A", "Content B"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildMailingListRawContext(tc.mailing)
+			if tc.wantEmpty {
+				assert.Empty(t, got)
+				return
+			}
+			for _, s := range tc.contains {
+				assert.Contains(t, got, s)
+			}
+			for _, s := range tc.notContains {
+				assert.NotContains(t, got, s)
+			}
+		})
+	}
+}
+
 // ── derivePrivateSourcePresent with AI summaries ──────────────────────────────
 
 func TestDerivePrivateSourcePresent_AISummaries(t *testing.T) {
@@ -900,6 +990,75 @@ func TestFulfill_NoAISummarySource_BriefStillGenerates(t *testing.T) {
 		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
 		WithAIAdapter(recorder),
 		// intentionally no WithMeetingAISummarySource
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, recorder.gotInput.RawContext)
+}
+
+// ── Fulfill: RawContext wired from mailing-list threads ───────────────────────
+
+func TestFulfill_RawContextPopulatedFromMailingListThreads(t *testing.T) {
+	threads := []port.MailingListActivity{
+		{ThreadID: "t-1", Subject: "x402 deep-dive", Excerpt: "SAP raised concerns about blockchain deps.", SubscriberCount: 55},
+	}
+
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMailingListSource(&fakeMailingListSource{items: threads}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, recorder.gotInput.RawContext, "x402 deep-dive")
+	assert.Contains(t, recorder.gotInput.RawContext, "55 subscribers")
+	assert.Contains(t, recorder.gotInput.RawContext, "SAP raised concerns about blockchain deps.")
+}
+
+func TestFulfill_RawContextCombinesSummariesAndThreads(t *testing.T) {
+	t0 := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
+	summaries := []port.MeetingAISummaryActivity{
+		{Title: "Sprint Review", StartTime: t0, Content: "We shipped feature X."},
+	}
+	threads := []port.MailingListActivity{
+		{ThreadID: "t-1", Subject: "Governance update", Excerpt: "Charter draft reviewed."},
+	}
+
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMeetingAISummarySource(&fakeAISummarySource{summaries: summaries}),
+		WithMailingListSource(&fakeMailingListSource{items: threads}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, recorder.gotInput.RawContext, "--- meeting: Sprint Review")
+	assert.Contains(t, recorder.gotInput.RawContext, "--- thread: Governance update")
+}
+
+func TestFulfill_RawContextEmptyWhenNoThreadsAndNoSummaries(t *testing.T) {
+	recorder := &recordingAIAdapter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{meetings: oneMeeting}),
+		WithMailingListSource(&fakeMailingListSource{items: nil}),
+		WithAIAdapter(recorder),
 	)
 
 	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{

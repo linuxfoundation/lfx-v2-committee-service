@@ -105,6 +105,32 @@ func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) 
 	assert.Equal(t, "good", got[0].ThreadID)
 }
 
+// ── subscriber_count is mapped when present, zero when absent ─────────────────
+
+func TestListMailingListActivityForWindow_SubscriberCount(t *testing.T) {
+	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
+
+	body := []byte(`{"resources":[` +
+		`{"id":"doc-1","data":{"uid":"t-1","subject":"With subscribers","subscriber_count":42}},` +
+		`{"id":"doc-2","data":{"uid":"t-2","subject":"Without subscribers"}}` +
+		`]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newMailingListSource(t, srv)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, 42, got[0].SubscriberCount, "subscriber_count must be mapped from data field")
+	assert.Equal(t, 0, got[1].SubscriberCount, "absent subscriber_count must default to zero")
+}
+
 // ── Non-2xx response → error ──────────────────────────────────────────────────
 
 func TestListMailingListActivityForWindow_Non2xx_ReturnsError(t *testing.T) {
