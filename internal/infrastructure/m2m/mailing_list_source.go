@@ -62,6 +62,9 @@ func NewMailingListSource(cfg MailingListSourceConfig, client *http.Client) *Mai
 }
 
 type queryMailingListData struct {
+	// UID is the thread v2 UUID, read from data.uid per the v1_mailing_list_thread
+	// indexer contract. Do not use the envelope's top-level "id" for this.
+	UID     string `json:"uid"`
 	Subject string `json:"subject"`
 	URL     string `json:"url"`
 	Excerpt string `json:"excerpt"`
@@ -124,7 +127,7 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 			}
 		}
 		out = append(out, port.MailingListActivity{
-			ThreadID: r.UID,
+			ThreadID: data.UID,
 			Subject:  data.Subject,
 			URL:      data.URL,
 			Excerpt:  data.Excerpt,
