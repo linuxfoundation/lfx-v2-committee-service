@@ -83,10 +83,13 @@ type GroupWeeklyBrief struct {
 	CreatedAt            time.Time             `json:"created_at"`
 	UpdatedAt            time.Time             `json:"updated_at"`
 	// LastEditedAt and LastEditedBy record the most recent chair edit via
-	// PUT /current. They are unset on generated-but-never-edited briefs.
+	// PUT /current. They are nil/empty on generated-but-never-edited briefs.
 	// LastEditedBy is the caller's Heimdall principal (LFX username).
-	LastEditedAt time.Time `json:"last_edited_at,omitempty"`
-	LastEditedBy string    `json:"last_edited_by,omitempty"`
+	// LastEditedAt is a pointer so that the zero time.Time is not serialised
+	// as "0001-01-01T00:00:00Z" — omitempty on time.Time (a struct) does not
+	// suppress the zero value in encoding/json.
+	LastEditedAt *time.Time `json:"last_edited_at,omitempty"`
+	LastEditedBy string     `json:"last_edited_by,omitempty"`
 	// Revision is the NATS KV revision used for optimistic concurrency.
 	// It is not part of the indexer contract; it is surfaced on the API
 	// response so clients can round-trip it as the edit/save concurrency token.

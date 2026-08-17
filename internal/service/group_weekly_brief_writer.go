@@ -145,7 +145,8 @@ func (o *groupWeeklyBriefWriterOrchestrator) Update(ctx context.Context, in Grou
 	// drives the CAS write.
 	current.BriefText = in.BriefText
 	current.State = model.GroupWeeklyBriefStateEdited
-	current.LastEditedAt = in.Now.UTC()
+	t := in.Now.UTC()
+	current.LastEditedAt = &t
 	current.LastEditedBy = in.EditedBy
 
 	updated, err := o.writer.PutGroupWeeklyBrief(ctx, current)

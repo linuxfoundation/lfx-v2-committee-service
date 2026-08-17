@@ -55,7 +55,8 @@ func TestUpdate_Success_TransitionsToEditedAndBumpsRevision(t *testing.T) {
 	assert.Equal(t, "edited body", updated.BriefText)
 	// Audit fields are recorded from the input.
 	assert.Equal(t, "alice", updated.LastEditedBy)
-	assert.Equal(t, testNow.UTC(), updated.LastEditedAt)
+	require.NotNil(t, updated.LastEditedAt)
+	assert.Equal(t, testNow.UTC(), *updated.LastEditedAt)
 	// source_refs are preserved untouched.
 	require.Len(t, updated.SourceRefs, 1)
 	assert.Equal(t, "m-1", updated.SourceRefs[0].ID)

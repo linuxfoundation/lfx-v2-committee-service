@@ -599,8 +599,8 @@ _(none)_
 | `private_source_present` | bool | Whether any source artifact used was private |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
-| `last_edited_at` | timestamp (optional) | Time of the most recent chair edit via `PUT /current`; omitted on generated-but-never-edited briefs. |
-| `last_edited_by` | string (optional) | Heimdall principal (LFX username) who performed the most recent chair edit; omitted when `last_edited_at` is unset. |
+| `last_edited_at` | timestamp (optional) | Time of the most recent chair edit via `PUT /current`; omitted (`null` / absent) on briefs that have never been edited. Uses a pointer-typed field so the zero time is not emitted. |
+| `last_edited_by` | string (optional) | Heimdall principal (LFX username) who performed the most recent chair edit; omitted when `last_edited_at` is absent. |
 
 > **State lifecycle.** A brief is created in `generating` when a generate is requested — the request is accepted (202) and the source gather + LLM run asynchronously. On success the brief moves to `generated`; a manual edit moves it to `edited`, and `approved` marks it ready. `error` is the terminal failure state (no activity in the window, or an AI/generation failure). Typical flow: `generating → generated → (edited) → approved`, with `error` reachable from `generating`. (`empty` is a reserved enum value; the current generate flow does not create briefs in the `empty` state.)
 
