@@ -442,8 +442,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 // layer Update so that KV write and re-indexing are handled consistently in one place.
 // The caller (infrastructure layer) owns ACK/NAK.
 func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
-	if m.committeeWriterOrchestrator == nil {
-		return errors.NewValidation("committee writer orchestrator is required for handling total_members sync events")
+	if m.committeeWriter == nil || m.committeeReader == nil || m.committeePublisher == nil {
+		return errors.NewValidation("committee writer, reader, and publisher are required for handling total_members sync events")
 	}
 
 	subject := msg.Subject()
@@ -490,25 +490,39 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	}
 	actualCount := len(members)
 
-	committee, revision, err := m.committeeReader.GetBase(ctx, committeeUID)
+	committee, changed, err := m.committeeWriter.UpdateTotalMembers(ctx, committeeUID, actualCount)
 	if err != nil {
 		return err
 	}
-
-	if committee.TotalMembers == actualCount {
-		slog.DebugContext(ctx, "total_members already correct — skipping update", "total_members", actualCount)
-		return nil
+	if !changed {
+		// The counter may already be correct because a prior delivery of this same
+		// event wrote it but the indexer publish below never completed (e.g. the
+		// message was NAKed after the KV write committed). Re-index unconditionally
+		// so a redelivery can still finish that half of the operation instead of
+		// silently leaving the index stale.
+		slog.DebugContext(ctx, "total_members already correct — re-indexing in case of a prior incomplete delivery", "total_members", actualCount)
+		base, _, err := m.committeeReader.GetBase(ctx, committeeUID)
+		if err != nil {
+			return err
+		}
+		committee = base
+	} else {
+		slog.DebugContext(ctx, "updated total_members counter", "total_members", actualCount)
 	}
 
-	slog.DebugContext(ctx, "updating total_members counter",
-		"previous", committee.TotalMembers,
-		"actual", actualCount,
-	)
+	fullCommittee := &model.Committee{CommitteeBase: *committee}
+	if settings, _, errSettings := m.committeeReader.GetSettings(ctx, committeeUID); errSettings == nil {
+		fullCommittee.CommitteeSettings = settings
+	}
 
-	committee.TotalMembers = actualCount
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
+	if err != nil {
+		return err
+	}
+	indexerMsg.IndexingConfig = buildCommitteeIndexingConfig(fullCommittee)
 
-	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
-		return fmt.Errorf("committee %q update total_members: %w", committeeUID, err)
+	if err := m.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false); err != nil {
+		return err
 	}
 
 	return nil

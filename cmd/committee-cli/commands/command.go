@@ -44,8 +44,11 @@ type RunContext struct {
 	DocumentAuditSync port.DocumentAuditSyncStorage
 	// GroupWeeklyBriefReader provides direct access to brief storage for backfill subcommands.
 	GroupWeeklyBriefReader port.GroupWeeklyBriefReader
-	DryRun                 bool
-	Args                   []string // remaining args after command + subcommand, for subcommand flag parsing
+	// CommitteeBaseWriter provides direct storage-layer access to committee base write operations
+	// (e.g. UpdateTotalMembers). Bypasses the business-logic orchestrator.
+	CommitteeBaseWriter port.CommitteeBaseWriter
+	DryRun              bool
+	Args                []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

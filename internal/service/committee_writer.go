@@ -383,6 +383,18 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	updated.CommitteeBase.CreatedAt = existing.CreatedAt
 	ssoGroupName := existing.SSOGroupName
 
+	// Preserve readonly computed fields — these are never part of the update
+	// payload (see CommitteeBaseAttributes in cmd/committee-api/design/type.go),
+	// so updated always carries their zero value. Without this, every base
+	// update silently resets total_members, total_voting_repos, and
+	// has_mailing_list to zero. Computed-field syncs (total_members drift
+	// correction, has_mailing_list toggling) go through their own dedicated
+	// storage writers (UpdateTotalMembers, UpdateHasMailingList) instead of
+	// this generic path, so unconditional preservation here is safe.
+	updated.TotalMembers = existing.TotalMembers
+	updated.TotalVotingRepos = existing.TotalVotingRepos
+	updated.HasMailingList = existing.HasMailingList
+
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
 

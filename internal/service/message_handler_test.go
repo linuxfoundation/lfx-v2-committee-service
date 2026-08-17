@@ -507,6 +507,8 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
+	// indexerErr, when non-nil, is returned by Indexer and then cleared so subsequent calls succeed.
+	indexerErr error
 	// capturedUpdateAccessMsgs records messages sent through the asynchronous-only operation.
 	capturedUpdateAccessMsgs []any
 	// capturedMemberPutMsgs records messages sent through the asynchronous-only member_put operation.
@@ -518,6 +520,11 @@ type spyCommitteePublisher struct {
 func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
 	s.indexerCallCount++
 	s.lastSubject = subject
+	if s.indexerErr != nil {
+		err := s.indexerErr
+		s.indexerErr = nil // clear so redelivery can succeed
+		return err
+	}
 	return nil
 }
 func (s *spyCommitteePublisher) UpdateAccess(_ context.Context, msg any) error {
@@ -902,6 +909,20 @@ func buildTotalMembersSyncMsg(committeeUID string) []byte {
 	return b
 }
 
+// wrappedCommitteeWriter wraps a real MockCommitteeWriter and can be configured to force
+// UpdateTotalMembers to fail, for exercising the sync handler's error path.
+type wrappedCommitteeWriter struct {
+	port.CommitteeWriter
+	totalMembersErr error
+}
+
+func (w *wrappedCommitteeWriter) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	if w.totalMembersErr != nil {
+		return nil, false, w.totalMembersErr
+	}
+	return w.CommitteeWriter.UpdateTotalMembers(ctx, uid, totalMembers)
+}
+
 func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 	ctx := context.Background()
 
@@ -928,24 +949,24 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 		setupMock         func(*mock.MockRepository)
 		writerErr         error
 		wantErr           bool
-		wantUpdateCalls   int
-		validateCommittee func(*testing.T, *model.Committee)
+		wantIndexerCalled bool
+		validateCommittee func(*testing.T, *model.CommitteeBase)
 	}{
 		{
-			name:            "irrelevant subject — skipped silently",
-			subject:         "lfx.committee-api.some.other.subject",
-			messageData:     buildTotalMembersSyncMsg(committeeUID),
-			setupMock:       func(_ *mock.MockRepository) {},
-			wantErr:         false,
-			wantUpdateCalls: 0,
+			name:              "irrelevant subject — skipped silently",
+			subject:           "lfx.committee-api.some.other.subject",
+			messageData:       buildTotalMembersSyncMsg(committeeUID),
+			setupMock:         func(_ *mock.MockRepository) {},
+			wantErr:           false,
+			wantIndexerCalled: false,
 		},
 		{
-			name:            "invalid JSON — returns parse error",
-			subject:         constants.CommitteeMemberCreatedSubject,
-			messageData:     []byte(`not-json`),
-			setupMock:       func(_ *mock.MockRepository) {},
-			wantErr:         true,
-			wantUpdateCalls: 0,
+			name:              "invalid JSON — returns parse error",
+			subject:           constants.CommitteeMemberCreatedSubject,
+			messageData:       []byte(`not-json`),
+			setupMock:         func(_ *mock.MockRepository) {},
+			wantErr:           true,
+			wantIndexerCalled: false,
 		},
 		{
 			name:    "event data cannot decode to CommitteeMember — discarded silently",
@@ -955,9 +976,9 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 				b, _ := json.Marshal(event)
 				return b
 			}(),
-			setupMock:       func(_ *mock.MockRepository) {},
-			wantErr:         false,
-			wantUpdateCalls: 0,
+			setupMock:         func(_ *mock.MockRepository) {},
+			wantErr:           false,
+			wantIndexerCalled: false,
 		},
 		{
 			name:    "empty committee_uid — discarded silently",
@@ -967,20 +988,20 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 				b, _ := json.Marshal(event)
 				return b
 			}(),
-			setupMock:       func(_ *mock.MockRepository) {},
-			wantErr:         false,
-			wantUpdateCalls: 0,
+			setupMock:         func(_ *mock.MockRepository) {},
+			wantErr:           false,
+			wantIndexerCalled: false,
 		},
 		{
-			name:            "GetBase fails — propagates error",
-			subject:         constants.CommitteeMemberCreatedSubject,
-			messageData:     buildTotalMembersSyncMsg(committeeUID),
-			setupMock:       func(repo *mock.MockRepository) {},
-			wantErr:         true,
-			wantUpdateCalls: 0,
+			name:              "committee not found — propagates error",
+			subject:           constants.CommitteeMemberCreatedSubject,
+			messageData:       buildTotalMembersSyncMsg(committeeUID),
+			setupMock:         func(_ *mock.MockRepository) {},
+			wantErr:           true,
+			wantIndexerCalled: false,
 		},
 		{
-			name:        "TotalMembers already correct — no update",
+			name:        "TotalMembers already correct — no storage update, but still re-indexed for redelivery safety",
 			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
@@ -992,11 +1013,15 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
 				})
 			},
-			wantErr:         false,
-			wantUpdateCalls: 0,
+			wantErr:           false,
+			wantIndexerCalled: true,
+			validateCommittee: func(t *testing.T, c *model.CommitteeBase) {
+				t.Helper()
+				assert.Equal(t, 2, c.TotalMembers)
+			},
 		},
 		{
-			name:        "TotalMembers stale — update called with correct count (created subject)",
+			name:        "TotalMembers stale — update written and re-indexed (created subject)",
 			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
@@ -1008,15 +1033,15 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
 				})
 			},
-			wantErr:         false,
-			wantUpdateCalls: 1,
-			validateCommittee: func(t *testing.T, c *model.Committee) {
+			wantErr:           false,
+			wantIndexerCalled: true,
+			validateCommittee: func(t *testing.T, c *model.CommitteeBase) {
 				t.Helper()
 				assert.Equal(t, 2, c.TotalMembers)
 			},
 		},
 		{
-			name:        "TotalMembers stale — update called with correct count (deleted subject)",
+			name:        "TotalMembers stale — update written and re-indexed (deleted subject)",
 			subject:     constants.CommitteeMemberDeletedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
@@ -1025,15 +1050,15 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
 				})
 			},
-			wantErr:         false,
-			wantUpdateCalls: 1,
-			validateCommittee: func(t *testing.T, c *model.Committee) {
+			wantErr:           false,
+			wantIndexerCalled: true,
+			validateCommittee: func(t *testing.T, c *model.CommitteeBase) {
 				t.Helper()
 				assert.Equal(t, 1, c.TotalMembers)
 			},
 		},
 		{
-			name:        "Update fails — propagates error",
+			name:        "UpdateTotalMembers fails — propagates error",
 			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
@@ -1042,9 +1067,9 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 					CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
 				})
 			},
-			writerErr:       fmt.Errorf("storage unavailable"),
-			wantErr:         true,
-			wantUpdateCalls: 1,
+			writerErr:         fmt.Errorf("storage unavailable"),
+			wantErr:           true,
+			wantIndexerCalled: false,
 		},
 	}
 
@@ -1054,13 +1079,18 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			mockRepo.ClearAll()
 			tt.setupMock(mockRepo)
 
-			spy := &spyCommitteeWriterOrchestrator{updateErr: tt.writerErr}
+			writer := &wrappedCommitteeWriter{
+				CommitteeWriter: mock.NewMockCommitteeWriter(mockRepo),
+				totalMembersErr: tt.writerErr,
+			}
+			spy := &spyCommitteePublisher{}
 
 			handler := NewMessageHandlerOrchestrator(
 				WithCommitteeReaderForMessageHandler(
 					NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
 				),
-				WithCommitteeWriterOrchestratorForMessageHandler(spy),
+				WithCommitteeWriterForMessageHandler(writer),
+				WithCommitteePublisherForMessageHandler(spy),
 			)
 
 			msg := &mockStreamMessenger{subject: tt.subject, data: tt.messageData}
@@ -1072,12 +1102,56 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			assert.Equal(t, tt.wantUpdateCalls, spy.updateCalls, "Update call count mismatch")
+			assert.Equal(t, tt.wantIndexerCalled, spy.indexerCallCount > 0,
+				"indexer called mismatch: got %d calls", spy.indexerCallCount)
 
 			if tt.validateCommittee != nil {
-				require.NotNil(t, spy.updatedCommittee)
-				tt.validateCommittee(t, spy.updatedCommittee)
+				updated, _, errGet := mockRepo.GetBase(ctx, committeeUID)
+				require.NoError(t, errGet)
+				tt.validateCommittee(t, updated)
 			}
+		})
+	}
+}
+
+func TestHandleCommitteeTotalMembersSync_MissingDependencies(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+
+	msg := &mockStreamMessenger{
+		subject: constants.CommitteeMemberCreatedSubject,
+		data:    buildTotalMembersSyncMsg(uuid.New().String()),
+	}
+
+	tests := []struct {
+		name    string
+		handler port.MessageHandler
+	}{
+		{
+			name: "missing committee reader",
+			handler: NewMessageHandlerOrchestrator(
+				WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+				WithCommitteePublisherForMessageHandler(&spyCommitteePublisher{}),
+			),
+		},
+		{
+			name: "missing committee publisher",
+			handler: NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo))),
+				WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+			),
+		},
+		{
+			name:    "missing committee writer",
+			handler: NewMessageHandlerOrchestrator(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.handler.HandleCommitteeTotalMembersSync(ctx, msg)
+			require.Error(t, err)
 		})
 	}
 }
@@ -1085,6 +1159,67 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 // Helper function to create string pointer
 func messageHandlerStringPtr(s string) *string {
 	return &s
+}
+
+// TestHandleCommitteeTotalMembersSync_PublishFailureRedelivery verifies the
+// retry-safe behaviour of HandleCommitteeTotalMembersSync when the KV write
+// succeeds on first delivery but the indexer publish fails (causing a NAK).
+// On redelivery the storage layer reports no change (the count is already
+// correct), and the handler must still re-publish so the indexed value is
+// eventually consistent with the stored one.
+func TestHandleCommitteeTotalMembersSync_PublishFailureRedelivery(t *testing.T) {
+	ctx := context.Background()
+	committeeUID := uuid.New().String()
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          committeeUID,
+			ProjectUID:   "proj-1",
+			Name:         "Test Committee",
+			Category:     "technical",
+			TotalMembers: 1, // stale — one member already stored
+			CreatedAt:    time.Now().Add(-time.Hour),
+			UpdatedAt:    time.Now(),
+		},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: committeeUID},
+	})
+
+	spy := &spyCommitteePublisher{indexerErr: fmt.Errorf("indexer unavailable")}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+		WithCommitteePublisherForMessageHandler(spy),
+	)
+
+	msg := &mockStreamMessenger{
+		subject: constants.CommitteeMemberCreatedSubject,
+		data:    buildTotalMembersSyncMsg(committeeUID),
+	}
+
+	// First delivery: KV write succeeds (stale 1 → 2), publish fails.
+	err := handler.HandleCommitteeTotalMembersSync(ctx, msg)
+	require.Error(t, err, "first delivery should fail when indexer publish fails")
+	assert.Equal(t, 1, spy.indexerCallCount, "indexer should have been attempted once on first delivery")
+
+	// Verify the KV write actually committed.
+	stored, _, errGet := mockRepo.GetBase(ctx, committeeUID)
+	require.NoError(t, errGet)
+	assert.Equal(t, 2, stored.TotalMembers, "KV value must have been written on first delivery")
+
+	// Second delivery (redelivery): storage now returns no-change, but the
+	// handler must still publish so the index catches up.
+	err = handler.HandleCommitteeTotalMembersSync(ctx, msg)
+	require.NoError(t, err, "redelivery should succeed once the indexer publish can proceed")
+	assert.Equal(t, 2, spy.indexerCallCount, "indexer must be called again on redelivery even when storage reports no change")
 }
 
 // ---------------------------------------------------------------------------

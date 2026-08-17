@@ -250,6 +250,47 @@ func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMaili
 	return committee, true, nil
 }
 
+// UpdateTotalMembers implements CommitteeBaseWriter.
+func (s *storage) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	committee := &model.CommitteeBase{}
+	rev, err := s.get(ctx, constants.KVBucketNameCommittees, uid, committee, false)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, false, errs.NewUnexpected("failed to get committee", err)
+	}
+
+	if committee.TotalMembers == totalMembers {
+		return nil, false, nil
+	}
+
+	committee.TotalMembers = totalMembers
+	committee.UpdatedAt = time.Now()
+
+	data, err := json.Marshal(committee)
+	if err != nil {
+		return nil, false, errs.NewUnexpected("failed to marshal committee", err)
+	}
+
+	newRevision, err := s.client.kvStore[constants.KVBucketNameCommittees].Update(ctx, uid, data, rev)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return nil, false, errs.NewUnexpected("failed to update committee total_members counter", err)
+	}
+
+	slog.DebugContext(ctx, "updated total_members in NATS storage",
+		"committee_uid", uid,
+		"total_members", totalMembers,
+		"old_revision", rev,
+		"new_revision", newRevision,
+	)
+
+	return committee, true, nil
+}
+
 // UpdateSetting updates a committee's settings in the KV store using optimistic locking via the provided revision.
 func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 

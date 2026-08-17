@@ -614,6 +614,25 @@ func (w *MockCommitteeWriter) UpdateHasMailingList(_ context.Context, uid string
 	return &committee.CommitteeBase, true, nil
 }
 
+// UpdateTotalMembers implements CommitteeBaseWriter.
+func (w *MockCommitteeWriter) UpdateTotalMembers(_ context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	committee, exists := w.mock.committees[uid]
+	if !exists {
+		return nil, false, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
+	}
+
+	if committee.TotalMembers == totalMembers {
+		return nil, false, nil
+	}
+
+	committee.TotalMembers = totalMembers
+	committee.CommitteeBase.UpdatedAt = time.Now()
+	return &committee.CommitteeBase, true, nil
+}
+
 // UniqueSSOGroupName verifies if a committee with the same SSO group name exists
 // Returns conflict error if found (for uniqueness checking)
 func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {

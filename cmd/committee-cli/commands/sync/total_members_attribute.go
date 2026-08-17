@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
@@ -90,7 +89,7 @@ func (s *totalMembersAttributeSubcommand) resolveUIDs(ctx context.Context, rc co
 func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc commands.RunContext, uid, projectUID string, sleep time.Duration, stats *commands.Stats) error {
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	base, revision, err := rc.CommitteeReader.GetBase(ctx, uid)
+	base, _, err := rc.CommitteeReader.GetBase(ctx, uid)
 	if err != nil {
 		stats.Failed++
 		slog.WarnContext(ctx, "failed to get committee base", "committee_uid", uid, "error", err)
@@ -136,9 +135,7 @@ func (s *totalMembersAttributeSubcommand) syncOne(ctx context.Context, rc comman
 		return nil
 	}
 
-	committee := &model.Committee{CommitteeBase: *base}
-	committee.TotalMembers = actual
-	if _, err := rc.CommitteeWriterOrchestrator.Update(ctx, committee, revision, false); err != nil {
+	if _, _, err := rc.CommitteeBaseWriter.UpdateTotalMembers(ctx, uid, actual); err != nil {
 		stats.Failed++
 		slog.WarnContext(ctx, "failed to update committee total_members",
 			"committee_uid", uid,
