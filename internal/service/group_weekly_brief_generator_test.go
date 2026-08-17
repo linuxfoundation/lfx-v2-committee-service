@@ -1238,6 +1238,24 @@ func TestFulfill_PublishesIndexerMessage_OnGenerated(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pub.indexerSubjects, 1, "expected exactly one indexer publish")
 	assert.Equal(t, "lfx.index.group_weekly_brief", pub.indexerSubjects[0])
+
+	got, ok := pub.indexerMessages[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "indexer payload must be *model.CommitteeIndexerMessage")
+	assert.Equal(t, model.ActionUpdated, got.Action)
+	assert.ElementsMatch(t, []string{
+		"b-1",
+		"group_weekly_brief_uid:b-1",
+		"committee_uid:c-1",
+		"state:generated",
+	}, got.Tags)
+	require.NotNil(t, got.IndexingConfig, "IndexingConfig must be populated for ActionUpdated")
+	assert.Equal(t, "b-1", got.IndexingConfig.ObjectID)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.AccessCheckObject)
+	assert.Equal(t, "viewer", got.IndexingConfig.AccessCheckRelation)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.HistoryCheckObject)
+	assert.Equal(t, "auditor", got.IndexingConfig.HistoryCheckRelation)
+	require.NotNil(t, got.IndexingConfig.Public, "Public flag must be explicitly set")
+	assert.False(t, *got.IndexingConfig.Public, "weekly briefs must never be indexed as public")
 }
 
 func TestFulfill_PublishesIndexerMessage_OnNoSourcesError(t *testing.T) {
@@ -1254,6 +1272,16 @@ func TestFulfill_PublishesIndexerMessage_OnNoSourcesError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pub.indexerSubjects, 1, "expected exactly one indexer publish on no-sources path")
 	assert.Equal(t, "lfx.index.group_weekly_brief", pub.indexerSubjects[0])
+
+	got, ok := pub.indexerMessages[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "indexer payload must be *model.CommitteeIndexerMessage")
+	assert.Equal(t, model.ActionUpdated, got.Action)
+	assert.Contains(t, got.Tags, "state:error", "error-state brief must carry state:error tag")
+	require.NotNil(t, got.IndexingConfig, "IndexingConfig must be populated for ActionUpdated")
+	assert.Equal(t, "b-1", got.IndexingConfig.ObjectID)
+	assert.Equal(t, "committee:c-1", got.IndexingConfig.AccessCheckObject)
+	require.NotNil(t, got.IndexingConfig.Public)
+	assert.False(t, *got.IndexingConfig.Public, "weekly briefs must never be indexed as public")
 }
 
 func TestFulfill_PublishErrorIsNonFatal(t *testing.T) {
