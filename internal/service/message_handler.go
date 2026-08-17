@@ -442,8 +442,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 // layer Update so that KV write and re-indexing are handled consistently in one place.
 // The caller (infrastructure layer) owns ACK/NAK.
 func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
-	if m.committeeWriter == nil {
-		return errors.NewValidation("committee writer is required for handling total_members sync events")
+	if m.committeeWriter == nil || m.committeeReader == nil || m.committeePublisher == nil {
+		return errors.NewValidation("committee writer, reader, and publisher are required for handling total_members sync events")
 	}
 
 	subject := msg.Subject()
@@ -495,11 +495,20 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 		return err
 	}
 	if !changed {
-		slog.DebugContext(ctx, "total_members already correct — skipping update", "total_members", actualCount)
-		return nil
+		// The counter may already be correct because a prior delivery of this same
+		// event wrote it but the indexer publish below never completed (e.g. the
+		// message was NAKed after the KV write committed). Re-index unconditionally
+		// so a redelivery can still finish that half of the operation instead of
+		// silently leaving the index stale.
+		slog.DebugContext(ctx, "total_members already correct — re-indexing in case of a prior incomplete delivery", "total_members", actualCount)
+		base, _, err := m.committeeReader.GetBase(ctx, committeeUID)
+		if err != nil {
+			return err
+		}
+		committee = base
+	} else {
+		slog.DebugContext(ctx, "updated total_members counter", "total_members", actualCount)
 	}
-
-	slog.DebugContext(ctx, "updated total_members counter", "total_members", actualCount)
 
 	fullCommittee := &model.Committee{CommitteeBase: *committee}
 	if settings, _, errSettings := m.committeeReader.GetSettings(ctx, committeeUID); errSettings == nil {

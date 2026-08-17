@@ -994,7 +994,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			wantIndexerCalled: false,
 		},
 		{
-			name:        "TotalMembers already correct — no update, no re-index",
+			name:        "TotalMembers already correct — no storage update, but still re-indexed for redelivery safety",
 			subject:     constants.CommitteeMemberCreatedSubject,
 			messageData: buildTotalMembersSyncMsg(committeeUID),
 			setupMock: func(repo *mock.MockRepository) {
@@ -1007,7 +1007,11 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 				})
 			},
 			wantErr:           false,
-			wantIndexerCalled: false,
+			wantIndexerCalled: true,
+			validateCommittee: func(t *testing.T, c *model.CommitteeBase) {
+				t.Helper()
+				assert.Equal(t, 2, c.TotalMembers)
+			},
 		},
 		{
 			name:        "TotalMembers stale — update written and re-indexed (created subject)",
@@ -1099,6 +1103,48 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 				require.NoError(t, errGet)
 				tt.validateCommittee(t, updated)
 			}
+		})
+	}
+}
+
+func TestHandleCommitteeTotalMembersSync_MissingDependencies(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+
+	msg := &mockStreamMessenger{
+		subject: constants.CommitteeMemberCreatedSubject,
+		data:    buildTotalMembersSyncMsg(uuid.New().String()),
+	}
+
+	tests := []struct {
+		name    string
+		handler port.MessageHandler
+	}{
+		{
+			name: "missing committee reader",
+			handler: NewMessageHandlerOrchestrator(
+				WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+				WithCommitteePublisherForMessageHandler(&spyCommitteePublisher{}),
+			),
+		},
+		{
+			name: "missing committee publisher",
+			handler: NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo))),
+				WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+			),
+		},
+		{
+			name:    "missing committee writer",
+			handler: NewMessageHandlerOrchestrator(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.handler.HandleCommitteeTotalMembersSync(ctx, msg)
+			require.Error(t, err)
 		})
 	}
 }
