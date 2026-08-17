@@ -442,8 +442,8 @@ func (m *messageHandlerOrchestrator) HandleCommitteeUpdated(ctx context.Context,
 // layer Update so that KV write and re-indexing are handled consistently in one place.
 // The caller (infrastructure layer) owns ACK/NAK.
 func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
-	if m.committeeWriterOrchestrator == nil {
-		return errors.NewValidation("committee writer orchestrator is required for handling total_members sync events")
+	if m.committeeWriter == nil {
+		return errors.NewValidation("committee writer is required for handling total_members sync events")
 	}
 
 	subject := msg.Subject()
@@ -490,25 +490,30 @@ func (m *messageHandlerOrchestrator) HandleCommitteeTotalMembersSync(ctx context
 	}
 	actualCount := len(members)
 
-	committee, revision, err := m.committeeReader.GetBase(ctx, committeeUID)
+	committee, changed, err := m.committeeWriter.UpdateTotalMembers(ctx, committeeUID, actualCount)
 	if err != nil {
 		return err
 	}
-
-	if committee.TotalMembers == actualCount {
+	if !changed {
 		slog.DebugContext(ctx, "total_members already correct — skipping update", "total_members", actualCount)
 		return nil
 	}
 
-	slog.DebugContext(ctx, "updating total_members counter",
-		"previous", committee.TotalMembers,
-		"actual", actualCount,
-	)
+	slog.DebugContext(ctx, "updated total_members counter", "total_members", actualCount)
 
-	committee.TotalMembers = actualCount
+	fullCommittee := &model.Committee{CommitteeBase: *committee}
+	if settings, _, errSettings := m.committeeReader.GetSettings(ctx, committeeUID); errSettings == nil {
+		fullCommittee.CommitteeSettings = settings
+	}
 
-	if _, err := m.committeeWriterOrchestrator.Update(ctx, &model.Committee{CommitteeBase: *committee}, revision, false); err != nil {
-		return fmt.Errorf("committee %q update total_members: %w", committeeUID, err)
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
+	if err != nil {
+		return err
+	}
+	indexerMsg.IndexingConfig = buildCommitteeIndexingConfig(fullCommittee)
+
+	if err := m.committeePublisher.Indexer(ctx, constants.IndexCommitteeSubject, indexerMsg, false); err != nil {
+		return err
 	}
 
 	return nil

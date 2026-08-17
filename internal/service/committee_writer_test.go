@@ -74,6 +74,11 @@ func (w *TestMockCommitteeWriter) UpdateHasMailingList(ctx context.Context, uid 
 	return mockWriter.UpdateHasMailingList(ctx, uid, hasMailingList)
 }
 
+func (w *TestMockCommitteeWriter) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UpdateTotalMembers(ctx, uid, totalMembers)
+}
+
 func (w *TestMockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.UpdateSetting(ctx, settings, revision)

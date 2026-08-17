@@ -148,58 +148,58 @@ func (r *mockReader) EachMember(ctx context.Context, fn func(*model.CommitteeMem
 	return nil
 }
 
-// mockWriter implements service.CommitteeWriter, recording Update calls.
-type mockWriter struct {
-	updateErr   error
-	updated     []*model.Committee
-	updatedRevs []uint64
-}
-
-func (w *mockWriter) Update(_ context.Context, c *model.Committee, rev uint64, _ bool) (*model.Committee, error) {
-	if w.updateErr != nil {
-		return nil, w.updateErr
+// mockBaseWriter implements the CommitteeBaseWriter methods syncOne touches,
+// recording UpdateTotalMembers calls.
+type mockBaseWriter struct {
+	updateErr error
+	updated   []struct {
+		uid   string
+		total int
 	}
-	w.updated = append(w.updated, c)
-	w.updatedRevs = append(w.updatedRevs, rev)
-	return c, nil
 }
 
-func (w *mockWriter) Create(_ context.Context, c *model.Committee, _ bool) (*model.Committee, error) {
-	return c, nil
+func (w *mockBaseWriter) UpdateTotalMembers(_ context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	if w.updateErr != nil {
+		return nil, false, w.updateErr
+	}
+	w.updated = append(w.updated, struct {
+		uid   string
+		total int
+	}{uid, totalMembers})
+	return &model.CommitteeBase{UID: uid, TotalMembers: totalMembers}, true, nil
 }
-func (w *mockWriter) UpdateSettings(_ context.Context, s *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
-	return s, nil
-}
-func (w *mockWriter) Delete(_ context.Context, _ string, _ uint64, _ bool) error { return nil }
-func (w *mockWriter) CreateMember(_ context.Context, m *model.CommitteeMember, _ bool, _ bool) (*model.CommitteeMember, error) {
-	return m, nil
-}
-func (w *mockWriter) UpdateMember(_ context.Context, m *model.CommitteeMember, _ uint64, _ bool, _ bool) (*model.CommitteeMember, error) {
-	return m, nil
-}
-func (w *mockWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
+
+func (w *mockBaseWriter) Create(_ context.Context, _ *model.Committee) error { return nil }
+func (w *mockBaseWriter) UpdateBase(_ context.Context, _ *model.Committee, _ uint64) error {
 	return nil
 }
-func (w *mockWriter) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
-	return m, nil
+func (w *mockBaseWriter) Delete(_ context.Context, _ string, _ uint64) error { return nil }
+func (w *mockBaseWriter) UpdateHasMailingList(_ context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error) {
+	return &model.CommitteeBase{UID: uid, HasMailingList: hasMailingList}, true, nil
+}
+func (w *mockBaseWriter) UniqueNameProject(_ context.Context, _ *model.Committee) (string, error) {
+	return "", nil
+}
+func (w *mockBaseWriter) UniqueSSOGroupName(_ context.Context, _ *model.Committee) (string, error) {
+	return "", nil
 }
 
 // helpers
 
-func run(t *testing.T, r *mockReader, w *mockWriter, args ...string) error {
+func run(t *testing.T, r *mockReader, w *mockBaseWriter, args ...string) error {
 	t.Helper()
 	s := &totalMembersAttributeSubcommand{}
 	return s.Run(context.Background(), commands.RunContext{
-		CommitteeReader:             r,
-		CommitteeWriterOrchestrator: w,
-		Args:                        args,
+		CommitteeReader:     r,
+		CommitteeBaseWriter: w,
+		Args:                args,
 	})
 }
 
 // tests
 
 func TestMutualExclusivity(t *testing.T) {
-	err := run(t, &mockReader{}, &mockWriter{}, "--committee-uid", "uid-1", "--project-uid", "proj-1")
+	err := run(t, &mockReader{}, &mockBaseWriter{}, "--committee-uid", "uid-1", "--project-uid", "proj-1")
 	if err == nil {
 		t.Fatal("expected error when both flags are set")
 	}
@@ -212,7 +212,7 @@ func TestSingleUID_ResolvesWithoutListAllUIDs(t *testing.T) {
 		revision: map[string]uint64{uid: 1},
 		members:  map[string][]*model.CommitteeMember{uid: {{}, {}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w, "--committee-uid", uid); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestProjectFilter_Skips(t *testing.T) {
 		revision: map[string]uint64{uid: 1},
 		members:  map[string][]*model.CommitteeMember{uid: {{}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w, "--project-uid", "proj-want"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestNoDrift_Skips(t *testing.T) {
 		revision: map[string]uint64{uid: 7},
 		members:  map[string][]*model.CommitteeMember{uid: {{}, {}, {}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestDrift_DryRun_NoWrite(t *testing.T) {
 		revision: map[string]uint64{uid: 5},
 		members:  map[string][]*model.CommitteeMember{uid: {{}, {}, {}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w, "--dry-run"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -282,18 +282,18 @@ func TestDrift_WritesCorrectValue(t *testing.T) {
 		revision: map[string]uint64{uid: rev},
 		members:  map[string][]*model.CommitteeMember{uid: {{}, {}, {}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(w.updated) != 1 {
 		t.Fatalf("expected 1 update, got %d", len(w.updated))
 	}
-	if w.updated[0].TotalMembers != 3 {
-		t.Errorf("expected TotalMembers=3, got %d", w.updated[0].TotalMembers)
+	if w.updated[0].total != 3 {
+		t.Errorf("expected total=3, got %d", w.updated[0].total)
 	}
-	if w.updatedRevs[0] != rev {
-		t.Errorf("expected revision=%d, got %d", rev, w.updatedRevs[0])
+	if w.updated[0].uid != uid {
+		t.Errorf("expected uid=%s, got %s", uid, w.updated[0].uid)
 	}
 }
 
@@ -309,7 +309,7 @@ func TestListMembersError_FailsAndContinues(t *testing.T) {
 		membersErr: map[string]error{uid1: errors.New("kv timeout")},
 		members:    map[string][]*model.CommitteeMember{uid2: {{}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	err := run(t, r, w)
 	if err == nil {
 		t.Fatal("expected error due to failed committee")
@@ -334,11 +334,11 @@ func TestUpdateError_FailsAndContinues(t *testing.T) {
 			uid2: {{}},
 		},
 	}
-	w := &conditionalFailWriter{inner: &mockWriter{}, failOn: 0}
+	w := &conditionalFailWriter{inner: &mockBaseWriter{}, failOn: 0}
 	s := &totalMembersAttributeSubcommand{}
 	err := s.Run(context.Background(), commands.RunContext{
-		CommitteeReader:             r,
-		CommitteeWriterOrchestrator: w,
+		CommitteeReader:     r,
+		CommitteeBaseWriter: w,
 	})
 	if err == nil {
 		t.Fatal("expected error due to failed update")
@@ -357,7 +357,7 @@ func TestNoFailures_ReturnsNil(t *testing.T) {
 		revision: map[string]uint64{uid: 1},
 		members:  map[string][]*model.CommitteeMember{uid: {{}}},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w); err != nil {
 		t.Fatalf("expected nil error, got: %v", err)
 	}
@@ -371,46 +371,43 @@ func TestSomeFailures_ReturnsError(t *testing.T) {
 		revision:   map[string]uint64{uid: 1},
 		membersErr: map[string]error{uid: errors.New("boom")},
 	}
-	w := &mockWriter{}
+	w := &mockBaseWriter{}
 	if err := run(t, r, w); err == nil {
 		t.Fatal("expected non-nil error when failures > 0")
 	}
 }
 
-// conditionalFailWriter wraps mockWriter and returns an error on a specific call index.
+// conditionalFailWriter wraps mockBaseWriter and returns an error on a specific call index.
 type conditionalFailWriter struct {
-	inner  *mockWriter
+	inner  *mockBaseWriter
 	failOn int
 	calls  int
 }
 
-func (c *conditionalFailWriter) Update(ctx context.Context, committee *model.Committee, rev uint64, sync bool) (*model.Committee, error) {
+func (c *conditionalFailWriter) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
 	idx := c.calls
 	c.calls++
 	if idx == c.failOn {
-		return nil, errors.New("write error")
+		return nil, false, errors.New("write error")
 	}
-	return c.inner.Update(ctx, committee, rev, sync)
+	return c.inner.UpdateTotalMembers(ctx, uid, totalMembers)
 }
 
-func (c *conditionalFailWriter) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
-	return c.inner.Create(ctx, committee, sync)
+func (c *conditionalFailWriter) Create(ctx context.Context, committee *model.Committee) error {
+	return c.inner.Create(ctx, committee)
 }
-func (c *conditionalFailWriter) UpdateSettings(ctx context.Context, s *model.CommitteeSettings, rev uint64, sync bool) (*model.CommitteeSettings, error) {
-	return c.inner.UpdateSettings(ctx, s, rev, sync)
+func (c *conditionalFailWriter) UpdateBase(ctx context.Context, committee *model.Committee, rev uint64) error {
+	return c.inner.UpdateBase(ctx, committee, rev)
 }
-func (c *conditionalFailWriter) Delete(ctx context.Context, uid string, rev uint64, sync bool) error {
-	return c.inner.Delete(ctx, uid, rev, sync)
+func (c *conditionalFailWriter) Delete(ctx context.Context, uid string, rev uint64) error {
+	return c.inner.Delete(ctx, uid, rev)
 }
-func (c *conditionalFailWriter) CreateMember(ctx context.Context, m *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
-	return c.inner.CreateMember(ctx, m, sync, skipEnrichment)
+func (c *conditionalFailWriter) UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error) {
+	return c.inner.UpdateHasMailingList(ctx, uid, hasMailingList)
 }
-func (c *conditionalFailWriter) UpdateMember(ctx context.Context, m *model.CommitteeMember, rev uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
-	return c.inner.UpdateMember(ctx, m, rev, sync, skipEnrichment)
+func (c *conditionalFailWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
+	return c.inner.UniqueNameProject(ctx, committee)
 }
-func (c *conditionalFailWriter) DeleteMember(ctx context.Context, uid string, rev uint64, sync bool, skipNotification bool) error {
-	return c.inner.DeleteMember(ctx, uid, rev, sync, skipNotification)
-}
-func (c *conditionalFailWriter) ReassignMember(ctx context.Context, oldUID string, oldRev uint64, m *model.CommitteeMember, sync bool) (*model.CommitteeMember, error) {
-	return c.inner.ReassignMember(ctx, oldUID, oldRev, m, sync)
+func (c *conditionalFailWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
+	return c.inner.UniqueSSOGroupName(ctx, committee)
 }

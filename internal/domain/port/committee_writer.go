@@ -29,6 +29,10 @@ type CommitteeBaseWriter interface {
 	// Returns (committee, true, nil) if the flag changed and was written; (nil, false, nil) if already correct (no write).
 	UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error)
 
+	// UpdateTotalMembers atomically reads the committee, sets total_members, and writes back.
+	// Returns (committee, true, nil) if the count changed and was written; (nil, false, nil) if already correct (no write).
+	UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error)
+
 	// Checkers for uniqueness
 	UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error)
 	UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error)
