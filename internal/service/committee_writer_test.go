@@ -1549,6 +1549,57 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 	}
 }
 
+// TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation guards against
+// regressing LFXV2-3304: total_members, total_voting_repos, and has_mailing_list are
+// readonly/computed fields absent from the update payload (see CommitteeBaseAttributes
+// in cmd/committee-api/design/type.go), so Update must carry them forward from the
+// existing record rather than let them reset to their zero value.
+func TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+	existingCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Original Committee",
+			Category:         "governance",
+			TotalMembers:     42,
+			TotalVotingRepos: 3,
+			HasMailingList:   true,
+		},
+	}
+	mockRepo.AddCommittee(existingCommittee)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	// The update payload never carries these fields — they're readonly/computed,
+	// so a caller (e.g. the generated Goa payload) always sends the zero value here.
+	updateData := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Updated Committee",
+			Category:   "technical",
+		},
+	}
+
+	result, err := orchestrator.Update(context.Background(), updateData, uint64(1), false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Updated Committee", result.Name)
+	assert.Equal(t, 42, result.TotalMembers)
+	assert.Equal(t, 3, result.TotalVotingRepos)
+	assert.True(t, result.HasMailingList)
+}
+
 func TestCommitteeWriterOrchestrator_Update_SSO_Scenarios(t *testing.T) {
 	tests := []struct {
 		name           string
