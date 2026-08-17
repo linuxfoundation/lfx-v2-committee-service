@@ -4,6 +4,8 @@
 package model
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,4 +118,32 @@ func TestGroupWeeklyBrief_Validate(t *testing.T) {
 	require.Error(t, b.Validate(), "expected negative regeneration_count to be rejected")
 	b.RegenerationCount = 0
 	require.NoError(t, b.Validate())
+}
+
+func TestGroupWeeklyBrief_LastEditedAt_OmittedWhenNil(t *testing.T) {
+	start, end := WeeklyWindow(time.Now())
+	brief := &GroupWeeklyBrief{
+		UID:          "b-1",
+		CommitteeUID: "c-1",
+		WindowStart:  start,
+		WindowEnd:    end,
+		State:        GroupWeeklyBriefStateGenerated,
+	}
+
+	data, err := json.Marshal(brief)
+	require.NoError(t, err)
+	// last_edited_at must not appear in the JSON for an unedited brief; if it
+	// did (as the zero time "0001-01-01T00:00:00Z"), indexer consumers could
+	// not distinguish unedited from edited briefs.
+	assert.False(t, strings.Contains(string(data), "last_edited_at"),
+		"last_edited_at must be absent from JSON for an unedited brief, got: %s", string(data))
+
+	// After an edit the field must be present.
+	now := time.Now().UTC()
+	brief.LastEditedAt = &now
+	brief.LastEditedBy = "alice"
+	edited, err := json.Marshal(brief)
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(string(edited), "last_edited_at"),
+		"last_edited_at must be present after an edit, got: %s", string(edited))
 }

@@ -37,7 +37,7 @@ type MeetingSourceConfig struct {
 
 // MeetingSource is the live MeetingSource adapter. It speaks
 //
-//	GET {BaseURL}/query/resources?type=v1_past_meeting&tags=committee:{uid}
+//	GET {BaseURL}/query/resources?type=v1_past_meeting&tags=committee_uid:{uid}
 //	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
@@ -64,8 +64,12 @@ func NewMeetingSource(cfg MeetingSourceConfig, client *http.Client) *MeetingSour
 
 // queryResource is the loose envelope returned by the query-service. Only the
 // fields we care about are pulled out; unknown attributes are ignored.
+// queryResource represents a single resource returned by the query service.
+// The top-level "id" field is the OpenSearch document ID, which for all LFX
+// V2 native services is the resource's v2 UUID. Do not change the json tag to
+// "uid" — the query-service ResourceResponseBody serialises this field as "id".
 type queryResource struct {
-	UID  string          `json:"uid"`
+	UID  string          `json:"id"`
 	Data json.RawMessage `json:"data"`
 }
 
@@ -74,6 +78,10 @@ type queryEnvelope struct {
 }
 
 type queryMeetingData struct {
+	// ID is the past meeting v2 UUID — per the meeting-service indexer contract,
+	// v1_past_meeting data.id is "Past meeting unique identifier (UUID)".
+	// Always read from data.id, not from the envelope's top-level "id".
+	ID        string `json:"id"`
 	Title     string `json:"title"`
 	StartTime string `json:"start_time"`
 	Summary   string `json:"summary"`
@@ -95,11 +103,11 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 	if err != nil {
 		return nil, fmt.Errorf("invalid query-service base URL: %w", err)
 	}
-	u.Path = appendPath(u.Path, "/query/resources")
+	u = u.JoinPath("query/resources")
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", "v1_past_meeting")
-	q.Set("tags", "committee:"+committeeUID)
+	q.Set("tags", "committee_uid:"+committeeUID)
 	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
 	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
@@ -147,7 +155,7 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 			}
 		}
 		out = append(out, port.MeetingActivity{
-			UID:       r.UID,
+			UID:       data.ID,
 			Title:     data.Title,
 			StartTime: start,
 			Summary:   data.Summary,
@@ -156,18 +164,4 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 		})
 	}
 	return out, nil
-}
-
-// appendPath joins two URL path components with exactly one slash separating them.
-func appendPath(base, extra string) string {
-	if base == "" {
-		return extra
-	}
-	if base[len(base)-1] == '/' && len(extra) > 0 && extra[0] == '/' {
-		return base + extra[1:]
-	}
-	if base[len(base)-1] != '/' && (len(extra) == 0 || extra[0] != '/') {
-		return base + "/" + extra
-	}
-	return base + extra
 }

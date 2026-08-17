@@ -55,7 +55,8 @@ func TestUpdate_Success_TransitionsToEditedAndBumpsRevision(t *testing.T) {
 	assert.Equal(t, "edited body", updated.BriefText)
 	// Audit fields are recorded from the input.
 	assert.Equal(t, "alice", updated.LastEditedBy)
-	assert.Equal(t, testNow.UTC(), updated.LastEditedAt)
+	require.NotNil(t, updated.LastEditedAt)
+	assert.Equal(t, testNow.UTC(), *updated.LastEditedAt)
 	// source_refs are preserved untouched.
 	require.Len(t, updated.SourceRefs, 1)
 	assert.Equal(t, "m-1", updated.SourceRefs[0].ID)
@@ -151,6 +152,10 @@ func (r *revShiftReader) GetGroupWeeklyBriefForWindow(_ context.Context, _ strin
 		cp.Revision = r.secondRev
 	}
 	return &cp, nil, nil
+}
+
+func (r *revShiftReader) ListGroupWeeklyBriefIndexKeys(_ context.Context) ([]string, error) {
+	return nil, nil
 }
 
 func TestUpdate_CASConflictReReadsAndReturns409(t *testing.T) {
@@ -252,4 +257,64 @@ func TestUpdate_ZeroRevision_ReturnsValidation(t *testing.T) {
 	var rm errors.RevisionMismatch
 	assert.NotErrorAs(t, err, &rm, "revision 0 is a client error, not a conflict")
 	assert.EqualValues(t, 0, bw.briefPutCount.Load())
+}
+
+func TestUpdate_PublishesIndexerMessage_OnSuccess(t *testing.T) {
+	pub := &fakePublisher{}
+	br := &fakeBriefReader{brief: editableBrief()}
+	bw := &fakeBriefWriter{}
+	w := NewGroupWeeklyBriefWriterOrchestrator(
+		WithGroupWeeklyBriefReaderForWriter(br),
+		WithGroupWeeklyBriefWriterForWriter(bw),
+		WithGroupWeeklyBriefPublisherForWriter(pub),
+	)
+
+	_, err := w.Update(context.Background(), GroupWeeklyBriefUpdateInput{
+		CommitteeUID: "c-1",
+		BriefText:    "edited body",
+		Revision:     5,
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.Len(t, pub.indexerSubjects, 1, "expected exactly one indexer publish")
+	assert.Equal(t, "lfx.index.group_weekly_brief", pub.indexerSubjects[0])
+}
+
+func TestUpdate_PublishErrorIsNonFatal(t *testing.T) {
+	pub := &fakePublisher{indexerErr: errors.NewUnexpected("nats down", nil)}
+	br := &fakeBriefReader{brief: editableBrief()}
+	bw := &fakeBriefWriter{}
+	w := NewGroupWeeklyBriefWriterOrchestrator(
+		WithGroupWeeklyBriefReaderForWriter(br),
+		WithGroupWeeklyBriefWriterForWriter(bw),
+		WithGroupWeeklyBriefPublisherForWriter(pub),
+	)
+
+	updated, err := w.Update(context.Background(), GroupWeeklyBriefUpdateInput{
+		CommitteeUID: "c-1",
+		BriefText:    "edited body",
+		Revision:     5,
+		Now:          testNow,
+	})
+	require.NoError(t, err, "publisher error must not fail Update")
+	require.NotNil(t, updated)
+}
+
+func TestUpdate_NilPublisher_DoesNotPanic(t *testing.T) {
+	br := &fakeBriefReader{brief: editableBrief()}
+	bw := &fakeBriefWriter{}
+	w := NewGroupWeeklyBriefWriterOrchestrator(
+		WithGroupWeeklyBriefReaderForWriter(br),
+		WithGroupWeeklyBriefWriterForWriter(bw),
+		// No publisher wired.
+	)
+
+	require.NotPanics(t, func() {
+		_, _ = w.Update(context.Background(), GroupWeeklyBriefUpdateInput{
+			CommitteeUID: "c-1",
+			BriefText:    "edited body",
+			Revision:     5,
+			Now:          testNow,
+		})
+	})
 }

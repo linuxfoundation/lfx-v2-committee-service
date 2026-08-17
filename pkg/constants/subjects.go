@@ -81,6 +81,10 @@ const (
 	// IndexCommitteeDocumentSubject is the subject for the committee document index.
 	// The subject is of the form: lfx.index.committee_document
 	IndexCommitteeDocumentSubject = "lfx.index.committee_document"
+
+	// IndexGroupWeeklyBriefSubject is the subject for the group weekly brief index.
+	// The subject is of the form: lfx.index.group_weekly_brief
+	IndexGroupWeeklyBriefSubject = "lfx.index.group_weekly_brief"
 )
 
 // Subjects consumed by the committee service from other services

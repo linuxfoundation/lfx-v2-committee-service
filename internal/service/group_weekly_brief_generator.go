@@ -7,12 +7,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // GroupWeeklyBriefGenerateInput captures the explicit inputs the handler passes
@@ -81,8 +84,10 @@ type groupWeeklyBriefGenerator struct {
 	mailingLists  port.MailingListSource
 	votes         port.VoteSource
 	voteResults   port.VoteResultSource
+	surveys       port.SurveySource
 	memberReader  port.CommitteeWeeklyMemberReader
 	ai            port.AIAdapter
+	publisher     port.CommitteePublisher
 	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
 }
 
@@ -128,6 +133,13 @@ func WithVoteResultSource(s port.VoteResultSource) GroupWeeklyBriefGeneratorOpti
 	return func(g *groupWeeklyBriefGenerator) { g.voteResults = s }
 }
 
+// WithSurveySource wires the survey-source port. This is optional — when nil,
+// brief generation continues without survey data (graceful degrade). Deployments
+// that do not set QUERY_SERVICE_URL omit this source.
+func WithSurveySource(s port.SurveySource) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.surveys = s }
+}
+
 // WithCommitteeWeeklyMemberReader wires the member-activity reader.
 func WithCommitteeWeeklyMemberReader(r port.CommitteeWeeklyMemberReader) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.memberReader = r }
@@ -136,6 +148,12 @@ func WithCommitteeWeeklyMemberReader(r port.CommitteeWeeklyMemberReader) GroupWe
 // WithAIAdapter wires the AI adapter used to compose the brief.
 func WithAIAdapter(a port.AIAdapter) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.ai = a }
+}
+
+// WithGroupWeeklyBriefPublisher wires the publisher used to emit indexer
+// messages after each successful brief state transition in Fulfill.
+func WithGroupWeeklyBriefPublisher(p port.CommitteePublisher) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.publisher = p }
 }
 
 // WithCommitteeNameLookup wires the function the orchestrator uses to
@@ -360,6 +378,17 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		g.enrichVotesWithResults(ctx, votes)
 	}
 
+	var surveys []port.SurveyActivity
+	var errSurveys error
+	if g.surveys != nil {
+		surveys, errSurveys = g.surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		if errSurveys != nil {
+			slog.ErrorContext(ctx, "weekly-brief fulfill: survey source failed; continuing with zero surveys",
+				"committee_uid", in.CommitteeUID, "error", errSurveys)
+			surveys = nil
+		}
+	}
+
 	// AI summaries are optional — nil source or fetch error both degrade to
 	// zero summaries without blocking the brief. A missing summary source is
 	// not logged at error level because the source is wired optionally.
@@ -382,14 +411,15 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// window would just fail again. But if the window is empty ONLY because one
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
-	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 {
-		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil {
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 {
+		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil || errSurveys != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
 				"mailing_errored", errMailing != nil,
 				"votes_errored", errVotes != nil,
 				"summaries_errored", errSummaries != nil,
+				"surveys_errored", errSurveys != nil,
 			)
 			// Surface the underlying source error so the consumer retries rather
 			// than finalizing a terminal brief over a transient outage.
@@ -402,6 +432,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 			if retryErr == nil {
 				retryErr = errSummaries
+			}
+			if retryErr == nil {
+				retryErr = errSurveys
 			}
 			return retryErr
 		}
@@ -425,7 +458,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, in.MembersHidden)
+	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -452,11 +485,13 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.BriefText = aiOut.BriefText
 	brief.PromptVersion = g.ai.PromptVersion()
 	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
-	if _, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); errPut != nil {
+	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if errPut != nil {
 		return errPut // infrastructure / CAS error → retry
 	}
+	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
 }
 
@@ -467,9 +502,11 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 		"committee_uid", brief.CommitteeUID, "reason", reason)
 	brief.State = model.GroupWeeklyBriefStateError
 	brief.ErrorReason = reason
-	if _, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); err != nil {
+	persisted, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if err != nil {
 		return err
 	}
+	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
 }
 
@@ -477,9 +514,9 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 // parallel set of source refs persisted on the brief. When membersHidden is
 // true (committee's member_visibility == "hidden"), member names are replaced
 // with count-only phrases so the stored brief never contains roster data.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
-	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+2)
-	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+2)
+func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
+	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
+	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
 
 	// IMPORTANT: do NOT pass raw untrusted source text (meeting summaries,
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
@@ -532,6 +569,19 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 			ID:      "vote-" + v.VoteID,
 			Summary: claimLabel("vote", v.Name) + voteTallyLabel(v),
 			Sources: []port.SourceRef{{Type: "vote", ID: v.VoteID}},
+		})
+	}
+
+	for _, sv := range surveys {
+		// Survey title is source-derived free text — sanitize via claimLabel.
+		// Response counts are server-computed integers, safe to format directly.
+		excerpt := surveyParticipationExcerpt(sv)
+		ref := model.SourceRef{Kind: "survey", ID: sv.SurveyUID, Title: sv.Title, Excerpt: excerpt}
+		refs = append(refs, ref)
+		claims = append(claims, port.ClaimEvidence{
+			ID:      "survey-" + sv.SurveyUID,
+			Summary: claimLabel("survey", sv.Title) + surveyResponseLabel(sv),
+			Sources: []port.SourceRef{{Type: "survey", ID: sv.SurveyUID}},
 		})
 	}
 
@@ -624,10 +674,11 @@ func truncateRunes(s string, maxRunes int) string {
 
 // derivePrivateSourcePresent flags the brief as containing private source
 // material whenever members contributed (members are inherently private), any
-// meeting, mailing-list thread, or vote was marked private, or any AI meeting
+// meeting, mailing-list thread, or vote was marked private, any AI meeting
 // summary contributed (transcript content in a brief is always treated as
-// private regardless of the summary's own access level).
-func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity) bool {
+// private regardless of the summary's own access level), or any survey
+// contributed (surveys are always FGA access-controlled, never public).
+func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity) bool {
 	if memberCount > 0 {
 		return true
 	}
@@ -644,9 +695,12 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 			return true
 		}
 	}
-	// VoteActivity has no Private flag — votes are committee-scoped records and
-	// treated as non-private for the banner guard. If a private vote concept is
-	// added later, extend this loop then.
+	// Surveys are access-controlled (FGA access_check_object: survey:{uid}) so
+	// any contributing survey makes the brief private.
+	if len(surveys) > 0 {
+		return true
+	}
+	// VoteActivity has no Private flag and is treated as non-private.
 	_ = votes
 	return false
 }
@@ -877,4 +931,70 @@ func voteTallyLabel(v port.VoteActivity) string {
 	}
 	tally := strings.Join(parts, ", ")
 	return fmt.Sprintf(" — %s (%d of %d voted)", tally, v.Tally.NumVotesCast, v.Tally.NumRecipients)
+}
+
+// surveyResponseLabel returns a response-rate suffix for the claim summary.
+// Example: " — 14 of 30 responded"
+// Returns empty string when no recipient count is available.
+func surveyResponseLabel(sv port.SurveyActivity) string {
+	if sv.TotalRecipients == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" — %d of %d responded", sv.TotalResponses, sv.TotalRecipients)
+}
+
+// surveyParticipationExcerpt returns a short response-rate string for the
+// source_ref excerpt, including percentage when recipients > 0.
+// Example: "14 of 30 responded (47%)"
+func surveyParticipationExcerpt(sv port.SurveyActivity) string {
+	if sv.TotalRecipients == 0 {
+		return ""
+	}
+	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
+	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
+}
+
+// publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for
+// the given brief. The publish is best-effort: a failure is logged as a warning
+// but does not fail the calling operation because the brief is already persisted
+// in NATS KV. The backfill CLI command (sync backfill-weekly-brief-index) is
+// the recovery path for any missed emissions. When publisher is nil (mock-mode
+// or tests without a publisher) the call is a no-op.
+func publishGroupWeeklyBriefIndex(ctx context.Context, publisher port.CommitteePublisher, brief *model.GroupWeeklyBrief) {
+	if publisher == nil || brief == nil {
+		return
+	}
+	public := false
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             brief.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", brief.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", brief.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", brief.CommitteeUID)},
+		Fulltext:             brief.BriefText,
+		Tags:                 brief.Tags(),
+		Public:               &public,
+	}
+	msg := model.CommitteeIndexerMessage{
+		Action:         model.ActionUpdated,
+		Tags:           brief.Tags(),
+		IndexingConfig: indexingConfig,
+	}
+	built, err := msg.Build(ctx, brief)
+	if err != nil {
+		slog.WarnContext(ctx, "weekly-brief: failed to build indexer message; skipping publish",
+			"brief_uid", brief.UID,
+			"committee_uid", brief.CommitteeUID,
+			"error", err,
+		)
+		return
+	}
+	if err := publisher.Indexer(ctx, constants.IndexGroupWeeklyBriefSubject, built, false); err != nil {
+		slog.WarnContext(ctx, "weekly-brief: failed to publish indexer message; brief persisted but not indexed",
+			"brief_uid", brief.UID,
+			"committee_uid", brief.CommitteeUID,
+			"error", err,
+		)
+	}
 }

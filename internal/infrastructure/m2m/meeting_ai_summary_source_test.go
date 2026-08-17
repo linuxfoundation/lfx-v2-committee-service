@@ -290,7 +290,7 @@ func TestListAISummariesForWindow_MalformedRecord_Skipped(t *testing.T) {
 	// The "bad" record has valid JSON at the envelope level but an array (not
 	// an object) in the data field, which fails json.Unmarshal into querySummaryData.
 	// This exercises the "skip malformed record" branch in the adapter.
-	body := []byte(`{"resources":[{"uid":"bad","data":[1,2,3]},{"uid":"good","data":` +
+	body := []byte(`{"resources":[{"id":"bad","data":[1,2,3]},{"id":"good","data":` +
 		string(goodJSON) + `}]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -324,7 +324,7 @@ func TestListAISummariesForWindow_MissingDataPayload_Skipped(t *testing.T) {
 
 	// One record has a null data field (zero-value RequiresApproval=false would
 	// otherwise pass the approval gate as auto-approved — must be rejected).
-	body := []byte(`{"resources":[{"uid":"missing-data"},{"uid":"null-data","data":null},{"uid":"good","data":` +
+	body := []byte(`{"resources":[{"id":"missing-data"},{"id":"null-data","data":null},{"id":"good","data":` +
 		string(goodJSON) + `}]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -351,9 +351,9 @@ func TestListAISummariesForWindow_AbsentRequiresApproval_NotAutoApproved(t *test
 	// zero-value bool RequiresApproval=false would pass the approval gate as
 	// auto-approved. Now that RequiresApproval is *bool, absent means nil and
 	// the record is treated as unapproved rather than auto-approved.
-	absentRAJSON := []byte(`{"uid":"absent-ra","data":{}}`)
+	absentRAJSON := []byte(`{"id":"absent-ra","data":{}}`)
 	// A record with approved=true but missing requires_approval should still pass.
-	approvedNoRAJSON := []byte(`{"uid":"approved-no-ra","data":{"meeting_and_occurrence_id":"approved-no-ra","approved":true}}`)
+	approvedNoRAJSON := []byte(`{"id":"approved-no-ra","data":{"meeting_and_occurrence_id":"approved-no-ra","approved":true}}`)
 
 	body := []byte(`{"resources":[` + string(absentRAJSON) + `,` + string(approvedNoRAJSON) + `]}`)
 

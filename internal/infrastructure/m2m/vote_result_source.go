@@ -102,7 +102,7 @@ func (v *VoteResultSource) GetVoteResults(ctx context.Context, voteUID string) (
 	if err != nil {
 		return nil, fmt.Errorf("invalid query-service base URL for vote result: %w", err)
 	}
-	u.Path = appendPath(u.Path, "/query/resources")
+	u = u.JoinPath("query/resources")
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", v.cfg.Type)

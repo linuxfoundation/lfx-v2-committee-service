@@ -44,6 +44,7 @@ func TestListVoteActivityForWindow_FieldMapping(t *testing.T) {
 
 	records := []queryVoteData{
 		{
+			VoteUID:                       "vote-uid-1",
 			Name:                          "AAIF Project Approval",
 			URL:                           "https://example.com/vote/1",
 			Status:                        "ended",
@@ -70,7 +71,7 @@ func TestListVoteActivityForWindow_FieldMapping(t *testing.T) {
 	assert.Equal(t, 10, got[0].InvitationCount, "total_voting_request_invitations → InvitationCount")
 }
 
-// ── Request uses end_time filter, not start_time ──────────────────────────────
+// ── Request uses date_field=end_time with date_from/date_to, not bracket notation ──
 
 func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
@@ -89,22 +90,25 @@ func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 	_, err := src.ListVoteActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
 
 	require.NoError(t, err)
-	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("end_time[gte]"), "must use end_time[gte] with RFC3339Nano window start")
-	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("end_time[lte]"), "must use end_time[lte] with RFC3339Nano window end")
-	assert.Equal(t, "committee:c-1", capturedQuery.Get("tags"), "must tag by committee UID")
-	assert.Empty(t, capturedQuery["start_time"], "must not use start_time (field does not exist on v1_vote)")
+	assert.Equal(t, "end_time", capturedQuery.Get("date_field"), "must use date_field=end_time")
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"), "must use date_from with RFC3339Nano window start")
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"), "must use date_to with RFC3339Nano window end")
+	assert.Empty(t, capturedQuery.Get("end_time[gte]"), "must not use deprecated bracket date filter end_time[gte]")
+	assert.Empty(t, capturedQuery.Get("end_time[lte]"), "must not use deprecated bracket date filter end_time[lte]")
+	assert.Equal(t, "committee_uid:c-1", capturedQuery.Get("tags"), "must tag by committee_uid per voting-service indexer contract")
+	assert.Empty(t, capturedQuery["start_time"], "must not use start_time (field does not exist on vote resource type)")
 }
 
 // ── Malformed record is skipped ───────────────────────────────────────────────
 
 func TestListVoteActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	t0 := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
-	goodData := queryVoteData{Name: "Good Vote", Status: "ended"}
+	goodData := queryVoteData{VoteUID: "good", Name: "Good Vote", Status: "ended"}
 	goodJSON, _ := json.Marshal(goodData)
 
 	body := []byte(`{"resources":[` +
-		`{"uid":"bad","data":[1,2,3]},` +
-		`{"uid":"good","data":` + string(goodJSON) + `}` +
+		`{"id":"bad","data":[1,2,3]},` +
+		`{"id":"good","data":` + string(goodJSON) + `}` +
 		`]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

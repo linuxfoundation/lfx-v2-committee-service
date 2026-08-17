@@ -152,14 +152,17 @@ func main() {
 		usecaseSvc.WithMailingListSource(mailingListSource),
 		usecaseSvc.WithVoteSource(voteSource),
 		usecaseSvc.WithVoteResultSource(service.VoteResultSourceImpl(ctx)),
+		usecaseSvc.WithSurveySource(service.SurveySourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
 		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
 		usecaseSvc.WithAIAdapter(aiAdapter),
+		usecaseSvc.WithGroupWeeklyBriefPublisher(committeePublisher),
 	)
 
 	weeklyBriefWriterUseCase := usecaseSvc.NewGroupWeeklyBriefWriterOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForWriter(weeklyBriefReader),
 		usecaseSvc.WithGroupWeeklyBriefWriterForWriter(weeklyBriefWriter),
+		usecaseSvc.WithGroupWeeklyBriefPublisherForWriter(committeePublisher),
 	)
 
 	weeklyBriefSharerUseCase := usecaseSvc.NewGroupWeeklyBriefSharerOrchestrator(

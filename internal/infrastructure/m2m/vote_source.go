@@ -17,8 +17,9 @@ import (
 )
 
 // DefaultVoteType is the fixed query-service resource type the live vote
-// source queries.
-const DefaultVoteType = "v1_vote"
+// source queries. Per the voting-service indexer contract the object type is
+// "vote" (not "v1_vote").
+const DefaultVoteType = "vote"
 
 // VoteSourceConfig configures the live vote source. All fields are sourced
 // from environment variables in providers.go; an empty BaseURL disables the
@@ -33,8 +34,8 @@ type VoteSourceConfig struct {
 
 // VoteSource is the live VoteSource adapter. It speaks
 //
-//	GET {BaseURL}/query/resources?type={Type}&tags=committee:{uid}
-//	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
+//	GET {BaseURL}/query/resources?type={Type}&tags=committee_uid:{uid}
+//	    &date_field=end_time&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
@@ -62,7 +63,11 @@ func NewVoteSource(cfg VoteSourceConfig, client *http.Client) *VoteSource {
 }
 
 type queryVoteData struct {
-	// Name is the poll display name. The v1_vote indexer field is "name", not
+	// VoteUID is the v2 primary key — per the voting-service indexer contract,
+	// data.vote_uid is the v2 UUID and data.poll_id is the v1 ITX identifier.
+	// Always read from vote_uid, not from the envelope's top-level "id".
+	VoteUID string `json:"vote_uid"`
+	// Name is the poll display name. The vote indexer field is "name", not
 	// "subject" — using "subject" silently produced empty vote names.
 	Name                          string `json:"name"`
 	URL                           string `json:"url"`
@@ -85,15 +90,16 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 	if err != nil {
 		return nil, fmt.Errorf("invalid query-service base URL: %w", err)
 	}
-	u.Path = appendPath(u.Path, "/query/resources")
+	u = u.JoinPath("query/resources")
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", v.cfg.Type)
-	q.Set("tags", "committee:"+committeeUID)
+	q.Set("tags", "committee_uid:"+committeeUID)
 	// Filter by end_time: we want votes that closed within the window.
-	// The v1_vote resource has no start_time field; end_time is the close date.
-	q.Set("end_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("end_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	// The vote resource has no start_time field; end_time is the close date.
+	q.Set("date_field", "end_time")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -129,7 +135,7 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 			}
 		}
 		out = append(out, port.VoteActivity{
-			VoteID:          r.UID,
+			VoteID:          data.VoteUID,
 			Name:            data.Name,
 			URL:             data.URL,
 			Status:          data.Status,

@@ -22,4 +22,11 @@ type GroupWeeklyBriefReader interface {
 		committeeUID string,
 		window model.GroupWeeklyBrief,
 	) (*model.GroupWeeklyBrief, []byte, error)
+
+	// ListGroupWeeklyBriefIndexKeys returns every key in the
+	// group-weekly-brief-uid-index KV bucket. Each key has the form
+	// "{committee_uid}.{yyyymmdd}" and can be used to enumerate all known
+	// briefs for backfill or reindex operations. A deleted or missing bucket
+	// returns an empty slice, not an error.
+	ListGroupWeeklyBriefIndexKeys(ctx context.Context) ([]string, error)
 }
