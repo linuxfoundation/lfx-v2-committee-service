@@ -128,6 +128,7 @@ func run() error {
 		DocumentAuditSync:           storage,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
+		GroupWeeklyBriefReader:      storage,
 		Args:                        parsed.SubArgs,
 	}
 

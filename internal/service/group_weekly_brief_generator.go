@@ -13,7 +13,9 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // GroupWeeklyBriefGenerateInput captures the explicit inputs the handler passes
@@ -85,6 +87,7 @@ type groupWeeklyBriefGenerator struct {
 	surveys       port.SurveySource
 	memberReader  port.CommitteeWeeklyMemberReader
 	ai            port.AIAdapter
+	publisher     port.CommitteePublisher
 	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
 }
 
@@ -145,6 +148,12 @@ func WithCommitteeWeeklyMemberReader(r port.CommitteeWeeklyMemberReader) GroupWe
 // WithAIAdapter wires the AI adapter used to compose the brief.
 func WithAIAdapter(a port.AIAdapter) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.ai = a }
+}
+
+// WithGroupWeeklyBriefPublisher wires the publisher used to emit indexer
+// messages after each successful brief state transition in Fulfill.
+func WithGroupWeeklyBriefPublisher(p port.CommitteePublisher) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.publisher = p }
 }
 
 // WithCommitteeNameLookup wires the function the orchestrator uses to
@@ -478,9 +487,11 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.Model = modelLabelFromAdapter(g.ai)
 	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
-	if _, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); errPut != nil {
+	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if errPut != nil {
 		return errPut // infrastructure / CAS error → retry
 	}
+	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
 }
 
@@ -491,9 +502,11 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 		"committee_uid", brief.CommitteeUID, "reason", reason)
 	brief.State = model.GroupWeeklyBriefStateError
 	brief.ErrorReason = reason
-	if _, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief); err != nil {
+	persisted, err := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if err != nil {
 		return err
 	}
+	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
 }
 
@@ -939,4 +952,49 @@ func surveyParticipationExcerpt(sv port.SurveyActivity) string {
 	}
 	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
 	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
+}
+
+// publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for
+// the given brief. The publish is best-effort: a failure is logged as a warning
+// but does not fail the calling operation because the brief is already persisted
+// in NATS KV. The backfill CLI command (sync backfill-weekly-brief-index) is
+// the recovery path for any missed emissions. When publisher is nil (mock-mode
+// or tests without a publisher) the call is a no-op.
+func publishGroupWeeklyBriefIndex(ctx context.Context, publisher port.CommitteePublisher, brief *model.GroupWeeklyBrief) {
+	if publisher == nil || brief == nil {
+		return
+	}
+	public := false
+	indexingConfig := &indexerTypes.IndexingConfig{
+		ObjectID:             brief.UID,
+		AccessCheckObject:    fmt.Sprintf("committee:%s", brief.CommitteeUID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", brief.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", brief.CommitteeUID)},
+		Fulltext:             brief.BriefText,
+		Tags:                 brief.Tags(),
+		Public:               &public,
+	}
+	msg := model.CommitteeIndexerMessage{
+		Action:         model.ActionUpdated,
+		Tags:           brief.Tags(),
+		IndexingConfig: indexingConfig,
+	}
+	built, err := msg.Build(ctx, brief)
+	if err != nil {
+		slog.WarnContext(ctx, "weekly-brief: failed to build indexer message; skipping publish",
+			"brief_uid", brief.UID,
+			"committee_uid", brief.CommitteeUID,
+			"error", err,
+		)
+		return
+	}
+	if err := publisher.Indexer(ctx, constants.IndexGroupWeeklyBriefSubject, built, false); err != nil {
+		slog.WarnContext(ctx, "weekly-brief: failed to publish indexer message; brief persisted but not indexed",
+			"brief_uid", brief.UID,
+			"committee_uid", brief.CommitteeUID,
+			"error", err,
+		)
+	}
 }

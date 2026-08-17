@@ -192,3 +192,14 @@ func WeeklyWindow(now time.Time) (start, end time.Time) {
 func WindowDateKey(windowStart time.Time) string {
 	return windowStart.UTC().Format("20060102")
 }
+
+// Tags returns the indexer tag set for the brief, matching the group_weekly_brief
+// section of docs/indexer-contract.md.
+func (b *GroupWeeklyBrief) Tags() []string {
+	return []string{
+		b.UID,
+		"group_weekly_brief_uid:" + b.UID,
+		"committee_uid:" + b.CommitteeUID,
+		"state:" + string(b.State),
+	}
+}
