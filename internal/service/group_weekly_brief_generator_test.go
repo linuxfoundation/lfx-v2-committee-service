@@ -102,6 +102,15 @@ func (f *fakeVoteSource) ListVoteActivityForWindow(_ context.Context, _ string, 
 	return f.items, nil
 }
 
+type fakeSurveySource struct {
+	items []port.SurveyActivity
+	err   error
+}
+
+func (f *fakeSurveySource) ListSurveyActivityForWindow(_ context.Context, _ string, _, _ time.Time) ([]port.SurveyActivity, error) {
+	return f.items, f.err
+}
+
 // recordingAIAdapter captures the WeeklyBriefInput so tests can assert on what
 // the orchestrator passed in (Claims and the structured fields).
 type recordingAIAdapter struct {
@@ -755,11 +764,11 @@ func TestDerivePrivateSourcePresent_AISummaries(t *testing.T) {
 		summaries := []port.MeetingAISummaryActivity{
 			{Title: "Public Summary", Private: false},
 		}
-		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes))
+		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes, nil))
 	})
 
 	t.Run("no summaries, no other private sources → false", func(t *testing.T) {
-		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes))
+		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes, nil))
 	})
 }
 
@@ -919,6 +928,107 @@ func TestFulfill_SummaryOnlyError_TriggersRetry(t *testing.T) {
 	}
 }
 
+func TestFulfill_SurveyOnly_DoesNotFinalizeAsNoSources(t *testing.T) {
+	// When surveys are the only activity in the window, Fulfill must generate a
+	// brief rather than finalizing as no_sources.
+	survey := port.SurveyActivity{
+		SurveyUID:       "sv-1",
+		Title:           "Developer Experience Survey",
+		Status:          "closed",
+		TotalRecipients: 30,
+		TotalResponses:  14,
+	}
+	recorder := &recordingAIAdapter{}
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}),
+		WithSurveySource(&fakeSurveySource{items: []port.SurveyActivity{survey}}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bw.putBrief)
+	assert.Equal(t, model.GroupWeeklyBriefStateGenerated, bw.putBrief.State,
+		"survey-only window must produce a generated brief, not no_sources")
+	var found bool
+	for _, c := range recorder.gotInput.Claims {
+		if strings.Contains(c.Summary, "Developer Experience Survey") {
+			found = true
+		}
+	}
+	assert.True(t, found, "survey title must appear in AI claims")
+}
+
+func TestFulfill_SurveyFetchError_TriggersRetry(t *testing.T) {
+	// When surveys are the only activity source and the fetch fails, Fulfill must
+	// return an error to trigger a retry, not silently finalize as no_sources.
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}),
+		WithSurveySource(&fakeSurveySource{err: errors.NewUnexpected("survey fetch failed", nil)}),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err, "survey-only window with fetch error must return an error to trigger retry")
+	assert.Equal(t, int32(0), bw.briefPutCount.Load(),
+		"brief must not be written when survey source is temporarily down")
+	assert.Nil(t, bw.putBrief,
+		"brief must not be finalized when survey source is temporarily down")
+}
+
+func TestFulfill_SurveySource_ClaimsAndRefsIncluded(t *testing.T) {
+	// Survey activity must appear as a claim evidence and a source ref in the generated brief.
+	survey := port.SurveyActivity{
+		SurveyUID:       "sv-2",
+		Title:           "Open Source Experience Survey",
+		Status:          "closed",
+		TotalRecipients: 10,
+		TotalResponses:  8,
+	}
+	recorder := &recordingAIAdapter{}
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}),
+		WithSurveySource(&fakeSurveySource{items: []port.SurveyActivity{survey}}),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bw.putBrief)
+
+	var foundRef bool
+	for _, ref := range bw.putBrief.SourceRefs {
+		if ref.Kind == "survey" && ref.ID == "sv-2" {
+			foundRef = true
+			assert.Equal(t, "Open Source Experience Survey", ref.Title)
+			assert.Equal(t, "8 of 10 responded (80%)", ref.Excerpt)
+		}
+	}
+	assert.True(t, foundRef, "brief must contain a source ref for the survey")
+
+	var foundClaim bool
+	for _, ev := range recorder.gotInput.Claims {
+		if strings.Contains(ev.Summary, "Open Source Experience Survey") {
+			foundClaim = true
+			assert.Contains(t, ev.Summary, "8 of 10 responded")
+		}
+	}
+	assert.True(t, foundClaim, "brief AI input must contain a claim for the survey")
+	assert.True(t, bw.putBrief.PrivateSourcePresent,
+		"survey is FGA access-controlled; brief must set private_source_present=true")
+}
+
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	mk := func(first, last string) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
@@ -934,14 +1044,14 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	}
 
 	t.Run("membersHidden=false includes names", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, false)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, false)
 		require.Len(t, claims, 1)
 		assert.Contains(t, claims[0].Summary, "Jane Doe")
 		assert.Contains(t, claims[0].Summary, "John Smith")
 	})
 
 	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, true)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, true)
 		require.Len(t, claims, 1)
 		assert.NotContains(t, claims[0].Summary, "Jane")
 		assert.NotContains(t, claims[0].Summary, "Doe")
@@ -1054,4 +1164,34 @@ func TestVoteParticipationExcerpt_NoTally_WithInvitation_UsesResponseCounts(t *t
 func TestVoteParticipationExcerpt_NoTallyNoInvitation_ReturnsEmpty(t *testing.T) {
 	v := port.VoteActivity{VoteID: "v1"}
 	assert.Equal(t, "", voteParticipationExcerpt(v))
+}
+
+// ── surveyResponseLabel ───────────────────────────────────────────────────────
+
+func TestSurveyResponseLabel_NoRecipients_ReturnsEmpty(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 0, TotalResponses: 0}
+	assert.Equal(t, "", surveyResponseLabel(sv))
+}
+
+func TestSurveyResponseLabel_FormatsResponseCount(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
+	assert.Equal(t, " — 14 of 30 responded", surveyResponseLabel(sv))
+}
+
+// ── surveyParticipationExcerpt ────────────────────────────────────────────────
+
+func TestSurveyParticipationExcerpt_NoRecipients_ReturnsEmpty(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1"}
+	assert.Equal(t, "", surveyParticipationExcerpt(sv))
+}
+
+func TestSurveyParticipationExcerpt_FormatsWithPercentage(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
+	got := surveyParticipationExcerpt(sv)
+	assert.Equal(t, "14 of 30 responded (47%)", got)
+}
+
+func TestSurveyParticipationExcerpt_FullResponse_100Percent(t *testing.T) {
+	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 10, TotalResponses: 10}
+	assert.Equal(t, "10 of 10 responded (100%)", surveyParticipationExcerpt(sv))
 }

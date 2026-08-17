@@ -142,6 +142,37 @@ type VoteResultSource interface {
 	GetVoteResults(ctx context.Context, voteUID string) (*VoteTally, error)
 }
 
+// SurveyActivity is one survey record relevant to the window.
+type SurveyActivity struct {
+	// SurveyUID is the survey v2 UUID (used for citation links).
+	SurveyUID string
+	// Title is the survey title.
+	Title string
+	// Status is the survey status string as returned by the query service
+	// (e.g. "closed", "complete").
+	Status string
+	// CutoffDate is the response cutoff / close date (UTC). The generator uses
+	// this to confirm the survey closed within the window.
+	CutoffDate time.Time
+	// TotalRecipients is the per-committee recipient count.
+	TotalRecipients int
+	// TotalResponses is the per-committee response count.
+	TotalResponses int
+	// URL is the SurveyMonkey collector URL, used for deep-linking.
+	URL string
+}
+
+// SurveySource returns closed survey activity for a committee in a window.
+//
+// A live M2M-backed implementation (m2m.SurveySource) calls the query service
+// for the configured resource type (overridable via QUERY_SURVEY_TYPE) and
+// returns surveys whose cutoff date falls within [windowStart, windowEnd].
+// Mock implementations return canned data for tests. When QUERY_SERVICE_URL is
+// unset the live impl degrades to zero surveys.
+type SurveySource interface {
+	ListSurveyActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]SurveyActivity, error)
+}
+
 // WeeklyMemberActivity bundles the joined / updated member sets for one
 // committee in one window. "Joined" = created during this week; "Updated" =
 // updated this week but NOT created this week (avoids double-counting joins).

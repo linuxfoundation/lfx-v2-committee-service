@@ -656,6 +656,8 @@ func m2mHTTPClient(ctx context.Context) *http.Client {
 //     mailing-list source (defaults to m2m.DefaultMailingListType).
 //   - QUERY_VOTE_TYPE — overrides the resource type queried by the vote
 //     source (defaults to m2m.DefaultVoteType).
+//   - QUERY_SURVEY_TYPE — overrides the resource type queried by the survey
+//     source (defaults to m2m.DefaultSurveyType).
 //
 // The meeting source's resource type is fixed to "v1_past_meeting".
 
@@ -739,6 +741,24 @@ func VoteResultSourceImpl(ctx context.Context) port.VoteResultSource {
 	return m2m.NewVoteResultSource(m2m.VoteResultSourceConfig{
 		BaseURL: baseURL,
 		Type:    os.Getenv("QUERY_VOTE_RESULT_TYPE"), // empty → DefaultVoteResultType inside NewVoteResultSource
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
+// SurveySourceImpl builds the live survey source. It queries the query service
+// for `survey` resources tagged by committee_uid whose survey_cutoff_date falls
+// within the window. When QUERY_SERVICE_URL is unset the source returns zero
+// surveys (graceful degrade). The query-service resource type defaults to
+// m2m.DefaultSurveyType and can be overridden via QUERY_SURVEY_TYPE.
+func SurveySourceImpl(ctx context.Context) port.SurveySource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; survey source will return zero surveys")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewSurveySource(m2m.SurveySourceConfig{
+		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_SURVEY_TYPE"), // empty → DefaultSurveyType inside NewSurveySource
 		Timeout: 15 * time.Second,
 	}, client)
 }
@@ -908,6 +928,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
 		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
 		usecaseSvc.WithVoteResultSource(VoteResultSourceImpl(ctx)),
+		usecaseSvc.WithSurveySource(SurveySourceImpl(ctx)),
 		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
 		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
 	)
