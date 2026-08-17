@@ -178,6 +178,50 @@ committee-cli sync document-audit-users \
   --update --resource-type=document --sleep=200ms
 ```
 
+#### `sync backfill-weekly-brief-index`
+
+Emits an indexer message for every group weekly brief stored in NATS KV, regardless of state. Use this immediately after deploying the live indexer emission (LFXV2-3046) to ensure briefs that pre-date the emission are visible in the query service.
+
+The command walks all keys in the `group-weekly-brief-uid-index` KV bucket (key format: `{committee_uid}.{yyyymmdd}`), fetches each brief from `group-weekly-briefs`, and publishes an `ActionUpdated` indexer message on `lfx.index.group_weekly_brief`. All brief states are indexed (`generating`, `generated`, `edited`, `error`, etc.). A publish failure for one brief is logged and counted as `failed` without aborting the run.
+
+An absent `group-weekly-brief-uid-index` bucket (fresh deployment, no briefs yet) is treated as empty — the command completes with zero work rather than returning an error.
+
+The command is idempotent — republishing an already-indexed brief causes the indexer to overwrite its record with the current KV state, which is safe.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit backfill to briefs of a single committee |
+| `--sleep` | `0` | Wait between each publish to reduce indexer pressure (e.g. `200ms`, `1s`) |
+| `--dry-run` | `false` | Log what would be published without actually publishing |
+
+**Exit code:** `0` if no briefs failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**When to run:** once, against each environment, after the live-emission service version is deployed. Use `--dry-run` first to verify scope. If the indexer is backlogged, add `--sleep=200ms` to pace publishes.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://nats.lfx.svc:4222 LOG_LEVEL=info \
+  committee-cli sync backfill-weekly-brief-index --dry-run
+```
+
+Full backfill with a 200ms pause between publishes:
+```sh
+NATS_URL=nats://nats.lfx.svc:4222 \
+  committee-cli sync backfill-weekly-brief-index --sleep=200ms
+```
+
+Backfill a single committee:
+```sh
+NATS_URL=nats://nats.lfx.svc:4222 \
+  committee-cli sync backfill-weekly-brief-index --committee-uid=abc-123
+```
+
 #### `sync member-cdp-org-id`
 
 Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** from OpenSearch (`object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).
