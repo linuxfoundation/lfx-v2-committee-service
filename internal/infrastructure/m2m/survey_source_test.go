@@ -84,6 +84,7 @@ func TestListSurveyActivityForWindow_FieldMapping(t *testing.T) {
 
 	records := []querySurveyData{
 		{
+			UID:          "survey-uid-1",
 			Title:        "Developer Experience Survey",
 			Status:       "closed",
 			CutoffDate:   cutoff.Format(time.RFC3339),
@@ -194,6 +195,7 @@ func TestListSurveyActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
 	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
 	goodData := querySurveyData{
+		UID:        "good",
 		Title:      "Good Survey",
 		Status:     "closed",
 		CutoffDate: time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
@@ -260,23 +262,23 @@ func TestListSurveyActivityForWindow_UnparseableCutoffDate_Skipped(t *testing.T)
 	assert.Empty(t, got)
 }
 
-// ── Production-shaped fixture: "id" at top level, "uid" inside data ───────────
+// ── Production-shaped fixture: SurveyUID comes from data.uid, not envelope id ──
 //
-// The query-service ResourceResponseBody serialises the resource identifier as
-// top-level "id" (not "uid"). This test exercises the full decode path with a
-// response shape that mirrors what the real query service sends, confirming that
-// SurveyUID is populated from the top-level "id" field rather than decoding as
-// an empty string.
+// The survey-service indexer contract defines data.uid as the v2 UUID and
+// data.id as the v1 identifier. The envelope's top-level "id" is the OpenSearch
+// document ID (set to data.uid by the indexer, but not the authoritative source).
+// This test uses DIFFERENT values for the envelope "id" and data "uid" so it
+// definitively proves we read from data.uid.
 
-func TestListSurveyActivityForWindow_ProductionShape_UIDDecodedFromTopLevelID(t *testing.T) {
+func TestListSurveyActivityForWindow_ProductionShape_UIDDecodedFromDataUID(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
 	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
 	cutoff := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 
-	// Mirror the production query-service envelope: top-level "id" carries the
-	// v2 UUID; "uid" is also present inside "data" (the survey indexer field).
+	// Use a distinct value for the envelope "id" vs data "uid" so the assertion
+	// can only pass if we read from data.uid (as the indexer contract requires).
 	body := []byte(`{"resources":[{` +
-		`"id":"survey-uid-1",` +
+		`"id":"os-doc-id-ignored",` +
 		`"data":{` +
 		`"uid":"survey-uid-1",` +
 		`"survey_title":"Dev Experience Survey",` +
@@ -297,7 +299,7 @@ func TestListSurveyActivityForWindow_ProductionShape_UIDDecodedFromTopLevelID(t 
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	assert.Equal(t, "survey-uid-1", got[0].SurveyUID, "SurveyUID must be decoded from top-level id, not produce empty string")
+	assert.Equal(t, "survey-uid-1", got[0].SurveyUID, "SurveyUID must come from data.uid, not the envelope top-level id")
 	assert.Equal(t, "Dev Experience Survey", got[0].Title)
 	assert.Equal(t, 20, got[0].TotalRecipients)
 	assert.Equal(t, 14, got[0].TotalResponses)

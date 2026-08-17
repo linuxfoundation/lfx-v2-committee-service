@@ -78,6 +78,10 @@ type queryEnvelope struct {
 }
 
 type queryMeetingData struct {
+	// ID is the past meeting v2 UUID — per the meeting-service indexer contract,
+	// v1_past_meeting data.id is "Past meeting unique identifier (UUID)".
+	// Always read from data.id, not from the envelope's top-level "id".
+	ID        string `json:"id"`
 	Title     string `json:"title"`
 	StartTime string `json:"start_time"`
 	Summary   string `json:"summary"`
@@ -151,7 +155,7 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 			}
 		}
 		out = append(out, port.MeetingActivity{
-			UID:       r.UID,
+			UID:       data.ID,
 			Title:     data.Title,
 			StartTime: start,
 			Summary:   data.Summary,

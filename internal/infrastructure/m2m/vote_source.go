@@ -62,6 +62,10 @@ func NewVoteSource(cfg VoteSourceConfig, client *http.Client) *VoteSource {
 }
 
 type queryVoteData struct {
+	// VoteUID is the v2 primary key — per the voting-service indexer contract,
+	// data.vote_uid is the v2 UUID and data.poll_id is the v1 ITX identifier.
+	// Always read from vote_uid, not from the envelope's top-level "id".
+	VoteUID string `json:"vote_uid"`
 	// Name is the poll display name. The v1_vote indexer field is "name", not
 	// "subject" — using "subject" silently produced empty vote names.
 	Name                          string `json:"name"`
@@ -130,7 +134,7 @@ func (v *VoteSource) ListVoteActivityForWindow(ctx context.Context, committeeUID
 			}
 		}
 		out = append(out, port.VoteActivity{
-			VoteID:          r.UID,
+			VoteID:          data.VoteUID,
 			Name:            data.Name,
 			URL:             data.URL,
 			Status:          data.Status,

@@ -65,6 +65,9 @@ type querySurveyCommittee struct {
 }
 
 type querySurveyData struct {
+	// UID is the survey v2 UUID — per the survey-service indexer contract,
+	// data.uid is the v2 UUID and data.id is the v1 ID. Always read from uid.
+	UID          string                 `json:"uid"`
 	Title        string                 `json:"survey_title"`
 	Status       string                 `json:"survey_status"`
 	CutoffDate   string                 `json:"survey_cutoff_date"`
@@ -157,7 +160,7 @@ func (s *SurveySource) ListSurveyActivityForWindow(ctx context.Context, committe
 		}
 
 		out = append(out, port.SurveyActivity{
-			SurveyUID:       r.UID,
+			SurveyUID:       data.UID,
 			Title:           data.Title,
 			Status:          data.Status,
 			CutoffDate:      cutoff.UTC(),

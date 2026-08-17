@@ -44,6 +44,7 @@ func TestListVoteActivityForWindow_FieldMapping(t *testing.T) {
 
 	records := []queryVoteData{
 		{
+			VoteUID:                       "vote-uid-1",
 			Name:                          "AAIF Project Approval",
 			URL:                           "https://example.com/vote/1",
 			Status:                        "ended",
@@ -100,7 +101,7 @@ func TestListVoteActivityForWindow_UsesEndTimeFilter(t *testing.T) {
 
 func TestListVoteActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	t0 := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
-	goodData := queryVoteData{Name: "Good Vote", Status: "ended"}
+	goodData := queryVoteData{VoteUID: "good", Name: "Good Vote", Status: "ended"}
 	goodJSON, _ := json.Marshal(goodData)
 
 	body := []byte(`{"resources":[` +
