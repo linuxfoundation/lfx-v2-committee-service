@@ -37,7 +37,7 @@ type MeetingSourceConfig struct {
 
 // MeetingSource is the live MeetingSource adapter. It speaks
 //
-//	GET {BaseURL}/query/resources?type=v1_past_meeting&tags=committee:{uid}
+//	GET {BaseURL}/query/resources?type=v1_past_meeting&tags=committee_uid:{uid}
 //	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
@@ -107,7 +107,7 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 	q := u.Query()
 	q.Set("v", "1")
 	q.Set("type", "v1_past_meeting")
-	q.Set("tags", "committee:"+committeeUID)
+	q.Set("tags", "committee_uid:"+committeeUID)
 	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
 	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
@@ -164,18 +164,4 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 		})
 	}
 	return out, nil
-}
-
-// appendPath joins two URL path components with exactly one slash separating them.
-func appendPath(base, extra string) string {
-	if base == "" {
-		return extra
-	}
-	if base[len(base)-1] == '/' && len(extra) > 0 && extra[0] == '/' {
-		return base + extra[1:]
-	}
-	if base[len(base)-1] != '/' && (len(extra) == 0 || extra[0] != '/') {
-		return base + "/" + extra
-	}
-	return base + extra
 }
