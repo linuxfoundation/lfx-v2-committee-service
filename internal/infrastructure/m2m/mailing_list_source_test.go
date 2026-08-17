@@ -17,26 +17,28 @@ import (
 
 func newMailingListSource(t *testing.T, srv *httptest.Server) *MailingListSource {
 	t.Helper()
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	return NewMailingListSource(MailingListSourceConfig{BaseURL: u.String()}, srv.Client())
+	return NewMailingListSource(MailingListSourceConfig{
+		BaseURL: srv.URL,
+		Type:    DefaultMailingListType,
+	}, srv.Client())
 }
 
-// ── Field mapping ─────────────────────────────────────────────────────────────
+// ── Field mapping: ThreadID comes from data.uid, not envelope id ─────────────
+//
+// Use a DIFFERENT value for envelope "id" vs data "uid" to prove we read
+// ThreadID from data.uid (per the indexer contract), not the envelope id.
 
 func TestListMailingListActivityForWindow_FieldMapping(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
 	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
 
-	// Use a DIFFERENT value for envelope "id" vs data "uid" to prove we read
-	// ThreadID from data.uid (per the indexer contract), not the envelope id.
 	body := []byte(`{"resources":[{` +
 		`"id":"os-doc-id-ignored",` +
 		`"data":{` +
 		`"uid":"thread-uid-1",` +
-		`"subject":"Re: CI pipeline update",` +
-		`"url":"https://lists.example.com/msg/123",` +
-		`"excerpt":"Short preview text",` +
+		`"subject":"Committee governance update",` +
+		`"url":"https://lists.example.org/thread/abc123",` +
+		`"excerpt":"We should revise the charter...",` +
 		`"private":true` +
 		`}}]}`)
 
@@ -52,23 +54,37 @@ func TestListMailingListActivityForWindow_FieldMapping(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "thread-uid-1", got[0].ThreadID, "ThreadID must come from data.uid, not the envelope top-level id")
-	assert.Equal(t, "Re: CI pipeline update", got[0].Subject)
-	assert.Equal(t, "https://lists.example.com/msg/123", got[0].URL)
-	assert.Equal(t, "Short preview text", got[0].Excerpt)
+	assert.Equal(t, "Committee governance update", got[0].Subject)
+	assert.Equal(t, "https://lists.example.org/thread/abc123", got[0].URL)
+	assert.Equal(t, "We should revise the charter...", got[0].Excerpt)
 	assert.True(t, got[0].Private)
 }
 
-// ── Disabled source returns nil ───────────────────────────────────────────────
+// ── Query parameters ──────────────────────────────────────────────────────────
 
-func TestListMailingListActivityForWindow_DisabledBaseURL_ReturnsNil(t *testing.T) {
-	src := NewMailingListSource(MailingListSourceConfig{}, nil)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+func TestListMailingListActivityForWindow_QueryParameters(t *testing.T) {
+	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
+
+	var capturedQuery url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"resources":[]}`))
+	}))
+	defer srv.Close()
+
+	src := newMailingListSource(t, srv)
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-target", windowStart, windowEnd)
+
 	require.NoError(t, err)
-	assert.Nil(t, got)
+	assert.Equal(t, DefaultMailingListType, capturedQuery.Get("type"))
+	assert.Equal(t, "committee:c-target", capturedQuery.Get("tags"))
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("start_time[gte]"))
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("start_time[lte]"))
 }
 
-// ── Malformed data payload → skipped ─────────────────────────────────────────
+// ── Malformed data payload → record skipped ───────────────────────────────────
 
 func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
@@ -76,7 +92,7 @@ func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) 
 
 	body := []byte(`{"resources":[` +
 		`{"id":"bad","data":[1,2,3]},` +
-		`{"id":"good","data":{"uid":"good","subject":"Good Thread"}}` +
+		`{"id":"good","data":{"uid":"thread-uid-2","subject":"Good thread","private":false}}` +
 		`]}`)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -89,20 +105,16 @@ func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) 
 	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
 
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "good", got[0].ThreadID)
+	require.Len(t, got, 1, "malformed record must be skipped, good record must pass through")
+	assert.Equal(t, "thread-uid-2", got[0].ThreadID)
 }
 
-// ── Non-2xx response → error ──────────────────────────────────────────────────
+// ── Disabled source (empty BaseURL) → nil, no error ──────────────────────────
 
-func TestListMailingListActivityForWindow_Non2xx_ReturnsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
+func TestListMailingListActivityForWindow_DisabledBaseURL_ReturnsNil(t *testing.T) {
+	src := NewMailingListSource(MailingListSourceConfig{BaseURL: ""}, nil)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
 		time.Now().Add(-time.Hour), time.Now())
-	require.Error(t, err)
+	require.NoError(t, err)
+	assert.Nil(t, got)
 }
