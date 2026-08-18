@@ -356,33 +356,29 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	}
 
 	// Source gathering. Internal (member) source failure is fatal — return it so
-	// the consumer retries. External M2M sources degrade to empty so a single
-	// upstream outage doesn't masquerade as "no activity"; the failure is logged
-	// at error level since a down source is an operational problem.
-	meetings, errMeetings := g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errMeetings != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: meeting source failed; continuing with zero meetings",
-			"committee_uid", in.CommitteeUID, "error", errMeetings)
-		meetings = nil
-	}
+	// the consumer retries. External M2M sources use gatherDegradable: a single
+	// upstream outage degrades to empty rather than masquerading as "no activity".
+	meetings, errMeetings := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: meeting source failed; continuing with zero meetings",
+		func() ([]port.MeetingActivity, error) {
+			return g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
 	members, errMembers := g.memberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMembers != nil {
 		slog.ErrorContext(ctx, "weekly-brief fulfill: member source failed; will retry",
 			"committee_uid", in.CommitteeUID, "error", errMembers)
 		return errMembers // internal source error → retry
 	}
-	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errMailing != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: mailing list source failed; continuing with zero threads",
-			"committee_uid", in.CommitteeUID, "error", errMailing)
-		mailing = nil
-	}
-	votes, errVotes := g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errVotes != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: vote source failed; continuing with zero votes",
-			"committee_uid", in.CommitteeUID, "error", errVotes)
-		votes = nil
-	}
+	mailing, errMailing := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: mailing list source failed; continuing with zero threads",
+		func() ([]port.MailingListActivity, error) {
+			return g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	votes, errVotes := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: vote source failed; continuing with zero votes",
+		func() ([]port.VoteActivity, error) {
+			return g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
 
 	// Enrich closed votes with per-choice tallies. Result fetch errors are
 	// non-fatal: the brief still generates with name and participation counts.
@@ -393,12 +389,11 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	var surveys []port.SurveyActivity
 	var errSurveys error
 	if g.surveys != nil {
-		surveys, errSurveys = g.surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-		if errSurveys != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: survey source failed; continuing with zero surveys",
-				"committee_uid", in.CommitteeUID, "error", errSurveys)
-			surveys = nil
-		}
+		surveys, errSurveys = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: survey source failed; continuing with zero surveys",
+			func() ([]port.SurveyActivity, error) {
+				return g.surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
 	}
 
 	// Project memberships are optional — nil source or fetch error both degrade
@@ -421,12 +416,11 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	var summaries []port.MeetingAISummaryActivity
 	var errSummaries error
 	if g.aiSummaries != nil {
-		summaries, errSummaries = g.aiSummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-		if errSummaries != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: AI summary source failed; continuing with zero summaries",
-				"committee_uid", in.CommitteeUID, "error", errSummaries)
-			summaries = nil
-		}
+		summaries, errSummaries = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: AI summary source failed; continuing with zero summaries",
+			func() ([]port.MeetingAISummaryActivity, error) {
+				return g.aiSummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
 	}
 
 	memberCount := len(members.Joined) + len(members.Updated)
@@ -523,6 +517,20 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	}
 	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
+}
+
+// gatherDegradable calls fetch and returns its result. On error it logs failMsg at
+// error level (with committee_uid and error attrs), returns the zero value, and
+// passes the error back so Fulfill's no-source check can distinguish a transient
+// upstream outage from a genuinely empty window.
+func gatherDegradable[T any](ctx context.Context, committeeUID, failMsg string, fetch func() (T, error)) (T, error) {
+	result, err := fetch()
+	if err != nil {
+		slog.ErrorContext(ctx, failMsg, "committee_uid", committeeUID, "error", err)
+		var zero T
+		return zero, err
+	}
+	return result, nil
 }
 
 // finalizeError transitions the brief to the "error" state and persists it. A
