@@ -10,7 +10,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 type weeklyBriefMessageHandler struct {
@@ -30,7 +29,10 @@ func NewWeeklyBriefMessageHandler(
 
 func (h *weeklyBriefMessageHandler) HandleGenerateWeeklyBriefRequested(ctx context.Context, msg port.StreamMessenger) error {
 	if h.generator == nil {
-		return errors.NewValidation("weekly brief generator is required for handling generate-requested events")
+		// A nil generator is a static wiring defect. Return nil (ACK) to avoid an
+		// endless NAK/retry loop — retrying will not fix a misconfigured wiring.
+		slog.ErrorContext(ctx, "weekly brief generator is not configured — dropping generate-requested event")
+		return nil
 	}
 
 	subject := msg.Subject()

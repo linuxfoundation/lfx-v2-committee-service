@@ -3222,3 +3222,25 @@ func TestHandleUserDeleted_StaleIndexReuse(t *testing.T) {
 	assert.Equal(t, 0, spy.updateMemberCalls,
 		"reuse guard must skip update when re-read shows member username has been reassigned")
 }
+
+// ── isSafeURL ─────────────────────────────────────────────────────────────────
+
+func TestIsSafeURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want bool
+	}{
+		{"https://example.com", true},
+		{"http://example.com/path?q=1", true},
+		{"javascript:alert(1)", false},
+		{"ftp://files.example.com", false},
+		{"data:text/html,<h1>hi</h1>", false},
+		{"", false},
+		{"not a url at all", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.want, isSafeURL(tt.url))
+		})
+	}
+}

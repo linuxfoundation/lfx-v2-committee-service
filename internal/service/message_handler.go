@@ -10,8 +10,8 @@ import (
 // handlerConfig aggregates all dependencies for message handler option functions.
 // Required: committeeReader, committeeWriterOrchestrator, committeeWriter, committeePublisher.
 // Optional: emailSender, inviteSender, userReader, projectReader, linkReader,
-// lfxSelfServeBaseURL, weeklyBriefGenerator — each sub-handler nil-guards its own deps
-// and degrades gracefully when they are absent.
+// lfxSelfServeBaseURL, weeklyBriefGenerator — sub-handlers that accept optional deps
+// nil-guard at the point of use and degrade gracefully when they are absent.
 type handlerConfig struct {
 	committeeReader             CommitteeReader
 	committeeWriterOrchestrator CommitteeWriter

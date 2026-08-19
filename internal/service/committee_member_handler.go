@@ -9,6 +9,7 @@ import (
 	stderrors "errors"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -43,6 +44,10 @@ func (h *committeeMemberHandler) HandleCommitteeListMembers(ctx context.Context,
 	ctx = log.AppendCtx(ctx, slog.String("committee_uid", uid))
 	slog.DebugContext(ctx, "executing list committee members use case")
 
+	if _, err := uuid.Parse(uid); err != nil {
+		return nil, errors.NewValidation("invalid committee UID in list_members request", err)
+	}
+
 	_, _, err := h.committeeReader.GetBase(ctx, uid)
 	if err != nil {
 		return nil, err
@@ -64,6 +69,10 @@ func (h *committeeMemberHandler) HandleCommitteeListMembers(ctx context.Context,
 }
 
 func (h *committeeMemberHandler) HandleCommitteeUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	if h.committeeWriterOrchestrator == nil {
+		return nil, errors.NewValidation("committee writer orchestrator is required for handling committee_updated events")
+	}
+
 	var event model.CommitteeEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		return nil, errors.NewValidation("failed to unmarshal CommitteeEvent in committee_updated handler", err)

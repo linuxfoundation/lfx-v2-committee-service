@@ -564,10 +564,10 @@ func (h *committeeNotificationHandler) publishInviteeFGAForCommittee(ctx context
 			Data: fgatypes.GenericAccessData{
 				UID: invite.UID,
 				References: map[string][]string{
-					"committee": {invite.CommitteeUID},
+					constants.RelationCommittee: {invite.CommitteeUID},
 				},
 				Relations: map[string][]string{
-					"invitee": {e.username},
+					constants.RelationInvitee: {e.username},
 				},
 			},
 		}
