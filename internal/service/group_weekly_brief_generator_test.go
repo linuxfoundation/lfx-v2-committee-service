@@ -115,6 +115,17 @@ func (f *fakeSurveySource) ListSurveyActivityForWindow(_ context.Context, _ stri
 	return f.items, f.err
 }
 
+type fakeProjectMembershipSource struct {
+	items       []port.ProjectMembershipActivity
+	err         error
+	capturedUID string
+}
+
+func (f *fakeProjectMembershipSource) ListMembershipActivityForWindow(_ context.Context, projectUID string, _, _ time.Time) ([]port.ProjectMembershipActivity, error) {
+	f.capturedUID = projectUID
+	return f.items, f.err
+}
+
 // recordingAIAdapter captures the WeeklyBriefInput so tests can assert on what
 // the orchestrator passed in (Claims and the structured fields).
 type recordingAIAdapter struct {
@@ -1031,6 +1042,106 @@ func TestFulfill_SurveySource_ClaimsAndRefsIncluded(t *testing.T) {
 	assert.True(t, foundClaim, "brief AI input must contain a claim for the survey")
 	assert.True(t, bw.putBrief.PrivateSourcePresent,
 		"survey is FGA access-controlled; brief must set private_source_present=true")
+}
+
+// ── ProjectMembershipSource ───────────────────────────────────────────────────
+
+func TestFulfill_ProjectMemberships_ClaimsAndRefsIncluded(t *testing.T) {
+	// Project membership activity must appear as claim evidence and a source ref,
+	// and the ProjectUID from the input must be forwarded to the source.
+	purchaseDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	membership := port.ProjectMembershipActivity{
+		MembershipUID: "pm-1",
+		AccountName:   "Example Corp",
+		Tier:          "Silver",
+		PurchaseDate:  purchaseDate,
+		Status:        "Active",
+	}
+	fakePMS := &fakeProjectMembershipSource{items: []port.ProjectMembershipActivity{membership}}
+	recorder := &recordingAIAdapter{}
+	g, bw := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithMeetingSource(&fakeMeetingSource{}),
+		WithProjectMembershipSource(fakePMS),
+		WithAIAdapter(recorder),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		ProjectUID:   "proj-42",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bw.putBrief)
+
+	// ProjectUID must be forwarded to the source.
+	assert.Equal(t, "proj-42", fakePMS.capturedUID)
+
+	// Source ref must be persisted on the brief.
+	var foundRef bool
+	for _, ref := range bw.putBrief.SourceRefs {
+		if ref.Kind == "project-membership" && ref.ID == "pm-1" {
+			foundRef = true
+			assert.Equal(t, "Example Corp", ref.Title)
+			assert.Contains(t, ref.Excerpt, "Membership tier: Silver")
+			assert.Contains(t, ref.Excerpt, "2026-08-14")
+		}
+	}
+	assert.True(t, foundRef, "brief must contain a source ref for the project membership")
+
+	// Claim evidence must appear in the AI input.
+	var foundClaim bool
+	for _, ev := range recorder.gotInput.Claims {
+		if ev.ID == "project-membership-pm-1" {
+			foundClaim = true
+			assert.Contains(t, ev.Summary, "Example Corp")
+			assert.Contains(t, ev.Summary, "Silver")
+		}
+	}
+	assert.True(t, foundClaim, "brief AI input must contain a claim for the project membership")
+}
+
+func TestFulfill_ProjectMembershipSource_FetchError_TriggersRetry(t *testing.T) {
+	// When ProjectMembershipSource is the only source and returns an error,
+	// Fulfill must return a non-nil error so the consumer retries.
+	fakePMS := &fakeProjectMembershipSource{err: errors.NewUnexpected("upstream timeout", nil)}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithProjectMembershipSource(fakePMS),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		ProjectUID:   "proj-42",
+		Now:          testNow,
+	})
+	require.Error(t, err, "source error with no activity must trigger retry")
+}
+
+func TestFulfill_ProjectMembershipSource_EmptyProjectUID_DegradesSilently(t *testing.T) {
+	// When ProjectUID is empty the source is called with an empty string and
+	// returns no records (the live adapter degrades on empty UID; the fake mirrors
+	// this by returning nil items). With no other activity the brief is finalized
+	// as error/no_sources (ACK) rather than retrying.
+	fakePMS := &fakeProjectMembershipSource{} // items=nil → zero records
+	bw := &fakeBriefWriter{}
+	g, _ := newGenerator(t,
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithGroupWeeklyBriefWriter(bw),
+		WithProjectMembershipSource(fakePMS),
+	)
+
+	err := g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		ProjectUID:   "",
+		Now:          testNow,
+	})
+	require.NoError(t, err)
+	// Generator passes ProjectUID through unchanged; live adapter handles empty.
+	assert.Equal(t, "", fakePMS.capturedUID)
+	// No activity → terminal error state (ACK).
+	require.NotNil(t, bw.putBrief)
+	assert.Equal(t, model.GroupWeeklyBriefStateError, bw.putBrief.State)
 }
 
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {

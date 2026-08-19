@@ -58,18 +58,18 @@ func TestListMembershipActivityForWindow_FieldMappingAndStatusFilter(t *testing.
 	windowEnd := time.Date(2026, 8, 17, 23, 59, 59, 0, time.UTC)
 
 	activeData := queryProjectMembershipData{
-		UID:            "m-active",
-		AccountName:    "Example Corp",
-		MembershipTier: "Silver",
-		PurchaseDate:   "2026-08-14T00:00:00Z",
-		Status:         "Active",
+		UID:          "m-active",
+		CompanyName:  "Example Corp",
+		Tier:         "Silver",
+		PurchaseDate: "2026-08-14T00:00:00Z",
+		Status:       "Active",
 	}
 	inactiveData := queryProjectMembershipData{
-		UID:            "m-inactive",
-		AccountName:    "Inactive Inc",
-		MembershipTier: "Gold",
-		PurchaseDate:   "2026-08-15T00:00:00Z",
-		Status:         "Expired",
+		UID:          "m-inactive",
+		CompanyName:  "Inactive Inc",
+		Tier:         "Gold",
+		PurchaseDate: "2026-08-15T00:00:00Z",
+		Status:       "Expired",
 	}
 	activeJSON, _ := json.Marshal(activeData)
 	inactiveJSON, _ := json.Marshal(inactiveData)
@@ -102,7 +102,7 @@ func TestListMembershipActivityForWindow_FieldMappingAndStatusFilter(t *testing.
 func TestListMembershipActivityForWindow_BadPurchaseDate_ZeroTime(t *testing.T) {
 	data := queryProjectMembershipData{
 		UID:          "m-bad-date",
-		AccountName:  "No Date Corp",
+		CompanyName:  "No Date Corp",
 		PurchaseDate: "not-a-date",
 		Status:       "Active",
 	}
@@ -189,4 +189,40 @@ func TestListMembershipActivityForWindow_Non2xx_ReturnsError(t *testing.T) {
 		time.Now(), time.Now().Add(time.Hour))
 
 	require.Error(t, err)
+}
+
+// ── Active record with empty UID → skipped ────────────────────────────────────
+
+func TestListMembershipActivityForWindow_EmptyUID_Skipped(t *testing.T) {
+	// An Active record with an empty data.UID must be skipped to avoid
+	// producing an empty claim ID that collides across records.
+	goodData := queryProjectMembershipData{
+		UID:    "m-good",
+		Status: "Active",
+	}
+	emptyUIDData := queryProjectMembershipData{
+		UID:    "",
+		Status: "Active",
+	}
+	goodJSON, _ := json.Marshal(goodData)
+	emptyJSON, _ := json.Marshal(emptyUIDData)
+
+	body := []byte(`{"resources":[` +
+		`{"id":"e1","data":` + string(emptyJSON) + `},` +
+		`{"id":"g1","data":` + string(goodJSON) + `}` +
+		`]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newProjectMembershipSource(t, srv)
+	got, err := src.ListMembershipActivityForWindow(context.Background(), "proj-1",
+		time.Now(), time.Now().Add(time.Hour))
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "empty-UID record must be skipped")
+	assert.Equal(t, "m-good", got[0].MembershipUID)
 }

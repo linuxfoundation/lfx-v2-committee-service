@@ -1002,13 +1002,16 @@ func surveyParticipationExcerpt(sv port.SurveyActivity) string {
 }
 
 // membershipExcerpt returns a short description for a project_membership
-// source_ref. It uses purchase date and tier so a reader can identify the
+// source_ref. It uses tier and purchase date so a reader can identify the
 // record without following a link.
-// Example: "Joined as Silver, purchased 2026-08-14"
+// Example: "Membership tier: Silver, purchased 2026-08-14"
+// "Joined as" is intentionally avoided: the source may include renewals
+// alongside new memberships (is_first_membership is not yet indexed in
+// OpenSearch), so implying a first-time join would be inaccurate.
 func membershipExcerpt(pm port.ProjectMembershipActivity) string {
 	parts := []string{}
 	if pm.Tier != "" {
-		parts = append(parts, "joined as "+pm.Tier)
+		parts = append(parts, "membership tier: "+pm.Tier)
 	}
 	if !pm.PurchaseDate.IsZero() {
 		parts = append(parts, "purchased "+pm.PurchaseDate.UTC().Format("2006-01-02"))
@@ -1020,7 +1023,7 @@ func membershipExcerpt(pm port.ProjectMembershipActivity) string {
 	if len(s) > 0 {
 		s = strings.ToUpper(s[:1]) + s[1:]
 	}
-	return s
+	return cleanSummary(s)
 }
 
 // publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for

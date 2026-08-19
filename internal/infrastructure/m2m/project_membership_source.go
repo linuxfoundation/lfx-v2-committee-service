@@ -71,11 +71,14 @@ func NewProjectMembershipSource(cfg ProjectMembershipSourceConfig, client *http.
 }
 
 type queryProjectMembershipData struct {
-	// UID is the membership v2 UUID.
-	UID         string `json:"uid"`
-	AccountName string `json:"account_name"`
-	// MembershipTier is the tier label (e.g. "Silver", "Associate").
-	MembershipTier string `json:"membership_tier"`
+	// UID is the membership v2 UUID (json:"uid" per the member-service indexer contract).
+	UID string `json:"uid"`
+	// CompanyName is the member company name (json:"company_name" per the member-service
+	// ProjectMembership model — not "account_name").
+	CompanyName string `json:"company_name"`
+	// Tier is the membership tier label, e.g. "Silver", "Associate"
+	// (json:"tier" per the member-service ProjectMembership model — not "membership_tier").
+	Tier string `json:"tier"`
 	// PurchaseDate is the purchase date in RFC 3339 format, sourced from
 	// Salesforce Asset.PurchaseDate with InstallDate / CreatedDate fallbacks.
 	PurchaseDate string `json:"purchase_date"`
@@ -148,6 +151,11 @@ func (p *ProjectMembershipSource) ListMembershipActivityForWindow(ctx context.Co
 		if data.Status != activeStatus {
 			continue
 		}
+		if data.UID == "" {
+			slog.WarnContext(ctx, "skipping project membership record without membership UID",
+				"envelope_uid", r.UID)
+			continue
+		}
 		var purchaseDate time.Time
 		if data.PurchaseDate != "" {
 			if t, parseErr := time.Parse(time.RFC3339, data.PurchaseDate); parseErr == nil {
@@ -156,8 +164,8 @@ func (p *ProjectMembershipSource) ListMembershipActivityForWindow(ctx context.Co
 		}
 		out = append(out, port.ProjectMembershipActivity{
 			MembershipUID: data.UID,
-			AccountName:   data.AccountName,
-			Tier:          data.MembershipTier,
+			AccountName:   data.CompanyName,
+			Tier:          data.Tier,
 			PurchaseDate:  purchaseDate,
 			Status:        data.Status,
 		})
