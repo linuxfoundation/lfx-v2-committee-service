@@ -21,20 +21,33 @@ func NewWeeklyBriefMessageHandler(
 	generator GroupWeeklyBriefGenerator,
 	reader CommitteeReader,
 ) port.WeeklyBriefGenerateHandler {
+	if generator == nil {
+		panic("weeklyBriefMessageHandler: generator is required")
+	}
 	return &weeklyBriefMessageHandler{
 		generator:       generator,
 		committeeReader: reader,
 	}
 }
 
-func (h *weeklyBriefMessageHandler) HandleGenerateWeeklyBriefRequested(ctx context.Context, msg port.StreamMessenger) error {
-	if h.generator == nil {
-		// A nil generator is a static wiring defect. Return nil (ACK) to avoid an
-		// endless NAK/retry loop — retrying will not fix a misconfigured wiring.
-		slog.ErrorContext(ctx, "weekly brief generator is not configured — dropping generate-requested event")
-		return nil
+// newWeeklyBriefHandlerOrNoop returns a real handler when a generator is
+// configured, or a no-op handler when the weekly-brief feature is disabled.
+// The no-op path is safe because no stream subscription is set up when the
+// generator is absent; if a message somehow arrives it is ACKed and discarded.
+func newWeeklyBriefHandlerOrNoop(generator GroupWeeklyBriefGenerator, reader CommitteeReader) port.WeeklyBriefGenerateHandler {
+	if generator == nil {
+		return noopWeeklyBriefHandler{}
 	}
+	return NewWeeklyBriefMessageHandler(generator, reader)
+}
 
+type noopWeeklyBriefHandler struct{}
+
+func (noopWeeklyBriefHandler) HandleGenerateWeeklyBriefRequested(_ context.Context, _ port.StreamMessenger) error {
+	return nil
+}
+
+func (h *weeklyBriefMessageHandler) HandleGenerateWeeklyBriefRequested(ctx context.Context, msg port.StreamMessenger) error {
 	subject := msg.Subject()
 	if subject != constants.GenerateWeeklyBriefRequestedSubject {
 		slog.DebugContext(ctx, "stream message subject not relevant for weekly-brief generate — skipping",

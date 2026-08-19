@@ -141,7 +141,7 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 			config.lfxSelfServeBaseURL,
 			config.projectReader,
 		),
-		WeeklyBriefGenerateHandler: NewWeeklyBriefMessageHandler(config.weeklyBriefGenerator, config.committeeReader),
+		WeeklyBriefGenerateHandler: newWeeklyBriefHandlerOrNoop(config.weeklyBriefGenerator, config.committeeReader),
 		UserEventHandler:           NewUserEventHandler(config.committeeReader, config.committeeWriterOrchestrator),
 	}
 }
