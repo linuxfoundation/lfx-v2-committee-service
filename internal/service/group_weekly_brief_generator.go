@@ -24,6 +24,7 @@ import (
 type GroupWeeklyBriefGenerateInput struct {
 	CommitteeUID  string
 	CommitteeName string
+	ProjectUID    string
 	ProjectName   string
 	Force         bool
 	Now           time.Time
@@ -48,6 +49,7 @@ type GroupWeeklyBriefGenerateOutput struct {
 type GenerateWeeklyBriefRequestedEvent struct {
 	CommitteeUID  string    `json:"committee_uid"`
 	CommitteeName string    `json:"committee_name,omitempty"`
+	ProjectUID    string    `json:"project_uid,omitempty"`
 	ProjectName   string    `json:"project_name,omitempty"`
 	Force         bool      `json:"force"`
 	RequestedAt   time.Time `json:"requested_at"`
@@ -77,18 +79,19 @@ type GroupWeeklyBriefGenerator interface {
 }
 
 type groupWeeklyBriefGenerator struct {
-	briefReader   port.GroupWeeklyBriefReader
-	briefWriter   port.GroupWeeklyBriefWriter
-	meetings      port.MeetingSource
-	aiSummaries   port.MeetingAISummarySource
-	mailingLists  port.MailingListSource
-	votes         port.VoteSource
-	voteResults   port.VoteResultSource
-	surveys       port.SurveySource
-	memberReader  port.CommitteeWeeklyMemberReader
-	ai            port.AIAdapter
-	publisher     port.CommitteePublisher
-	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
+	briefReader        port.GroupWeeklyBriefReader
+	briefWriter        port.GroupWeeklyBriefWriter
+	meetings           port.MeetingSource
+	aiSummaries        port.MeetingAISummarySource
+	mailingLists       port.MailingListSource
+	votes              port.VoteSource
+	voteResults        port.VoteResultSource
+	surveys            port.SurveySource
+	projectMemberships port.ProjectMembershipSource
+	memberReader       port.CommitteeWeeklyMemberReader
+	ai                 port.AIAdapter
+	publisher          port.CommitteePublisher
+	committeeName      func(ctx context.Context, uid string) (committeeName, projectName string, err error)
 }
 
 // GroupWeeklyBriefGeneratorOption configures the orchestrator.
@@ -138,6 +141,15 @@ func WithVoteResultSource(s port.VoteResultSource) GroupWeeklyBriefGeneratorOpti
 // that do not set QUERY_SERVICE_URL omit this source.
 func WithSurveySource(s port.SurveySource) GroupWeeklyBriefGeneratorOption {
 	return func(g *groupWeeklyBriefGenerator) { g.surveys = s }
+}
+
+// WithProjectMembershipSource wires the project-membership-source port. This is
+// optional — when nil, brief generation continues without membership data
+// (graceful degrade). Deployments that do not set QUERY_SERVICE_URL omit this
+// source. The source is keyed by ProjectUID from the generate input, not by
+// CommitteeUID; when ProjectUID is empty the source degrades to zero records.
+func WithProjectMembershipSource(s port.ProjectMembershipSource) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.projectMemberships = s }
 }
 
 // WithCommitteeWeeklyMemberReader wires the member-activity reader.
@@ -389,6 +401,20 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		}
 	}
 
+	// Project memberships are optional — nil source or fetch error both degrade
+	// to zero memberships without blocking the brief. An empty ProjectUID is
+	// also a soft degrade (committee not yet associated with a project).
+	var projectMemberships []port.ProjectMembershipActivity
+	var errMemberships error
+	if g.projectMemberships != nil {
+		projectMemberships, errMemberships = g.projectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
+		if errMemberships != nil {
+			slog.ErrorContext(ctx, "weekly-brief fulfill: project membership source failed; continuing with zero memberships",
+				"committee_uid", in.CommitteeUID, "project_uid", in.ProjectUID, "error", errMemberships)
+			projectMemberships = nil
+		}
+	}
+
 	// AI summaries are optional — nil source or fetch error both degrade to
 	// zero summaries without blocking the brief. A missing summary source is
 	// not logged at error level because the source is wired optionally.
@@ -411,8 +437,8 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// window would just fail again. But if the window is empty ONLY because one
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
-	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 {
-		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil || errSurveys != nil {
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 && len(projectMemberships) == 0 {
+		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil || errSurveys != nil || errMemberships != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
@@ -420,6 +446,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 				"votes_errored", errVotes != nil,
 				"summaries_errored", errSummaries != nil,
 				"surveys_errored", errSurveys != nil,
+				"memberships_errored", errMemberships != nil,
 			)
 			// Surface the underlying source error so the consumer retries rather
 			// than finalizing a terminal brief over a transient outage.
@@ -435,6 +462,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 			if retryErr == nil {
 				retryErr = errSurveys
+			}
+			if retryErr == nil {
+				retryErr = errMemberships
 			}
 			return retryErr
 		}
@@ -458,7 +488,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, in.MembersHidden)
+	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, projectMemberships, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -514,9 +544,9 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 // parallel set of source refs persisted on the brief. When membersHidden is
 // true (committee's member_visibility == "hidden"), member names are replaced
 // with count-only phrases so the stored brief never contains roster data.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
-	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
-	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
+func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, projectMemberships []port.ProjectMembershipActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
+	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
+	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
 
 	// IMPORTANT: do NOT pass raw untrusted source text (meeting summaries,
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
@@ -582,6 +612,23 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 			ID:      "survey-" + sv.SurveyUID,
 			Summary: claimLabel("survey", sv.Title) + surveyResponseLabel(sv),
 			Sources: []port.SourceRef{{Type: "survey", ID: sv.SurveyUID}},
+		})
+	}
+
+	for _, pm := range projectMemberships {
+		// AccountName and Tier are from the query-service index — sanitize via
+		// claimLabel. They are source-derived strings and must not flow
+		// unsanitized into the AI prompt.
+		title := claimLabel("membership purchased", pm.AccountName)
+		if pm.Tier != "" {
+			title += " (" + claimLabel("tier", pm.Tier) + ")"
+		}
+		ref := model.SourceRef{Kind: "project-membership", ID: pm.MembershipUID, Title: pm.AccountName, Excerpt: membershipExcerpt(pm)}
+		refs = append(refs, ref)
+		claims = append(claims, port.ClaimEvidence{
+			ID:      "project-membership-" + pm.MembershipUID,
+			Summary: title,
+			Sources: []port.SourceRef{{Type: "project-membership", ID: pm.MembershipUID}},
 		})
 	}
 
@@ -952,6 +999,28 @@ func surveyParticipationExcerpt(sv port.SurveyActivity) string {
 	}
 	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
 	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
+}
+
+// membershipExcerpt returns a short description for a project_membership
+// source_ref. It uses purchase date and tier so a reader can identify the
+// record without following a link.
+// Example: "Joined as Silver, purchased 2026-08-14"
+func membershipExcerpt(pm port.ProjectMembershipActivity) string {
+	parts := []string{}
+	if pm.Tier != "" {
+		parts = append(parts, "joined as "+pm.Tier)
+	}
+	if !pm.PurchaseDate.IsZero() {
+		parts = append(parts, "purchased "+pm.PurchaseDate.UTC().Format("2006-01-02"))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	s := strings.Join(parts, ", ")
+	if len(s) > 0 {
+		s = strings.ToUpper(s[:1]) + s[1:]
+	}
+	return s
 }
 
 // publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for

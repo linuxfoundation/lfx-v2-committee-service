@@ -1048,14 +1048,14 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	}
 
 	t.Run("membersHidden=false includes names", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, false)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, nil, false)
 		require.Len(t, claims, 1)
 		assert.Contains(t, claims[0].Summary, "Jane Doe")
 		assert.Contains(t, claims[0].Summary, "John Smith")
 	})
 
 	t.Run("membersHidden=true uses counts only", func(t *testing.T) {
-		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, true)
+		claims, _ := buildClaimsAndRefs(nil, nil, members, nil, nil, nil, nil, true)
 		require.Len(t, claims, 1)
 		assert.NotContains(t, claims[0].Summary, "Jane")
 		assert.NotContains(t, claims[0].Summary, "Doe")
