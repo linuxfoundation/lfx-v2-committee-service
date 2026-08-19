@@ -515,7 +515,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.BriefText = aiOut.BriefText
 	brief.PromptVersion = g.ai.PromptVersion()
 	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys, projectMemberships)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
 	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
 	if errPut != nil {
@@ -723,9 +723,11 @@ func truncateRunes(s string, maxRunes int) string {
 // material whenever members contributed (members are inherently private), any
 // meeting, mailing-list thread, or vote was marked private, any AI meeting
 // summary contributed (transcript content in a brief is always treated as
-// private regardless of the summary's own access level), or any survey
-// contributed (surveys are always FGA access-controlled, never public).
-func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity) bool {
+// private regardless of the summary's own access level), any survey
+// contributed (surveys are always FGA access-controlled, never public), or
+// any project membership contributed (the member-service indexer contract
+// marks project_membership as public:false with access_check_relation:auditor).
+func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, projectMemberships []port.ProjectMembershipActivity) bool {
 	if memberCount > 0 {
 		return true
 	}
@@ -745,6 +747,12 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 	// Surveys are access-controlled (FGA access_check_object: survey:{uid}) so
 	// any contributing survey makes the brief private.
 	if len(surveys) > 0 {
+		return true
+	}
+	// Project memberships are access-controlled (public:false,
+	// access_check_relation:auditor on project_membership:{uid}) so any
+	// contributing membership makes the brief private.
+	if len(projectMemberships) > 0 {
 		return true
 	}
 	// VoteActivity has no Private flag and is treated as non-private.

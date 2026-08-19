@@ -779,11 +779,11 @@ func TestDerivePrivateSourcePresent_AISummaries(t *testing.T) {
 		summaries := []port.MeetingAISummaryActivity{
 			{Title: "Public Summary", Private: false},
 		}
-		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes, nil))
+		assert.True(t, derivePrivateSourcePresent(noMembers, noMeetings, summaries, noMailing, noVotes, nil, nil))
 	})
 
 	t.Run("no summaries, no other private sources → false", func(t *testing.T) {
-		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes, nil))
+		assert.False(t, derivePrivateSourcePresent(noMembers, noMeetings, nil, noMailing, noVotes, nil, nil))
 	})
 }
 
@@ -1099,6 +1099,12 @@ func TestFulfill_ProjectMemberships_ClaimsAndRefsIncluded(t *testing.T) {
 		}
 	}
 	assert.True(t, foundClaim, "brief AI input must contain a claim for the project membership")
+
+	// project_membership is public:false / access_check_relation:auditor in the
+	// member-service indexer contract, so any contributing membership must set
+	// private_source_present=true.
+	assert.True(t, bw.putBrief.PrivateSourcePresent,
+		"membership is FGA access-controlled; brief must set private_source_present=true")
 }
 
 func TestFulfill_ProjectMembershipSource_FetchError_TriggersRetry(t *testing.T) {
