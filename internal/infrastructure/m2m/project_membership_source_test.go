@@ -174,6 +174,7 @@ func TestListMembershipActivityForWindow_QueryParameters(t *testing.T) {
 	assert.Contains(t, capturedURL, "type=project_membership")
 	assert.Contains(t, capturedURL, "project_uid%3Aproj-abc")
 	assert.Contains(t, capturedURL, "date_field=purchase_date")
+	assert.Contains(t, capturedURL, "filters_all=status%3AActive", "server-side status filter must be sent to narrow pages")
 }
 
 // ── Non-2xx response → error ──────────────────────────────────────────────────

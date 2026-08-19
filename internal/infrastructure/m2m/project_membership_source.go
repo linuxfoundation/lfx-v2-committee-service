@@ -35,13 +35,19 @@ type ProjectMembershipSourceConfig struct {
 //
 //	GET {BaseURL}/query/resources?v=1&type={Type}&tags=project_uid:{uid}
 //	    &date_field=purchase_date&date_from={windowStart}&date_to={windowEnd}
+//	    &filters_all=status:Active
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
 //
-// Only resources with status "Active" are returned; records with other status
-// values are dropped in the mapping step so in-flight or lapsed memberships
-// never appear in a brief.
+// filters_all=status:Active is sent so the query-service narrows results
+// server-side before pagination; client-side status filtering is kept as a
+// defence-in-depth guard for any records that slip through.
+//
+// Note: page_token pagination is not yet implemented here; this matches the
+// pattern of all other M2M sources (meetings, mailing-list, votes, surveys).
+// A dedicated pagination PR should extend queryEnvelope and follow page_token
+// across all sources consistently.
 //
 // Note: is_first_membership is not yet indexed in OpenSearch. The slice
 // therefore includes renewals alongside new memberships. Callers (the
@@ -114,6 +120,7 @@ func (p *ProjectMembershipSource) ListMembershipActivityForWindow(ctx context.Co
 	q.Set("date_field", "purchase_date")
 	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
 	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("filters_all", "status:Active")
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
