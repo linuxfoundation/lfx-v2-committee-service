@@ -366,16 +366,16 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 
 	// Project memberships are optional — nil source or fetch error both degrade
 	// to zero memberships without blocking the brief. An empty ProjectUID is
-	// also a soft degrade (committee not yet associated with a project).
+	// also a soft degrade (committee not yet associated with a project); the
+	// source adapter handles it and returns zero records.
 	var projectMemberships []port.ProjectMembershipActivity
 	var errMemberships error
 	if g.sources.ProjectMemberships != nil {
-		projectMemberships, errMemberships = g.sources.ProjectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
-		if errMemberships != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: project membership source failed; continuing with zero memberships",
-				"committee_uid", in.CommitteeUID, "project_uid", in.ProjectUID, "error", errMemberships)
-			projectMemberships = nil
-		}
+		projectMemberships, errMemberships = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: project membership source failed; continuing with zero memberships",
+			func() ([]port.ProjectMembershipActivity, error) {
+				return g.sources.ProjectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
+			})
 	}
 
 	// AI summaries are optional — nil source or fetch error both degrade to
