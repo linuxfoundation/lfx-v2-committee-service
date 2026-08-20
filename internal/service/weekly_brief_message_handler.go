@@ -82,6 +82,7 @@ func (h *weeklyBriefMessageHandler) HandleGenerateWeeklyBriefRequested(ctx conte
 	return h.generator.Fulfill(ctx, GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  event.CommitteeUID,
 		CommitteeName: event.CommitteeName,
+		ProjectUID:    event.ProjectUID,
 		ProjectName:   event.ProjectName,
 		Force:         event.Force,
 		Now:           event.RequestedAt,
