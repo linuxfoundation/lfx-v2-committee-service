@@ -389,10 +389,6 @@ func TestNewMessageHandlerOrchestrator(t *testing.T) {
 			options: []messageHandlerOrchestratorOption{},
 			validate: func(t *testing.T, handler port.MessageHandler) {
 				assert.NotNil(t, handler)
-				// Test that it can be used (though it will have nil dependencies)
-				orchestrator, ok := handler.(*messageHandlerOrchestrator)
-				assert.True(t, ok)
-				assert.Nil(t, orchestrator.committeeReader)
 			},
 		},
 		{
@@ -406,9 +402,6 @@ func TestNewMessageHandlerOrchestrator(t *testing.T) {
 			},
 			validate: func(t *testing.T, handler port.MessageHandler) {
 				assert.NotNil(t, handler)
-				orchestrator, ok := handler.(*messageHandlerOrchestrator)
-				assert.True(t, ok)
-				assert.NotNil(t, orchestrator.committeeReader)
 			},
 		},
 	}
@@ -1474,13 +1467,15 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			var emailSender port.EmailSender
 			if !tt.omitEmailSender {
-				h.emailSender = tt.emailSender
+				emailSender = tt.emailSender
 			}
+			var inviteSender port.InviteSender
 			if !tt.omitInviteSender {
-				h.inviteSender = tt.inviteSender
+				inviteSender = tt.inviteSender
 			}
+			h := NewCommitteeNotificationHandler(nil, nil, nil, emailSender, inviteSender, nil, nil, "https://app.dev.lfx.dev", nil)
 
 			msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, tt.msgData)
 			resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
@@ -1681,16 +1676,19 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &mockEmailSender{}
-			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			var emailSender port.EmailSender
 			if !tt.omitEmailSender {
-				h.emailSender = sender
+				emailSender = sender
 			}
+			var inviteSender port.InviteSender
 			if !tt.omitInviteSender && tt.inviteSender != nil {
-				h.inviteSender = tt.inviteSender
+				inviteSender = tt.inviteSender
 			}
+			var userReader port.UserReader
 			if tt.userReader != nil {
-				h.userReader = tt.userReader
+				userReader = tt.userReader
 			}
+			h := NewCommitteeNotificationHandler(nil, nil, nil, emailSender, inviteSender, userReader, nil, "https://app.dev.lfx.dev", nil)
 
 			var payload []byte
 			if tt.invalidJSON {
@@ -1868,10 +1866,11 @@ func TestHandleCommitteeMemberDeleted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &mockEmailSender{retErr: tt.emailSenderErr}
-			h := &messageHandlerOrchestrator{lfxSelfServeBaseURL: "https://app.dev.lfx.dev"}
+			var emailSender port.EmailSender
 			if !tt.omitEmailSender {
-				h.emailSender = sender
+				emailSender = sender
 			}
+			h := NewCommitteeNotificationHandler(nil, nil, nil, emailSender, nil, nil, nil, "https://app.dev.lfx.dev", nil)
 
 			msg := newMockTransportMessenger(constants.CommitteeMemberDeletedSubject, tt.msgData)
 			resp, err := h.HandleCommitteeMemberDeleted(context.Background(), msg)
@@ -2064,11 +2063,7 @@ func TestHandleCommitteeSettingsUpdatedRoleChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &mockEmailSender{}
 			inviter := &mockInviteSender{}
-			h := &messageHandlerOrchestrator{
-				lfxSelfServeBaseURL: "https://app.dev.lfx.dev",
-				emailSender:         sender,
-				inviteSender:        inviter,
-			}
+			h := NewCommitteeNotificationHandler(nil, nil, nil, sender, inviter, nil, nil, "https://app.dev.lfx.dev", nil)
 
 			d := *base
 			d.OldSettings = &model.CommitteeSettings{Writers: tt.oldWriters, Auditors: tt.oldAuditors}
@@ -2141,20 +2136,6 @@ func TestHandleInviteAccepted(t *testing.T) {
 			CommitteeBase:     model.CommitteeBase{UID: uid, ProjectUID: "proj-1", Name: "Test Committee"},
 			CommitteeSettings: settings,
 		}
-	}
-
-	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator, pub *spyCommitteePublisher) *messageHandlerOrchestrator {
-		opts := []messageHandlerOrchestratorOption{
-			WithCommitteeReaderForMessageHandler(
-				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
-			),
-			WithCommitteeWriterOrchestratorForMessageHandler(spy),
-		}
-		if pub != nil {
-			opts = append(opts, WithCommitteePublisherForMessageHandler(pub))
-		}
-		h := NewMessageHandlerOrchestrator(opts...)
-		return h.(*messageHandlerOrchestrator)
 	}
 
 	tests := []struct {
@@ -2687,10 +2668,21 @@ func TestHandleInviteAccepted(t *testing.T) {
 				updateMemberErrs:   tt.spyMemberErrs,
 			}
 			pub := &spyCommitteePublisher{}
-			handler := makeHandler(mockRepo, spy, pub)
+			// Create a custom notification handler with the test's userReader
+			var userReader port.UserReader
 			if tt.userReader != nil {
-				handler.userReader = tt.userReader
+				userReader = tt.userReader
 			}
+			notificationHandler := NewCommitteeNotificationHandler(
+				NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+				spy,
+				pub,
+				nil, nil,
+				userReader,
+				nil, "", nil,
+			)
+			// We'll call HandleInviteAccepted directly on the notification handler
+			handler := notificationHandler
 
 			msg := newMockTransportMessenger(inviteapi.InviteServiceAcceptedSubject, tt.msgData)
 			_, err := handler.HandleInviteAccepted(ctx, msg)
@@ -2834,14 +2826,13 @@ func TestHandleUserDeleted(t *testing.T) {
 		return b
 	}
 
-	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) *messageHandlerOrchestrator {
-		h := NewMessageHandlerOrchestrator(
+	makeHandler := func(repo *mock.MockRepository, spy *spyCommitteeWriterOrchestrator) port.MessageHandler {
+		return NewMessageHandlerOrchestrator(
 			WithCommitteeReaderForMessageHandler(
 				NewCommitteeReaderOrchestrator(WithCommitteeReader(repo)),
 			),
 			WithCommitteeWriterOrchestratorForMessageHandler(spy),
 		)
-		return h.(*messageHandlerOrchestrator)
 	}
 
 	tests := []struct {
@@ -3035,14 +3026,14 @@ func TestHandleUserDeleted(t *testing.T) {
 
 			spy := &spyCommitteeWriterOrchestrator{updateMemberErrs: tt.spyMemberErrs}
 
-			var handler *messageHandlerOrchestrator
+			var handler port.UserEventHandler
 			if tt.name == "nil reader — no panic, no updates" {
 				// Create handler without reader to test nil case
-				handler = &messageHandlerOrchestrator{
-					committeeWriterOrchestrator: spy,
-				}
+				handler = NewUserEventHandler(nil, spy)
 			} else {
-				handler = makeHandler(mockRepo, spy)
+				h := makeHandler(mockRepo, spy)
+				// Extract the UserEventHandler from the aggregator
+				handler = h.(port.UserEventHandler)
 			}
 
 			msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, tt.data)
@@ -3112,7 +3103,7 @@ func TestHandleUserDeleted_EmailReuseGuard(t *testing.T) {
 			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
 		),
 		WithCommitteeWriterOrchestratorForMessageHandler(spy),
-	).(*messageHandlerOrchestrator)
+	)
 
 	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, eventBytes)
 	_, err = handler.HandleUserDeleted(ctx, msg)
@@ -3153,7 +3144,7 @@ func TestHandleUserDeleted_UsernameOnlySettingsWithEventEmail(t *testing.T) {
 			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
 		),
 		WithCommitteeWriterOrchestratorForMessageHandler(spy),
-	).(*messageHandlerOrchestrator)
+	)
 
 	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, eventBytes)
 	_, err = handler.HandleUserDeleted(ctx, msg)
@@ -3221,7 +3212,7 @@ func TestHandleUserDeleted_StaleIndexReuse(t *testing.T) {
 	handler := NewMessageHandlerOrchestrator(
 		WithCommitteeReaderForMessageHandler(staleReader),
 		WithCommitteeWriterOrchestratorForMessageHandler(spy),
-	).(*messageHandlerOrchestrator)
+	)
 
 	b, _ := json.Marshal(V1UserDeletedEvent{Username: deletedUsername})
 	msg := newMockTransportMessenger(constants.V1SyncHelperUserDeletedSubject, b)
@@ -3230,4 +3221,26 @@ func TestHandleUserDeleted_StaleIndexReuse(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, spy.updateMemberCalls,
 		"reuse guard must skip update when re-read shows member username has been reassigned")
+}
+
+// ── isSafeURL ─────────────────────────────────────────────────────────────────
+
+func TestIsSafeURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want bool
+	}{
+		{"https://example.com", true},
+		{"http://example.com/path?q=1", true},
+		{"javascript:alert(1)", false},
+		{"ftp://files.example.com", false},
+		{"data:text/html,<h1>hi</h1>", false},
+		{"", false},
+		{"not a url at all", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.want, isSafeURL(tt.url))
+		})
+	}
 }
