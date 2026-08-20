@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/slack-go/slack/slackutilsx"
+
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -55,13 +57,25 @@ type slackPayload struct {
 // Send POSTs text to the Slack Incoming Webhook URL.
 // Returns a typed error from pkg/errors; raw Slack response details are
 // logged server-side and never forwarded to callers.
+//
+// The text is passed through slackutilsx.EscapeMessage before being posted so
+// that Slack's mrkdwn control characters (&, <, >) in caller-supplied content
+// cannot be interpreted as Slack markup. Concretely this defuses two abuse
+// vectors in weekly-brief text sourced from meeting/document titles editable
+// by a broader set of users than project writers:
+//
+//   - `<!channel>` / `<!here>` would otherwise page the entire Slack channel.
+//   - `<https://evil.example|Click here>` would otherwise render as a
+//     deceptive hyperlink.
+//
+// See https://api.slack.com/reference/surfaces/formatting#escaping.
 func (s *WebhookSender) Send(ctx context.Context, webhookURL string, text string) error {
 	parsed, err := url.Parse(webhookURL)
 	if err != nil || parsed.Scheme != "https" || !allowedHosts[parsed.Hostname()] {
 		return errors.NewUnexpected("slack webhook URL failed allowlist check", nil)
 	}
 
-	body, err := json.Marshal(slackPayload{Text: text})
+	body, err := json.Marshal(slackPayload{Text: slackutilsx.EscapeMessage(text)})
 	if err != nil {
 		return errors.NewUnexpected("failed to marshal slack payload", err)
 	}

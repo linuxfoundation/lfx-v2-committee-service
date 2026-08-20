@@ -74,6 +74,11 @@ func (w *TestMockCommitteeWriter) UpdateHasMailingList(ctx context.Context, uid 
 	return mockWriter.UpdateHasMailingList(ctx, uid, hasMailingList)
 }
 
+func (w *TestMockCommitteeWriter) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.UpdateTotalMembers(ctx, uid, totalMembers)
+}
+
 func (w *TestMockCommitteeWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.UpdateSetting(ctx, settings, revision)
@@ -1547,6 +1552,112 @@ func TestCommitteeWriterOrchestrator_Update(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation guards against
+// regressing LFXV2-3304: total_members, total_voting_repos, and has_mailing_list are
+// readonly/computed fields absent from the update payload (see CommitteeBaseAttributes
+// in cmd/committee-api/design/type.go), so Update must carry them forward from the
+// existing record rather than let them reset to their zero value.
+func TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+	existingCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Original Committee",
+			Category:         "governance",
+			TotalMembers:     42,
+			TotalVotingRepos: 3,
+			HasMailingList:   true,
+		},
+	}
+	mockRepo.AddCommittee(existingCommittee)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	// The update payload never carries these fields — they're readonly/computed,
+	// so a caller (e.g. the generated Goa payload) always sends the zero value here.
+	updateData := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Updated Committee",
+			Category:   "technical",
+		},
+	}
+
+	result, err := orchestrator.Update(context.Background(), updateData, uint64(1), false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Updated Committee", result.Name)
+	assert.Equal(t, 42, result.TotalMembers)
+	assert.Equal(t, 3, result.TotalVotingRepos)
+	assert.True(t, result.HasMailingList)
+}
+
+// TestCommitteeWriterOrchestrator_Update_IgnoresExplicitComputedFieldOverride guards
+// the other direction: Update() is the client-facing base-update path and must never
+// let a caller-supplied value win for these computed fields, even if one is set on the
+// payload. Computed-field sync (total_members drift correction, has_mailing_list
+// toggling) must go through the dedicated storage writers (UpdateTotalMembers,
+// UpdateHasMailingList) instead — never through Update().
+func TestCommitteeWriterOrchestrator_Update_IgnoresExplicitComputedFieldOverride(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+	existingCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Original Committee",
+			Category:         "governance",
+			TotalMembers:     42,
+			TotalVotingRepos: 3,
+			HasMailingList:   true,
+		},
+	}
+	mockRepo.AddCommittee(existingCommittee)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	// A caller should never be able to smuggle a computed-field change through the
+	// generic Update() path — even an explicit, non-zero value must be ignored.
+	updateData := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:              "committee-1",
+			ProjectUID:       "project-1",
+			Name:             "Updated Committee",
+			Category:         "technical",
+			TotalMembers:     999,
+			TotalVotingRepos: 99,
+			HasMailingList:   false,
+		},
+	}
+
+	result, err := orchestrator.Update(context.Background(), updateData, uint64(1), false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Updated Committee", result.Name)
+	assert.Equal(t, 42, result.TotalMembers, "TotalMembers must be preserved from existing, not the caller's override")
+	assert.Equal(t, 3, result.TotalVotingRepos, "TotalVotingRepos must be preserved from existing, not the caller's override")
+	assert.True(t, result.HasMailingList, "HasMailingList must be preserved from existing, not the caller's override")
 }
 
 func TestCommitteeWriterOrchestrator_Update_SSO_Scenarios(t *testing.T) {

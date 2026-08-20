@@ -189,6 +189,42 @@ type CommitteeWeeklyMemberReader interface {
 	ListMemberActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) (WeeklyMemberActivity, error)
 }
 
+// ProjectMembershipActivity is a normalised view of one project_membership
+// record consumed by the weekly-brief generator. The source filters by
+// purchase_date within the brief window so only memberships whose purchase was
+// recorded during the week are included. Because is_first_membership is not
+// yet indexed by OpenSearch, the slice may include renewals as well as new
+// memberships; callers should word claims accordingly (e.g. "purchased" rather
+// than "joined").
+type ProjectMembershipActivity struct {
+	// MembershipUID is the v2 UUID of the membership record.
+	MembershipUID string
+	// AccountName is the organisation's display name.
+	AccountName string
+	// Tier is the membership tier label (e.g. "Silver", "Associate").
+	Tier string
+	// PurchaseDate is the date the membership was purchased (from
+	// Salesforce Asset.PurchaseDate, with InstallDate / CreatedDate fallbacks).
+	PurchaseDate time.Time
+	// Status is the membership status string as returned by the query service
+	// (e.g. "Active").
+	Status string
+}
+
+// ProjectMembershipSource returns project memberships whose purchase_date
+// falls within the brief window. The source is keyed by projectUID (not
+// committeeUID) because project_membership resources are indexed at the
+// project level. Live implementations query the query-service for
+// project_membership resources tagged by project_uid; mock implementations
+// return canned data.
+//
+// When projectUID is empty the source degrades gracefully to zero records so
+// a committee with no project association does not fail brief generation.
+// Implementations MUST NOT propagate the caller's bearer token.
+type ProjectMembershipSource interface {
+	ListMembershipActivityForWindow(ctx context.Context, projectUID string, windowStart, windowEnd time.Time) ([]ProjectMembershipActivity, error)
+}
+
 // GroupWeeklyBriefWriter persists weekly briefs and their throttle counters.
 // The interface is intentionally narrow so test doubles can implement it
 // without dragging in the rest of the storage adapter.

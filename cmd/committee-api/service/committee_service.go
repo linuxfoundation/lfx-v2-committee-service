@@ -2139,6 +2139,7 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	out, errClaim := s.weeklyBriefGenerator.Claim(ctx, service.GroupWeeklyBriefGenerateInput{
 		CommitteeUID:  p.UID,
 		CommitteeName: base.Name,
+		ProjectUID:    base.ProjectUID,
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		Now:           now,
@@ -2154,6 +2155,7 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	event := service.GenerateWeeklyBriefRequestedEvent{
 		CommitteeUID:  p.UID,
 		CommitteeName: base.Name,
+		ProjectUID:    base.ProjectUID,
 		ProjectName:   base.ProjectName,
 		Force:         p.Force,
 		RequestedAt:   now,

@@ -24,6 +24,7 @@ import (
 type GroupWeeklyBriefGenerateInput struct {
 	CommitteeUID  string
 	CommitteeName string
+	ProjectUID    string
 	ProjectName   string
 	Force         bool
 	Now           time.Time
@@ -48,6 +49,7 @@ type GroupWeeklyBriefGenerateOutput struct {
 type GenerateWeeklyBriefRequestedEvent struct {
 	CommitteeUID  string    `json:"committee_uid"`
 	CommitteeName string    `json:"committee_name,omitempty"`
+	ProjectUID    string    `json:"project_uid,omitempty"`
 	ProjectName   string    `json:"project_name,omitempty"`
 	Force         bool      `json:"force"`
 	RequestedAt   time.Time `json:"requested_at"`
@@ -76,16 +78,26 @@ type GroupWeeklyBriefGenerator interface {
 	Fulfill(ctx context.Context, in GroupWeeklyBriefGenerateInput) error
 }
 
+// ActivitySources bundles all external data-source ports for the weekly-brief
+// generator into a single value. Required fields: Meetings, MailingLists, Votes,
+// MemberReader. Optional fields (nil = graceful degrade): AISummaries,
+// VoteResults, Surveys. Adding a new source costs one struct field here rather
+// than a generator field + constructor option + nil-check spread across 5 places.
+type ActivitySources struct {
+	Meetings           port.MeetingSource
+	AISummaries        port.MeetingAISummarySource
+	MailingLists       port.MailingListSource
+	Votes              port.VoteSource
+	VoteResults        port.VoteResultSource
+	Surveys            port.SurveySource
+	ProjectMemberships port.ProjectMembershipSource
+	MemberReader       port.CommitteeWeeklyMemberReader
+}
+
 type groupWeeklyBriefGenerator struct {
 	briefReader   port.GroupWeeklyBriefReader
 	briefWriter   port.GroupWeeklyBriefWriter
-	meetings      port.MeetingSource
-	aiSummaries   port.MeetingAISummarySource
-	mailingLists  port.MailingListSource
-	votes         port.VoteSource
-	voteResults   port.VoteResultSource
-	surveys       port.SurveySource
-	memberReader  port.CommitteeWeeklyMemberReader
+	sources       ActivitySources
 	ai            port.AIAdapter
 	publisher     port.CommitteePublisher
 	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
@@ -105,44 +117,12 @@ func WithGroupWeeklyBriefWriter(w port.GroupWeeklyBriefWriter) GroupWeeklyBriefG
 	return func(g *groupWeeklyBriefGenerator) { g.briefWriter = w }
 }
 
-// WithMeetingSource wires the meeting-source port.
-func WithMeetingSource(s port.MeetingSource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.meetings = s }
-}
-
-// WithMeetingAISummarySource wires the AI summary source port. This is optional
-// — when nil, generation continues without AI summary content (graceful degrade).
-func WithMeetingAISummarySource(s port.MeetingAISummarySource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.aiSummaries = s }
-}
-
-// WithMailingListSource wires the mailing-list-source port.
-func WithMailingListSource(s port.MailingListSource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.mailingLists = s }
-}
-
-// WithVoteSource wires the vote-source port.
-func WithVoteSource(s port.VoteSource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.votes = s }
-}
-
-// WithVoteResultSource wires the vote-result-source port. This is optional —
-// when nil, brief generation continues without per-choice tallies (graceful
-// degrade). Deployments that do not set QUERY_SERVICE_URL omit this source.
-func WithVoteResultSource(s port.VoteResultSource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.voteResults = s }
-}
-
-// WithSurveySource wires the survey-source port. This is optional — when nil,
-// brief generation continues without survey data (graceful degrade). Deployments
-// that do not set QUERY_SERVICE_URL omit this source.
-func WithSurveySource(s port.SurveySource) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.surveys = s }
-}
-
-// WithCommitteeWeeklyMemberReader wires the member-activity reader.
-func WithCommitteeWeeklyMemberReader(r port.CommitteeWeeklyMemberReader) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.memberReader = r }
+// WithActivitySources wires all external data-source ports at once. Required
+// fields (Meetings, MailingLists, Votes, MemberReader) are validated by
+// NewGroupWeeklyBriefGeneratorOrchestrator. Optional fields (AISummaries,
+// VoteResults, Surveys, ProjectMemberships) degrade gracefully to zero when nil.
+func WithActivitySources(s ActivitySources) GroupWeeklyBriefGeneratorOption {
+	return func(g *groupWeeklyBriefGenerator) { g.sources = s }
 }
 
 // WithAIAdapter wires the AI adapter used to compose the brief.
@@ -176,19 +156,19 @@ func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorO
 	if g.briefWriter == nil {
 		panic("group-weekly-brief generator: brief writer is required")
 	}
-	if g.memberReader == nil {
+	if g.sources.MemberReader == nil {
 		panic("group-weekly-brief generator: member reader is required")
 	}
 	if g.ai == nil {
 		panic("group-weekly-brief generator: AI adapter is required")
 	}
-	if g.meetings == nil {
+	if g.sources.Meetings == nil {
 		panic("group-weekly-brief generator: meeting source is required")
 	}
-	if g.mailingLists == nil {
+	if g.sources.MailingLists == nil {
 		panic("group-weekly-brief generator: mailing-list source is required")
 	}
-	if g.votes == nil {
+	if g.sources.Votes == nil {
 		panic("group-weekly-brief generator: vote source is required")
 	}
 	return g
@@ -344,49 +324,58 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	}
 
 	// Source gathering. Internal (member) source failure is fatal — return it so
-	// the consumer retries. External M2M sources degrade to empty so a single
-	// upstream outage doesn't masquerade as "no activity"; the failure is logged
-	// at error level since a down source is an operational problem.
-	meetings, errMeetings := g.meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errMeetings != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: meeting source failed; continuing with zero meetings",
-			"committee_uid", in.CommitteeUID, "error", errMeetings)
-		meetings = nil
-	}
-	members, errMembers := g.memberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+	// the consumer retries. External M2M sources use gatherDegradable: a single
+	// upstream outage degrades to empty rather than masquerading as "no activity".
+	meetings, errMeetings := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: meeting source failed; continuing with zero meetings",
+		func() ([]port.MeetingActivity, error) {
+			return g.sources.Meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	members, errMembers := g.sources.MemberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 	if errMembers != nil {
 		slog.ErrorContext(ctx, "weekly-brief fulfill: member source failed; will retry",
 			"committee_uid", in.CommitteeUID, "error", errMembers)
 		return errMembers // internal source error → retry
 	}
-	mailing, errMailing := g.mailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errMailing != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: mailing list source failed; continuing with zero threads",
-			"committee_uid", in.CommitteeUID, "error", errMailing)
-		mailing = nil
-	}
-	votes, errVotes := g.votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-	if errVotes != nil {
-		slog.ErrorContext(ctx, "weekly-brief fulfill: vote source failed; continuing with zero votes",
-			"committee_uid", in.CommitteeUID, "error", errVotes)
-		votes = nil
-	}
+	mailing, errMailing := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: mailing list source failed; continuing with zero threads",
+		func() ([]port.MailingListActivity, error) {
+			return g.sources.MailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	votes, errVotes := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief fulfill: vote source failed; continuing with zero votes",
+		func() ([]port.VoteActivity, error) {
+			return g.sources.Votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
 
 	// Enrich closed votes with per-choice tallies. Result fetch errors are
 	// non-fatal: the brief still generates with name and participation counts.
-	if g.voteResults != nil {
+	if g.sources.VoteResults != nil {
 		g.enrichVotesWithResults(ctx, votes)
 	}
 
 	var surveys []port.SurveyActivity
 	var errSurveys error
-	if g.surveys != nil {
-		surveys, errSurveys = g.surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-		if errSurveys != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: survey source failed; continuing with zero surveys",
-				"committee_uid", in.CommitteeUID, "error", errSurveys)
-			surveys = nil
-		}
+	if g.sources.Surveys != nil {
+		surveys, errSurveys = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: survey source failed; continuing with zero surveys",
+			func() ([]port.SurveyActivity, error) {
+				return g.sources.Surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
+	}
+
+	// Project memberships are optional — nil source or fetch error both degrade
+	// to zero memberships without blocking the brief. An empty ProjectUID is
+	// also a soft degrade (committee not yet associated with a project); the
+	// source adapter handles it and returns zero records.
+	var projectMemberships []port.ProjectMembershipActivity
+	var errMemberships error
+	if g.sources.ProjectMemberships != nil {
+		projectMemberships, errMemberships = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: project membership source failed; continuing with zero memberships",
+			func() ([]port.ProjectMembershipActivity, error) {
+				return g.sources.ProjectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
+			})
 	}
 
 	// AI summaries are optional — nil source or fetch error both degrade to
@@ -394,13 +383,12 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// not logged at error level because the source is wired optionally.
 	var summaries []port.MeetingAISummaryActivity
 	var errSummaries error
-	if g.aiSummaries != nil {
-		summaries, errSummaries = g.aiSummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
-		if errSummaries != nil {
-			slog.ErrorContext(ctx, "weekly-brief fulfill: AI summary source failed; continuing with zero summaries",
-				"committee_uid", in.CommitteeUID, "error", errSummaries)
-			summaries = nil
-		}
+	if g.sources.AISummaries != nil {
+		summaries, errSummaries = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief fulfill: AI summary source failed; continuing with zero summaries",
+			func() ([]port.MeetingAISummaryActivity, error) {
+				return g.sources.AISummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
 	}
 
 	memberCount := len(members.Joined) + len(members.Updated)
@@ -411,8 +399,8 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	// window would just fail again. But if the window is empty ONLY because one
 	// or more external sources failed to fetch, that's a transient upstream
 	// outage — it must NOT masquerade as "no activity", so we retry instead.
-	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 {
-		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil || errSurveys != nil {
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 && len(projectMemberships) == 0 {
+		if errMeetings != nil || errMailing != nil || errVotes != nil || errSummaries != nil || errSurveys != nil || errMemberships != nil {
 			slog.ErrorContext(ctx, "weekly-brief fulfill: no activity but one or more external sources errored; will retry",
 				"committee_uid", in.CommitteeUID,
 				"meetings_errored", errMeetings != nil,
@@ -420,6 +408,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 				"votes_errored", errVotes != nil,
 				"summaries_errored", errSummaries != nil,
 				"surveys_errored", errSurveys != nil,
+				"memberships_errored", errMemberships != nil,
 			)
 			// Surface the underlying source error so the consumer retries rather
 			// than finalizing a terminal brief over a transient outage.
@@ -435,6 +424,9 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 			}
 			if retryErr == nil {
 				retryErr = errSurveys
+			}
+			if retryErr == nil {
+				retryErr = errMemberships
 			}
 			return retryErr
 		}
@@ -458,7 +450,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, in.MembersHidden)
+	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, projectMemberships, in.MembersHidden)
 
 	aiInput := port.WeeklyBriefInput{
 		CommitteeID:   in.CommitteeUID,
@@ -485,7 +477,7 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	brief.BriefText = aiOut.BriefText
 	brief.PromptVersion = g.ai.PromptVersion()
 	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys)
+	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys, projectMemberships)
 	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
 	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
 	if errPut != nil {
@@ -493,6 +485,20 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	}
 	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
 	return nil
+}
+
+// gatherDegradable calls fetch and returns its result. On error it logs failMsg at
+// error level (with committee_uid and error attrs), returns the zero value, and
+// passes the error back so Fulfill's no-source check can distinguish a transient
+// upstream outage from a genuinely empty window.
+func gatherDegradable[T any](ctx context.Context, committeeUID, failMsg string, fetch func() (T, error)) (T, error) {
+	result, err := fetch()
+	if err != nil {
+		slog.ErrorContext(ctx, failMsg, "committee_uid", committeeUID, "error", err)
+		var zero T
+		return zero, err
+	}
+	return result, nil
 }
 
 // finalizeError transitions the brief to the "error" state and persists it. A
@@ -514,9 +520,9 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 // parallel set of source refs persisted on the brief. When membersHidden is
 // true (committee's member_visibility == "hidden"), member names are replaced
 // with count-only phrases so the stored brief never contains roster data.
-func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
-	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
-	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+2)
+func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, projectMemberships []port.ProjectMembershipActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
+	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
+	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
 
 	// IMPORTANT: do NOT pass raw untrusted source text (meeting summaries,
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
@@ -582,6 +588,23 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 			ID:      "survey-" + sv.SurveyUID,
 			Summary: claimLabel("survey", sv.Title) + surveyResponseLabel(sv),
 			Sources: []port.SourceRef{{Type: "survey", ID: sv.SurveyUID}},
+		})
+	}
+
+	for _, pm := range projectMemberships {
+		// AccountName and Tier are from the query-service index — sanitize via
+		// claimLabel. They are source-derived strings and must not flow
+		// unsanitized into the AI prompt.
+		title := claimLabel("membership purchased", pm.AccountName)
+		if pm.Tier != "" {
+			title += " (" + claimLabel("tier", pm.Tier) + ")"
+		}
+		ref := model.SourceRef{Kind: "project-membership", ID: pm.MembershipUID, Title: pm.AccountName, Excerpt: membershipExcerpt(pm)}
+		refs = append(refs, ref)
+		claims = append(claims, port.ClaimEvidence{
+			ID:      "project-membership-" + pm.MembershipUID,
+			Summary: title,
+			Sources: []port.SourceRef{{Type: "project-membership", ID: pm.MembershipUID}},
 		})
 	}
 
@@ -676,9 +699,11 @@ func truncateRunes(s string, maxRunes int) string {
 // material whenever members contributed (members are inherently private), any
 // meeting, mailing-list thread, or vote was marked private, any AI meeting
 // summary contributed (transcript content in a brief is always treated as
-// private regardless of the summary's own access level), or any survey
-// contributed (surveys are always FGA access-controlled, never public).
-func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity) bool {
+// private regardless of the summary's own access level), any survey
+// contributed (surveys are always FGA access-controlled, never public), or
+// any project membership contributed (the member-service indexer contract
+// marks project_membership as public:false with access_check_relation:auditor).
+func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, projectMemberships []port.ProjectMembershipActivity) bool {
 	if memberCount > 0 {
 		return true
 	}
@@ -698,6 +723,12 @@ func derivePrivateSourcePresent(memberCount int, meetings []port.MeetingActivity
 	// Surveys are access-controlled (FGA access_check_object: survey:{uid}) so
 	// any contributing survey makes the brief private.
 	if len(surveys) > 0 {
+		return true
+	}
+	// Project memberships are access-controlled (public:false,
+	// access_check_relation:auditor on project_membership:{uid}) so any
+	// contributing membership makes the brief private.
+	if len(projectMemberships) > 0 {
 		return true
 	}
 	// VoteActivity has no Private flag and is treated as non-private.
@@ -881,7 +912,7 @@ func formatMemberList(members []*model.CommitteeMember) string {
 // tally fetch never blocks brief generation.
 func (g *groupWeeklyBriefGenerator) enrichVotesWithResults(ctx context.Context, votes []port.VoteActivity) {
 	for i := range votes {
-		tally, err := g.voteResults.GetVoteResults(ctx, votes[i].VoteID)
+		tally, err := g.sources.VoteResults.GetVoteResults(ctx, votes[i].VoteID)
 		if err != nil {
 			slog.WarnContext(ctx, "weekly-brief fulfill: vote result fetch failed; continuing without tally",
 				"vote_id", votes[i].VoteID, "error", err)
@@ -952,6 +983,31 @@ func surveyParticipationExcerpt(sv port.SurveyActivity) string {
 	}
 	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
 	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
+}
+
+// membershipExcerpt returns a short description for a project_membership
+// source_ref. It uses tier and purchase date so a reader can identify the
+// record without following a link.
+// Example: "Membership tier: Silver, purchased 2026-08-14"
+// "Joined as" is intentionally avoided: the source may include renewals
+// alongside new memberships (is_first_membership is not yet indexed in
+// OpenSearch), so implying a first-time join would be inaccurate.
+func membershipExcerpt(pm port.ProjectMembershipActivity) string {
+	parts := []string{}
+	if pm.Tier != "" {
+		parts = append(parts, "membership tier: "+pm.Tier)
+	}
+	if !pm.PurchaseDate.IsZero() {
+		parts = append(parts, "purchased "+pm.PurchaseDate.UTC().Format("2006-01-02"))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	s := strings.Join(parts, ", ")
+	if len(s) > 0 {
+		s = strings.ToUpper(s[:1]) + s[1:]
+	}
+	return cleanSummary(s)
 }
 
 // publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for

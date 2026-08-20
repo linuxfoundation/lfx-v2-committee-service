@@ -148,13 +148,15 @@ func main() {
 	weeklyBriefGeneratorUseCase := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(weeklyBriefReader),
 		usecaseSvc.WithGroupWeeklyBriefWriter(weeklyBriefWriter),
-		usecaseSvc.WithMeetingSource(meetingSource),
-		usecaseSvc.WithMailingListSource(mailingListSource),
-		usecaseSvc.WithVoteSource(voteSource),
-		usecaseSvc.WithVoteResultSource(service.VoteResultSourceImpl(ctx)),
-		usecaseSvc.WithSurveySource(service.SurveySourceImpl(ctx)),
-		usecaseSvc.WithCommitteeWeeklyMemberReader(weeklyMemberReader),
-		usecaseSvc.WithMeetingAISummarySource(service.MeetingAISummarySourceImpl(ctx)),
+		usecaseSvc.WithActivitySources(usecaseSvc.ActivitySources{
+			Meetings:     meetingSource,
+			AISummaries:  service.MeetingAISummarySourceImpl(ctx),
+			MailingLists: mailingListSource,
+			Votes:        voteSource,
+			VoteResults:  service.VoteResultSourceImpl(ctx),
+			Surveys:      service.SurveySourceImpl(ctx),
+			MemberReader: weeklyMemberReader,
+		}),
 		usecaseSvc.WithAIAdapter(aiAdapter),
 		usecaseSvc.WithGroupWeeklyBriefPublisher(committeePublisher),
 	)

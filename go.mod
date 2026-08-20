@@ -21,6 +21,7 @@ require (
 	github.com/nats-io/nats.go v1.49.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/remychantenay/slog-otel v1.3.4
+	github.com/slack-go/slack v0.29.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0

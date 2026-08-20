@@ -294,11 +294,13 @@ func buildOrchestrator(fx fixture, adapter port.AIAdapter) (service.GroupWeeklyB
 	g := service.NewGroupWeeklyBriefGeneratorOrchestrator(
 		service.WithGroupWeeklyBriefReaderForGenerator(stubBriefReader{w: bw}),
 		service.WithGroupWeeklyBriefWriter(bw),
-		service.WithMeetingSource(mtg),
-		service.WithCommitteeWeeklyMemberReader(stubMemberReader{activity: memberActivityFromFixture(fx)}),
-		service.WithMailingListSource(stubMailingListSource{items: mailingFromFixture(fx)}),
-		service.WithVoteSource(stubVoteSource{items: votesFromFixture(fx)}),
-		service.WithMeetingAISummarySource(stubAISummarySource{items: aiSummariesFromFixture(fx)}),
+		service.WithActivitySources(service.ActivitySources{
+			Meetings:     mtg,
+			AISummaries:  stubAISummarySource{items: aiSummariesFromFixture(fx)},
+			MailingLists: stubMailingListSource{items: mailingFromFixture(fx)},
+			Votes:        stubVoteSource{items: votesFromFixture(fx)},
+			MemberReader: stubMemberReader{activity: memberActivityFromFixture(fx)},
+		}),
 		service.WithAIAdapter(adapter),
 	)
 	return g, bw, mtg

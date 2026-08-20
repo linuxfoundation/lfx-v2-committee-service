@@ -763,6 +763,24 @@ func SurveySourceImpl(ctx context.Context) port.SurveySource {
 	}, client)
 }
 
+// ProjectMembershipSourceImpl builds the live project-membership source. It queries
+// the query-service for project_membership resources tagged by project_uid whose
+// purchase_date falls within the brief window. When QUERY_SERVICE_URL is unset the
+// source returns zero memberships (graceful degrade). The resource type defaults to
+// m2m.DefaultProjectMembershipType and can be overridden via QUERY_PROJECT_MEMBERSHIP_TYPE.
+func ProjectMembershipSourceImpl(ctx context.Context) port.ProjectMembershipSource {
+	baseURL := os.Getenv("QUERY_SERVICE_URL")
+	if baseURL == "" {
+		slog.WarnContext(ctx, "QUERY_SERVICE_URL not set; project membership source will return zero memberships")
+	}
+	client := m2mHTTPClient(ctx)
+	return m2m.NewProjectMembershipSource(m2m.ProjectMembershipSourceConfig{
+		BaseURL: baseURL,
+		Type:    os.Getenv("QUERY_PROJECT_MEMBERSHIP_TYPE"), // empty → DefaultProjectMembershipType
+		Timeout: 15 * time.Second,
+	}, client)
+}
+
 // OrgCommitteeSeatReaderImpl builds the Org Lens org-committee-seat reader. In mock mode it returns
 // synthetic sample seats; otherwise it reads the committee-members NATS KV bucket via the
 // by-organization secondary index.
@@ -927,13 +945,16 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 	weeklyBriefGenerator := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
 		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(GroupWeeklyBriefReaderImpl(ctx)),
 		usecaseSvc.WithGroupWeeklyBriefWriter(GroupWeeklyBriefWriterImpl(ctx)),
-		usecaseSvc.WithMeetingSource(MeetingSourceImpl(ctx)),
-		usecaseSvc.WithMeetingAISummarySource(MeetingAISummarySourceImpl(ctx)),
-		usecaseSvc.WithMailingListSource(MailingListSourceImpl(ctx)),
-		usecaseSvc.WithVoteSource(VoteSourceImpl(ctx)),
-		usecaseSvc.WithVoteResultSource(VoteResultSourceImpl(ctx)),
-		usecaseSvc.WithSurveySource(SurveySourceImpl(ctx)),
-		usecaseSvc.WithCommitteeWeeklyMemberReader(CommitteeWeeklyMemberReaderImpl(ctx)),
+		usecaseSvc.WithActivitySources(usecaseSvc.ActivitySources{
+			Meetings:           MeetingSourceImpl(ctx),
+			AISummaries:        MeetingAISummarySourceImpl(ctx),
+			MailingLists:       MailingListSourceImpl(ctx),
+			Votes:              VoteSourceImpl(ctx),
+			VoteResults:        VoteResultSourceImpl(ctx),
+			Surveys:            SurveySourceImpl(ctx),
+			ProjectMemberships: ProjectMembershipSourceImpl(ctx),
+			MemberReader:       CommitteeWeeklyMemberReaderImpl(ctx),
+		}),
 		usecaseSvc.WithAIAdapter(AIAdapterImpl(ctx)),
 		usecaseSvc.WithGroupWeeklyBriefPublisher(CommitteePublisherImpl(ctx)),
 	)

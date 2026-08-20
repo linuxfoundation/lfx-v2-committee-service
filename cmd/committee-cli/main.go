@@ -129,6 +129,7 @@ func run() error {
 		Publisher:                   publisher,
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      storage,
+		CommitteeBaseWriter:         storage,
 		Args:                        parsed.SubArgs,
 	}
 
