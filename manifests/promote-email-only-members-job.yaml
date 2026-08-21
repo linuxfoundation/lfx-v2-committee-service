@@ -57,7 +57,11 @@ spec:
       serviceAccountName: lfx-v2-committee-service
       containers:
         - name: promote
-          # Replace with the image tag currently running in prod (see instructions above).
+          # IMPORTANT: replace this tag with a release that includes the promote-email-only-members
+          # subcommand (introduced in this PR). The tag shown here (0.4.35) predates this subcommand
+          # and will reject the command immediately. Find the correct tag by checking the image
+          # currently running in prod (see instructions above) and confirming it is >= the release
+          # built from this commit.
           image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:0.4.35
           imagePullPolicy: IfNotPresent
           args:

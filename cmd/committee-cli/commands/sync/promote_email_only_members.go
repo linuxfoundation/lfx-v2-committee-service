@@ -31,6 +31,12 @@ func (s *promoteEmailOnlyMembersSubcommand) Help() string {
 	return "promote email-only committee member seats to LFID usernames (LFXV2-2521)"
 }
 
+// emailLookup caches the result of a single UsernameByEmail call.
+type emailLookup struct {
+	username string // empty when not yet linked to an LFID
+	failed   bool   // true when a non-NotFound error occurred
+}
+
 func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands.RunContext) error {
 	slog.DebugContext(ctx, "starting subcommand", "subcommand", s.Name(), "args", rc.Args)
 
@@ -65,16 +71,15 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 	stats := commands.NewStats()
 	stats.DryRun = rc.DryRun
 
-	// Pass 1: stream all members and collect email-only seats grouped by normalized email.
-	// Grouping avoids duplicate auth service calls for users who hold seats in multiple committees.
-	emailToSeats := make(map[string][]*model.CommitteeMember)
+	// emailCache deduplicates UsernameByEmail calls: for users who hold seats in multiple
+	// committees, we only call the auth service once per unique normalized email.
+	// Accumulating only string→string pairs keeps memory bounded regardless of bucket size,
+	// in keeping with EachMember's bounded-memory contract.
+	emailCache := make(map[string]*emailLookup)
+
 	if err := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
 		stats.Total++
-		if member.Email == "" {
-			stats.Skipped++
-			return nil
-		}
-		if member.Username != "" {
+		if member.Email == "" || member.Username != "" {
 			stats.Skipped++
 			return nil
 		}
@@ -83,72 +88,72 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 			stats.Skipped++
 			return nil
 		}
-		emailToSeats[normalizedEmail] = append(emailToSeats[normalizedEmail], member)
+
+		// Resolve username, calling the auth service only on the first encounter of this email.
+		lookup, seen := emailCache[normalizedEmail]
+		if !seen {
+			lookup = &emailLookup{}
+			username, err := rc.UserReader.UsernameByEmail(ctx, normalizedEmail)
+			if err != nil {
+				var notFound errors.NotFound
+				if !stderrors.As(err, &notFound) {
+					slog.WarnContext(ctx, "failed to resolve username by email",
+						"email", redaction.RedactEmail(normalizedEmail),
+						"error", err,
+					)
+					lookup.failed = true
+				}
+				// NotFound: lookup.username stays "" and lookup.failed stays false — skip silently.
+			} else {
+				lookup.username = username
+			}
+			emailCache[normalizedEmail] = lookup
+
+			// Throttle only on new auth-service calls, not on cache hits.
+			if *sleep > 0 {
+				timer := time.NewTimer(*sleep)
+				select {
+				case <-ctx.Done():
+					if !timer.Stop() {
+						<-timer.C
+					}
+					return ctx.Err()
+				case <-timer.C:
+				}
+			}
+		}
+
+		if lookup.failed {
+			stats.Failed++
+			return nil
+		}
+		if lookup.username == "" {
+			stats.Skipped++
+			return nil
+		}
+
+		if rc.DryRun {
+			slog.DebugContext(ctx, "dry-run: would promote email-only member to LFID",
+				"committee_uid", member.CommitteeUID,
+				"member_uid", member.UID,
+				"username", redaction.Redact(lookup.username),
+			)
+			stats.Updated++
+			return nil
+		}
+
+		wrote, err := promoteEmailOnlyMember(ctx, rc, member.CommitteeUID, member.UID, lookup.username, normalizedEmail)
+		if err != nil {
+			stats.Failed++
+		} else if wrote {
+			stats.Updated++
+		} else {
+			// Seat was already promoted or email changed between stream and write — not a failure.
+			stats.Skipped++
+		}
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to stream members: %w", err)
-	}
-
-	// Pass 2: for each unique email, resolve username once and promote all matching seats.
-	for email, seats := range emailToSeats {
-		username, err := rc.UserReader.UsernameByEmail(ctx, email)
-		if err != nil {
-			var notFound errors.NotFound
-			if stderrors.As(err, &notFound) {
-				slog.DebugContext(ctx, "no LFID for email yet — skipping seats",
-					"email", redaction.RedactEmail(email),
-					"seats", len(seats),
-				)
-				stats.Skipped += len(seats)
-			} else {
-				slog.WarnContext(ctx, "failed to resolve username by email — skipping seats",
-					"email", redaction.RedactEmail(email),
-					"seats", len(seats),
-					"error", err,
-				)
-				stats.Failed += len(seats)
-			}
-			continue
-		}
-
-		if username == "" {
-			slog.DebugContext(ctx, "email not resolvable to an LFID yet — skipping seats",
-				"email", redaction.RedactEmail(email),
-				"seats", len(seats),
-			)
-			stats.Skipped += len(seats)
-			continue
-		}
-
-		for _, seat := range seats {
-			if rc.DryRun {
-				slog.DebugContext(ctx, "dry-run: would promote email-only member to LFID",
-					"committee_uid", seat.CommitteeUID,
-					"member_uid", seat.UID,
-					"username", redaction.Redact(username),
-				)
-				stats.Updated++
-				continue
-			}
-
-			if err := promoteEmailOnlyMember(ctx, rc, seat.CommitteeUID, seat.UID, username, email); err != nil {
-				stats.Failed++
-			} else {
-				stats.Updated++
-			}
-		}
-
-		if *sleep > 0 {
-			timer := time.NewTimer(*sleep)
-			select {
-			case <-ctx.Done():
-				if !timer.Stop() {
-					<-timer.C
-				}
-				return ctx.Err()
-			case <-timer.C:
-			}
-		}
 	}
 
 	stats.Log(ctx, "sync promote-email-only-members")
@@ -160,9 +165,10 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 }
 
 // promoteEmailOnlyMember sets the username on a single email-only committee member seat.
-// It retries up to maxRetries times on revision conflicts, and skips seats that are already
-// promoted or whose email no longer matches (index lag between pass 1 and pass 2).
-func promoteEmailOnlyMember(ctx context.Context, rc commands.RunContext, committeeUID, memberUID, username, email string) error {
+// Returns (true, nil) when the write succeeded, (false, nil) when the seat was skipped
+// (already promoted or email changed between stream and write), and (false, err) on failure.
+// Retries up to maxRetries times on revision conflicts.
+func promoteEmailOnlyMember(ctx context.Context, rc commands.RunContext, committeeUID, memberUID, username, email string) (bool, error) {
 	const maxRetries = 3
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 
@@ -174,13 +180,13 @@ func promoteEmailOnlyMember(ctx context.Context, rc commands.RunContext, committ
 				"committee_uid", committeeUID,
 				"member_uid", memberUID,
 			)
-			return err
+			return false, err
 		}
 
-		// Skip if already promoted or if the email no longer matches (member may have been updated
-		// between pass 1 and pass 2).
+		// Skip if already promoted or if the email no longer matches (member may have been
+		// updated between stream and write).
 		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
-			return nil
+			return false, nil
 		}
 
 		member.Username = username
@@ -201,7 +207,7 @@ func promoteEmailOnlyMember(ctx context.Context, rc commands.RunContext, committ
 				"committee_uid", committeeUID,
 				"member_uid", memberUID,
 			)
-			return writeErr
+			return false, writeErr
 		}
 
 		persistedUsername := username
@@ -213,9 +219,9 @@ func promoteEmailOnlyMember(ctx context.Context, rc commands.RunContext, committ
 			"member_uid", memberUID,
 			"username", redaction.Redact(persistedUsername),
 		)
-		return nil
+		return true, nil
 	}
 
 	// Unreachable: the final iteration always returns above. Required by the compiler.
-	return nil
+	return false, nil
 }

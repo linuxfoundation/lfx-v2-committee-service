@@ -28,9 +28,12 @@ type fakeUserReader struct {
 	emailToUsername map[string]string
 	// errFor maps email → error to return instead of a lookup.
 	errFor map[string]error
+	// callCount tracks how many times UsernameByEmail was called.
+	callCount int
 }
 
 func (r *fakeUserReader) UsernameByEmail(_ context.Context, email string) (string, error) {
+	r.callCount++
 	if err, ok := r.errFor[email]; ok {
 		return "", err
 	}
@@ -164,11 +167,8 @@ func TestPromoteEmailOnly_SameEmailAcrossCommitteesCallsAuthOnce(t *testing.T) {
 		"c2": {m2},
 	}}
 	writer := &stubCommitteeWriter{}
-	callCount := 0
 	user := &fakeUserReader{emailToUsername: map[string]string{email: "shared-user"}}
-	// We can't intercept call count directly, but we verify both seats are promoted.
 
-	_ = callCount
 	sub := &promoteEmailOnlyMembersSubcommand{}
 	err := sub.Run(context.Background(), newPromoteRC(reader, writer, user, []string{"--dry-run=false"}))
 	require.NoError(t, err)
@@ -176,6 +176,7 @@ func TestPromoteEmailOnly_SameEmailAcrossCommitteesCallsAuthOnce(t *testing.T) {
 	for _, u := range writer.updated {
 		assert.Equal(t, "shared-user", u.Username)
 	}
+	assert.Equal(t, 1, user.callCount, "UsernameByEmail must be called exactly once for a shared email")
 }
 
 func TestPromoteEmailOnly_AuthErrorCountsAsFailed(t *testing.T) {
