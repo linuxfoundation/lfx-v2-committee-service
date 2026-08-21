@@ -1,18 +1,19 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 #
-# One-shot Job to promote email-only committee member seats to LFID usernames
+# Job to promote email-only committee member seats to LFID usernames
 # (LFXV2-2521). For every member seat that has an email address but no username
 # (Username == ""), resolves the LFID username via the auth service once per
 # unique email, then updates the seat with the resolved username via UpdateMember.
 #
 # Seats whose email cannot be resolved (user not yet on LFX) are skipped and
 # remain as email-only. Seats that are already promoted are skipped. Idempotent:
-# safe to re-run.
+# re-run after each LFXV2-1507 wave or whenever new email-only seats need promotion.
 #
 # This command uses NATS only — no direct auth-service HTTP calls.
 #
-# One-shot: apply manually via kubectl apply — NOT managed by ArgoCD.
+# Apply manually via kubectl apply — NOT managed by ArgoCD.
+# Delete the completed job before re-running (job names must be unique):
 #
 # Dry run (preview without writing):
 #   Remove the "--dry-run=false" arg (or change it to "--dry-run=true") before applying.
