@@ -127,33 +127,28 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 			}
 		}
 
-		if lookup.failed {
+		switch {
+		case lookup.failed:
 			stats.Failed++
-			return nil
-		}
-		if lookup.username == "" {
+		case lookup.username == "":
 			stats.Skipped++
-			return nil
-		}
-
-		if rc.DryRun {
+		case rc.DryRun:
 			slog.DebugContext(ctx, "dry-run: would promote email-only member to LFID",
 				"committee_uid", member.CommitteeUID,
 				"member_uid", member.UID,
 				"username", redaction.Redact(lookup.username),
 			)
 			stats.Updated++
-			return nil
-		}
-
-		wrote, err := promoteEmailOnlyMember(ctx, rc, member.CommitteeUID, member.UID, lookup.username, normalizedEmail)
-		if err != nil {
-			stats.Failed++
-		} else if wrote {
-			stats.Updated++
-		} else {
-			// Seat was already promoted or email changed between stream and write — not a failure.
-			stats.Skipped++
+		default:
+			wrote, err := promoteEmailOnlyMember(ctx, rc, member.CommitteeUID, member.UID, lookup.username, normalizedEmail)
+			if err != nil {
+				stats.Failed++
+			} else if wrote {
+				stats.Updated++
+			} else {
+				// Seat was already promoted or email changed between stream and write — not a failure.
+				stats.Skipped++
+			}
 		}
 		return nil
 	}); err != nil {

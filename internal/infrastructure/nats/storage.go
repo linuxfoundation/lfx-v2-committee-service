@@ -593,11 +593,17 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 		return nil, errs.NewUnexpected("failed to marshal committee member", errMarshal)
 	}
 
-	// Update the committee member using optimistic locking (revision check)
+	// Update the committee member using optimistic locking (revision check).
+	// jetstream.ErrKeyExists is returned when the supplied revision does not match the
+	// current last-sequence — i.e. a concurrent write won the race. Map it to Conflict so
+	// callers can detect and retry with a fresh revision.
 	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Update(ctx, member.UID, memberBytes, revision)
 	if errUpdate != nil {
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
+		}
+		if errors.Is(errUpdate, jetstream.ErrKeyExists) {
+			return nil, errs.NewConflict("committee member revision conflict", errUpdate)
 		}
 		return nil, errs.NewUnexpected("failed to update committee member", errUpdate)
 	}
