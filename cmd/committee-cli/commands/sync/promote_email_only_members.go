@@ -73,8 +73,10 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 
 	// emailCache deduplicates UsernameByEmail calls: for users who hold seats in multiple
 	// committees, we only call the auth service once per unique normalized email.
-	// Accumulating only string→string pairs keeps memory bounded regardless of bucket size,
-	// in keeping with EachMember's bounded-memory contract.
+	// Only NotFound and successful lookups are cached; transient errors are not, so they
+	// are retried on the next seat with the same email. The map scales with unique email
+	// count (~50 bytes per entry) and is not subject to EachMember's object-accumulation
+	// concern (which was about full CommitteeMember structs, not lightweight cache entries).
 	emailCache := make(map[string]*emailLookup)
 
 	slog.InfoContext(ctx, "scanning committee-members KV bucket")
@@ -94,6 +96,8 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 		}
 
 		// Resolve username, calling the auth service only on the first encounter of this email.
+		// Failures are not cached so that transient errors are retried on the next seat with
+		// the same email, and stats.Failed counts real per-call failures rather than cache hits.
 		lookup, seen := emailCache[normalizedEmail]
 		if !seen {
 			lookup = &emailLookup{}
@@ -106,12 +110,16 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 						"error", err,
 					)
 					lookup.failed = true
+					// Do not cache the failure — allow retry on the next seat with this email.
 				}
-				// NotFound: lookup.username stays "" and lookup.failed stays false — skip silently.
+				// NotFound: cache the miss so we don't re-call the auth service for the same email.
+				if !lookup.failed {
+					emailCache[normalizedEmail] = lookup
+				}
 			} else {
 				lookup.username = username
+				emailCache[normalizedEmail] = lookup
 			}
-			emailCache[normalizedEmail] = lookup
 
 			// Throttle only on new auth-service calls, not on cache hits.
 			if *sleep > 0 {

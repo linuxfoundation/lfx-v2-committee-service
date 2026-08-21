@@ -67,7 +67,8 @@ spec:
           args:
             - sync
             - promote-email-only-members
-            - --dry-run=false
+            # Default to dry-run. Change to --dry-run=false for a live promotion run.
+            - --dry-run=true
           env:
             - name: NATS_URL
               value: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
