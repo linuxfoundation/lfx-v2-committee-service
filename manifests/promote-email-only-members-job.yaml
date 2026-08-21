@@ -12,11 +12,15 @@
 #
 # This command uses NATS only — no direct auth-service HTTP calls.
 #
-# Apply manually via kubectl apply — NOT managed by ArgoCD.
-# Delete the completed job before re-running (job names must be unique):
+# Apply manually via kubectl create — NOT managed by ArgoCD.
+#
+# Each run gets a unique auto-generated name (e.g. promote-email-only-members-x7k9p)
+# via generateName, so previous runs are preserved for historical record with no
+# manual name editing required. Old jobs can be deleted at any time with:
+#   kubectl --context lfx-v2-prod -n committee-service delete job <job-name>
 #
 # Dry run (preview without writing):
-#   Remove the "--dry-run=false" arg (or change it to "--dry-run=true") before applying.
+#   The manifest defaults to --dry-run=true. Change to --dry-run=false for a live run.
 #
 # Find the current prod image tag with:
 #   kubectl --context lfx-v2-prod -n committee-service get deployment \
@@ -24,23 +28,24 @@
 #     -o jsonpath='{.spec.template.spec.containers[0].image}'
 # Then replace the image tag below with the running prod version.
 #
-# Deploy with:
-#   kubectl --context lfx-v2-prod -n committee-service apply -f manifests/promote-email-only-members-job.yaml
+# Deploy with (use create, not apply — generateName requires it):
+#   kubectl --context lfx-v2-prod -n committee-service create -f manifests/promote-email-only-members-job.yaml
 #
-# Monitor:
-#   kubectl --context lfx-v2-prod -n committee-service logs -f --timestamps=true job/promote-email-only-members
+# Find the generated job name after creation:
+#   kubectl --context lfx-v2-prod -n committee-service get jobs -l app.kubernetes.io/component=backfill
+#
+# Monitor (replace <job-name> with the generated name from the command above):
+#   kubectl --context lfx-v2-prod -n committee-service logs -f --timestamps=true job/<job-name>
 #
 # Abort:
-#   kubectl --context lfx-v2-prod -n committee-service delete job promote-email-only-members
+#   kubectl --context lfx-v2-prod -n committee-service delete job <job-name>
 #
-# No ttlSecondsAfterFinished — the job persists after completion for audit purposes.
-# Delete manually when no longer needed:
-#   kubectl --context lfx-v2-prod -n committee-service delete job promote-email-only-members
+# No ttlSecondsAfterFinished — jobs persist after completion for audit purposes.
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: promote-email-only-members
+  generateName: promote-email-only-members-
   namespace: committee-service
   labels:
     app.kubernetes.io/name: lfx-v2-committee-service
@@ -57,12 +62,7 @@ spec:
       serviceAccountName: lfx-v2-committee-service
       containers:
         - name: promote
-          # IMPORTANT: replace this tag with a release that includes the promote-email-only-members
-          # subcommand (introduced in this PR). The tag shown here (0.4.35) predates this subcommand
-          # and will reject the command immediately. Find the correct tag by checking the image
-          # currently running in prod (see instructions above) and confirming it is >= the release
-          # built from this commit.
-          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:0.4.35
+          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:d4d895cc97b548d66b4318313cbadf08d71f948c
           imagePullPolicy: IfNotPresent
           args:
             - sync
