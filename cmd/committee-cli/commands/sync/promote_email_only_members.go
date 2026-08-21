@@ -77,8 +77,12 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 	// in keeping with EachMember's bounded-memory contract.
 	emailCache := make(map[string]*emailLookup)
 
+	slog.InfoContext(ctx, "scanning committee-members KV bucket")
 	if err := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
 		stats.Total++
+		if stats.Total%100 == 0 {
+			slog.InfoContext(ctx, "scan progress", "scanned", stats.Total)
+		}
 		if member.Email == "" || member.Username != "" {
 			stats.Skipped++
 			return nil
@@ -155,6 +159,7 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 	}); err != nil {
 		return fmt.Errorf("failed to stream members: %w", err)
 	}
+	slog.InfoContext(ctx, "finished scanning committee-members KV bucket", "total_scanned", stats.Total)
 
 	stats.Log(ctx, "sync promote-email-only-members")
 
