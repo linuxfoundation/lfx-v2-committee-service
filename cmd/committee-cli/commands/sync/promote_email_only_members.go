@@ -141,11 +141,12 @@ func (s *promoteEmailOnlyMembersSubcommand) Run(ctx context.Context, rc commands
 			stats.Updated++
 		default:
 			wrote, err := promoteEmailOnlyMember(ctx, rc, member.CommitteeUID, member.UID, lookup.username, normalizedEmail)
-			if err != nil {
+			switch {
+			case err != nil:
 				stats.Failed++
-			} else if wrote {
+			case wrote:
 				stats.Updated++
-			} else {
+			default:
 				// Seat was already promoted or email changed between stream and write — not a failure.
 				stats.Skipped++
 			}
