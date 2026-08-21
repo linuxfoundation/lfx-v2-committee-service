@@ -53,6 +53,46 @@ make fmt       # go fmt + gofmt -s -w
 
 Run `make apigen` after editing any file under `cmd/committee-api/design/`. Never hand-edit `gen/`.
 
+## Go Toolchain Version
+
+Freely bump `go.mod`'s `go` directive to the latest available *patch*
+release (e.g. `1.X.Y` → `1.X.{Y+1}`) to pick up security fixes. Do **not**
+bump the *minor* version (e.g. `1.X.x` → `1.{X+1}.x`) unless the user
+explicitly asks for it, **and** you've validated it against the Go version
+MegaLinter itself bundles -- MegaLinter runs several linters (e.g.
+`golangci-lint`) against its own bundled Go version, and a `go.mod`
+directive newer than that bundled version breaks those checks.
+
+To find MegaLinter's bundled Go version:
+
+```bash
+# 1. Find the MegaLinter flavor and pinned version tag used in CI.
+grep -A1 'oxsecurity/megalinter' .github/workflows/*.yml
+# e.g. "uses: oxsecurity/megalinter/flavors/<flavor>@<sha>  # <tag>"
+
+# 2. Fetch that flavor's Dockerfile and read its GO_ALPINE_VERSION (or
+#    GO_IMAGE_VERSION) build arg.
+curl -s "https://raw.githubusercontent.com/oxsecurity/megalinter/<tag>/flavors/<flavor>/Dockerfile" \
+  | grep -i 'GO_ALPINE_VERSION\|GO_IMAGE_VERSION'
+```
+
+`go.mod`'s `go` directive must never exceed that bundled version. Staying
+one minor version behind it (rather than matching its minor *and* patch
+exactly) leaves room to always take the latest patch release for security
+fixes without ever being blocked by MegaLinter's own bundled patch version
+lagging behind a newly disclosed vulnerability.
+
+There's no built-in `go` subcommand to look up the latest patch release for
+a given minor version -- query the official `go.dev/dl` JSON feed instead:
+
+```bash
+# Find the latest patch release for the minor version pinned in go.mod.
+MINOR=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2)
+curl -s "https://go.dev/dl/?mode=json&include=all" \
+  | jq -r --arg m "go${MINOR}." '.[].version | select(startswith($m))' \
+  | sort -V | tail -1
+```
+
 ## Work cycle — post-commit and pre-PR reviews
 
 > **CRITICAL — while the branch is pre-PR, post-commit review is mandatory.** After every commit on the local branch, run **`/lfx-skills:lfx-local-review`**. It runs three reviewers in parallel — the central `general` brain plus this repo's own `repo_code` and `repo_learnings` brains — on headless Pi when Pi is available, and on Claude subagents otherwise, and returns their ordinary Markdown reports. It reviews **`HEAD^..HEAD`** by default — the newest commit against its first parent, and nothing else; a caller may supply a direct base range instead. Before opening a PR, drain every report AND let `/committee-service-pr-readiness` clear every Critical finding before `/committee-service-preflight` runs.
