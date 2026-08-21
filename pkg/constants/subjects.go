@@ -93,6 +93,11 @@ const (
 	// committee-related mailing list state changes (e.g. has_mailing_list flag).
 	MailingListCommitteeChangedSubject = "lfx.mailing-list-api.committee_mailing_list.changed"
 
+	// UserEmailChangedSubject is consumed when a user's email or LFID identity changes upstream
+	// (alternate email added/removed, LFID user created/deleted). Payload: model.UserEmailEvent.
+	// Producers: lfx-v1-sync-helper and others. Drives username re-resolution for affected members.
+	UserEmailChangedSubject = "lfx.user-email.changed"
+
 	// V1SyncHelperUserDeletedSubject is emitted by v1-sync-helper when a merged user record is
 	// soft-deleted. The committee service subscribes to scrub the deleted user's username from
 	// all committee member records and committee settings writers/auditors that carry it.

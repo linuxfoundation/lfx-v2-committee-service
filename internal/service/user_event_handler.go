@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -20,15 +21,18 @@ import (
 type userEventHandler struct {
 	committeeReader             CommitteeReader
 	committeeWriterOrchestrator CommitteeWriter
+	userReader                  port.UserReader
 }
 
 func NewUserEventHandler(
 	reader CommitteeReader,
 	writerOrch CommitteeWriter,
-) port.UserEventHandler {
+	userReader port.UserReader,
+) *userEventHandler {
 	return &userEventHandler{
 		committeeReader:             reader,
 		committeeWriterOrchestrator: writerOrch,
+		userReader:                  userReader,
 	}
 }
 
@@ -226,4 +230,197 @@ func (h *userEventHandler) scrubUsernameFromOneCommitteeSettings(ctx context.Con
 			"committee_uid", committeeUID, "username", redaction.Redact(username))
 		return
 	}
+}
+
+// HandleUserEmailChanged reacts to a user-email change event from the durable user-email-events
+// stream. For alternate_email_added events it promotes all email-only committee member seats
+// associated with the address to the resolved LFID username via reconcileUsernamesForEmail.
+// Other event types are logged and ACKed; the same helper can be wired to them as the
+// corresponding teardown semantics are defined. The caller (infrastructure layer) owns ACK/NAK.
+func (h *userEventHandler) HandleUserEmailChanged(ctx context.Context, msg port.StreamMessenger) error {
+	subject := msg.Subject()
+
+	if subject != constants.UserEmailChangedSubject {
+		slog.DebugContext(ctx, "stream message subject not relevant for user-email sync — skipping",
+			"subject", subject,
+		)
+		return nil
+	}
+
+	var event model.UserEmailEvent
+	if err := json.Unmarshal(msg.Data(), &event); err != nil {
+		slog.WarnContext(ctx, "user-email event has malformed payload — discarding",
+			"error", err,
+			"subject", subject,
+		)
+		return nil
+	}
+
+	if event.Email == "" {
+		slog.WarnContext(ctx, "user-email event missing email — discarding",
+			"subject", subject,
+			"event_type", event.Type,
+		)
+		return nil
+	}
+
+	slog.InfoContext(ctx, "received user-email change event",
+		"event_type", event.Type,
+		"email", redaction.RedactEmail(event.Email),
+		"timestamp", event.Timestamp,
+	)
+
+	switch event.Type {
+	case model.UserEmailEventAlternateEmailAdded:
+		return h.reconcileUsernamesForEmail(ctx, event.Email)
+	default:
+		slog.DebugContext(ctx, "user-email event type not yet handled — skipping",
+			"event_type", event.Type,
+		)
+		return nil
+	}
+}
+
+// reconcileUsernamesForEmail looks up all email-only committee member seats matching email,
+// resolves the LFID username once via the auth service, and promotes each seat via UpdateMember.
+// It is called for event types where an email gains a resolvable username (e.g. alternate_email_added).
+func (h *userEventHandler) reconcileUsernamesForEmail(ctx context.Context, email string) error {
+	if h.committeeReader == nil || h.userReader == nil || h.committeeWriterOrchestrator == nil {
+		return errors.NewValidation("committeeReader, userReader, and committeeWriterOrchestrator are required for user-email sync")
+	}
+
+	// Cheap index lookup first — avoids a needless auth round-trip when no seats match.
+	members, err := h.committeeReader.ListMembersByEmail(ctx, email)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list committee members by email for user-email sync",
+			"email", redaction.RedactEmail(email),
+			"error", err,
+		)
+		return err
+	}
+
+	var emailOnlySeats []*model.CommitteeMember
+	for _, member := range members {
+		if member.Username == "" {
+			emailOnlySeats = append(emailOnlySeats, member)
+		}
+	}
+
+	if len(emailOnlySeats) == 0 {
+		slog.DebugContext(ctx, "no email-only committee seats found for email — skipping",
+			"email", redaction.RedactEmail(email),
+		)
+		return nil
+	}
+
+	username, err := h.userReader.UsernameByEmail(ctx, email)
+	if err != nil {
+		var notFound errors.NotFound
+		if stderrors.As(err, &notFound) {
+			// For alternate_email_added the LFID must exist; NotFound means the auth index
+			// has not caught up yet. Return the error so JetStream retries rather than
+			// ACKing permanently and losing this reconciliation.
+			slog.WarnContext(ctx, "email not yet visible to auth lookup — NAKing for JetStream retry",
+				"email", redaction.RedactEmail(email),
+			)
+			return err
+		}
+		slog.ErrorContext(ctx, "failed to resolve username by email during user-email sync",
+			"email", redaction.RedactEmail(email),
+			"error", err,
+		)
+		return err
+	}
+
+	if username == "" {
+		slog.DebugContext(ctx, "email not resolvable to an LFID yet — leaving seats email-only",
+			"email", redaction.RedactEmail(email),
+		)
+		return nil
+	}
+
+	writeCtx := context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
+	var syncErrors []error
+	for _, seat := range emailOnlySeats {
+		if promoteErr := h.promoteEmailOnlyMemberUsername(writeCtx, seat.CommitteeUID, seat.UID, username, email); promoteErr != nil {
+			syncErrors = append(syncErrors, promoteErr)
+		}
+	}
+
+	if len(syncErrors) > 0 {
+		slog.ErrorContext(ctx, "user-email sync completed with errors",
+			"email", redaction.RedactEmail(email),
+			"username", redaction.Redact(username),
+			"total_seats", len(emailOnlySeats),
+			"failed_seats", len(syncErrors),
+		)
+	}
+
+	return stderrors.Join(syncErrors...)
+}
+
+// promoteEmailOnlyMemberUsername sets the username on an email-only committee member seat and
+// persists it via UpdateMember. It retries on revision conflicts (up to maxRetries), skips seats
+// that are already promoted or whose email no longer matches (index lag), and passes
+// skipEnrichment=true so UpdateMember does not re-run the auth lookup.
+func (h *userEventHandler) promoteEmailOnlyMemberUsername(writeCtx context.Context, committeeUID, memberUID, username, email string) error {
+	const maxRetries = 3
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		member, revision, err := h.committeeReader.GetMember(writeCtx, committeeUID, memberUID)
+		if err != nil {
+			slog.WarnContext(writeCtx, "failed to get member for username promotion",
+				"error", err,
+				"committee_uid", committeeUID,
+				"member_uid", memberUID,
+			)
+			return err
+		}
+
+		// Skip if already promoted or if the email no longer matches (index may lag an email change).
+		if member.Username != "" || strings.ToLower(strings.TrimSpace(member.Email)) != normalizedEmail {
+			return nil
+		}
+
+		member.Username = username
+
+		updated, writeErr := h.committeeWriterOrchestrator.UpdateMember(
+			writeCtx,
+			member, revision, false, true,
+		)
+		if writeErr != nil {
+			var conflictErr errors.Conflict
+			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {
+				slog.DebugContext(writeCtx, "revision conflict promoting member username — retrying",
+					"attempt", attempt+1,
+					"committee_uid", committeeUID,
+					"member_uid", memberUID,
+				)
+				continue
+			}
+			slog.ErrorContext(writeCtx, "failed to promote email-only member to LFID",
+				"error", writeErr,
+				"committee_uid", committeeUID,
+				"member_uid", memberUID,
+			)
+			return writeErr
+		}
+
+		persistedUsername := username
+		if updated != nil {
+			persistedUsername = updated.Username
+		}
+		slog.DebugContext(writeCtx, "user-email sync — promoted email-only member to LFID",
+			"committee_uid", committeeUID,
+			"member_uid", memberUID,
+			"username", redaction.Redact(persistedUsername),
+		)
+		return nil
+	}
+
+	// Unreachable: the final iteration always returns (conflict on the last attempt falls through
+	// to return writeErr above). Required by the compiler for a bounded for loop.
+	return nil
 }

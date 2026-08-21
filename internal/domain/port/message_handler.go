@@ -75,6 +75,14 @@ type WeeklyBriefGenerateHandler interface {
 	HandleGenerateWeeklyBriefRequested(ctx context.Context, msg StreamMessenger) error
 }
 
+// UserEmailSyncHandler reacts to upstream user-email change events that may require
+// re-resolving the username of affected committee members.
+type UserEmailSyncHandler interface {
+	// HandleUserEmailChanged reacts to a user-email change event from the durable
+	// user-email-events stream. The caller (infrastructure layer) owns ACK/NAK.
+	HandleUserEmailChanged(ctx context.Context, msg StreamMessenger) error
+}
+
 // UserEventHandler handles user lifecycle events from external services.
 type UserEventHandler interface {
 	// HandleUserDeleted scrubs the deleted user's username from committee members
@@ -89,5 +97,6 @@ type MessageHandler interface {
 	CommitteeMailingListHandler
 	CommitteeNotificationHandler
 	WeeklyBriefGenerateHandler
+	UserEmailSyncHandler
 	UserEventHandler
 }

@@ -116,6 +116,7 @@ type messageHandlerAggregator struct {
 	port.CommitteeNotificationHandler
 	port.WeeklyBriefGenerateHandler
 	port.UserEventHandler
+	port.UserEmailSyncHandler
 }
 
 // NewMessageHandlerOrchestrator creates a new message handler by constructing focused sub-handlers
@@ -126,6 +127,7 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 		opt(config)
 	}
 
+	userEventH := NewUserEventHandler(config.committeeReader, config.committeeWriterOrchestrator, config.userReader)
 	return &messageHandlerAggregator{
 		CommitteeAttributeHandler:   NewCommitteeAttributeHandler(config.committeeReader),
 		CommitteeMemberHandler:      NewCommitteeMemberHandler(config.committeeReader, config.committeeWriterOrchestrator, config.committeeWriter, config.committeePublisher),
@@ -142,6 +144,7 @@ func NewMessageHandlerOrchestrator(opts ...messageHandlerOrchestratorOption) por
 			config.projectReader,
 		),
 		WeeklyBriefGenerateHandler: newWeeklyBriefHandlerOrNoop(config.weeklyBriefGenerator, config.committeeReader),
-		UserEventHandler:           NewUserEventHandler(config.committeeReader, config.committeeWriterOrchestrator),
+		UserEventHandler:           userEventH,
+		UserEmailSyncHandler:       userEventH,
 	}
 }

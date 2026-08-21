@@ -3029,7 +3029,7 @@ func TestHandleUserDeleted(t *testing.T) {
 			var handler port.UserEventHandler
 			if tt.name == "nil reader — no panic, no updates" {
 				// Create handler without reader to test nil case
-				handler = NewUserEventHandler(nil, spy)
+				handler = NewUserEventHandler(nil, spy, nil)
 			} else {
 				h := makeHandler(mockRepo, spy)
 				// Extract the UserEventHandler from the aggregator
