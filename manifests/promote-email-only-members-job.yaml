@@ -1,0 +1,77 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+#
+# One-shot Job to promote email-only committee member seats to LFID usernames
+# (LFXV2-2521). For every member seat that has an email address but no username
+# (Username == ""), resolves the LFID username via the auth service once per
+# unique email, then updates the seat with the resolved username via UpdateMember.
+#
+# Seats whose email cannot be resolved (user not yet on LFX) are skipped and
+# remain as email-only. Seats that are already promoted are skipped. Idempotent:
+# safe to re-run.
+#
+# This command uses NATS only — no direct auth-service HTTP calls.
+#
+# One-shot: apply manually via kubectl apply — NOT managed by ArgoCD.
+#
+# Dry run (preview without writing):
+#   Remove the "--dry-run=false" arg (or change it to "--dry-run=true") before applying.
+#
+# Find the current prod image tag with:
+#   kubectl --context lfx-v2-prod -n committee-service get deployment \
+#     lfx-v2-committee-service \
+#     -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Then replace the image tag below with the running prod version.
+#
+# Deploy with:
+#   kubectl --context lfx-v2-prod -n committee-service apply -f manifests/promote-email-only-members-job.yaml
+#
+# Monitor:
+#   kubectl --context lfx-v2-prod -n committee-service logs -f --timestamps=true job/promote-email-only-members
+#
+# Abort:
+#   kubectl --context lfx-v2-prod -n committee-service delete job promote-email-only-members
+#
+# No ttlSecondsAfterFinished — the job persists after completion for audit purposes.
+# Delete manually when no longer needed:
+#   kubectl --context lfx-v2-prod -n committee-service delete job promote-email-only-members
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: promote-email-only-members
+  namespace: committee-service
+  labels:
+    app.kubernetes.io/name: lfx-v2-committee-service
+    app.kubernetes.io/component: backfill
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lfx-v2-committee-service
+        app.kubernetes.io/component: backfill
+    spec:
+      restartPolicy: Never
+      serviceAccountName: lfx-v2-committee-service
+      containers:
+        - name: promote
+          # Replace with the image tag currently running in prod (see instructions above).
+          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:0.4.35
+          imagePullPolicy: IfNotPresent
+          args:
+            - sync
+            - promote-email-only-members
+            - --dry-run=false
+          env:
+            - name: NATS_URL
+              value: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "10m"
+            limits:
+              memory: "1Gi"
+              cpu: "200m"
+          securityContext:
+            allowPrivilegeEscalation: false
