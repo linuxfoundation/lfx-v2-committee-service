@@ -1,0 +1,83 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+#
+# Job to promote email-only committee member seats to LFID usernames
+# (LFXV2-2521). For every member seat that has an email address but no username
+# (Username == ""), resolves the LFID username via the auth service once per
+# unique email, then updates the seat with the resolved username via UpdateMember.
+#
+# Seats whose email cannot be resolved (user not yet on LFX) are skipped and
+# remain as email-only. Seats that are already promoted are skipped. Idempotent:
+# re-run after each LFXV2-1507 wave or whenever new email-only seats need promotion.
+#
+# This command uses NATS only — no direct auth-service HTTP calls.
+#
+# Apply manually via kubectl create — NOT managed by ArgoCD.
+#
+# Each run gets a unique auto-generated name (e.g. promote-email-only-members-x7k9p)
+# via generateName, so previous runs are preserved for historical record with no
+# manual name editing required. Old jobs can be deleted at any time with:
+#   kubectl --context lfx-v2-prod -n committee-service delete job <job-name>
+#
+# Dry run (preview without writing):
+#   The manifest defaults to --dry-run=true. Change to --dry-run=false for a live run.
+#
+# Find the current prod image tag with:
+#   kubectl --context lfx-v2-prod -n committee-service get deployment \
+#     lfx-v2-committee-service \
+#     -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Then replace the image tag below with the running prod version.
+#
+# Deploy with (use create, not apply — generateName requires it):
+#   kubectl --context lfx-v2-prod -n committee-service create -f manifests/promote-email-only-members-job.yaml
+#
+# Find the generated job name after creation:
+#   kubectl --context lfx-v2-prod -n committee-service get jobs -l app.kubernetes.io/component=backfill
+#
+# Monitor (replace <job-name> with the generated name from the command above):
+#   kubectl --context lfx-v2-prod -n committee-service logs -f --timestamps=true job/<job-name>
+#
+# Abort:
+#   kubectl --context lfx-v2-prod -n committee-service delete job <job-name>
+#
+# No ttlSecondsAfterFinished — jobs persist after completion for audit purposes.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: promote-email-only-members-
+  namespace: committee-service
+  labels:
+    app.kubernetes.io/name: lfx-v2-committee-service
+    app.kubernetes.io/component: backfill
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lfx-v2-committee-service
+        app.kubernetes.io/component: backfill
+    spec:
+      restartPolicy: Never
+      serviceAccountName: lfx-v2-committee-service
+      containers:
+        - name: promote
+          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:d4d895cc97b548d66b4318313cbadf08d71f948c
+          imagePullPolicy: IfNotPresent
+          args:
+            - sync
+            - promote-email-only-members
+            # Default to dry-run. Change to --dry-run=false for a live promotion run.
+            - --dry-run=true
+          env:
+            - name: NATS_URL
+              value: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "10m"
+            limits:
+              memory: "1Gi"
+              cpu: "200m"
+          securityContext:
+            allowPrivilegeEscalation: false
