@@ -56,9 +56,9 @@ jobs:
         id: prepare
         run: |
           set -euo pipefail
-          APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/v//g')
+          APP_VERSION=$(echo ${GITHUB_REF_NAME} | sed 's/v//g')
           CHART_NAME="$(yq '.name' charts/*/Chart.yaml)"
-          CHART_VERSION=$(echo ${{ github.ref_name }} | sed 's/v//g')
+          CHART_VERSION=$(echo ${GITHUB_REF_NAME} | sed 's/v//g')
           {
             echo "app_version=$APP_VERSION"
             echo "chart_name=$CHART_NAME"
@@ -69,6 +69,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Setup Ko
         uses: ko-build/setup-ko@d982fec422852203cfb2053a8ec6ad302280d04d  # v0.8
@@ -87,8 +88,8 @@ jobs:
           ko build github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api \
             -B \
             --platform linux/amd64,linux/arm64 \
-            -t ${{ github.ref_name }} \
-            -t ${{ steps.prepare.outputs.app_version }} \
+            -t ${GITHUB_REF_NAME} \
+            -t ${VERSION} \
             -t latest \
             --sbom spdx
       - name: Build and publish committee-cli image
@@ -103,8 +104,8 @@ jobs:
           ko build github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli \
             -B \
             --platform linux/amd64,linux/arm64 \
-            -t ${{ github.ref_name }} \
-            -t ${{ steps.prepare.outputs.app_version }} \
+            -t ${GITHUB_REF_NAME} \
+            -t ${VERSION} \
             -t latest \
             --sbom spdx
 
@@ -152,9 +153,11 @@ jobs:
       - name: Sign the Helm chart in GHCR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_NAME: ${{ steps.publish-ghcr.outputs.image_name }}
+          IMAGE_DIGEST: ${{ steps.publish-ghcr.outputs.digest }}
         run: |
           set -euo pipefail
-          cosign sign --yes '${{ steps.publish-ghcr.outputs.image_name }}@${{ steps.publish-ghcr.outputs.digest }}'
+          cosign sign --yes "${IMAGE_NAME}@${IMAGE_DIGEST}"
 
   create-ghcr-helm-provenance:
     needs:
