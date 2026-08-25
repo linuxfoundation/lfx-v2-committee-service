@@ -179,22 +179,25 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 		return nil
 	}
 
-	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
-	defer cancel()
-
 	// Resolve the inviter's display name from the acting user principal.
 	// An empty result is intentional: the invite-service template switches to
 	// "You've been invited to join …" when HasInviter is false (Inviter.Name == "").
+	// Use a separate bounded context so a slow lookup cannot consume the invite deadline.
 	inviterName := ""
 	if createdBy != "" && h.userReader != nil {
-		if meta, err := h.userReader.UserMetadataByPrincipal(sendCtx, createdBy); err == nil && meta != nil {
+		lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+		if meta, err := h.userReader.UserMetadataByPrincipal(lookupCtx, createdBy); err == nil && meta != nil {
 			if meta.Name != "" {
 				inviterName = meta.Name
 			} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
 				inviterName = full
 			}
 		}
+		lookupCancel()
 	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer cancel()
 
 	result, err := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
