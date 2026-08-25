@@ -110,12 +110,6 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 	}
 
 	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
-	if recipientName == "" {
-		recipientName = member.Username
-	}
-	if recipientName == "" {
-		recipientName = member.Email
-	}
 
 	committeeURL := buildCommitteeURL(h.lfxSelfServeBaseURL, member.CommitteeUID)
 

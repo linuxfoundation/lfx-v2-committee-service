@@ -830,6 +830,22 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
 	recipientName := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
 	resolveCancel()
+
+	// Resolve the inviter's display name from the acting principal.
+	// Empty string → HasInviter=false in invite-service → "You've been invited to join…" subject.
+	inviterName := ""
+	if principal, _ := ctx.Value(constants.PrincipalContextID).(string); principal != "" && s.userReader != nil {
+		inviterCtx, inviterCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
+		if meta, metaErr := s.userReader.UserMetadataByPrincipal(inviterCtx, principal); metaErr == nil && meta != nil {
+			if n := strings.TrimSpace(meta.Name); n != "" {
+				inviterName = n
+			} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+				inviterName = full
+			}
+		}
+		inviterCancel()
+	}
+
 	// Role on the invite record is the committee role applied after acceptance.
 	// The Role field on SendInviteRequest is the invite-service permission grant
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
@@ -850,7 +866,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
-			Name: "A committee administrator",
+			Name: inviterName,
 		},
 		Resource: &inviteapi.Resource{
 			UID:  committee.UID,
