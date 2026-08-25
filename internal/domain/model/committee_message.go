@@ -44,7 +44,8 @@ type CommitteeMemberMessageData struct {
 // CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
 type CommitteeMemberCreatedEventData struct {
 	*CommitteeMember
-	SkipNotification bool `json:"skip_notification,omitempty"`
+	SkipNotification bool   `json:"skip_notification,omitempty"`
+	CreatedBy        string `json:"created_by,omitempty"`
 }
 
 // CommitteeMemberDeletedEventData is the payload for committee_member.deleted events.

@@ -122,7 +122,7 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 	if member.Username == "" {
 		// No LFID — route through the invite service so the user must create an
 		// account before gaining committee access.
-		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL, created.CreatedBy)
 		return nil, nil
 	}
 
@@ -167,8 +167,12 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 }
 
 // sendMemberInvite sends an invite request for a new committee member who does not
-// yet have an LFID. Best-effort: logs failures internally; callers may ignore the returned error.
-func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) error {
+// yet have an LFID. createdBy is the principal (username/sub) of the acting user; when
+// non-empty the inviter's display name is resolved and passed so the invite subject reads
+// "<FirstName> invited you to join …". When empty or the lookup fails, Inviter.Name is
+// left blank so the invite-service uses its HasInviter=false branch: "You've been
+// invited to join …". Best-effort: logs failures internally; callers may ignore the returned error.
+func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL, createdBy string) error {
 	if h.inviteSender == nil {
 		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
@@ -177,13 +181,28 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
+
+	// Resolve the inviter's display name from the acting user principal.
+	// An empty result is intentional: the invite-service template switches to
+	// "You've been invited to join …" when HasInviter is false (Inviter.Name == "").
+	inviterName := ""
+	if createdBy != "" && h.userReader != nil {
+		if meta, err := h.userReader.UserMetadataByPrincipal(sendCtx, createdBy); err == nil && meta != nil {
+			if meta.Name != "" {
+				inviterName = meta.Name
+			} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+				inviterName = full
+			}
+		}
+	}
+
 	result, err := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(member.Email),
 			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
-			Name: "A committee administrator",
+			Name: inviterName,
 		},
 		Resource: &inviteapi.Resource{
 			UID:  member.CommitteeUID,

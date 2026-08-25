@@ -1210,10 +1210,12 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			Member:    data.Member,
 		}
 	case model.ActionCreated:
-		// For create, carry the request-scoped skip-notification flag alongside the member.
+		// For create, carry the request-scoped skip-notification flag and acting user alongside the member.
+		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 		eventInput = &model.CommitteeMemberCreatedEventData{
 			CommitteeMember:  data.Member,
 			SkipNotification: data.SkipNotification,
+			CreatedBy:        principal,
 		}
 	case model.ActionDeleted:
 		// For delete, carry the request-scoped skip-notification flag alongside the member.

@@ -1270,15 +1270,30 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*
 	return m.meta, m.err
 }
 
+// buildMemberCreatedPayloadOpts holds optional overrides for buildMemberCreatedPayload.
+type buildMemberCreatedPayloadOpts struct {
+	skipNotification bool
+	createdBy        string
+}
+
 func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember, skipNotification ...bool) []byte {
 	t.Helper()
 	skip := false
 	if len(skipNotification) > 0 {
 		skip = skipNotification[0]
 	}
+	return buildMemberCreatedPayloadWithOpts(t, member, buildMemberCreatedPayloadOpts{skipNotification: skip})
+}
+
+func buildMemberCreatedPayloadWithOpts(t *testing.T, member *model.CommitteeMember, opts buildMemberCreatedPayloadOpts) []byte {
+	t.Helper()
 	event := model.CommitteeEvent{}
 	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionCreated,
-		&model.CommitteeMemberCreatedEventData{CommitteeMember: member, SkipNotification: skip})
+		&model.CommitteeMemberCreatedEventData{
+			CommitteeMember:  member,
+			SkipNotification: opts.skipNotification,
+			CreatedBy:        opts.createdBy,
+		})
 	require.NoError(t, err)
 	data, err := json.Marshal(built)
 	require.NoError(t, err)
@@ -1351,11 +1366,13 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 		msgData          []byte
 		emailSender      *mockEmailSender
 		inviteSender     *mockInviteSender
+		userReader       *mockUserReader
 		omitEmailSender  bool
 		omitInviteSender bool
 		wantEmailCount   int
 		wantInviteCount  int
 		wantInviteRole   string
+		wantInviterName  string // asserted on Inviter.Name in the first invite call
 	}{
 		{
 			name:            "LFID member — email notification sent",
@@ -1373,6 +1390,51 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			wantEmailCount:  0,
 			wantInviteCount: 1,
 			wantInviteRole:  "Member",
+		},
+		{
+			name: "non-LFID member with createdBy — inviter name resolved from userReader",
+			msgData: buildMemberCreatedPayloadWithOpts(t, nonLFIDMember, buildMemberCreatedPayloadOpts{
+				createdBy: "admin-principal",
+			}),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			userReader:      &mockUserReader{meta: &model.UserMetadata{Name: "Jane Admin"}},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviterName: "Jane Admin",
+		},
+		{
+			name: "non-LFID member with createdBy — inviter name from GivenName+FamilyName when Name absent",
+			msgData: buildMemberCreatedPayloadWithOpts(t, nonLFIDMember, buildMemberCreatedPayloadOpts{
+				createdBy: "admin-principal",
+			}),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			userReader:      &mockUserReader{meta: &model.UserMetadata{GivenName: "Jane", FamilyName: "Admin"}},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviterName: "Jane Admin",
+		},
+		{
+			name: "non-LFID member with createdBy but lookup fails — inviter name is empty",
+			msgData: buildMemberCreatedPayloadWithOpts(t, nonLFIDMember, buildMemberCreatedPayloadOpts{
+				createdBy: "admin-principal",
+			}),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			userReader:      &mockUserReader{err: assert.AnError},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviterName: "",
+		},
+		{
+			name:            "non-LFID member with no createdBy — inviter name is empty",
+			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviterName: "",
 		},
 		{
 			name:            "non-LFID auditor member — invite sent with Member role",
@@ -1475,7 +1537,11 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			if !tt.omitInviteSender {
 				inviteSender = tt.inviteSender
 			}
-			h := NewCommitteeNotificationHandler(nil, nil, nil, emailSender, inviteSender, nil, nil, "https://app.dev.lfx.dev", nil)
+			var userReader port.UserReader
+			if tt.userReader != nil {
+				userReader = tt.userReader
+			}
+			h := NewCommitteeNotificationHandler(nil, nil, nil, emailSender, inviteSender, userReader, nil, "https://app.dev.lfx.dev", nil)
 
 			msg := newMockTransportMessenger(constants.CommitteeMemberCreatedSubject, tt.msgData)
 			resp, err := h.HandleCommitteeMemberCreated(context.Background(), msg)
@@ -1504,6 +1570,13 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					assert.Contains(t, req.ReturnURL, "committee-1")
 					if tt.wantInviteRole != "" {
 						assert.Equal(t, tt.wantInviteRole, req.Role, "invite role")
+					}
+					// Verify inviter name: never a multi-word placeholder that would be
+					// split to a single letter by the invite-service firstName() helper.
+					if req.Inviter != nil {
+						assert.Equal(t, tt.wantInviterName, req.Inviter.Name, "inviter name")
+					} else {
+						assert.Equal(t, tt.wantInviterName, "", "inviter name (nil Inviter)")
 					}
 				}
 			}
