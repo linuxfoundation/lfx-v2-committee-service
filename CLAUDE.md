@@ -55,48 +55,19 @@ Run `make apigen` after editing any file under `cmd/committee-api/design/`. Neve
 
 ## Go Toolchain Version
 
-Freely bump `go.mod`'s `go` directive to the latest available *patch*
-release (e.g. `1.X.Y` → `1.X.{Y+1}`) to pick up security fixes. Do **not**
-bump the *minor* version (e.g. `1.X.x` → `1.{X+1}.x`) unless the user
-explicitly asks for it, **and** you've validated it against the Go version
-MegaLinter itself bundles -- MegaLinter runs several linters (e.g.
-`golangci-lint`) against its own bundled Go version, and a `go.mod`
-directive newer than that bundled version breaks those checks.
-
-To find MegaLinter's bundled Go version:
+Always bump `go.mod`'s `go` directive to the latest available Go release,
+including minor version bumps, using:
 
 ```bash
-# 1. Find the MegaLinter flavor and pinned version tag used in CI.
-grep -A1 'oxsecurity/megalinter' .github/workflows/*.yml
-# e.g. "uses: oxsecurity/megalinter/flavors/<flavor>@<sha>  # <tag>"
-
-# 2. Fetch that flavor's Dockerfile and read its GO_ALPINE_VERSION build
-#    arg -- this is what the final image installs as `go`, not
-#    GO_IMAGE_VERSION (which only applies to an intermediate builder
-#    stage).
-curl -s "https://raw.githubusercontent.com/oxsecurity/megalinter/<tag>/flavors/<flavor>/Dockerfile" \
-  | grep -i 'GO_ALPINE_VERSION'
+go get go@latest
 ```
 
-`go.mod`'s `go` directive must never exceed that bundled version -- unless
-MegaLinter's `mega-linter.yml` sets `GOTOOLCHAIN: auto` (check the workflow
-before relying on this), in which case Go transparently downloads a newer
-toolchain as needed and the bundled version stops being a hard ceiling.
-Staying one minor version behind it (rather than matching its minor *and*
-patch exactly) leaves room to always take the latest patch release for
-security fixes without ever being blocked by MegaLinter's own bundled patch
-version lagging a newly disclosed vulnerability.
+Its output reports the change, e.g. `go: upgraded go 1.X.Y => 1.{X+1}.Z`. If
+the minor component increased by any amount, read that release's notes
+at https://go.dev/doc/devel/release for breaking changes relevant to this
+repo before committing.
 
-There's no built-in `go` subcommand to look up the latest patch release for
-a given minor version -- query the official `go.dev/dl` JSON feed instead:
-
-```bash
-# Find the latest patch release for the minor version pinned in go.mod.
-MINOR=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2)
-curl -s "https://go.dev/dl/?mode=json&include=all" \
-  | jq -r --arg m "go${MINOR}." '.[].version | select(startswith($m))' \
-  | sort -V | tail -1
-```
+Run `go mod tidy` afterward if `go get` touched `go.sum`.
 
 ## Work cycle — post-commit and pre-PR reviews
 
