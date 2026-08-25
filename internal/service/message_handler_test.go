@@ -1428,6 +1428,22 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			wantInviterName: "",
 		},
 		{
+			// m2m (client_credentials) principals are not user records; the auth service
+			// returns an error for them. The lookup is attempted (no short-circuit on the
+			// principal format), the error causes inviterName to stay "", and the invite
+			// service uses HasInviter=false: "You've been invited to join …".
+			name: "non-LFID member with m2m createdBy — auth service returns not-found, inviter name is empty",
+			msgData: buildMemberCreatedPayloadWithOpts(t, nonLFIDMember, buildMemberCreatedPayloadOpts{
+				createdBy: "abc123@clients",
+			}),
+			emailSender:     &mockEmailSender{},
+			inviteSender:    &mockInviteSender{},
+			userReader:      &mockUserReader{err: assert.AnError},
+			wantEmailCount:  0,
+			wantInviteCount: 1,
+			wantInviterName: "",
+		},
+		{
 			name:            "non-LFID member with no createdBy — inviter name is empty",
 			msgData:         buildMemberCreatedPayload(t, nonLFIDMember),
 			emailSender:     &mockEmailSender{},
