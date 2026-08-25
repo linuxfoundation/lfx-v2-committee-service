@@ -1362,17 +1362,18 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		msgData          []byte
-		emailSender      *mockEmailSender
-		inviteSender     *mockInviteSender
-		userReader       *mockUserReader
-		omitEmailSender  bool
-		omitInviteSender bool
-		wantEmailCount   int
-		wantInviteCount  int
-		wantInviteRole   string
-		wantInviterName  string // asserted on Inviter.Name in the first invite call
+		name                 string
+		msgData              []byte
+		emailSender          *mockEmailSender
+		inviteSender         *mockInviteSender
+		userReader           *mockUserReader
+		omitEmailSender      bool
+		omitInviteSender     bool
+		wantEmailCount       int
+		wantInviteCount      int
+		wantInviteRole       string
+		wantInviterName      string // asserted on Inviter.Name in the first invite call
+		wantEmailInviterName string // asserted on InviterName in the LFID direct-email HTML
 	}{
 		{
 			name:            "LFID member — email notification sent",
@@ -1381,6 +1382,30 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			inviteSender:    &mockInviteSender{},
 			wantEmailCount:  1,
 			wantInviteCount: 0,
+		},
+		{
+			name: "LFID member with createdBy — inviter name resolved into direct email",
+			msgData: buildMemberCreatedPayloadWithOpts(t, lfidMember, buildMemberCreatedPayloadOpts{
+				createdBy: "admin-principal",
+			}),
+			emailSender:          &mockEmailSender{},
+			inviteSender:         &mockInviteSender{},
+			userReader:           &mockUserReader{meta: &model.UserMetadata{Name: "Jane Admin"}},
+			wantEmailCount:       1,
+			wantInviteCount:      0,
+			wantEmailInviterName: "Jane Admin",
+		},
+		{
+			name: "LFID member with createdBy but lookup fails — email uses default fallback",
+			msgData: buildMemberCreatedPayloadWithOpts(t, lfidMember, buildMemberCreatedPayloadOpts{
+				createdBy: "admin-principal",
+			}),
+			emailSender:          &mockEmailSender{},
+			inviteSender:         &mockInviteSender{},
+			userReader:           &mockUserReader{err: assert.AnError},
+			wantEmailCount:       1,
+			wantInviteCount:      0,
+			wantEmailInviterName: "A committee administrator",
 		},
 		{
 			name:            "non-LFID member — invite sent with Member role",
@@ -1572,6 +1597,9 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					assert.Contains(t, tt.emailSender.calls[0].Subject, "TSC Committee")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "Alice Smith")
 					assert.Contains(t, tt.emailSender.calls[0].HTML, "https://app.dev.lfx.dev/project/groups/committee-1")
+					if tt.wantEmailInviterName != "" {
+						assert.Contains(t, tt.emailSender.calls[0].HTML, tt.wantEmailInviterName, "inviter name in email HTML")
+					}
 				}
 			}
 			if tt.inviteSender != nil {

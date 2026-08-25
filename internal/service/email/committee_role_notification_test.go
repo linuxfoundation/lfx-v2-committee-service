@@ -139,6 +139,24 @@ func TestRenderCommitteeRoleNotification(t *testing.T) {
 	assert.False(t, strings.Contains(text, "<html"), "expected plain text output")
 }
 
+func TestRenderCommitteeRoleNotification_EmptyRecipientName(t *testing.T) {
+	data := CommitteeRoleNotificationData{
+		RecipientName: "",
+		CommitteeName: "TSC Committee",
+		Role:          "Manage",
+		CommitteeURL:  "https://app.dev.lfx.dev/projects/demo-project/committees",
+		InviterName:   "A committee administrator",
+	}
+
+	_, html, text, err := RenderCommitteeRoleNotification(data)
+	require.NoError(t, err)
+
+	assert.NotContains(t, html, "Hi ,", "HTML greeting must not have trailing space before comma when name is empty")
+	assert.Contains(t, html, "Hi,", "HTML greeting must be 'Hi,' when recipient name is empty")
+	assert.NotContains(t, text, "Hi ,", "text greeting must not have trailing space before comma when name is empty")
+	assert.Contains(t, text, "Hi,", "text greeting must be 'Hi,' when recipient name is empty")
+}
+
 func TestCommitteeRoleCapabilities(t *testing.T) {
 	t.Run("Manage has 5 capabilities", func(t *testing.T) {
 		items := committeeRoleCapabilities("Manage")
