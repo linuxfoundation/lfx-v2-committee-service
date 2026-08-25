@@ -825,11 +825,43 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	dispatchCtx, dispatchCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
 	defer dispatchCancel()
 
-	// Resolve the invitee's display name via the auth service when they already have
-	// an LFID. Best-effort: lookup failures are logged and the invite still sends.
-	resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
-	recipientName := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
-	resolveCancel()
+	// Resolve invitee and inviter display names concurrently so both lookups run within
+	// inviteNameResolveTimeout wall-clock time rather than consuming up to 2×timeout
+	// sequentially, leaving more of the dispatch budget for SendInvite.
+	var recipientName, inviterName string
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
+		defer resolveCancel()
+		recipientName = s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
+	}()
+
+	if principal != "" && s.userReader != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			inviterCtx, inviterCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
+			defer inviterCancel()
+			if meta, metaErr := s.userReader.UserMetadataByPrincipal(inviterCtx, principal); metaErr != nil {
+				slog.WarnContext(ctx, "failed to resolve inviter display name — sending without inviter name",
+					"error", metaErr, "principal", redaction.Redact(principal))
+			} else if meta != nil {
+				if n := strings.TrimSpace(meta.Name); n != "" {
+					inviterName = n
+				} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
+					inviterName = full
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
 	// Role on the invite record is the committee role applied after acceptance.
 	// The Role field on SendInviteRequest is the invite-service permission grant
 	// — its vocabulary is Manage/View/Member, not committee roles like "chair".
@@ -850,7 +882,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
-			Name: "A committee administrator",
+			Name: inviterName,
 		},
 		Resource: &inviteapi.Resource{
 			UID:  committee.UID,

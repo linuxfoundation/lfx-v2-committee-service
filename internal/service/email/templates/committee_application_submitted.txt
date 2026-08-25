@@ -1,6 +1,6 @@
 {{- /* Copyright The Linux Foundation and each contributor to LFX. */ -}}
 {{- /* SPDX-License-Identifier: MIT */ -}}
-Hi {{.RecipientName}},
+Hi{{if .RecipientName}} {{.RecipientName}}{{end}},
 
 A new application has been submitted to join the {{.CommitteeName}} committee{{if .ProjectName}} in the {{.ProjectName}} project{{end}} in LFX Self-Serve.
 

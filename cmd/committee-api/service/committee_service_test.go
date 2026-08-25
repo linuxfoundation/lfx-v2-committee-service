@@ -3328,3 +3328,80 @@ func TestJWTAuth_ContextPropagation(t *testing.T) {
 		assert.Nil(t, returnedCtx.Value(constants.EmailContextID), "email must not be set in context on auth error")
 	})
 }
+
+func TestCreateInvite_InviterNameResolution(t *testing.T) {
+	tests := []struct {
+		name            string
+		principal       string
+		inviteeEmail    string
+		userMeta        *model.UserMetadata
+		metaErr         error
+		wantInviterName string
+	}{
+		{
+			name:            "resolves inviter name from meta.Name",
+			principal:       "inviter-name-alice",
+			inviteeEmail:    "invitee-for-alice@example.com",
+			userMeta:        &model.UserMetadata{Name: "Alice Admin"},
+			wantInviterName: "Alice Admin",
+		},
+		{
+			name:            "resolves from GivenName+FamilyName when Name is empty",
+			principal:       "inviter-name-bob",
+			inviteeEmail:    "invitee-for-bob@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "Bob", FamilyName: "Builder"},
+			wantInviterName: "Bob Builder",
+		},
+		{
+			name:            "empty inviter name when lookup fails",
+			principal:       "inviter-name-charlie",
+			inviteeEmail:    "invitee-for-charlie@example.com",
+			metaErr:         stderrors.New("auth service unavailable"),
+			wantInviterName: "",
+		},
+		{
+			name:            "empty inviter name when no principal in context",
+			principal:       "",
+			inviteeEmail:    "invitee-no-principal@example.com",
+			wantInviterName: "",
+		},
+		{
+			name:            "trims whitespace-only GivenName, uses FamilyName only",
+			principal:       "inviter-name-whitespace",
+			inviteeEmail:    "invitee-for-whitespace@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "  ", FamilyName: "Smith"},
+			wantInviterName: "Smith",
+		},
+		{
+			name:            "empty inviter name when both GivenName and FamilyName are whitespace-only",
+			principal:       "inviter-name-all-whitespace",
+			inviteeEmail:    "invitee-for-all-whitespace@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "  ", FamilyName: "  "},
+			wantInviterName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, _ := setupServiceTestWithRepo()
+			reader := newMockUserReader()
+			if tt.metaErr != nil {
+				reader = reader.withMetadataErr(tt.metaErr)
+			} else if tt.userMeta != nil {
+				reader = reader.withMetadata(tt.principal, tt.userMeta)
+			}
+			svc.userReader = reader
+
+			sender := svc.inviteSender.(*mockInviteSender)
+			ctx := testCtx(tt.principal)
+			_, err := svc.CreateInvite(ctx, &committeeservice.CreateInvitePayload{
+				UID:          "committee-1",
+				InviteeEmail: tt.inviteeEmail,
+			})
+			require.NoError(t, err)
+			require.Len(t, sender.calls, 1)
+			require.NotNil(t, sender.calls[0].Inviter)
+			assert.Equal(t, tt.wantInviterName, sender.calls[0].Inviter.Name)
+		})
+	}
+}

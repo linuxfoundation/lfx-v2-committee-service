@@ -110,12 +110,6 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 	}
 
 	recipientName := strings.TrimSpace(member.FirstName + " " + member.LastName)
-	if recipientName == "" {
-		recipientName = member.Username
-	}
-	if recipientName == "" {
-		recipientName = member.Email
-	}
 
 	committeeURL := buildCommitteeURL(h.lfxSelfServeBaseURL, member.CommitteeUID)
 
@@ -132,12 +126,16 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 		return nil, nil
 	}
 
+	lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	inviterName := h.resolveDisplayName(lookupCtx, created.CreatedBy)
+	lookupCancel()
+
 	subject, html, text, err := emailsvc.RenderCommitteeRoleNotification(emailsvc.CommitteeRoleNotificationData{
 		RecipientName: recipientName,
 		CommitteeName: member.CommitteeName,
 		Role:          "Member",
 		CommitteeURL:  committeeURL,
-		InviterName:   "A committee administrator",
+		InviterName:   inviterName,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to render member notification email template",
@@ -811,10 +809,10 @@ func (h *committeeNotificationHandler) resolveDisplayName(ctx context.Context, p
 			slog.WarnContext(ctx, "failed to look up inviter display name — using default",
 				"error", err)
 		} else if meta != nil {
-			if meta.Name != "" {
-				return meta.Name
+			if n := strings.TrimSpace(meta.Name); n != "" {
+				return n
 			}
-			if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
 				return full
 			}
 		}

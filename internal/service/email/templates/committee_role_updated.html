@@ -39,7 +39,7 @@
     </div>
     <hr>
 
-    <p class="greeting">Hi {{.RecipientName}},</p>
+    <p class="greeting">Hi{{if .RecipientName}} {{.RecipientName}}{{end}},</p>
 
     <p>{{.InviterName}} has updated your role on the <strong>{{.CommitteeName}}</strong> committee in LFX Self-Serve.</p>
 

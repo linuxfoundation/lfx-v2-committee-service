@@ -35,7 +35,7 @@
     </div>
     <hr>
 
-    <p class="greeting">Hi {{.RecipientName}},</p>
+    <p class="greeting">Hi{{if .RecipientName}} {{.RecipientName}}{{end}},</p>
 
     <p>Thank you for your interest in the <strong>{{.CommitteeName}}</strong> committee{{if .ProjectName}} in the <strong>{{.ProjectName}}</strong> project{{end}} in LFX Self-Serve. After review, your application has not been approved at this time.</p>
 
