@@ -126,3 +126,6 @@ yarn-error.log*
 
 # OAS local souls — never committed
 local-agents/
+
+# MegaLinter local-run report output.
+megalinter-reports/
