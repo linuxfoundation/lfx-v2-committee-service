@@ -267,6 +267,13 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 	inviterName := h.resolveDisplayName(resolveCtx, data.UpdatedBy)
 	resolveCancel()
 
+	// For invite-service paths (non-LFID users), use "" as fallback so the invite service
+	// renders "You've been invited to join …" (HasInviter=false) rather than splitting the
+	// "A committee administrator" placeholder on the first space → "A invited you to join …".
+	inviteCtx, inviteCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	inviterNameForInvite := h.resolveInviterName(inviteCtx, data.UpdatedBy)
+	inviteCancel()
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
 
@@ -320,14 +327,15 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 				}
 				// Use the highest new role for the invite (Writer > Auditor for access level).
 				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
-				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
-				result, inviteErr := h.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
+				sendCtx, sendCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				defer sendCancel()
+				result, inviteErr := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 					Recipient: &inviteapi.Recipient{
 						Email: strings.TrimSpace(u.Email),
 						Name:  recipientName,
 					},
 					Inviter: &inviteapi.Inviter{
-						Name: inviterName,
+						Name: inviterNameForInvite,
 					},
 					Resource: &inviteapi.Resource{
 						UID:  data.CommitteeUID,
@@ -337,7 +345,6 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 					Role:      inviteRole,
 					ReturnURL: committeeURL,
 				})
-				inviteCancel()
 				if inviteErr != nil {
 					slog.WarnContext(gctx, "failed to send settings invite request",
 						"error", inviteErr, "committee_uid", data.CommitteeUID)
@@ -804,6 +811,28 @@ func (h *committeeNotificationHandler) resolveDisplayName(ctx context.Context, p
 		}
 	}
 	return "A committee administrator"
+}
+
+// resolveInviterName looks up the display name for the given principal for use as
+// Inviter.Name in invite-service requests. Returns "" when the principal is empty,
+// the lookup fails, or the metadata has no name — the invite service treats an empty
+// name as HasInviter=false and renders "You've been invited to join …" instead of
+// "<firstName> invited you to join …".
+func (h *committeeNotificationHandler) resolveInviterName(ctx context.Context, principal string) string {
+	if principal == "" || h.userReader == nil {
+		return ""
+	}
+	meta, err := h.userReader.UserMetadataByPrincipal(ctx, principal)
+	if err != nil || meta == nil {
+		return ""
+	}
+	if meta.Name != "" {
+		return meta.Name
+	}
+	if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+		return full
+	}
+	return ""
 }
 
 // HandleCommitteeMemberDeleted sends a removal notification email when an LF committee

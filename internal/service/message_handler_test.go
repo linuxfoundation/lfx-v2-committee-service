@@ -1596,21 +1596,22 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		oldWriters       []model.CommitteeUser
-		newWriters       []model.CommitteeUser
-		oldAuditors      []model.CommitteeUser
-		newAuditors      []model.CommitteeUser
-		updatedBy        string
-		userReader       *mockUserReader
-		omitEmailSender  bool
-		inviteSender     *mockInviteSender
-		omitInviteSender bool
-		invalidJSON      bool
-		wantSendCount    int
-		wantInviteCount  int
-		wantInviteRole   string
-		wantInviterName  string
+		name                  string
+		oldWriters            []model.CommitteeUser
+		newWriters            []model.CommitteeUser
+		oldAuditors           []model.CommitteeUser
+		newAuditors           []model.CommitteeUser
+		updatedBy             string
+		userReader            *mockUserReader
+		omitEmailSender       bool
+		inviteSender          *mockInviteSender
+		omitInviteSender      bool
+		invalidJSON           bool
+		wantSendCount         int
+		wantInviteCount       int
+		wantInviteRole        string
+		wantInviterName       string
+		wantInviteInviterName *string
 	}{
 		{
 			name:          "new writer added — one email sent with Writer role",
@@ -1744,6 +1745,39 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantSendCount:   0,
 			wantInviteCount: 0,
 		},
+		{
+			name:                  "non-LFID writer — invite inviter name from user reader",
+			newWriters:            []model.CommitteeUser{noLFIDUser},
+			updatedBy:             "admin-principal",
+			userReader:            &mockUserReader{meta: &model.UserMetadata{Name: "Jane Admin"}},
+			omitEmailSender:       true,
+			inviteSender:          &mockInviteSender{},
+			wantSendCount:         0,
+			wantInviteCount:       1,
+			wantInviteRole:        string(inviteapi.InviteRoleManage),
+			wantInviteInviterName: strPtr("Jane Admin"),
+		},
+		{
+			name:                  "non-LFID writer — invite inviter name empty when lookup fails",
+			newWriters:            []model.CommitteeUser{noLFIDUser},
+			updatedBy:             "admin-principal",
+			userReader:            &mockUserReader{err: assert.AnError},
+			omitEmailSender:       true,
+			inviteSender:          &mockInviteSender{},
+			wantSendCount:         0,
+			wantInviteCount:       1,
+			wantInviteInviterName: strPtr(""),
+		},
+		{
+			name:                  "non-LFID writer — invite inviter name empty when no updatedBy",
+			newWriters:            []model.CommitteeUser{noLFIDUser},
+			updatedBy:             "",
+			omitEmailSender:       true,
+			inviteSender:          &mockInviteSender{},
+			wantSendCount:         0,
+			wantInviteCount:       1,
+			wantInviteInviterName: strPtr(""),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1802,6 +1836,13 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 				assert.Len(t, inviteCalls, tt.wantInviteCount, "invite call count")
 				if tt.wantInviteCount > 0 && tt.wantInviteRole != "" {
 					assert.Equal(t, tt.wantInviteRole, inviteCalls[0].Role, "invite role")
+				}
+				if tt.wantInviteCount > 0 && tt.wantInviteInviterName != nil {
+					if inviteCalls[0].Inviter != nil {
+						assert.Equal(t, *tt.wantInviteInviterName, inviteCalls[0].Inviter.Name, "invite inviter name")
+					} else {
+						assert.Equal(t, "", *tt.wantInviteInviterName, "invite inviter name (nil Inviter)")
+					}
 				}
 			}
 		})
@@ -3317,3 +3358,5 @@ func TestIsSafeURL(t *testing.T) {
 		})
 	}
 }
+
+func strPtr(s string) *string { return &s }
