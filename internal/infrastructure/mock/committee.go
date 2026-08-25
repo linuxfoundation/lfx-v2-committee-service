@@ -1278,6 +1278,8 @@ type MockCommitteePublisher struct {
 	// LastMemberRemoveMessage captures the most recent asynchronous member_remove message.
 	LastMemberRemoveMessage any
 	MemberRemoveCallCount   int
+	// LastEvent captures the most recent committee event published via Event().
+	LastEvent any
 }
 
 // Indexer simulates publishing an indexer message
@@ -1348,6 +1350,9 @@ func (p *MockCommitteePublisher) MemberRemove(ctx context.Context, message any) 
 
 // Event simulates publishing an event message
 func (p *MockCommitteePublisher) Event(ctx context.Context, subject string, event any, sync bool) error {
+	p.mu.Lock()
+	p.LastEvent = event
+	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: event message published",
 		"subject", subject,
 		"message_type", "event",
