@@ -187,9 +187,9 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 	if createdBy != "" && h.userReader != nil {
 		lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 		if meta, err := h.userReader.UserMetadataByPrincipal(lookupCtx, createdBy); err == nil && meta != nil {
-			if meta.Name != "" {
-				inviterName = meta.Name
-			} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			if name := strings.TrimSpace(meta.Name); name != "" {
+				inviterName = name
+			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
 				inviterName = full
 			}
 		}
@@ -263,16 +263,25 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 
 	committeeURL := buildCommitteeURL(h.lfxSelfServeBaseURL, data.CommitteeUID)
 
-	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
-	inviterName := h.resolveDisplayName(resolveCtx, data.UpdatedBy)
-	resolveCancel()
-
-	// For invite-service paths (non-LFID users), use "" as fallback so the invite service
-	// renders "You've been invited to join …" (HasInviter=false) rather than splitting the
-	// "A committee administrator" placeholder on the first space → "A invited you to join …".
-	inviteCtx, inviteCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
-	inviterNameForInvite := h.resolveInviterName(inviteCtx, data.UpdatedBy)
-	inviteCancel()
+	// Single metadata lookup: derive both path-specific inviter names from one auth-service call.
+	// inviterName: for the direct-email path; falls back to "A committee administrator".
+	// inviterNameForInvite: for the invite-service path; falls back to "" so the invite service
+	// uses HasInviter=false ("You've been invited to join …") instead of splitting the placeholder.
+	inviterName := "A committee administrator"
+	inviterNameForInvite := ""
+	if data.UpdatedBy != "" && h.userReader != nil {
+		resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+		if meta, err := h.userReader.UserMetadataByPrincipal(resolveCtx, data.UpdatedBy); err == nil && meta != nil {
+			if name := strings.TrimSpace(meta.Name); name != "" {
+				inviterName = name
+				inviterNameForInvite = name
+			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
+				inviterName = full
+				inviterNameForInvite = full
+			}
+		}
+		resolveCancel()
+	}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
@@ -811,28 +820,6 @@ func (h *committeeNotificationHandler) resolveDisplayName(ctx context.Context, p
 		}
 	}
 	return "A committee administrator"
-}
-
-// resolveInviterName looks up the display name for the given principal for use as
-// Inviter.Name in invite-service requests. Returns "" when the principal is empty,
-// the lookup fails, or the metadata has no name — the invite service treats an empty
-// name as HasInviter=false and renders "You've been invited to join …" instead of
-// "<firstName> invited you to join …".
-func (h *committeeNotificationHandler) resolveInviterName(ctx context.Context, principal string) string {
-	if principal == "" || h.userReader == nil {
-		return ""
-	}
-	meta, err := h.userReader.UserMetadataByPrincipal(ctx, principal)
-	if err != nil || meta == nil {
-		return ""
-	}
-	if meta.Name != "" {
-		return meta.Name
-	}
-	if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
-		return full
-	}
-	return ""
 }
 
 // HandleCommitteeMemberDeleted sends a removal notification email when an LF committee
