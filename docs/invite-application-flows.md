@@ -213,7 +213,7 @@ The invite service delivers the invite email. When the user completes LFID signu
 | Field | Value |
 |---|---|
 | `recipient.email` | User's email address |
-| `recipient.name` | User's display name (falls back to username, then email) |
+| `recipient.name` | User's display name (FirstName + LastName); empty string when no real name is available, which causes the invite-service to render "Hi," with no recipient name |
 | `inviter.name` | Actor's display name resolved via auth-service; empty string when the acting user is unknown or the lookup fails, which causes the invite-service to use its `HasInviter=false` branch: "You've been invited to join …" |
 | `resource.uid` | Committee UID |
 | `resource.name` | Committee name |

@@ -836,10 +836,13 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	inviterName := ""
 	if principal, _ := ctx.Value(constants.PrincipalContextID).(string); principal != "" && s.userReader != nil {
 		inviterCtx, inviterCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
-		if meta, metaErr := s.userReader.UserMetadataByPrincipal(inviterCtx, principal); metaErr == nil && meta != nil {
+		if meta, metaErr := s.userReader.UserMetadataByPrincipal(inviterCtx, principal); metaErr != nil {
+			slog.WarnContext(ctx, "failed to resolve inviter display name — sending without inviter name",
+				"error", metaErr, "principal", redaction.Redact(principal))
+		} else if meta != nil {
 			if n := strings.TrimSpace(meta.Name); n != "" {
 				inviterName = n
-			} else if full := strings.TrimSpace(meta.GivenName + " " + meta.FamilyName); full != "" {
+			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
 				inviterName = full
 			}
 		}
