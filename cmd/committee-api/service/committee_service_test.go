@@ -3365,6 +3365,20 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 			inviteeEmail:    "invitee-no-principal@example.com",
 			wantInviterName: "",
 		},
+		{
+			name:            "trims whitespace-only GivenName, uses FamilyName only",
+			principal:       "inviter-name-whitespace",
+			inviteeEmail:    "invitee-for-whitespace@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "  ", FamilyName: "Smith"},
+			wantInviterName: "Smith",
+		},
+		{
+			name:            "empty inviter name when both GivenName and FamilyName are whitespace-only",
+			principal:       "inviter-name-all-whitespace",
+			inviteeEmail:    "invitee-for-all-whitespace@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "  ", FamilyName: "  "},
+			wantInviterName: "",
+		},
 	}
 
 	for _, tt := range tests {
