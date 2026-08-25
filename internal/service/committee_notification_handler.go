@@ -122,7 +122,7 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 	if member.Username == "" {
 		// No LFID — route through the invite service so the user must create an
 		// account before gaining committee access.
-		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL)
+		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL, created.CreatedBy)
 		return nil, nil
 	}
 
@@ -167,23 +167,45 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 }
 
 // sendMemberInvite sends an invite request for a new committee member who does not
-// yet have an LFID. Best-effort: logs failures internally; callers may ignore the returned error.
-func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL string) error {
+// yet have an LFID. createdBy is the principal (username/sub) of the acting user; when
+// non-empty the inviter's display name is resolved and passed so the invite subject reads
+// "<FirstName> invited you to join …". When empty or the lookup fails, Inviter.Name is
+// left blank so the invite-service uses its HasInviter=false branch: "You've been
+// invited to join …". Best-effort: logs failures internally; callers may ignore the returned error.
+func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL, createdBy string) error {
 	if h.inviteSender == nil {
 		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
 		return nil
 	}
 
+	// Resolve the inviter's display name from the acting user principal.
+	// An empty result is intentional: the invite-service template switches to
+	// "You've been invited to join …" when HasInviter is false (Inviter.Name == "").
+	// Use a separate bounded context so a slow lookup cannot consume the invite deadline.
+	inviterName := ""
+	if createdBy != "" && h.userReader != nil {
+		lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+		if meta, err := h.userReader.UserMetadataByPrincipal(lookupCtx, createdBy); err == nil && meta != nil {
+			if name := strings.TrimSpace(meta.Name); name != "" {
+				inviterName = name
+			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
+				inviterName = full
+			}
+		}
+		lookupCancel()
+	}
+
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
+
 	result, err := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 		Recipient: &inviteapi.Recipient{
 			Email: strings.TrimSpace(member.Email),
 			Name:  recipientName,
 		},
 		Inviter: &inviteapi.Inviter{
-			Name: "A committee administrator",
+			Name: inviterName,
 		},
 		Resource: &inviteapi.Resource{
 			UID:  member.CommitteeUID,
@@ -241,9 +263,25 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 
 	committeeURL := buildCommitteeURL(h.lfxSelfServeBaseURL, data.CommitteeUID)
 
-	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
-	inviterName := h.resolveDisplayName(resolveCtx, data.UpdatedBy)
-	resolveCancel()
+	// Single metadata lookup: derive both path-specific inviter names from one auth-service call.
+	// inviterName: for the direct-email path; falls back to "A committee administrator".
+	// inviterNameForInvite: for the invite-service path; falls back to "" so the invite service
+	// uses HasInviter=false ("You've been invited to join …") instead of splitting the placeholder.
+	inviterName := "A committee administrator"
+	inviterNameForInvite := ""
+	if data.UpdatedBy != "" && h.userReader != nil {
+		resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+		if meta, err := h.userReader.UserMetadataByPrincipal(resolveCtx, data.UpdatedBy); err == nil && meta != nil {
+			if name := strings.TrimSpace(meta.Name); name != "" {
+				inviterName = name
+				inviterNameForInvite = name
+			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
+				inviterName = full
+				inviterNameForInvite = full
+			}
+		}
+		resolveCancel()
+	}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
@@ -298,14 +336,15 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 				}
 				// Use the highest new role for the invite (Writer > Auditor for access level).
 				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
-				inviteCtx, inviteCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
-				result, inviteErr := h.inviteSender.SendInvite(inviteCtx, inviteapi.SendInviteRequest{
+				sendCtx, sendCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				defer sendCancel()
+				result, inviteErr := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
 					Recipient: &inviteapi.Recipient{
 						Email: strings.TrimSpace(u.Email),
 						Name:  recipientName,
 					},
 					Inviter: &inviteapi.Inviter{
-						Name: inviterName,
+						Name: inviterNameForInvite,
 					},
 					Resource: &inviteapi.Resource{
 						UID:  data.CommitteeUID,
@@ -315,7 +354,6 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 					Role:      inviteRole,
 					ReturnURL: committeeURL,
 				})
-				inviteCancel()
 				if inviteErr != nil {
 					slog.WarnContext(gctx, "failed to send settings invite request",
 						"error", inviteErr, "committee_uid", data.CommitteeUID)

@@ -214,7 +214,7 @@ The invite service delivers the invite email. When the user completes LFID signu
 |---|---|
 | `recipient.email` | User's email address |
 | `recipient.name` | User's display name (falls back to username, then email) |
-| `inviter.name` | Actor's display name; falls back to `"A committee administrator"` |
+| `inviter.name` | Actor's display name resolved via auth-service; empty string when the acting user is unknown or the lookup fails, which causes the invite-service to use its `HasInviter=false` branch: "You've been invited to join …" |
 | `resource.uid` | Committee UID |
 | `resource.name` | Committee name |
 | `resource.type` | `"group"` |
@@ -333,7 +333,7 @@ When `X-Skip-Notification: true` is set:
 
 ### NATS event payload shapes
 
-`committee_member.created` data is a `CommitteeMemberCreatedEventData` (JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`).
+`committee_member.created` data is a `CommitteeMemberCreatedEventData` (JSON-flattened `CommitteeMember` plus `"skip_notification": true|false` and `"created_by": "<principal>"` (omitempty) carrying the acting user's principal for inviter-name resolution).
 
 `committee_member.deleted` data is a `CommitteeMemberDeletedEventData` (same shape: JSON-flattened `CommitteeMember` plus `"skip_notification": true|false`). Consumers that previously decoded a bare `CommitteeMember` from deleted events continue to work because the struct embeds `*CommitteeMember` and the extra field is `omitempty`.
 

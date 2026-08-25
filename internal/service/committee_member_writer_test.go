@@ -1607,6 +1607,38 @@ func TestCommitteeWriterOrchestrator_publishMemberMessages(t *testing.T) {
 		},
 	}
 
+	// Verify that PrincipalContextID from context is propagated into the
+	// created_by field of the emitted CommitteeEvent, so the notification
+	// handler can resolve the inviter's display name.
+	t.Run("publish create message — CreatedBy set from context principal", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		memberWriter := NewTestMockCommitteeMemberWriter(mockRepo)
+		publisher := &mock.MockCommitteePublisher{}
+		orchestrator := &committeeWriterOrchestrator{
+			committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+			committeeWriter:    memberWriter,
+			committeePublisher: publisher,
+			projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+		}
+
+		ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "test-principal")
+		err := orchestrator.publishMemberMessages(ctx, model.ActionCreated, &model.CommitteeMemberMessageData{
+			Member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID: "member-abc", CommitteeUID: "committee-123",
+					Email: "user@example.com",
+				},
+			},
+		}, false)
+		require.NoError(t, err)
+
+		committeeEvent, ok := publisher.LastEvent.(*model.CommitteeEvent)
+		require.True(t, ok, "LastEvent must be *model.CommitteeEvent")
+		createdData, ok := committeeEvent.Data.(*model.CommitteeMemberCreatedEventData)
+		require.True(t, ok, "event Data must be *model.CommitteeMemberCreatedEventData")
+		assert.Equal(t, "test-principal", createdData.CreatedBy, "CreatedBy must be propagated from context")
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mock.NewMockRepository()
