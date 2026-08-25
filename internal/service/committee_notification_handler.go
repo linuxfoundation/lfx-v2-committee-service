@@ -809,8 +809,8 @@ func (h *committeeNotificationHandler) resolveDisplayName(ctx context.Context, p
 			slog.WarnContext(ctx, "failed to look up inviter display name — using default",
 				"error", err)
 		} else if meta != nil {
-			if meta.Name != "" {
-				return meta.Name
+			if n := strings.TrimSpace(meta.Name); n != "" {
+				return n
 			}
 			if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
 				return full
