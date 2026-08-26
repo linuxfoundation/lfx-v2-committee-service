@@ -71,9 +71,8 @@ func TestListMailingListActivityForWindow_FieldMapping(t *testing.T) {
 // ── Multiple messages in the same thread → one MailingListActivity ────────────
 
 func TestListMailingListActivityForWindow_GroupsByTopicID(t *testing.T) {
-	// Three messages: two in topic 111, one in topic 222. The earlier message
-	// in topic 111 (msg-1) must be the thread opener — subject and snippet
-	// come from it.
+	// Three messages: two in topic 111, one in topic 222. The earliest
+	// in-window message in topic 111 (msg-1) determines subject and snippet.
 	body := []byte(`{"resources":[` +
 		`{"id":"msg-2","data":{"topic_id":111,"subject":"Re: Topic A","snippet":"Reply text","group_domain":"lists.example.org","group_name":"dev","is_private":false,"created_at":"2026-08-26T12:00:00Z"}},` +
 		`{"id":"msg-1","data":{"topic_id":111,"subject":"Topic A","snippet":"Original text","group_domain":"lists.example.org","group_name":"dev","is_private":false,"created_at":"2026-08-26T11:00:00Z"}},` +
@@ -95,10 +94,37 @@ func TestListMailingListActivityForWindow_GroupsByTopicID(t *testing.T) {
 
 	// Topic 111 is encountered first in the response — it comes first in output.
 	assert.Equal(t, "111", got[0].ThreadID)
-	assert.Equal(t, "Topic A", got[0].Subject, "opener (earliest created_at) determines subject")
+	assert.Equal(t, "Topic A", got[0].Subject, "earliest in-window message determines subject")
 	assert.Equal(t, "Original text", got[0].Excerpt)
 
 	assert.Equal(t, "222", got[1].ThreadID)
+}
+
+// ── Mixed UTC offsets: sort by wall-clock time, not string order ──────────────
+
+func TestListMailingListActivityForWindow_MixedUTCOffsets_SortedByWallClock(t *testing.T) {
+	// msg-a: 2026-08-26T11:00:00+02:00 = 09:00 UTC (earlier wall-clock)
+	// msg-b: 2026-08-26T09:30:00Z      = 09:30 UTC (later wall-clock)
+	// Lexicographic order: "09:30:00Z" < "11:00:00+02:00" → msg-b sorts first (wrong).
+	// time.Time.Before order: 09:00 UTC < 09:30 UTC → msg-a sorts first (correct).
+	body := []byte(`{"resources":[` +
+		`{"id":"msg-b","data":{"topic_id":777,"subject":"Later","snippet":"B","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T09:30:00Z"}},` +
+		`{"id":"msg-a","data":{"topic_id":777,"subject":"Earlier","snippet":"A","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T11:00:00+02:00"}}` +
+		`]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newMailingListSource(t, srv)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
+		time.Now().Add(-time.Hour), time.Now())
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "Earlier", got[0].Subject, "msg-a (09:00 UTC) must be chosen over msg-b (09:30 UTC) despite lexicographic order")
 }
 
 // ── Privacy: any private message in a thread marks the whole thread private ───

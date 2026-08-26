@@ -65,13 +65,13 @@ func NewMailingListSource(cfg MailingListSourceConfig, client *http.Client) *Mai
 // queryGroupsIOMessageData is the per-message payload stored in the
 // groupsio_mailing_list_message indexer resource's data field.
 type queryGroupsIOMessageData struct {
-	TopicID     uint64 `json:"topic_id"`
-	Subject     string `json:"subject"`
-	Snippet     string `json:"snippet"`
-	GroupDomain string `json:"group_domain"`
-	GroupName   string `json:"group_name"`
-	IsPrivate   bool   `json:"is_private"`
-	CreatedAt   string `json:"created_at"`
+	TopicID     uint64    `json:"topic_id"`
+	Subject     string    `json:"subject"`
+	Snippet     string    `json:"snippet"`
+	GroupDomain string    `json:"group_domain"`
+	GroupName   string    `json:"group_name"`
+	IsPrivate   bool      `json:"is_private"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // ListMailingListActivityForWindow fetches groupsio messages tagged with
@@ -148,7 +148,7 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		msgs := byTopic[topicID]
 
 		// Sort ascending by created_at so the earliest in-window message is first.
-		// RFC3339 strings are lexicographically chronological.
+		// time.Time.Before handles RFC3339 timestamps with any UTC offset correctly.
 		//
 		// Known limitation: if the thread's true opener was posted before windowStart
 		// it is not returned by the query, so msgs[0] may be a reply rather than the
@@ -156,7 +156,7 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		// API call and is deferred to a follow-up; for a 7-day brief window the impact
 		// is minimal.
 		sort.Slice(msgs, func(i, j int) bool {
-			return msgs[i].CreatedAt < msgs[j].CreatedAt
+			return msgs[i].CreatedAt.Before(msgs[j].CreatedAt)
 		})
 
 		first := msgs[0]

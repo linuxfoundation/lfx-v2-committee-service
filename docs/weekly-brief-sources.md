@@ -89,7 +89,7 @@ There are two query-service date filtering styles in use across these sources:
 | Style | Params | Used by |
 |-------|--------|---------|
 | Bracket notation (v1) | `start_time[gte]`, `start_time[lte]` | Meetings |
-| Field + range (current) | `date_field=<field>`, `date_from`, `date_to` | All other sources |
+| Field + range (current) | `date_field=<field>`, `date_from`, `date_to` | Meeting AI Summaries, Votes, Surveys, Project Membership, Mailing List Messages |
 
 New sources should use the field+range style. `date_field` names a key inside the resource's
 `data` blob; `date_from`/`date_to` are ISO 8601 timestamps.
