@@ -148,16 +148,22 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		msgs := byTopic[topicID]
 
 		// Sort ascending by created_at so the earliest in-window message is first.
-		// RFC3339 strings are lexicographically chronological. Note: if the true
-		// thread opener was posted before windowStart it will not appear in the
-		// results, so msgs[0] may be a reply. Retrieving the pre-window opener
-		// would require an extra per-topic API call and is deferred to a follow-up.
+		// RFC3339 strings are lexicographically chronological.
+		//
+		// Known limitation: if the thread's true opener was posted before windowStart
+		// it is not returned by the query, so msgs[0] may be a reply rather than the
+		// true opener. Fetching the pre-window opener would require a separate per-topic
+		// API call and is deferred to a follow-up; for a 7-day brief window the impact
+		// is minimal.
 		sort.Slice(msgs, func(i, j int) bool {
 			return msgs[i].CreatedAt < msgs[j].CreatedAt
 		})
 
 		first := msgs[0]
 
+		// Privacy propagation: if any message in the thread is marked private the
+		// entire thread is marked private in the brief. This is conservative — a
+		// thread with mixed visibility must not expose private replies to non-members.
 		isPrivate := false
 		for _, msg := range msgs {
 			if msg.IsPrivate {
