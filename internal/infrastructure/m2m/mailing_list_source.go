@@ -120,6 +120,12 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		return nil, fmt.Errorf("decode mailing-list-source response: %w", err)
 	}
 
+	// Note: page_token pagination is not yet implemented here; this matches the
+	// pattern of all other M2M sources. Because this source returns one record
+	// per message (not one per thread), it reaches the default page_size cap
+	// sooner than other sources on high-volume lists. A dedicated pagination PR
+	// should extend queryEnvelope and follow page_token across all sources.
+
 	// Group per-message records by topic_id, preserving first-seen order for
 	// deterministic output.
 	byTopic := make(map[uint64][]queryGroupsIOMessageData, len(env.Resources))
