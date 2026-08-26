@@ -35,7 +35,7 @@ type MailingListSourceConfig struct {
 // MailingListSource is the live MailingListSource adapter. It speaks
 //
 //	GET {BaseURL}/query/resources?type={Type}&tags=committee:{uid}
-//	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
+//	    &date_field=created_at&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
@@ -75,7 +75,7 @@ type queryGroupsIOMessageData struct {
 }
 
 // ListMailingListActivityForWindow fetches groupsio messages tagged with
-// the committee UID whose start_time falls in [windowStart, windowEnd],
+// the committee UID whose created_at falls in [windowStart, windowEnd],
 // groups them by thread (topic_id), and returns one MailingListActivity
 // per thread.
 func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]port.MailingListActivity, error) {
@@ -93,8 +93,9 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 	q.Set("v", "1")
 	q.Set("type", m.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
-	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("date_field", "created_at")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -131,6 +132,10 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 					"id", r.UID, "error", err)
 				continue
 			}
+		}
+		if data.TopicID == 0 {
+			slog.WarnContext(ctx, "skipping mailing list record with missing topic_id", "id", r.UID)
+			continue
 		}
 		if _, seen := byTopic[data.TopicID]; !seen {
 			topicOrder = append(topicOrder, data.TopicID)

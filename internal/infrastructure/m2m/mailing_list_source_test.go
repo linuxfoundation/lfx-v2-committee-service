@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -169,6 +170,54 @@ func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "malformed record must be skipped")
 	assert.Equal(t, "1", got[0].ThreadID)
+}
+
+// ── Date range: uses date_field=created_at with date_from/date_to ────────────
+
+func TestListMailingListActivityForWindow_DateRangeParams(t *testing.T) {
+	var capturedQuery url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"resources":[]}`))
+	}))
+	defer srv.Close()
+
+	windowStart := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 8, 26, 23, 59, 59, 0, time.UTC)
+
+	src := newMailingListSource(t, srv)
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
+
+	require.NoError(t, err)
+	assert.Equal(t, "created_at", capturedQuery.Get("date_field"), "must use date_field=created_at")
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
+	assert.Empty(t, capturedQuery.Get("start_time[gte]"), "must not use legacy start_time bracket notation")
+}
+
+// ── Zero topic_id → record skipped ───────────────────────────────────────────
+
+func TestListMailingListActivityForWindow_ZeroTopicID_Skipped(t *testing.T) {
+	body := []byte(`{"resources":[` +
+		`{"id":"zero","data":{"topic_id":0,"subject":"S","snippet":"A","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}},` +
+		`{"id":"empty-data","data":{}},` +
+		`{"id":"good","data":{"topic_id":5,"subject":"Good","snippet":"OK","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}}` +
+		`]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newMailingListSource(t, srv)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
+		time.Now().Add(-time.Hour), time.Now())
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "records with zero or missing topic_id must be skipped")
+	assert.Equal(t, "5", got[0].ThreadID)
 }
 
 // ── Non-2xx response → error ──────────────────────────────────────────────────
