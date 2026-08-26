@@ -147,8 +147,11 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 	for _, topicID := range topicOrder {
 		msgs := byTopic[topicID]
 
-		// Sort ascending by created_at so the thread opener is first.
-		// RFC3339 strings are lexicographically chronological.
+		// Sort ascending by created_at so the earliest in-window message is first.
+		// RFC3339 strings are lexicographically chronological. Note: if the true
+		// thread opener was posted before windowStart it will not appear in the
+		// results, so msgs[0] may be a reply. Retrieving the pre-window opener
+		// would require an extra per-topic API call and is deferred to a follow-up.
 		sort.Slice(msgs, func(i, j int) bool {
 			return msgs[i].CreatedAt < msgs[j].CreatedAt
 		})
