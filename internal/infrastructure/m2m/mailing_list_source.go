@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -18,7 +19,7 @@ import (
 
 // DefaultMailingListType is the fixed query-service resource type the live
 // mailing-list source queries.
-const DefaultMailingListType = "v1_mailing_list_thread"
+const DefaultMailingListType = "groupsio_mailing_list_message"
 
 // MailingListSourceConfig configures the live mailing-list source. All fields
 // are sourced from environment variables in providers.go; an empty BaseURL
@@ -34,7 +35,7 @@ type MailingListSourceConfig struct {
 // MailingListSource is the live MailingListSource adapter. It speaks
 //
 //	GET {BaseURL}/query/resources?type={Type}&tags=committee:{uid}
-//	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
+//	    &date_field=created_at&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
@@ -61,22 +62,24 @@ func NewMailingListSource(cfg MailingListSourceConfig, client *http.Client) *Mai
 	return &MailingListSource{cfg: cfg, client: client}
 }
 
-type queryMailingListData struct {
-	// UID is the thread v2 UUID, read from data.uid per the v1_mailing_list_thread
-	// indexer contract. Do not use the envelope's top-level "id" for this.
-	UID     string `json:"uid"`
-	Subject string `json:"subject"`
-	URL     string `json:"url"`
-	Excerpt string `json:"excerpt"`
-	Private bool   `json:"private"`
+// queryGroupsIOMessageData is the per-message payload stored in the
+// groupsio_mailing_list_message indexer resource's data field.
+type queryGroupsIOMessageData struct {
+	TopicID     uint64    `json:"topic_id"`
+	Subject     string    `json:"subject"`
+	Snippet     string    `json:"snippet"`
+	GroupDomain string    `json:"group_domain"`
+	GroupName   string    `json:"group_name"`
+	IsPrivate   bool      `json:"is_private"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
-// ListMailingListActivityForWindow fetches mailing-list threads tagged with
-// the committee UID whose start_time falls in [windowStart, windowEnd].
+// ListMailingListActivityForWindow fetches groupsio messages tagged with
+// the committee UID whose created_at falls in [windowStart, windowEnd],
+// groups them by thread (topic_id), and returns one MailingListActivity
+// per thread.
 func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context, committeeUID string, windowStart, windowEnd time.Time) ([]port.MailingListActivity, error) {
 	if m == nil || m.cfg.BaseURL == "" {
-		// Query-service URL not configured — degrade gracefully. A noisy log
-		// makes this visible without breaking the generate flow.
 		slog.WarnContext(ctx, "mailing list source disabled: QUERY_SERVICE_URL not set")
 		return nil, nil
 	}
@@ -90,8 +93,9 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 	q.Set("v", "1")
 	q.Set("type", m.cfg.Type)
 	q.Set("tags", "committee:"+committeeUID)
-	q.Set("start_time[gte]", windowStart.UTC().Format(time.RFC3339Nano))
-	q.Set("start_time[lte]", windowEnd.UTC().Format(time.RFC3339Nano))
+	q.Set("date_field", "created_at")
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -116,22 +120,79 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		return nil, fmt.Errorf("decode mailing-list-source response: %w", err)
 	}
 
-	out := make([]port.MailingListActivity, 0, len(env.Resources))
+	// Note: page_token pagination is not yet implemented here; this matches the
+	// pattern of all other M2M sources. Because this source returns one record
+	// per message (not one per thread), it reaches the default page_size cap
+	// sooner than other sources on high-volume lists. A dedicated pagination PR
+	// should extend queryEnvelope and follow page_token across all sources.
+
+	// Group per-message records by topic_id, preserving first-seen order for
+	// deterministic output.
+	byTopic := make(map[uint64][]queryGroupsIOMessageData, len(env.Resources))
+	topicOrder := make([]uint64, 0, len(env.Resources))
 	for _, r := range env.Resources {
-		var data queryMailingListData
+		var data queryGroupsIOMessageData
 		if len(r.Data) > 0 {
 			if err := json.Unmarshal(r.Data, &data); err != nil {
 				slog.WarnContext(ctx, "skipping mailing list record with malformed data",
-					"uid", r.UID, "error", err)
+					"id", r.UID, "error", err)
 				continue
 			}
 		}
+		if data.TopicID == 0 {
+			slog.WarnContext(ctx, "skipping mailing list record with missing topic_id", "id", r.UID)
+			continue
+		}
+		if data.CreatedAt.IsZero() {
+			slog.WarnContext(ctx, "skipping mailing list record with missing created_at", "id", r.UID)
+			continue
+		}
+		if _, seen := byTopic[data.TopicID]; !seen {
+			topicOrder = append(topicOrder, data.TopicID)
+		}
+		byTopic[data.TopicID] = append(byTopic[data.TopicID], data)
+	}
+
+	out := make([]port.MailingListActivity, 0, len(byTopic))
+	for _, topicID := range topicOrder {
+		msgs := byTopic[topicID]
+
+		// Sort ascending by created_at so the earliest in-window message is first.
+		// time.Time.Before handles RFC3339 timestamps with any UTC offset correctly.
+		//
+		// Known limitation: if the thread's true opener was posted before windowStart
+		// it is not returned by the query, so msgs[0] may be a reply rather than the
+		// true opener. Fetching the pre-window opener would require a separate per-topic
+		// API call and is deferred to a follow-up; for a 7-day brief window the impact
+		// is minimal.
+		sort.Slice(msgs, func(i, j int) bool {
+			return msgs[i].CreatedAt.Before(msgs[j].CreatedAt)
+		})
+
+		first := msgs[0]
+
+		// Privacy propagation: if any message in the thread is marked private the
+		// entire thread is marked private in the brief. This is conservative — a
+		// thread with mixed visibility must not expose private replies to non-members.
+		isPrivate := false
+		for _, msg := range msgs {
+			if msg.IsPrivate {
+				isPrivate = true
+				break
+			}
+		}
+
+		threadURL := ""
+		if first.GroupDomain != "" && first.GroupName != "" {
+			threadURL = fmt.Sprintf("https://%s/g/%s/topic/%d", first.GroupDomain, first.GroupName, topicID)
+		}
+
 		out = append(out, port.MailingListActivity{
-			ThreadID: data.UID,
-			Subject:  data.Subject,
-			URL:      data.URL,
-			Excerpt:  data.Excerpt,
-			Private:  data.Private,
+			ThreadID: fmt.Sprintf("%d", topicID),
+			Subject:  first.Subject,
+			URL:      threadURL,
+			Excerpt:  first.Snippet,
+			Private:  isPrivate,
 		})
 	}
 	return out, nil
