@@ -4195,6 +4195,12 @@ paths:
                                             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                                             window_end: "2026-05-16T23:59:59.999999999Z"
                                             window_start: "2026-05-10T00:00:00Z"
+                                        throttle:
+                                            generates_limit: 2
+                                            generates_used: 1
+                                            regenerations_limit: 3
+                                            regenerations_used: 0
+                                            window_resets_at: "2026-05-17T00:00:00Z"
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -7396,20 +7402,19 @@ components:
             example:
                 brief:
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    error_reason: no_sources
                     private_source_present: false
                     regeneration_count: 0
                     revision: 1
-                    state: error
+                    state: generating
                     uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     window_end: "2026-05-16T23:59:59.999999999Z"
                     window_start: "2026-05-10T00:00:00Z"
                 throttle:
                     generates_limit: 2
-                    generates_used: 0
+                    generates_used: 1
                     regenerations_limit: 3
                     regenerations_used: 0
-                    window_resets_at: "2026-05-24T00:00:00Z"
+                    window_resets_at: "2026-05-17T00:00:00Z"
         GroupWeeklyBriefRevisionConflictError:
             type: object
             properties:

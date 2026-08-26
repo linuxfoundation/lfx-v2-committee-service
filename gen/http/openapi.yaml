@@ -5528,6 +5528,12 @@ definitions:
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 window_end: "2026-05-16T23:59:59.999999999Z"
                 window_start: "2026-05-10T00:00:00Z"
+            throttle:
+                generates_limit: 2
+                generates_used: 1
+                regenerations_limit: 3
+                regenerations_used: 0
+                window_resets_at: "2026-05-17T00:00:00Z"
     GroupWeeklyBriefRevisionConflictError:
         title: GroupWeeklyBriefRevisionConflictError
         type: object

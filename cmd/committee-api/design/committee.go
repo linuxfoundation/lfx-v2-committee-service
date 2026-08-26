@@ -1556,6 +1556,13 @@ var _ = dsl.Service("committee-service", func() {
 					"private_source_present": false,
 					"revision":               uint64(1),
 				},
+				"throttle": map[string]any{
+					"generates_used":      1,
+					"generates_limit":     2,
+					"regenerations_used":  0,
+					"regenerations_limit": 3,
+					"window_resets_at":    "2026-05-17T00:00:00Z",
+				},
 			})
 		})
 
