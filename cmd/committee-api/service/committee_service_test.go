@@ -3405,3 +3405,53 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 		})
 	}
 }
+
+func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
+	windowStart := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 5, 16, 23, 59, 59, 999999999, time.UTC)
+
+	base := func(state model.GroupWeeklyBriefState, errorReason string) *model.GroupWeeklyBrief {
+		return &model.GroupWeeklyBrief{
+			UID:          "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			CommitteeUID: "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+			WindowStart:  windowStart,
+			WindowEnd:    windowEnd,
+			State:        state,
+			ErrorReason:  errorReason,
+		}
+	}
+
+	tests := []struct {
+		name            string
+		brief           *model.GroupWeeklyBrief
+		wantErrorReason *string
+	}{
+		{
+			name:            "error state with non-empty reason exposes it",
+			brief:           base(model.GroupWeeklyBriefStateError, "no_sources"),
+			wantErrorReason: func() *string { s := "no_sources"; return &s }(),
+		},
+		{
+			name:            "generated state with stale error_reason omits it",
+			brief:           base(model.GroupWeeklyBriefStateGenerated, "no_sources"),
+			wantErrorReason: nil,
+		},
+		{
+			name:            "error state with empty reason omits it",
+			brief:           base(model.GroupWeeklyBriefStateError, ""),
+			wantErrorReason: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainGroupWeeklyBriefToGoa(tt.brief)
+			if tt.wantErrorReason == nil {
+				assert.Nil(t, got.ErrorReason)
+			} else {
+				require.NotNil(t, got.ErrorReason)
+				assert.Equal(t, *tt.wantErrorReason, *got.ErrorReason)
+			}
+		})
+	}
+}

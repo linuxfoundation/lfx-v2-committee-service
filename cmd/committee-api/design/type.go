@@ -1308,7 +1308,7 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
 		dsl.Example("generated")
 	})
-	dsl.Attribute("error_reason", dsl.String, "Machine-readable reason for the error state; absent on non-error briefs")
+	dsl.Attribute("error_reason", dsl.String, `Machine-readable reason for the error state; absent on non-error briefs. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).`)
 	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
 		dsl.MaxLength(20000)
 	})
@@ -1338,6 +1338,17 @@ var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-r
 	dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.", func() {
 		dsl.Minimum(1)
 		dsl.Example(uint64(7))
+	})
+	dsl.Example("error-state", map[string]any{
+		"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+		"window_start":           "2026-05-10T00:00:00Z",
+		"window_end":             "2026-05-16T23:59:59.999999999Z",
+		"state":                  "error",
+		"error_reason":           "no_sources",
+		"regeneration_count":     0,
+		"private_source_present": false,
+		"revision":               uint64(1),
 	})
 })
 

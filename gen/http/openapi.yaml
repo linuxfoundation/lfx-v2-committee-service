@@ -3051,7 +3051,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: oq6
+                    example: 4b3
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3153,7 +3153,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: z4l
+                    example: 07k
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -3375,7 +3375,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 2lj
+                    example: in0
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3489,7 +3489,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: lvl
+                    example: 7tq
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4039,12 +4039,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: 4qt
+                example: ijw
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 8ece09ba-89b9-4892-9648-0a0aaf4fe104
+                example: 6e578ed3-11a3-41cc-a6f3-e333f43345e5
                 format: uuid
             name:
                 type: string
@@ -4057,8 +4057,8 @@ definitions:
                 example: https://confluence.example.com/architecture-decisions
                 maxLength: 2048
         example:
-            description: d5r
-            folder_uid: d5b157a9-e164-4a65-a6a0-b50bebe622f5
+            description: 6tb
+            folder_uid: 55da0207-11d1-406d-915d-baaab6a89225
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -4302,14 +4302,14 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: i5o
+                example: o04
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             deliverables:
                 type: array
                 items:
                     type: string
-                    example: m45
+                    example: 0zl
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -4418,7 +4418,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: ijw
+                    example: zhe
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4462,7 +4462,7 @@ definitions:
                 public: true
             category: Technical Steering Committee
             chat_channel: https://slack.example.org/channels/tsc
-            chat_webhook_url: aaq
+            chat_webhook_url: cp3
             deliverables:
                 - Quarterly technical roadmap
                 - Annual governance review
@@ -4734,7 +4734,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: vg3
+                    example: sh7
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -4826,7 +4826,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: z5b
+                    example: s17
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -5076,7 +5076,7 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: 67l
+                example: n2l
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             last_reviewed_at:
@@ -5118,7 +5118,7 @@ definitions:
                   name: John Doe
                   username: auditor_user_id1
             business_email_required: false
-            chat_webhook_url: uon
+            chat_webhook_url: lo2
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
@@ -5164,57 +5164,30 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Et quasi sapiente maxime facilis.
+                example: Dolor sit iusto.
             description:
                 type: string
                 description: Optional description
-                example: gsk
+                example: vuy
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 85
+                    - 69
                     - 116
                     - 32
-                    - 113
-                    - 117
-                    - 97
-                    - 109
-                    - 32
-                    - 113
-                    - 117
-                    - 105
-                    - 115
-                    - 113
-                    - 117
-                    - 97
-                    - 109
-                    - 32
-                    - 101
-                    - 116
-                    - 32
-                    - 101
                     - 110
                     - 105
-                    - 109
-                    - 32
-                    - 118
-                    - 111
+                    - 104
+                    - 105
                     - 108
-                    - 117
-                    - 112
-                    - 116
-                    - 97
-                    - 116
-                    - 117
-                    - 109
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Minima exercitationem et animi dicta.
+                example: Ducimus maiores.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -5226,16 +5199,10 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Rem similique.
-            description: vua
+            content_type: Incidunt nihil ab culpa deleniti labore.
+            description: bib
             file:
-                - 83
-                - 97
-                - 101
-                - 112
-                - 101
-                - 32
-                - 111
+                - 79
                 - 99
                 - 99
                 - 97
@@ -5245,21 +5212,40 @@ definitions:
                 - 116
                 - 105
                 - 32
-                - 105
-                - 108
-                - 108
-                - 111
+                - 101
+                - 120
                 - 32
                 - 97
-                - 117
-                - 116
                 - 32
+                - 114
+                - 101
+                - 99
                 - 117
+                - 115
+                - 97
                 - 110
                 - 100
+                - 97
                 - 101
+                - 32
+                - 101
+                - 111
+                - 115
+                - 32
+                - 109
+                - 97
+                - 105
+                - 111
+                - 114
+                - 101
+                - 115
+                - 32
+                - 110
+                - 101
+                - 109
+                - 111
                 - 46
-            file_name: Sed sed.
+            file_name: Mollitia eum qui odio maxime.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -5487,37 +5473,13 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: zhe
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                created_at: "2023-01-15T10:30:00Z"
-                error_reason: Iste praesentium autem.
-                last_edited_at: "2026-05-18T14:03:00Z"
-                last_edited_by: jsmith
-                model: fake
+                error_reason: no_sources
                 private_source_present: false
-                prompt_version: v1
                 regeneration_count: 0
-                revision: 7
-                source_refs:
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                state: generated
+                revision: 1
+                state: error
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                updated_at: "2023-06-20T14:45:30Z"
                 window_end: "2026-05-16T23:59:59.999999999Z"
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
@@ -5558,37 +5520,13 @@ definitions:
                 $ref: '#/definitions/GroupWeeklyBriefThrottle'
         example:
             brief:
-                brief_text: zhe
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                created_at: "2023-01-15T10:30:00Z"
-                error_reason: Iste praesentium autem.
-                last_edited_at: "2026-05-18T14:03:00Z"
-                last_edited_by: jsmith
-                model: fake
+                error_reason: no_sources
                 private_source_present: false
-                prompt_version: v1
                 regeneration_count: 0
-                revision: 7
-                source_refs:
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: zl1
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                state: generated
+                revision: 1
+                state: error
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                updated_at: "2023-06-20T14:45:30Z"
                 window_end: "2026-05-16T23:59:59.999999999Z"
                 window_start: "2026-05-10T00:00:00Z"
             throttle:
@@ -5626,7 +5564,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: c2z
+                example: 81u
                 maxLength: 5000
             id:
                 type: string
@@ -5642,7 +5580,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: mok
+            excerpt: y5z
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5747,7 +5685,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: sem
+                example: nap
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5761,8 +5699,8 @@ definitions:
                 format: date-time
             error_reason:
                 type: string
-                description: Machine-readable reason for the error state; absent on non-error briefs
-                example: Quia sunt labore itaque repellat.
+                description: 'Machine-readable reason for the error state; absent on non-error briefs. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).'
+                example: Odit sit explicabo ex architecto minima exercitationem.
             last_edited_at:
                 type: string
                 description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -5802,19 +5740,19 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: zl1
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: zl1
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: zl1
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: zl1
+                    - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -5850,29 +5788,13 @@ definitions:
                 format: date-time
         description: A working-group weekly brief for a single committee and Sun→Sat window.
         example:
-            brief_text: zoi
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            created_at: "2023-01-15T10:30:00Z"
-            error_reason: Eveniet quas enim eveniet.
-            last_edited_at: "2026-05-18T14:03:00Z"
-            last_edited_by: jsmith
-            model: fake
+            error_reason: no_sources
             private_source_present: false
-            prompt_version: v1
             regeneration_count: 0
-            revision: 7
-            source_refs:
-                - excerpt: zl1
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
-                - excerpt: zl1
-                  id: https://meet.example.org/abc123
-                  kind: meeting
-                  title: 2026-05-12 weekly sync
-            state: generated
+            revision: 1
+            state: error
             uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-            updated_at: "2023-06-20T14:45:30Z"
             window_end: "2026-05-16T23:59:59.999999999Z"
             window_start: "2026-05-10T00:00:00Z"
     InternalServerError:
@@ -5922,11 +5844,11 @@ definitions:
             message:
                 type: string
                 description: Human-readable description
-                example: Doloremque et consequatur nostrum eos.
+                example: Enim voluptatum voluptas.
         description: No chat webhook URL is configured for this committee
         example:
             code: no_chat_webhook
-            message: Porro qui quaerat ipsam.
+            message: Officiis similique.
         required:
             - code
             - message
