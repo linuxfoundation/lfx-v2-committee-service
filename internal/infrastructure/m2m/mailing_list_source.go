@@ -143,6 +143,10 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 			slog.WarnContext(ctx, "skipping mailing list record with missing topic_id", "id", r.UID)
 			continue
 		}
+		if data.CreatedAt.IsZero() {
+			slog.WarnContext(ctx, "skipping mailing list record with missing created_at", "id", r.UID)
+			continue
+		}
 		if _, seen := byTopic[data.TopicID]; !seen {
 			topicOrder = append(topicOrder, data.TopicID)
 		}

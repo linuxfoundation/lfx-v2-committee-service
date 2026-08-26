@@ -248,6 +248,33 @@ func TestListMailingListActivityForWindow_ZeroTopicID_Skipped(t *testing.T) {
 	assert.Equal(t, "5", got[0].ThreadID)
 }
 
+// ── Zero created_at (omitted or null) → record skipped ───────────────────────
+
+func TestListMailingListActivityForWindow_ZeroCreatedAt_Skipped(t *testing.T) {
+	// omitted-ts: created_at absent from JSON → zero time.Time → must be skipped
+	// null-ts: created_at explicitly null → zero time.Time → must be skipped
+	// good: valid created_at → must survive
+	body := []byte(`{"resources":[` +
+		`{"id":"omitted-ts","data":{"topic_id":10,"subject":"No time","snippet":"A","group_domain":"d","group_name":"g","is_private":false}},` +
+		`{"id":"null-ts","data":{"topic_id":11,"subject":"Null time","snippet":"B","group_domain":"d","group_name":"g","is_private":false,"created_at":null}},` +
+		`{"id":"good","data":{"topic_id":12,"subject":"Good","snippet":"OK","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}}` +
+		`]}`)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	src := newMailingListSource(t, srv)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
+		time.Now().Add(-time.Hour), time.Now())
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "records with absent or null created_at must be skipped")
+	assert.Equal(t, "12", got[0].ThreadID)
+}
+
 // ── Non-2xx response → error ──────────────────────────────────────────────────
 
 func TestListMailingListActivityForWindow_Non2xx_ReturnsError(t *testing.T) {
