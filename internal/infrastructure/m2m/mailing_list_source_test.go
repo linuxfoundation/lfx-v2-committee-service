@@ -216,6 +216,8 @@ func TestListMailingListActivityForWindow_DateRangeParams(t *testing.T) {
 	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
 
 	require.NoError(t, err)
+	assert.Equal(t, "groupsio_mailing_list_message", capturedQuery.Get("type"))
+	assert.Equal(t, "committee:c-1", capturedQuery.Get("tags"), "mailing-list source uses committee: prefix (not committee_uid:) — matches mailing-list-service indexer contract")
 	assert.Equal(t, "created_at", capturedQuery.Get("date_field"), "must use date_field=created_at")
 	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
 	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
