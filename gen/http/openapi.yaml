@@ -5564,7 +5564,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: 81u
+                example: vno
                 maxLength: 5000
             id:
                 type: string
@@ -5580,7 +5580,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: y5z
+            excerpt: nap
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -5685,7 +5685,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: nap
+                example: lgs
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -5699,8 +5699,8 @@ definitions:
                 format: date-time
             error_reason:
                 type: string
-                description: 'Machine-readable reason for the error state; absent on non-error briefs. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).'
-                example: Odit sit explicabo ex architecto minima exercitationem.
+                description: 'Machine-readable reason for the error state; absent when the brief is not in the error state or the reason is empty. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).'
+                example: no_sources
             last_edited_at:
                 type: string
                 description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -5740,14 +5740,6 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: 0jc
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: 0jc
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
                     - excerpt: 0jc
                       id: https://meet.example.org/abc123
                       kind: meeting
@@ -5844,11 +5836,11 @@ definitions:
             message:
                 type: string
                 description: Human-readable description
-                example: Enim voluptatum voluptas.
+                example: Sapiente maxime facilis laudantium.
         description: No chat webhook URL is configured for this committee
         example:
             code: no_chat_webhook
-            message: Officiis similique.
+            message: Quam quisquam.
         required:
             - code
             - message

@@ -1601,7 +1601,19 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Required("uid", "brief_text", "revision")
 		})
 
-		dsl.Result(GroupWeeklyBriefWithReadonlyAttributes)
+		dsl.Result(GroupWeeklyBriefWithReadonlyAttributes, func() {
+			dsl.Example("edited-state", map[string]any{
+				"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+				"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+				"window_start":           "2026-05-10T00:00:00Z",
+				"window_end":             "2026-05-16T23:59:59.999999999Z",
+				"state":                  "edited",
+				"brief_text":             "## This week\n\n- Shipped the thing.",
+				"regeneration_count":     0,
+				"private_source_present": false,
+				"revision":               uint64(2),
+			})
+		})
 
 		dsl.Error("BadRequest", BadRequestError, "brief_text is empty or invalid")
 		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
