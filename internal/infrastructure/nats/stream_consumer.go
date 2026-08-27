@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"math"
 	"math/rand"
@@ -62,11 +63,8 @@ func (c *NATSClient) ConsumeWithJetStream(
 
 	consumeCtx, err := consumer.Consume(func(msg jetstream.Msg) {
 		if err := handler(ctx, &streamMessengerAdapter{msg: msg}); err != nil {
-			if _, ok := err.(errs.Conflict); ok {
-				// Revision conflict is expected under concurrent writes; NAK+backoff retries
-				// will self-heal, so this is a warning rather than a server error.
-				// Direct type assertion (not errors.As) so that a joined error containing
-				// both a conflict and an infra failure is still logged at ERROR.
+			if allConflicts(err) {
+				// Pure revision-conflict failures self-heal via NAK+backoff; warn, don't error.
 				slog.WarnContext(ctx, "stream message handler revision conflict — NAKing with backoff",
 					"error", err,
 					"subject", msg.Subject(),
@@ -193,6 +191,30 @@ func (c *NATSClient) StartUserEmailConsumer(
 	}
 
 	return consumeCtx.Stop, nil
+}
+
+// allConflicts reports whether every error in the tree rooted at err is an errs.Conflict.
+// handlers that return errors.Join (e.g. multi-seat sync) wrap conflicts in a joinError, so
+// a bare type assertion misses them. A mixed conflict+infra join still returns false, keeping
+// those at ERROR level.
+func allConflicts(err error) bool {
+	type joinError interface {
+		Unwrap() []error
+	}
+	if je, ok := err.(joinError); ok {
+		children := je.Unwrap()
+		if len(children) == 0 {
+			return false
+		}
+		for _, child := range children {
+			if !allConflicts(child) {
+				return false
+			}
+		}
+		return true
+	}
+	var c errs.Conflict
+	return errors.As(err, &c)
 }
 
 // nakDelay returns an exponential backoff duration with full jitter based on the message
