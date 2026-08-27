@@ -52,7 +52,7 @@ paths:
                                 public: true
                             category: Technical Steering Committee
                             chat_channel: https://slack.example.org/channels/tsc
-                            chat_webhook_url: yb2
+                            chat_webhook_url: pvz
                             deliverables:
                                 - Quarterly technical roadmap
                                 - Annual governance review
@@ -1050,31 +1050,26 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Nisi harum quam magnam nihil.
-                            description: 0jc
+                            content_type: Quo consequatur natus omnis.
+                            description: hfi
                             file:
                                 - 79
-                                - 102
-                                - 102
-                                - 105
-                                - 99
-                                - 105
-                                - 97
-                                - 32
-                                - 101
-                                - 116
-                                - 32
-                                - 118
-                                - 101
-                                - 114
-                                - 105
-                                - 116
-                                - 97
-                                - 116
+                                - 109
+                                - 110
                                 - 105
                                 - 115
+                                - 32
+                                - 97
+                                - 99
+                                - 99
+                                - 117
+                                - 115
+                                - 97
+                                - 109
+                                - 117
+                                - 115
                                 - 46
-                            file_name: Voluptatem esse.
+                            file_name: Omnis quae velit voluptate ut ullam.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1463,21 +1458,6 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkFolderWithReadonlyAttributes'
                                 example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by:
-                                        avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
-                                      name: Meeting Notes
-                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      updated_by:
-                                        avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
@@ -2671,9 +2651,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: acdba421-2611-4ce3-a510-206147dc65c1
+                    example: adf6c27f-ccf0-4f76-812d-d2cfca002603
                     format: uuid
-                  example: 6fc6dce5-f9d1-4362-a35c-9e53616b4a10
+                  example: d5bdb9fd-9d62-4dc5-ae56-76081bcef904
             responses:
                 "200":
                     description: OK response.
@@ -2720,7 +2700,79 @@ paths:
                                         name: Alex Lee
                                         username: alexlee
                                       url: https://confluence.example.com/architecture-decisions
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by:
+                                        avatar: https://example.com/avatar.png
+                                        email: alexlee@linuxfoundation.org
+                                        name: Alex Lee
+                                        username: alexlee
+                                      description: Confluence wiki — architecture decisions log
+                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      name: Technical Architecture Decision Records
+                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        email: alexlee@linuxfoundation.org
+                                        name: Alex Lee
+                                        username: alexlee
+                                      url: https://confluence.example.com/architecture-decisions
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by:
+                                        avatar: https://example.com/avatar.png
+                                        email: alexlee@linuxfoundation.org
+                                        name: Alex Lee
+                                        username: alexlee
+                                      description: Confluence wiki — architecture decisions log
+                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      name: Technical Architecture Decision Records
+                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        email: alexlee@linuxfoundation.org
+                                        name: Alex Lee
+                                        username: alexlee
+                                      url: https://confluence.example.com/architecture-decisions
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  updated_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                  url: https://confluence.example.com/architecture-decisions
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                  description: Confluence wiki — architecture decisions log
+                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  name: Technical Architecture Decision Records
+                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  updated_by:
+                                    avatar: https://example.com/avatar.png
+                                    email: alexlee@linuxfoundation.org
+                                    name: Alex Lee
+                                    username: alexlee
+                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
@@ -2828,8 +2880,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: 2o4
-                            folder_uid: 656e47ad-6c34-4eeb-8c2c-4fb8b85fcb40
+                            description: ez6
+                            folder_uid: 13681fa2-642f-49eb-af9a-7890baff5d32
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3798,7 +3850,7 @@ paths:
                                   name: John Doe
                                   username: auditor_user_id1
                             business_email_required: false
-                            chat_webhook_url: mtv
+                            chat_webhook_url: ual
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
@@ -3915,37 +3967,13 @@ paths:
                                 $ref: '#/components/schemas/GroupWeeklyBriefCurrentResult'
                             example:
                                 brief:
-                                    brief_text: zhe
                                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                    created_at: "2023-01-15T10:30:00Z"
-                                    error_reason: Iste praesentium autem.
-                                    last_edited_at: "2026-05-18T14:03:00Z"
-                                    last_edited_by: jsmith
-                                    model: fake
+                                    error_reason: no_sources
                                     private_source_present: false
-                                    prompt_version: v1
                                     regeneration_count: 0
-                                    revision: 7
-                                    source_refs:
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                    state: generated
+                                    revision: 1
+                                    state: error
                                     uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                    updated_at: "2023-06-20T14:45:30Z"
                                     window_end: "2026-05-16T23:59:59.999999999Z"
                                     window_start: "2026-05-10T00:00:00Z"
                                 throttle:
@@ -4043,36 +4071,22 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GroupWeeklyBriefWithReadonlyAttributes'
-                            example:
-                                brief_text: 7k6
-                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                created_at: "2023-01-15T10:30:00Z"
-                                error_reason: Sed voluptas doloremque cum laboriosam consequuntur mollitia.
-                                last_edited_at: "2026-05-18T14:03:00Z"
-                                last_edited_by: jsmith
-                                model: fake
-                                private_source_present: false
-                                prompt_version: v1
-                                regeneration_count: 0
-                                revision: 7
-                                source_refs:
-                                    - excerpt: zl1
-                                      id: https://meet.example.org/abc123
-                                      kind: meeting
-                                      title: 2026-05-12 weekly sync
-                                    - excerpt: zl1
-                                      id: https://meet.example.org/abc123
-                                      kind: meeting
-                                      title: 2026-05-12 weekly sync
-                                    - excerpt: zl1
-                                      id: https://meet.example.org/abc123
-                                      kind: meeting
-                                      title: 2026-05-12 weekly sync
-                                state: generated
-                                uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                updated_at: "2023-06-20T14:45:30Z"
-                                window_end: "2026-05-16T23:59:59.999999999Z"
-                                window_start: "2026-05-10T00:00:00Z"
+                            examples:
+                                edited-state:
+                                    summary: edited-state
+                                    value:
+                                        brief_text: |-
+                                            ## This week
+
+                                            - Shipped the thing.
+                                        committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                        private_source_present: false
+                                        regeneration_count: 0
+                                        revision: 8
+                                        state: edited
+                                        uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                                        window_end: "2026-05-16T23:59:59.999999999Z"
+                                        window_start: "2026-05-10T00:00:00Z"
                 "400":
                     description: 'BadRequest: brief_text is empty or invalid'
                     content:
@@ -4168,47 +4182,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GroupWeeklyBriefGenerateResult'
-                            example:
-                                brief:
-                                    brief_text: zhe
-                                    committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                    created_at: "2023-01-15T10:30:00Z"
-                                    error_reason: Iste praesentium autem.
-                                    last_edited_at: "2026-05-18T14:03:00Z"
-                                    last_edited_by: jsmith
-                                    model: fake
-                                    private_source_present: false
-                                    prompt_version: v1
-                                    regeneration_count: 0
-                                    revision: 7
-                                    source_refs:
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                        - excerpt: zl1
-                                          id: https://meet.example.org/abc123
-                                          kind: meeting
-                                          title: 2026-05-12 weekly sync
-                                    state: generated
-                                    uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                                    updated_at: "2023-06-20T14:45:30Z"
-                                    window_end: "2026-05-16T23:59:59.999999999Z"
-                                    window_start: "2026-05-10T00:00:00Z"
-                                throttle:
-                                    generates_limit: 2
-                                    generates_used: 0
-                                    regenerations_limit: 3
-                                    regenerations_used: 0
-                                    window_resets_at: "2026-05-24T00:00:00Z"
+                            examples:
+                                generating-state:
+                                    summary: generating-state
+                                    value:
+                                        brief:
+                                            committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                            private_source_present: false
+                                            regeneration_count: 0
+                                            revision: 1
+                                            state: generating
+                                            uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                                            window_end: "2026-05-16T23:59:59.999999999Z"
+                                            window_start: "2026-05-10T00:00:00Z"
+                                        throttle:
+                                            generates_limit: 2
+                                            generates_used: 1
+                                            regenerations_limit: 3
+                                            regenerations_used: 0
+                                            window_resets_at: "2026-05-17T00:00:00Z"
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -4354,7 +4346,7 @@ paths:
                                 $ref: '#/components/schemas/NoChatWebhookError'
                             example:
                                 code: no_chat_webhook
-                                message: Qui ut non expedita quod qui.
+                                message: Nisi harum quam magnam nihil.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -4411,7 +4403,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Rerum rerum dolorem in consequuntur possimus.
+                        example: Vel voluptatem voluptatem consequatur.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4448,6 +4440,24 @@ paths:
                             example:
                                 page_token: eyJvIjoxMDB9
                                 seats:
+                                    - appointed_by: Community
+                                      avatar: https://example.com/avatar.png
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: John
+                                      is_org_editable: true
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      organization_id: 001B000000IqhSLIAZ
+                                      project_slug: example-foundation
+                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      username: user123
+                                      voting_status: Voting Rep
                                     - appointed_by: Community
                                       avatar: https://example.com/avatar.png
                                       committee_category: Board
@@ -4822,7 +4832,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 7j0
+                        example: ua0
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -4914,7 +4924,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: whp
+                        example: i63
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5014,7 +5024,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: "514"
+                        example: owm
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5116,7 +5126,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: jnn
+                        example: 6zb
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5337,7 +5347,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: dvn
+                        example: d9n
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5446,7 +5456,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 41f
+                        example: vvw
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5591,7 +5601,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: b8i
+                        example: sc2
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5705,7 +5715,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 77c
+                        example: gse
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -6744,12 +6754,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: pt9
+                    example: qrr
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 1e72499d-968a-4375-aec7-36bd7a67bc00
+                    example: 9ec0ddd7-563e-4d41-96f5-c5c74df7136f
                     format: uuid
                 name:
                     type: string
@@ -6762,8 +6772,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: 9z3
-                folder_uid: 558fb8b5-4235-4379-800e-9ce6119d9249
+                description: 3v0
+                folder_uid: 79ce65b5-6cda-49e3-84da-ae9bcf8acf34
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -7005,14 +7015,14 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: ndu
+                    example: jnn
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
                     items:
                         type: string
-                        example: dtv
+                        example: 7j0
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -7121,7 +7131,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 31z
+                        example: whp
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -7165,7 +7175,7 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: kz3
+                chat_webhook_url: "514"
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -7345,37 +7355,13 @@ components:
             description: Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.
             example:
                 brief:
-                    brief_text: lyt
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    created_at: "2023-01-15T10:30:00Z"
-                    error_reason: Possimus consequatur perferendis dolorem nihil dolorem veniam.
-                    last_edited_at: "2026-05-18T14:03:00Z"
-                    last_edited_by: jsmith
-                    model: fake
+                    error_reason: no_sources
                     private_source_present: false
-                    prompt_version: v1
                     regeneration_count: 0
-                    revision: 7
-                    source_refs:
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                    state: generated
+                    revision: 1
+                    state: error
                     uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    updated_at: "2023-06-20T14:45:30Z"
                     window_end: "2026-05-16T23:59:59.999999999Z"
                     window_start: "2026-05-10T00:00:00Z"
                 throttle:
@@ -7415,45 +7401,20 @@ components:
             description: Envelope returned by POST /committees/{uid}/weekly-briefs/generate. Both brief and throttle are populated on success.
             example:
                 brief:
-                    brief_text: lyt
                     committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                    created_at: "2023-01-15T10:30:00Z"
-                    error_reason: Possimus consequatur perferendis dolorem nihil dolorem veniam.
-                    last_edited_at: "2026-05-18T14:03:00Z"
-                    last_edited_by: jsmith
-                    model: fake
                     private_source_present: false
-                    prompt_version: v1
                     regeneration_count: 0
-                    revision: 7
-                    source_refs:
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                    state: generated
+                    revision: 1
+                    state: generating
                     uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    updated_at: "2023-06-20T14:45:30Z"
                     window_end: "2026-05-16T23:59:59.999999999Z"
                     window_start: "2026-05-10T00:00:00Z"
                 throttle:
                     generates_limit: 2
-                    generates_used: 0
+                    generates_used: 1
                     regenerations_limit: 3
                     regenerations_used: 0
-                    window_resets_at: "2026-05-24T00:00:00Z"
+                    window_resets_at: "2026-05-17T00:00:00Z"
         GroupWeeklyBriefRevisionConflictError:
             type: object
             properties:
@@ -7481,7 +7442,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: rr3
+                    example: okb
                     maxLength: 5000
                 id:
                     type: string
@@ -7497,7 +7458,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: vlv
+                excerpt: hmm
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -7599,7 +7560,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: mt6
+                    example: kzo
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -7613,8 +7574,8 @@ components:
                     format: date-time
                 error_reason:
                     type: string
-                    description: Machine-readable reason for the error state; absent on non-error briefs
-                    example: Aut enim.
+                    description: 'Machine-readable reason for the error state; absent when the brief is not in the error state or the reason is empty. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).'
+                    example: no_sources
                 last_edited_at:
                     type: string
                     description: Timestamp of the most recent chair edit via PUT /current; absent if never edited
@@ -7654,19 +7615,11 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: qll
+                        - excerpt: t74
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
-                          id: https://meet.example.org/abc123
-                          kind: meeting
-                          title: 2026-05-12 weekly sync
-                        - excerpt: qll
+                        - excerpt: t74
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -7702,37 +7655,13 @@ components:
                     format: date-time
             description: A working-group weekly brief for a single committee and Sun→Sat window.
             example:
-                brief_text: "062"
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                created_at: "2023-01-15T10:30:00Z"
-                error_reason: Expedita quod dolor.
-                last_edited_at: "2026-05-18T14:03:00Z"
-                last_edited_by: jsmith
-                model: fake
+                error_reason: no_sources
                 private_source_present: false
-                prompt_version: v1
                 regeneration_count: 0
-                revision: 7
-                source_refs:
-                    - excerpt: qll
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: qll
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: qll
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                    - excerpt: qll
-                      id: https://meet.example.org/abc123
-                      kind: meeting
-                      title: 2026-05-12 weekly sync
-                state: generated
+                revision: 1
+                state: error
                 uid: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                updated_at: "2023-06-20T14:45:30Z"
                 window_end: "2026-05-16T23:59:59.999999999Z"
                 window_start: "2026-05-10T00:00:00Z"
         InternalServerError:
@@ -7778,11 +7707,11 @@ components:
                 message:
                     type: string
                     description: Human-readable description
-                    example: Ducimus hic.
+                    example: Nostrum eos voluptate.
             description: Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.
             example:
                 code: no_chat_webhook
-                message: Provident temporibus quis.
+                message: Qui quaerat ipsam.
             required:
                 - code
                 - message
@@ -8097,6 +8026,24 @@ components:
                       uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                       username: user123
                       voting_status: Voting Rep
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
             required:
                 - seats
         ReassignOrgCommitteeSeatRequestBody:
@@ -8247,7 +8194,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: yxg
+                        example: dvn
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -8339,7 +8286,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 6ic
+                        example: 41f
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -8414,7 +8361,7 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: td9
+                    example: 77c
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 last_reviewed_at:
@@ -8456,7 +8403,7 @@ components:
                       name: John Doe
                       username: auditor_user_id1
                 business_email_required: false
-                chat_webhook_url: 43v
+                chat_webhook_url: b8i
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -8500,74 +8447,45 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Animi ex error vel ut magnam.
+                    example: Pariatur atque.
                 description:
                     type: string
                     description: Optional description
-                    example: 81k
+                    example: k5j
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 67
-                        - 111
+                        - 80
+                        - 101
                         - 114
-                        - 114
-                        - 117
+                        - 115
                         - 112
-                        - 116
                         - 105
-                        - 32
-                        - 114
-                        - 101
-                        - 114
-                        - 117
-                        - 109
-                        - 32
-                        - 115
-                        - 105
-                        - 109
-                        - 105
-                        - 108
-                        - 105
-                        - 113
-                        - 117
-                        - 101
-                        - 32
-                        - 97
-                        - 117
-                        - 116
-                        - 32
-                        - 110
-                        - 105
-                        - 115
-                        - 105
-                        - 32
-                        - 100
-                        - 117
                         - 99
                         - 105
-                        - 109
-                        - 117
-                        - 115
-                        - 32
-                        - 118
-                        - 111
-                        - 108
-                        - 117
-                        - 112
-                        - 116
                         - 97
                         - 116
+                        - 105
+                        - 115
+                        - 32
+                        - 110
                         - 117
                         - 109
+                        - 113
+                        - 117
+                        - 97
+                        - 109
+                        - 32
+                        - 117
+                        - 116
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Quo minus qui quo odio corporis qui.
+                    example: Placeat et.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -8579,41 +8497,47 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Eum laborum animi.
-                description: q8n
+                content_type: Dolores explicabo sapiente.
+                description: jdf
                 file:
-                    - 86
-                    - 111
-                    - 108
-                    - 117
-                    - 112
-                    - 116
-                    - 97
-                    - 116
+                    - 78
                     - 101
-                    - 32
                     - 109
-                    - 97
-                    - 105
                     - 111
-                    - 114
+                    - 32
+                    - 110
+                    - 97
+                    - 109
+                    - 32
+                    - 115
                     - 101
+                    - 100
+                    - 32
+                    - 99
+                    - 111
+                    - 110
+                    - 115
+                    - 101
+                    - 99
+                    - 116
+                    - 101
+                    - 116
+                    - 117
+                    - 114
+                    - 32
+                    - 111
+                    - 109
+                    - 110
+                    - 105
                     - 115
                     - 32
                     - 97
-                    - 98
-                    - 32
                     - 108
-                    - 97
-                    - 98
-                    - 111
-                    - 114
+                    - 105
+                    - 113
                     - 117
+                    - 97
                     - 109
-                    - 32
-                    - 97
-                    - 117
-                    - 116
                     - 32
                     - 118
                     - 111
@@ -8623,16 +8547,12 @@ components:
                     - 116
                     - 97
                     - 116
-                    - 117
-                    - 109
-                    - 32
                     - 105
-                    - 112
+                    - 98
+                    - 117
                     - 115
-                    - 97
-                    - 109
                     - 46
-                file_name: Quas dolores voluptatum quos.
+                file_name: Sed autem ut voluptatum dicta.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

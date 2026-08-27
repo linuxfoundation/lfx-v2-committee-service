@@ -1241,7 +1241,9 @@ type UpdateCurrentWeeklyBriefResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
-	// Machine-readable reason for the error state; absent on non-error briefs
+	// Machine-readable reason for the error state; absent when the brief is not in
+	// the error state or the reason is empty. Supported values: "no_sources"
+	// (generator found no source material), "ai_error" (AI call failed).
 	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
@@ -3124,7 +3126,9 @@ type GroupWeeklyBriefWithReadonlyAttributesResponseBody struct {
 	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
 	// Lifecycle state
 	State *string `form:"state,omitempty" json:"state,omitempty" xml:"state,omitempty"`
-	// Machine-readable reason for the error state; absent on non-error briefs
+	// Machine-readable reason for the error state; absent when the brief is not in
+	// the error state or the reason is empty. Supported values: "no_sources"
+	// (generator found no source material), "ai_error" (AI call failed).
 	ErrorReason *string `form:"error_reason,omitempty" json:"error_reason,omitempty" xml:"error_reason,omitempty"`
 	// Brief body markdown text
 	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`

@@ -1191,7 +1191,9 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	WindowEnd *string
 	// Lifecycle state
 	State *string
-	// Machine-readable reason for the error state; absent on non-error briefs
+	// Machine-readable reason for the error state; absent when the brief is not in
+	// the error state or the reason is empty. Supported values: "no_sources"
+	// (generator found no source material), "ai_error" (AI call failed).
 	ErrorReason *string
 	// Brief body markdown text
 	BriefText *string
