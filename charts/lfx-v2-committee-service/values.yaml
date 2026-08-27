@@ -66,8 +66,6 @@ traefik:
 lfx:
   # domain is the base domain for routing
   domain: k8s.orb.local
-  # namespace is the target namespace for deployment
-  namespace: lfx
 
 # service is the configuration for the Kubernetes service
 service:
