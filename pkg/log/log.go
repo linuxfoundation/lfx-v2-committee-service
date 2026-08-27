@@ -90,7 +90,7 @@ func InitStructureLogConfig() {
 	slog.SetDefault(slog.New(logger))
 
 	slog.Info("log config initialized",
-		"log_level", logLevel,
+		"log_level", logOptions.Level.Level().String(),
 		"add_source", logOptions.AddSource,
 	)
 }

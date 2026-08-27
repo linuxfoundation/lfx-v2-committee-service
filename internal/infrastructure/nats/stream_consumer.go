@@ -5,7 +5,6 @@ package nats
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"math"
 	"math/rand"
@@ -63,10 +62,11 @@ func (c *NATSClient) ConsumeWithJetStream(
 
 	consumeCtx, err := consumer.Consume(func(msg jetstream.Msg) {
 		if err := handler(ctx, &streamMessengerAdapter{msg: msg}); err != nil {
-			var conflict errs.Conflict
-			if errors.As(err, &conflict) {
+			if _, ok := err.(errs.Conflict); ok {
 				// Revision conflict is expected under concurrent writes; NAK+backoff retries
 				// will self-heal, so this is a warning rather than a server error.
+				// Direct type assertion (not errors.As) so that a joined error containing
+				// both a conflict and an infra failure is still logged at ERROR.
 				slog.WarnContext(ctx, "stream message handler revision conflict — NAKing with backoff",
 					"error", err,
 					"subject", msg.Subject(),
