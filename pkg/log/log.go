@@ -59,49 +59,27 @@ func AppendCtx(parent context.Context, attr slog.Attr) context.Context {
 
 // InitStructureLogConfig sets the structured log behavior
 func InitStructureLogConfig() {
-
 	logOptions := &slog.HandlerOptions{}
-	var h slog.Handler
 
-	configurations := map[string]func(){
-		"options-logLevel": func() {
-			logLevel := os.Getenv("LOG_LEVEL")
-			slog.Info("log config",
-				"logLevel", logLevel,
-			)
-			switch logLevel {
-			case debug:
-				logOptions.Level = slog.LevelDebug
-			case warn:
-				logOptions.Level = slog.LevelWarn
-			case info:
-				logOptions.Level = slog.LevelInfo
-			default:
-				logOptions.Level = logLevelDefault
-			}
-		},
-		"options-addSource": func() {
-
-			addSourceBool := false
-
-			addSource := os.Getenv("LOG_ADD_SOURCE")
-			if addSource == "true" || addSource == "false" {
-				addSourceBool = addSource == "true"
-			}
-			slog.Info("log config",
-				"LOG_ADD_SOURCE", addSourceBool,
-			)
-			logOptions.AddSource = addSourceBool
-		},
+	// Build options from env vars before any logging so all output goes through
+	// the JSON handler. Calling slog before SetDefault writes text to stderr,
+	// which Datadog interprets as error-level entries.
+	logLevel := os.Getenv("LOG_LEVEL")
+	switch logLevel {
+	case debug:
+		logOptions.Level = slog.LevelDebug
+	case warn:
+		logOptions.Level = slog.LevelWarn
+	case info:
+		logOptions.Level = slog.LevelInfo
+	default:
+		logOptions.Level = logLevelDefault
 	}
 
-	for name, f := range configurations {
-		slog.Info("setting logging configuration",
-			"name", name,
-		)
-		f()
-	}
-	h = slog.NewJSONHandler(os.Stdout, logOptions)
+	addSource := os.Getenv("LOG_ADD_SOURCE")
+	logOptions.AddSource = addSource == "true"
+
+	h := slog.NewJSONHandler(os.Stdout, logOptions)
 	log.SetFlags(log.Llongfile)
 
 	// Wrap with slog-otel handler to add trace_id and span_id from context
@@ -110,6 +88,11 @@ func InitStructureLogConfig() {
 	// Wrap with contextHandler to support context-based attributes
 	logger := contextHandler{otelHandler}
 	slog.SetDefault(slog.New(logger))
+
+	slog.Info("log config initialized",
+		"log_level", logOptions.Level.Level().String(),
+		"add_source", logOptions.AddSource,
+	)
 }
 
 // Priority creates a slog.Attr for error priority classification
