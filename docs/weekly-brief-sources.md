@@ -84,11 +84,12 @@ earliest in-window message is used as the thread representative. This is accepta
 
 ## Date filter styles
 
-There are two query-service date filtering styles in use across these sources:
+All sources that filter by a date window use the field+range style:
 
 | Style | Params | Used by |
 |-------|--------|---------|
-| Field + range | `date_field=<field>`, `date_from`, `date_to` | All sources |
+| Field + range | `date_field=<field>`, `date_from`, `date_to` | All window-filtered sources |
 
-All sources use the field+range style. `date_field` names a key inside the resource's
-`data` blob; `date_from`/`date_to` are ISO 8601 timestamps.
+`date_field` names a key inside the resource's `data` blob; `date_from`/`date_to` are
+ISO 8601 timestamps (RFC 3339, fractional seconds preserved). Vote Results has no
+date-window filter — it is looked up per-vote, not by time range.

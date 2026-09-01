@@ -46,7 +46,7 @@ func TestListMeetingsForWindow_DateRangeParams(t *testing.T) {
 	defer srv.Close()
 
 	windowStart := time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC)
-	windowEnd := time.Date(2026, 8, 29, 23, 59, 59, 0, time.UTC)
+	windowEnd := time.Date(2026, 8, 29, 23, 59, 59, 999999999, time.UTC)
 
 	src := newMeetingSource(t, srv)
 	_, err := src.ListMeetingsForWindow(context.Background(), "c-1", windowStart, windowEnd)
@@ -55,8 +55,8 @@ func TestListMeetingsForWindow_DateRangeParams(t *testing.T) {
 	assert.Equal(t, "v1_past_meeting", capturedQuery.Get("type"))
 	assert.Equal(t, "committee_uid:c-1", capturedQuery.Get("tags"))
 	assert.Equal(t, "start_time", capturedQuery.Get("date_field"), "must use date_field=start_time")
-	assert.Equal(t, windowStart.UTC().Format(time.RFC3339), capturedQuery.Get("date_from"))
-	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339), capturedQuery.Get("date_to"))
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
 	assert.Empty(t, capturedQuery.Get("start_time[gte]"), "must not use legacy bracket notation")
 	assert.Empty(t, capturedQuery.Get("start_time[lte]"), "must not use legacy bracket notation")
 }

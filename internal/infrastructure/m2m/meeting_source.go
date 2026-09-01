@@ -109,8 +109,8 @@ func (m *MeetingSource) ListMeetingsForWindow(ctx context.Context, committeeUID 
 	q.Set("type", "v1_past_meeting")
 	q.Set("tags", "committee_uid:"+committeeUID)
 	q.Set("date_field", "start_time")
-	q.Set("date_from", windowStart.UTC().Format(time.RFC3339))
-	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339))
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
