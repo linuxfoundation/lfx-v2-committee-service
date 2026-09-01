@@ -17,7 +17,7 @@ name: "Weekly-Brief Live Eval"
 #
 # Tracked: LFXV2-2019
 "on":
-  workflow_call:
+  workflow_call: {}
   workflow_dispatch:
 
 permissions:

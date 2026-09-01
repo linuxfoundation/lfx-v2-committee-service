@@ -771,16 +771,23 @@ const inviteDispatchTimeout = 5 * time.Second
 const inviteNameResolveTimeout = 2 * time.Second
 
 // resolveInviteeDisplayName looks up a combined display name for the invitee via the
-// auth service when the invitee already has an LFID. Returns an empty string when the
-// invitee has no LFID yet or any lookup step fails — callers should treat an empty
-// return as "name unknown" and proceed without it.
-func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, email string) string {
+// auth service when the invitee already has an LFID. Returns the display name and
+// whether the invitee has a known LFID. Callers use hasAccount to select the
+// appropriate invite email template.
+//
+// Return values:
+//   - ("", false): invitee has no LFID, or any lookup step fails before the username
+//     is established.
+//   - ("", true): username found but the subsequent profile-metadata lookup failed;
+//     the account exists, name is unknown.
+//   - (name, true): username and display name both resolved successfully.
+func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, email string) (displayName string, hasAccount bool) {
 	if s.userReader == nil {
-		return ""
+		return "", false
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
-		return ""
+		return "", false
 	}
 	username, err := s.userReader.UsernameByEmail(ctx, email)
 	if err != nil {
@@ -789,24 +796,24 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 			slog.WarnContext(ctx, "username lookup failed for invite recipient — sending without name",
 				"email", redaction.RedactEmail(email), "error", err)
 		}
-		return ""
+		return "", false
 	}
 	if username == "" {
-		return ""
+		return "", false
 	}
 	meta, err := s.userReader.UserMetadataByPrincipal(ctx, username)
 	if err != nil {
 		slog.WarnContext(ctx, "user metadata lookup failed for invite recipient — sending without name",
 			"username", redaction.Redact(username), "error", err)
-		return ""
+		return "", true
 	}
 	if meta == nil {
-		return ""
+		return "", true
 	}
-	if name := strings.TrimSpace(meta.Name); name != "" {
-		return name
+	if n := strings.TrimSpace(meta.Name); n != "" {
+		return n, true
 	}
-	return strings.TrimSpace(meta.GivenName + " " + meta.FamilyName)
+	return strings.TrimSpace(meta.GivenName + " " + meta.FamilyName), true
 }
 
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
@@ -829,6 +836,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	// inviteNameResolveTimeout wall-clock time rather than consuming up to 2×timeout
 	// sequentially, leaving more of the dispatch budget for SendInvite.
 	var recipientName, inviterName string
+	var recipientHasAccount bool
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 
 	var wg sync.WaitGroup
@@ -838,7 +846,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 		defer wg.Done()
 		resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
 		defer resolveCancel()
-		recipientName = s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
+		recipientName, recipientHasAccount = s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
 	}()
 
 	if principal != "" && s.userReader != nil {
@@ -889,8 +897,9 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 			Name: committee.Name,
 			Type: "group",
 		},
-		Role:      "Member",
-		ReturnURL: strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
+		Role:                "Member",
+		RecipientHasAccount: recipientHasAccount,
+		ReturnURL:           strings.TrimRight(s.lfxSelfServeBaseURL, "/") + "/project/groups/" + committee.UID,
 		// Emit variable-length values only when they are within the invite-service's 1024-byte
 		// per-claim limit. If a value would exceed the limit it is omitted (empty string) and
 		// a warning is logged — relaying a truncated value downstream is worse than omitting it,
