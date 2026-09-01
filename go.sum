@@ -102,6 +102,8 @@ github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16 h1:pOcjVN+KQo2h80je1gl
 github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16/go.mod h1:hLf2Hl39PsUg2qtl5os0noXxCXWHrkO26EPT+G0RhmA=
 github.com/linuxfoundation/lfx-v2-invite-service v0.1.10 h1:BZa5PjRi//ADsGR3EiExThzlystJB7p6Cef95IrhTqs=
 github.com/linuxfoundation/lfx-v2-invite-service v0.1.10/go.mod h1:ON4E18WVM96iEX3y2E31wTOxouHcNtQa5+eRacfcZSU=
+github.com/linuxfoundation/lfx-v2-invite-service v0.2.1-0.20260901162717-b5c87ffc584d h1:FSI/m9WBmF2CYWajP7uIY9eMlm6hI0x81w9rcd10f5g=
+github.com/linuxfoundation/lfx-v2-invite-service v0.2.1-0.20260901162717-b5c87ffc584d/go.mod h1:YIBCPJD5W6+G0Ytvsrrq2s8/sYoU5RVInw2iOrTrvgA=
 github.com/manveru/faker v0.0.0-20171103152722-9fbc68a78c4d h1:Zj+PHjnhRYWBK6RqCDBcAhLXoi3TzC27Zad/Vn+gnVQ=
 github.com/manveru/faker v0.0.0-20171103152722-9fbc68a78c4d/go.mod h1:WZy8Q5coAB1zhY9AOBJP0O6J4BuDfbupUDavKY+I3+s=
 github.com/manveru/gobdd v0.0.0-20131210092515-f1a17fdd710b h1:3E44bLeN8uKYdfQqVQycPnaVviZdBLbizFhU49mtbe4=
