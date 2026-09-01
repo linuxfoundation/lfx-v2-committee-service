@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -253,12 +254,12 @@ func TestListAISummariesForWindow_DisabledBaseURL_ReturnsNil(t *testing.T) {
 
 func TestListAISummariesForWindow_QueryParameters(t *testing.T) {
 	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
-	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 0, time.UTC)
+	windowEnd := time.Date(2026, 5, 18, 23, 59, 59, 999999999, time.UTC)
 	committeeUID := "c-abc-123"
 
-	var capturedURL string
+	var capturedQuery url.Values
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedURL = r.URL.String()
+		capturedQuery = r.URL.Query()
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(queryEnvelope{Resources: nil})
 		_, _ = w.Write(body)
@@ -269,9 +270,11 @@ func TestListAISummariesForWindow_QueryParameters(t *testing.T) {
 	_, err := src.ListAISummariesForWindow(context.Background(), committeeUID, windowStart, windowEnd)
 
 	require.NoError(t, err)
-	assert.Contains(t, capturedURL, "type=v1_past_meeting_summary")
-	assert.Contains(t, capturedURL, "tags=committee_uid%3A"+committeeUID)
-	assert.Contains(t, capturedURL, "date_field=summary_start_time")
+	assert.Equal(t, "v1_past_meeting_summary", capturedQuery.Get("type"))
+	assert.Equal(t, "committee_uid:"+committeeUID, capturedQuery.Get("tags"))
+	assert.Equal(t, "summary_start_time", capturedQuery.Get("date_field"))
+	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
+	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
 }
 
 // ── Malformed data record is skipped ─────────────────────────────────────────
