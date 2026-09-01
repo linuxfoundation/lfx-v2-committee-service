@@ -91,5 +91,7 @@ All sources that filter by a date window use the field+range style:
 | Field + range | `date_field=<field>`, `date_from`, `date_to` | All window-filtered sources |
 
 `date_field` names a key inside the resource's `data` blob; `date_from`/`date_to` are
-ISO 8601 timestamps (RFC 3339, fractional seconds preserved). Vote Results has no
-date-window filter — it is looked up per-vote, not by time range.
+ISO 8601 datetime strings. Query-service normalizes them to second precision internally
+(`parseDateFilter` re-formats parsed values with `time.RFC3339`), so sub-second
+components are not forwarded to OpenSearch. Vote Results has no date-window filter —
+it is looked up per-vote, not by time range.
