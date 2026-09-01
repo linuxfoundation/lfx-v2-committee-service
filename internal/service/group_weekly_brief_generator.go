@@ -535,9 +535,13 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 	for _, m := range meetings {
 		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
 		refs = append(refs, ref)
+		summary := claimLabel("meeting", m.Title)
+		if !m.StartTime.IsZero() {
+			summary += " (" + m.StartTime.UTC().Format("2006-01-02") + ")"
+		}
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "meeting-" + m.UID,
-			Summary: claimLabel("meeting", m.Title),
+			Summary: summary,
 			Sources: []port.SourceRef{{Type: "meeting", ID: m.UID}},
 		})
 	}
