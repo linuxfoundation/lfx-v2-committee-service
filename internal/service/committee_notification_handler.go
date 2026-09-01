@@ -194,6 +194,18 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 		lookupCancel()
 	}
 
+	// Check whether the recipient already has an LFX account so the invite service
+	// can choose the correct email template. Best-effort: any lookup error leaves
+	// recipientHasAccount false, which falls back to the new-user template safely.
+	recipientHasAccount := false
+	if h.userReader != nil {
+		acctCtx, acctCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+		if username, lookupErr := h.userReader.UsernameByEmail(acctCtx, strings.TrimSpace(member.Email)); lookupErr == nil && username != "" {
+			recipientHasAccount = true
+		}
+		acctCancel()
+	}
+
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
 
@@ -210,8 +222,9 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 			Name: member.CommitteeName,
 			Type: "group",
 		},
-		Role:      string(inviteapi.InviteRoleMember),
-		ReturnURL: deepLinkURL,
+		Role:                string(inviteapi.InviteRoleMember),
+		ReturnURL:           deepLinkURL,
+		RecipientHasAccount: recipientHasAccount,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to send member invite request",
@@ -334,6 +347,19 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 				}
 				// Use the highest new role for the invite (Writer > Auditor for access level).
 				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
+
+				// Check whether the recipient already has an LFX account so the invite
+				// service can choose the correct email template. Best-effort: any lookup
+				// error leaves settingsRecipientHasAccount false, falling back to new-user template.
+				settingsRecipientHasAccount := false
+				if h.userReader != nil {
+					acctCtx, acctCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+					if settingsUsername, settingsLookupErr := h.userReader.UsernameByEmail(acctCtx, strings.TrimSpace(u.Email)); settingsLookupErr == nil && settingsUsername != "" {
+						settingsRecipientHasAccount = true
+					}
+					acctCancel()
+				}
+
 				sendCtx, sendCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				defer sendCancel()
 				result, inviteErr := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
@@ -349,8 +375,9 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 						Name: data.CommitteeName,
 						Type: "group",
 					},
-					Role:      inviteRole,
-					ReturnURL: committeeURL,
+					Role:                inviteRole,
+					ReturnURL:           committeeURL,
+					RecipientHasAccount: settingsRecipientHasAccount,
 				})
 				if inviteErr != nil {
 					slog.WarnContext(gctx, "failed to send settings invite request",
