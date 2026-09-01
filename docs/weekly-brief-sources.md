@@ -17,7 +17,7 @@ query-service sources over a caller-supplied time window. Each source is an adap
 |-------|-------|
 | Resource type | `v1_past_meeting` |
 | Committee tag | `committee_uid:{uid}` |
-| Date filter | `start_time[gte]`/`start_time[lte]` (bracket notation, v1 style) |
+| Date filter | `date_field=start_time` + `date_from`/`date_to` |
 | Date field | `start_time` |
 
 ### Meeting AI Summaries — `meeting_ai_summary_source.go`
@@ -88,8 +88,7 @@ There are two query-service date filtering styles in use across these sources:
 
 | Style | Params | Used by |
 |-------|--------|---------|
-| Bracket notation (v1) | `start_time[gte]`, `start_time[lte]` | Meetings |
-| Field + range (current) | `date_field=<field>`, `date_from`, `date_to` | Meeting AI Summaries, Votes, Surveys, Project Membership, Mailing List Messages |
+| Field + range | `date_field=<field>`, `date_from`, `date_to` | All sources |
 
-New sources should use the field+range style. `date_field` names a key inside the resource's
+All sources use the field+range style. `date_field` names a key inside the resource's
 `data` blob; `date_from`/`date_to` are ISO 8601 timestamps.

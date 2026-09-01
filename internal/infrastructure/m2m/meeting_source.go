@@ -38,7 +38,7 @@ type MeetingSourceConfig struct {
 // MeetingSource is the live MeetingSource adapter. It speaks
 //
 //	GET {BaseURL}/query/resources?type=v1_past_meeting&tags=committee_uid:{uid}
-//	    &start_time[gte]={windowStart}&start_time[lte]={windowEnd}
+//	    &date_field=start_time&date_from={windowStart}&date_to={windowEnd}
 //
 // against the query-service. Authentication is by a *http.Client returned by
 // oauth2/clientcredentials (NOT the caller's bearer token).
