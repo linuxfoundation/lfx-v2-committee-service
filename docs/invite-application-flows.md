@@ -220,6 +220,7 @@ The invite service delivers the invite email. When the user completes LFID signu
 | `resource.type` | `"group"` |
 | `role` | `"Manage"` (Writer) or `"View"` (Auditor); for a user with multiple new roles, the highest-privilege role wins (`mapRoleToInviteRole(highestRole(...))`) |
 | `return_url` | Deep link to the committee page |
+| `recipient_has_account` | `true` when the recipient's email resolves to an existing LFX account via the auth service; `false` on any lookup error or when no account is found. Selects "Accept invitation" (existing account) vs "Accept invitation & create account" (new user) template in the invite service. Best-effort: a lookup failure falls back to `false` (new-user template). Set on all three dispatch paths: member roster, settings writers/auditors, and the invite API. |
 
 A re-invite is skipped when the user's effective access is unchanged (e.g. gaining Auditor on top of Writer).
 

@@ -1250,13 +1250,18 @@ func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInvit
 
 // mockUserReader is a simple UserReader for tests that returns fixed metadata.
 type mockUserReader struct {
-	meta         *model.UserMetadata
-	err          error
-	primaryEmail string // returned by EmailsByAuthToken
+	meta               *model.UserMetadata
+	err                error  // returned by UserMetadataByPrincipal
+	primaryEmail       string // returned by EmailsByAuthToken
+	username           string // returned by UsernameByEmail; empty means "no account found"
+	usernameByEmailErr error  // returned by UsernameByEmail instead of err
 }
 
 func (m *mockUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
-	return "", nil
+	if m.usernameByEmailErr != nil {
+		return "", m.usernameByEmailErr
+	}
+	return m.username, nil
 }
 
 func (m *mockUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
@@ -1362,18 +1367,19 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                 string
-		msgData              []byte
-		emailSender          *mockEmailSender
-		inviteSender         *mockInviteSender
-		userReader           *mockUserReader
-		omitEmailSender      bool
-		omitInviteSender     bool
-		wantEmailCount       int
-		wantInviteCount      int
-		wantInviteRole       string
-		wantInviterName      string // asserted on Inviter.Name in the first invite call
-		wantEmailInviterName string // asserted on InviterName in the LFID direct-email HTML
+		name                    string
+		msgData                 []byte
+		emailSender             *mockEmailSender
+		inviteSender            *mockInviteSender
+		userReader              *mockUserReader
+		omitEmailSender         bool
+		omitInviteSender        bool
+		wantEmailCount          int
+		wantInviteCount         int
+		wantInviteRole          string
+		wantInviterName         string // asserted on Inviter.Name in the first invite call
+		wantEmailInviterName    string // asserted on InviterName in the LFID direct-email HTML
+		wantRecipientHasAccount bool   // asserted on RecipientHasAccount in the first invite call
 	}{
 		{
 			name:            "LFID member — email notification sent",
@@ -1566,6 +1572,26 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			wantEmailCount:  0,
 			wantInviteCount: 0,
 		},
+		{
+			name:                    "non-LFID member — LFID lookup succeeds — RecipientHasAccount true",
+			msgData:                 buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:             &mockEmailSender{},
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{username: "bob-lfid"},
+			wantEmailCount:          0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: true,
+		},
+		{
+			name:                    "non-LFID member — LFID lookup fails — RecipientHasAccount false, invite still sent",
+			msgData:                 buildMemberCreatedPayload(t, nonLFIDMember),
+			emailSender:             &mockEmailSender{},
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{usernameByEmailErr: assert.AnError},
+			wantEmailCount:          0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1622,6 +1648,7 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					} else {
 						assert.Equal(t, tt.wantInviterName, "", "inviter name (nil Inviter)")
 					}
+					assert.Equal(t, tt.wantRecipientHasAccount, req.RecipientHasAccount, "RecipientHasAccount")
 				}
 			}
 		})
@@ -1640,22 +1667,23 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                  string
-		oldWriters            []model.CommitteeUser
-		newWriters            []model.CommitteeUser
-		oldAuditors           []model.CommitteeUser
-		newAuditors           []model.CommitteeUser
-		updatedBy             string
-		userReader            *mockUserReader
-		omitEmailSender       bool
-		inviteSender          *mockInviteSender
-		omitInviteSender      bool
-		invalidJSON           bool
-		wantSendCount         int
-		wantInviteCount       int
-		wantInviteRole        string
-		wantInviterName       string
-		wantInviteInviterName *string
+		name                    string
+		oldWriters              []model.CommitteeUser
+		newWriters              []model.CommitteeUser
+		oldAuditors             []model.CommitteeUser
+		newAuditors             []model.CommitteeUser
+		updatedBy               string
+		userReader              *mockUserReader
+		omitEmailSender         bool
+		inviteSender            *mockInviteSender
+		omitInviteSender        bool
+		invalidJSON             bool
+		wantSendCount           int
+		wantInviteCount         int
+		wantInviteRole          string
+		wantInviterName         string
+		wantInviteInviterName   *string
+		wantRecipientHasAccount bool
 	}{
 		{
 			name:          "new writer added — one email sent with Writer role",
@@ -1822,6 +1850,26 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 			wantInviteCount:       1,
 			wantInviteInviterName: strPtr(""),
 		},
+		{
+			name:                    "non-LFID writer — LFID lookup succeeds — RecipientHasAccount true",
+			newWriters:              []model.CommitteeUser{noLFIDUser},
+			omitEmailSender:         true,
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{username: "nolfid-lfid"},
+			wantSendCount:           0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: true,
+		},
+		{
+			name:                    "non-LFID writer — LFID lookup fails — RecipientHasAccount false, invite still sent",
+			newWriters:              []model.CommitteeUser{noLFIDUser},
+			omitEmailSender:         true,
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{usernameByEmailErr: assert.AnError},
+			wantSendCount:           0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1887,6 +1935,9 @@ func TestHandleCommitteeSettingsUpdated(t *testing.T) {
 					} else {
 						assert.Equal(t, "", *tt.wantInviteInviterName, "invite inviter name (nil Inviter)")
 					}
+				}
+				if tt.wantInviteCount > 0 {
+					assert.Equal(t, tt.wantRecipientHasAccount, inviteCalls[0].RecipientHasAccount, "RecipientHasAccount")
 				}
 			}
 		})

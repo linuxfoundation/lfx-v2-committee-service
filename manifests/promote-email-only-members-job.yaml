@@ -62,13 +62,15 @@ spec:
       serviceAccountName: lfx-v2-committee-service
       containers:
         - name: promote
-          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:d4d895cc97b548d66b4318313cbadf08d71f948c
+          image: ghcr.io/linuxfoundation/lfx-v2-committee-service/committee-cli:bdaf710c2b9a8b241c69e4af88eafc33b26c0ea5
           imagePullPolicy: IfNotPresent
           args:
             - sync
             - promote-email-only-members
             # Default to dry-run. Change to --dry-run=false for a live promotion run.
             - --dry-run=true
+            # Pace auth-service lookups to stay under rate limits; applies only to uncached emails.
+            - --sleep=100ms
           env:
             - name: NATS_URL
               value: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
