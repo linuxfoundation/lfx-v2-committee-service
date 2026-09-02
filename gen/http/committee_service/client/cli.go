@@ -2907,6 +2907,44 @@ func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody str
 	return v, nil
 }
 
+// BuildPreviewGenerateWeeklyBriefPayload builds the payload for the
+// committee-service preview-generate-weekly-brief endpoint from CLI flags.
+func BuildPreviewGenerateWeeklyBriefPayload(committeeServicePreviewGenerateWeeklyBriefUID string, committeeServicePreviewGenerateWeeklyBriefVersion string, committeeServicePreviewGenerateWeeklyBriefBearerToken string) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServicePreviewGenerateWeeklyBriefUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServicePreviewGenerateWeeklyBriefVersion != "" {
+			version = &committeeServicePreviewGenerateWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServicePreviewGenerateWeeklyBriefBearerToken != "" {
+			bearerToken = &committeeServicePreviewGenerateWeeklyBriefBearerToken
+		}
+	}
+	v := &committeeservice.PreviewGenerateWeeklyBriefPayload{}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
 // BuildUpdateCurrentWeeklyBriefPayload builds the payload for the
 // committee-service update-current-weekly-brief endpoint from CLI flags.
 func BuildUpdateCurrentWeeklyBriefPayload(committeeServiceUpdateCurrentWeeklyBriefBody string, committeeServiceUpdateCurrentWeeklyBriefUID string, committeeServiceUpdateCurrentWeeklyBriefVersion string, committeeServiceUpdateCurrentWeeklyBriefBearerToken string) (*committeeservice.UpdateCurrentWeeklyBriefPayload, error) {

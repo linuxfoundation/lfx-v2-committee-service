@@ -174,6 +174,10 @@ type Client struct {
 	// generate-weekly-brief endpoint.
 	GenerateWeeklyBriefDoer goahttp.Doer
 
+	// PreviewGenerateWeeklyBrief Doer is the HTTP client used to make requests to
+	// the preview-generate-weekly-brief endpoint.
+	PreviewGenerateWeeklyBriefDoer goahttp.Doer
+
 	// UpdateCurrentWeeklyBrief Doer is the HTTP client used to make requests to
 	// the update-current-weekly-brief endpoint.
 	UpdateCurrentWeeklyBriefDoer goahttp.Doer
@@ -208,52 +212,53 @@ func NewClient(
 	restoreBody bool,
 ) *Client {
 	return &Client{
-		CreateCommitteeDoer:           doer,
-		GetCommitteeBaseDoer:          doer,
-		UpdateCommitteeBaseDoer:       doer,
-		DeleteCommitteeDoer:           doer,
-		GetCommitteeSettingsDoer:      doer,
-		UpdateCommitteeSettingsDoer:   doer,
-		ReadyzDoer:                    doer,
-		LivezDoer:                     doer,
-		CreateCommitteeMemberDoer:     doer,
-		GetCommitteeMemberDoer:        doer,
-		GetOrgCommitteeSeatsDoer:      doer,
-		ReassignOrgCommitteeSeatDoer:  doer,
-		UpdateCommitteeMemberDoer:     doer,
-		DeleteCommitteeMemberDoer:     doer,
-		GetInviteDoer:                 doer,
-		CreateInviteDoer:              doer,
-		RevokeInviteDoer:              doer,
-		AcceptInviteDoer:              doer,
-		DeclineInviteDoer:             doer,
-		GetApplicationDoer:            doer,
-		SubmitApplicationDoer:         doer,
-		ApproveApplicationDoer:        doer,
-		RejectApplicationDoer:         doer,
-		JoinCommitteeDoer:             doer,
-		LeaveCommitteeDoer:            doer,
-		GetCommitteeLinkDoer:          doer,
-		ListCommitteeLinksDoer:        doer,
-		CreateCommitteeLinkDoer:       doer,
-		DeleteCommitteeLinkDoer:       doer,
-		GetCommitteeLinkFolderDoer:    doer,
-		ListCommitteeLinkFoldersDoer:  doer,
-		CreateCommitteeLinkFolderDoer: doer,
-		DeleteCommitteeLinkFolderDoer: doer,
-		UploadCommitteeDocumentDoer:   doer,
-		GetCommitteeDocumentDoer:      doer,
-		DownloadCommitteeDocumentDoer: doer,
-		DeleteCommitteeDocumentDoer:   doer,
-		GetCurrentWeeklyBriefDoer:     doer,
-		GenerateWeeklyBriefDoer:       doer,
-		UpdateCurrentWeeklyBriefDoer:  doer,
-		ShareWeeklyBriefToChatDoer:    doer,
-		RestoreResponseBody:           restoreBody,
-		scheme:                        scheme,
-		host:                          host,
-		decoder:                       dec,
-		encoder:                       enc,
+		CreateCommitteeDoer:            doer,
+		GetCommitteeBaseDoer:           doer,
+		UpdateCommitteeBaseDoer:        doer,
+		DeleteCommitteeDoer:            doer,
+		GetCommitteeSettingsDoer:       doer,
+		UpdateCommitteeSettingsDoer:    doer,
+		ReadyzDoer:                     doer,
+		LivezDoer:                      doer,
+		CreateCommitteeMemberDoer:      doer,
+		GetCommitteeMemberDoer:         doer,
+		GetOrgCommitteeSeatsDoer:       doer,
+		ReassignOrgCommitteeSeatDoer:   doer,
+		UpdateCommitteeMemberDoer:      doer,
+		DeleteCommitteeMemberDoer:      doer,
+		GetInviteDoer:                  doer,
+		CreateInviteDoer:               doer,
+		RevokeInviteDoer:               doer,
+		AcceptInviteDoer:               doer,
+		DeclineInviteDoer:              doer,
+		GetApplicationDoer:             doer,
+		SubmitApplicationDoer:          doer,
+		ApproveApplicationDoer:         doer,
+		RejectApplicationDoer:          doer,
+		JoinCommitteeDoer:              doer,
+		LeaveCommitteeDoer:             doer,
+		GetCommitteeLinkDoer:           doer,
+		ListCommitteeLinksDoer:         doer,
+		CreateCommitteeLinkDoer:        doer,
+		DeleteCommitteeLinkDoer:        doer,
+		GetCommitteeLinkFolderDoer:     doer,
+		ListCommitteeLinkFoldersDoer:   doer,
+		CreateCommitteeLinkFolderDoer:  doer,
+		DeleteCommitteeLinkFolderDoer:  doer,
+		UploadCommitteeDocumentDoer:    doer,
+		GetCommitteeDocumentDoer:       doer,
+		DownloadCommitteeDocumentDoer:  doer,
+		DeleteCommitteeDocumentDoer:    doer,
+		GetCurrentWeeklyBriefDoer:      doer,
+		GenerateWeeklyBriefDoer:        doer,
+		PreviewGenerateWeeklyBriefDoer: doer,
+		UpdateCurrentWeeklyBriefDoer:   doer,
+		ShareWeeklyBriefToChatDoer:     doer,
+		RestoreResponseBody:            restoreBody,
+		scheme:                         scheme,
+		host:                           host,
+		decoder:                        dec,
+		encoder:                        enc,
 	}
 }
 
@@ -1183,6 +1188,30 @@ func (c *Client) GenerateWeeklyBrief() goa.Endpoint {
 		resp, err := c.GenerateWeeklyBriefDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "generate-weekly-brief", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// PreviewGenerateWeeklyBrief returns an endpoint that makes HTTP requests to
+// the committee-service service preview-generate-weekly-brief server.
+func (c *Client) PreviewGenerateWeeklyBrief() goa.Endpoint {
+	var (
+		encodeRequest  = EncodePreviewGenerateWeeklyBriefRequest(c.encoder)
+		decodeResponse = DecodePreviewGenerateWeeklyBriefResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildPreviewGenerateWeeklyBriefRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.PreviewGenerateWeeklyBriefDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "preview-generate-weekly-brief", err)
 		}
 		return decodeResponse(resp)
 	}

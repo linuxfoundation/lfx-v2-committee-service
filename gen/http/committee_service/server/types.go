@@ -1227,6 +1227,26 @@ type GenerateWeeklyBriefResponseBody struct {
 	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
 }
 
+// PreviewGenerateWeeklyBriefResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body.
+type PreviewGenerateWeeklyBriefResponseBody struct {
+	// Generated brief body markdown text
+	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRefResponseBody `form:"source_refs,omitempty" json:"source_refs,omitempty" xml:"source_refs,omitempty"`
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool `form:"private_source_present,omitempty" json:"private_source_present,omitempty" xml:"private_source_present,omitempty"`
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string `form:"window_start,omitempty" json:"window_start,omitempty" xml:"window_start,omitempty"`
+	// Inclusive UTC end of the window
+	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
+	// Prompt version used by the generator
+	PromptVersion *string `form:"prompt_version,omitempty" json:"prompt_version,omitempty" xml:"prompt_version,omitempty"`
+	// AI model used by the generator
+	Model *string `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
+}
+
 // UpdateCurrentWeeklyBriefResponseBody is the type of the "committee-service"
 // service "update-current-weekly-brief" endpoint HTTP response body.
 type UpdateCurrentWeeklyBriefResponseBody struct {
@@ -2593,6 +2613,46 @@ type GenerateWeeklyBriefNotFoundResponseBody struct {
 // "committee-service" service "generate-weekly-brief" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GenerateWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "BadRequest" error.
+type PreviewGenerateWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "Forbidden" error.
+type PreviewGenerateWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "InternalServerError" error.
+type PreviewGenerateWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "NotFound" error.
+type PreviewGenerateWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type PreviewGenerateWeeklyBriefServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -4615,6 +4675,27 @@ func NewGenerateWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefGe
 	return body
 }
 
+// NewPreviewGenerateWeeklyBriefResponseBody builds the HTTP response body from
+// the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefPreviewResult) *PreviewGenerateWeeklyBriefResponseBody {
+	body := &PreviewGenerateWeeklyBriefResponseBody{
+		BriefText:            res.BriefText,
+		PrivateSourcePresent: res.PrivateSourcePresent,
+		WindowStart:          res.WindowStart,
+		WindowEnd:            res.WindowEnd,
+		PromptVersion:        res.PromptVersion,
+		Model:                res.Model,
+	}
+	if res.SourceRefs != nil {
+		body.SourceRefs = make([]*GroupWeeklyBriefSourceRefResponseBody, len(res.SourceRefs))
+		for i, val := range res.SourceRefs {
+			body.SourceRefs[i] = marshalCommitteeserviceGroupWeeklyBriefSourceRefToGroupWeeklyBriefSourceRefResponseBody(val)
+		}
+	}
+	return body
+}
+
 // NewUpdateCurrentWeeklyBriefResponseBody builds the HTTP response body from
 // the result of the "update-current-weekly-brief" endpoint of the
 // "committee-service" service.
@@ -6283,6 +6364,56 @@ func NewGenerateWeeklyBriefServiceUnavailableResponseBody(res *committeeservice.
 	return body
 }
 
+// NewPreviewGenerateWeeklyBriefBadRequestResponseBody builds the HTTP response
+// body from the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefBadRequestResponseBody(res *committeeservice.BadRequestError) *PreviewGenerateWeeklyBriefBadRequestResponseBody {
+	body := &PreviewGenerateWeeklyBriefBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewPreviewGenerateWeeklyBriefForbiddenResponseBody builds the HTTP response
+// body from the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefForbiddenResponseBody(res *committeeservice.ForbiddenError) *PreviewGenerateWeeklyBriefForbiddenResponseBody {
+	body := &PreviewGenerateWeeklyBriefForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewPreviewGenerateWeeklyBriefInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "preview-generate-weekly-brief"
+// endpoint of the "committee-service" service.
+func NewPreviewGenerateWeeklyBriefInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *PreviewGenerateWeeklyBriefInternalServerErrorResponseBody {
+	body := &PreviewGenerateWeeklyBriefInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewPreviewGenerateWeeklyBriefNotFoundResponseBody builds the HTTP response
+// body from the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefNotFoundResponseBody(res *committeeservice.NotFoundError) *PreviewGenerateWeeklyBriefNotFoundResponseBody {
+	body := &PreviewGenerateWeeklyBriefNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewPreviewGenerateWeeklyBriefServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "preview-generate-weekly-brief"
+// endpoint of the "committee-service" service.
+func NewPreviewGenerateWeeklyBriefServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *PreviewGenerateWeeklyBriefServiceUnavailableResponseBody {
+	body := &PreviewGenerateWeeklyBriefServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewUpdateCurrentWeeklyBriefBadRequestResponseBody builds the HTTP response
 // body from the result of the "update-current-weekly-brief" endpoint of the
 // "committee-service" service.
@@ -7321,6 +7452,17 @@ func NewGenerateWeeklyBriefPayload(body *GenerateWeeklyBriefRequestBody, uid str
 	if body.Force == nil {
 		v.Force = false
 	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewPreviewGenerateWeeklyBriefPayload builds a committee-service service
+// preview-generate-weekly-brief endpoint payload.
+func NewPreviewGenerateWeeklyBriefPayload(uid string, version *string, bearerToken *string) *committeeservice.PreviewGenerateWeeklyBriefPayload {
+	v := &committeeservice.PreviewGenerateWeeklyBriefPayload{}
 	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken

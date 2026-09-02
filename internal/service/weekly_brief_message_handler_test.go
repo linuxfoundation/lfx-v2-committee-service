@@ -32,6 +32,10 @@ func (r *recordingGenerator) Fulfill(_ context.Context, in GroupWeeklyBriefGener
 	return r.err
 }
 
+func (r *recordingGenerator) Preview(_ context.Context, _ GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefPreviewOutput, error) {
+	panic("Preview is not called from the message handler under test")
+}
+
 func mustMarshalEvent(t *testing.T, e GenerateWeeklyBriefRequestedEvent) []byte {
 	t.Helper()
 	b, err := json.Marshal(e)

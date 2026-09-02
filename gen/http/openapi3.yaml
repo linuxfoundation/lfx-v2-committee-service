@@ -1534,36 +1534,6 @@ paths:
                                     email: alexlee@linuxfoundation.org
                                     name: Alex Lee
                                     username: alexlee
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  name: Meeting Notes
-                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  updated_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  name: Meeting Notes
-                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  updated_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -2651,9 +2621,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: adf6c27f-ccf0-4f76-812d-d2cfca002603
+                    example: 6ae7f7fd-3199-405a-9cb6-610c963eca96
                     format: uuid
-                  example: d5bdb9fd-9d62-4dc5-ae56-76081bcef904
+                  example: 6595812e-faaf-4dc9-857f-9b4ac4554d1b
             responses:
                 "200":
                     description: OK response.
@@ -2718,61 +2688,7 @@ paths:
                                         name: Alex Lee
                                         username: alexlee
                                       url: https://confluence.example.com/architecture-decisions
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by:
-                                        avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
-                                      description: Confluence wiki — architecture decisions log
-                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      name: Technical Architecture Decision Records
-                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      updated_by:
-                                        avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
-                                      url: https://confluence.example.com/architecture-decisions
                             example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  updated_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  url: https://confluence.example.com/architecture-decisions
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  updated_by:
-                                    avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
-                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
@@ -4265,6 +4181,91 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/weekly-briefs/preview-generate:
+        post:
+            tags:
+                - committee-service
+            summary: preview-generate-weekly-brief committee-service
+            description: Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window selected by the service, returning the generated brief text without persisting anything. No throttle is consumed, no brief state is changed, and no KV write occurs. Use this to inspect generator output before triggering a real generation. Responds 200 with the brief text and source refs; 404 when the window has no activity.
+            operationId: committee-service#preview-generate-weekly-brief
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GroupWeeklyBriefPreviewResult'
+                            example:
+                                brief_text: The committee met on 2026-08-27...
+                                model: claude-sonnet-4-6
+                                private_source_present: false
+                                prompt_version: v1
+                                window_end: "2026-08-29T23:59:59.999999999Z"
+                                window_start: "2026-08-23T00:00:00Z"
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Caller lacks writer access on the committee'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Committee not found or no activity in the current window'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/weekly-briefs/share-to-chat:
         post:
             tags:
@@ -4403,7 +4404,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Vel voluptatem voluptatem consequatur.
+                        example: Unde dolor eos ullam maiores saepe.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4832,7 +4833,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: ua0
+                        example: wmv
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -4924,7 +4925,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: i63
+                        example: zbr
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5024,7 +5025,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: owm
+                        example: 9nd
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5126,7 +5127,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 6zb
+                        example: vws
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5347,7 +5348,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: d9n
+                        example: c2z
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5456,7 +5457,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: vvw
+                        example: sem
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5601,7 +5602,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: sc2
+                        example: zhm
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5715,7 +5716,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: gse
+                        example: mok
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -6754,12 +6755,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: qrr
+                    example: "6e5"
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 9ec0ddd7-563e-4d41-96f5-c5c74df7136f
+                    example: 9ec0eeea-3feb-439f-b9b5-35bbe27a00f6
                     format: uuid
                 name:
                     type: string
@@ -6772,8 +6773,8 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: 3v0
-                folder_uid: 79ce65b5-6cda-49e3-84da-ae9bcf8acf34
+                description: 3fu
+                folder_uid: de5c7099-b33d-4f11-8892-0583dbf63b96
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -7015,14 +7016,14 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: jnn
+                    example: nm7
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
                     items:
                         type: string
-                        example: 7j0
+                        example: ftd
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -7131,7 +7132,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: whp
+                        example: 4k4
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -7175,7 +7176,7 @@ components:
                     public: true
                 category: Technical Steering Committee
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: "514"
+                chat_webhook_url: c8b
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -7415,6 +7416,66 @@ components:
                     regenerations_limit: 3
                     regenerations_used: 0
                     window_resets_at: "2026-05-17T00:00:00Z"
+        GroupWeeklyBriefPreviewResult:
+            type: object
+            properties:
+                brief_text:
+                    type: string
+                    description: Generated brief body markdown text
+                    example: The committee met on 2026-08-27 to review the Q3 roadmap...
+                    maxLength: 20000
+                model:
+                    type: string
+                    description: AI model used by the generator
+                    example: claude-sonnet-4-6
+                private_source_present:
+                    type: boolean
+                    description: Whether any non-public source was used
+                    example: false
+                prompt_version:
+                    type: string
+                    description: Prompt version used by the generator
+                    example: v1
+                source_refs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
+                    description: Sources considered by the generator
+                    example:
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                window_end:
+                    type: string
+                    description: Inclusive UTC end of the window
+                    example: "2026-08-29T23:59:59.999999999Z"
+                    format: date-time
+                window_start:
+                    type: string
+                    description: UTC Sunday 00:00:00 marking the start of the window
+                    example: "2026-08-23T00:00:00Z"
+                    format: date-time
+            description: Envelope returned by POST /committees/{uid}/weekly-briefs/preview-generate. Contains the generated brief text and metadata without persisting anything.
+            example:
+                brief_text: The committee met on 2026-08-27...
+                model: claude-sonnet-4-6
+                private_source_present: false
+                prompt_version: v1
+                window_end: "2026-08-29T23:59:59.999999999Z"
+                window_start: "2026-08-23T00:00:00Z"
         GroupWeeklyBriefRevisionConflictError:
             type: object
             properties:
@@ -7442,7 +7503,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: okb
+                    example: zoi
                     maxLength: 5000
                 id:
                     type: string
@@ -7458,7 +7519,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: hmm
+                excerpt: t74
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -7560,7 +7621,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: kzo
+                    example: hjt
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -7615,11 +7676,19 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: t74
+                        - excerpt: kf0
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: t74
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: kf0
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: kf0
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -7707,11 +7776,11 @@ components:
                 message:
                     type: string
                     description: Human-readable description
-                    example: Nostrum eos voluptate.
+                    example: Itaque ut et sint nesciunt.
             description: Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.
             example:
                 code: no_chat_webhook
-                message: Qui quaerat ipsam.
+                message: Velit labore atque vel ea.
             required:
                 - code
                 - message
@@ -7896,24 +7965,6 @@ components:
                         $ref: '#/components/schemas/OrgCommitteeSeat'
                     description: The committee seats in this page
                     example:
-                        - appointed_by: Community
-                          avatar: https://example.com/avatar.png
-                          committee_category: Board
-                          committee_name: Technical Steering Committee
-                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          email: user@example.com
-                          first_name: John
-                          is_org_editable: true
-                          job_title: Chief Technology Officer
-                          last_name: Doe
-                          organization_id: 001B000000IqhSLIAZ
-                          project_slug: example-foundation
-                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          reason: This seat is foundation-controlled.
-                          role_name: Chair
-                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                          username: user123
-                          voting_status: Voting Rep
                         - appointed_by: Community
                           avatar: https://example.com/avatar.png
                           committee_category: Board
@@ -8194,7 +8245,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: dvn
+                        example: rr3
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -8286,7 +8337,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 41f
+                        example: iq1
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -8361,7 +8412,7 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: 77c
+                    example: vlv
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 last_reviewed_at:
@@ -8403,7 +8454,7 @@ components:
                       name: John Doe
                       username: auditor_user_id1
                 business_email_required: false
-                chat_webhook_url: b8i
+                chat_webhook_url: fyf
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
@@ -8447,45 +8498,47 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Pariatur atque.
+                    example: Ex dolores.
                 description:
                     type: string
                     description: Optional description
-                    example: k5j
+                    example: zjd
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 80
-                        - 101
-                        - 114
-                        - 115
+                        - 83
+                        - 97
                         - 112
                         - 105
-                        - 99
-                        - 105
-                        - 97
+                        - 101
+                        - 110
                         - 116
+                        - 101
+                        - 32
+                        - 109
+                        - 97
                         - 105
+                        - 111
+                        - 114
+                        - 101
                         - 115
                         - 32
                         - 110
-                        - 117
+                        - 101
                         - 109
-                        - 113
-                        - 117
+                        - 111
+                        - 32
+                        - 110
                         - 97
                         - 109
-                        - 32
-                        - 117
-                        - 116
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Placeat et.
+                    example: Deserunt sed autem ut voluptatum.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -8497,62 +8550,25 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Dolores explicabo sapiente.
-                description: jdf
+                content_type: Consequatur perferendis autem expedita culpa inventore consequuntur.
+                description: 2wo
                 file:
-                    - 78
-                    - 101
-                    - 109
-                    - 111
-                    - 32
-                    - 110
-                    - 97
-                    - 109
-                    - 32
-                    - 115
-                    - 101
+                    - 81
+                    - 117
+                    - 105
                     - 100
-                    - 32
-                    - 99
-                    - 111
-                    - 110
-                    - 115
                     - 101
-                    - 99
-                    - 116
-                    - 101
-                    - 116
-                    - 117
-                    - 114
-                    - 32
-                    - 111
-                    - 109
-                    - 110
-                    - 105
-                    - 115
-                    - 32
-                    - 97
-                    - 108
-                    - 105
-                    - 113
-                    - 117
-                    - 97
                     - 109
                     - 32
-                    - 118
                     - 111
-                    - 108
-                    - 117
-                    - 112
-                    - 116
-                    - 97
-                    - 116
+                    - 102
+                    - 102
                     - 105
-                    - 98
-                    - 117
-                    - 115
+                    - 99
+                    - 105
+                    - 97
                     - 46
-                file_name: Sed autem ut voluptatum dicta.
+                file_name: Enim vel voluptatem.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

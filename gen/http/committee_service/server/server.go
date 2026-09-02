@@ -23,52 +23,53 @@ import (
 
 // Server lists the committee-service service endpoint HTTP handlers.
 type Server struct {
-	Mounts                    []*MountPoint
-	CreateCommittee           http.Handler
-	GetCommitteeBase          http.Handler
-	UpdateCommitteeBase       http.Handler
-	DeleteCommittee           http.Handler
-	GetCommitteeSettings      http.Handler
-	UpdateCommitteeSettings   http.Handler
-	Readyz                    http.Handler
-	Livez                     http.Handler
-	CreateCommitteeMember     http.Handler
-	GetCommitteeMember        http.Handler
-	GetOrgCommitteeSeats      http.Handler
-	ReassignOrgCommitteeSeat  http.Handler
-	UpdateCommitteeMember     http.Handler
-	DeleteCommitteeMember     http.Handler
-	GetInvite                 http.Handler
-	CreateInvite              http.Handler
-	RevokeInvite              http.Handler
-	AcceptInvite              http.Handler
-	DeclineInvite             http.Handler
-	GetApplication            http.Handler
-	SubmitApplication         http.Handler
-	ApproveApplication        http.Handler
-	RejectApplication         http.Handler
-	JoinCommittee             http.Handler
-	LeaveCommittee            http.Handler
-	GetCommitteeLink          http.Handler
-	ListCommitteeLinks        http.Handler
-	CreateCommitteeLink       http.Handler
-	DeleteCommitteeLink       http.Handler
-	GetCommitteeLinkFolder    http.Handler
-	ListCommitteeLinkFolders  http.Handler
-	CreateCommitteeLinkFolder http.Handler
-	DeleteCommitteeLinkFolder http.Handler
-	UploadCommitteeDocument   http.Handler
-	GetCommitteeDocument      http.Handler
-	DownloadCommitteeDocument http.Handler
-	DeleteCommitteeDocument   http.Handler
-	GetCurrentWeeklyBrief     http.Handler
-	GenerateWeeklyBrief       http.Handler
-	UpdateCurrentWeeklyBrief  http.Handler
-	ShareWeeklyBriefToChat    http.Handler
-	GenHTTPOpenapiJSON        http.Handler
-	GenHTTPOpenapiYaml        http.Handler
-	GenHTTPOpenapi3JSON       http.Handler
-	GenHTTPOpenapi3Yaml       http.Handler
+	Mounts                     []*MountPoint
+	CreateCommittee            http.Handler
+	GetCommitteeBase           http.Handler
+	UpdateCommitteeBase        http.Handler
+	DeleteCommittee            http.Handler
+	GetCommitteeSettings       http.Handler
+	UpdateCommitteeSettings    http.Handler
+	Readyz                     http.Handler
+	Livez                      http.Handler
+	CreateCommitteeMember      http.Handler
+	GetCommitteeMember         http.Handler
+	GetOrgCommitteeSeats       http.Handler
+	ReassignOrgCommitteeSeat   http.Handler
+	UpdateCommitteeMember      http.Handler
+	DeleteCommitteeMember      http.Handler
+	GetInvite                  http.Handler
+	CreateInvite               http.Handler
+	RevokeInvite               http.Handler
+	AcceptInvite               http.Handler
+	DeclineInvite              http.Handler
+	GetApplication             http.Handler
+	SubmitApplication          http.Handler
+	ApproveApplication         http.Handler
+	RejectApplication          http.Handler
+	JoinCommittee              http.Handler
+	LeaveCommittee             http.Handler
+	GetCommitteeLink           http.Handler
+	ListCommitteeLinks         http.Handler
+	CreateCommitteeLink        http.Handler
+	DeleteCommitteeLink        http.Handler
+	GetCommitteeLinkFolder     http.Handler
+	ListCommitteeLinkFolders   http.Handler
+	CreateCommitteeLinkFolder  http.Handler
+	DeleteCommitteeLinkFolder  http.Handler
+	UploadCommitteeDocument    http.Handler
+	GetCommitteeDocument       http.Handler
+	DownloadCommitteeDocument  http.Handler
+	DeleteCommitteeDocument    http.Handler
+	GetCurrentWeeklyBrief      http.Handler
+	GenerateWeeklyBrief        http.Handler
+	PreviewGenerateWeeklyBrief http.Handler
+	UpdateCurrentWeeklyBrief   http.Handler
+	ShareWeeklyBriefToChat     http.Handler
+	GenHTTPOpenapiJSON         http.Handler
+	GenHTTPOpenapiYaml         http.Handler
+	GenHTTPOpenapi3JSON        http.Handler
+	GenHTTPOpenapi3Yaml        http.Handler
 }
 
 // MountPoint holds information about the mounted endpoints.
@@ -163,6 +164,7 @@ func New(
 			{"DeleteCommitteeDocument", "DELETE", "/committees/{uid}/documents/{document_uid}"},
 			{"GetCurrentWeeklyBrief", "GET", "/committees/{uid}/weekly-briefs/current"},
 			{"GenerateWeeklyBrief", "POST", "/committees/{uid}/weekly-briefs/generate"},
+			{"PreviewGenerateWeeklyBrief", "POST", "/committees/{uid}/weekly-briefs/preview-generate"},
 			{"UpdateCurrentWeeklyBrief", "PUT", "/committees/{uid}/weekly-briefs/current"},
 			{"ShareWeeklyBriefToChat", "POST", "/committees/{uid}/weekly-briefs/share-to-chat"},
 			{"Serve gen/http/openapi.json", "GET", "/_committees/openapi.json"},
@@ -170,51 +172,52 @@ func New(
 			{"Serve gen/http/openapi3.json", "GET", "/_committees/openapi3.json"},
 			{"Serve gen/http/openapi3.yaml", "GET", "/_committees/openapi3.yaml"},
 		},
-		CreateCommittee:           NewCreateCommitteeHandler(e.CreateCommittee, mux, decoder, encoder, errhandler, formatter),
-		GetCommitteeBase:          NewGetCommitteeBaseHandler(e.GetCommitteeBase, mux, decoder, encoder, errhandler, formatter),
-		UpdateCommitteeBase:       NewUpdateCommitteeBaseHandler(e.UpdateCommitteeBase, mux, decoder, encoder, errhandler, formatter),
-		DeleteCommittee:           NewDeleteCommitteeHandler(e.DeleteCommittee, mux, decoder, encoder, errhandler, formatter),
-		GetCommitteeSettings:      NewGetCommitteeSettingsHandler(e.GetCommitteeSettings, mux, decoder, encoder, errhandler, formatter),
-		UpdateCommitteeSettings:   NewUpdateCommitteeSettingsHandler(e.UpdateCommitteeSettings, mux, decoder, encoder, errhandler, formatter),
-		Readyz:                    NewReadyzHandler(e.Readyz, mux, decoder, encoder, errhandler, formatter),
-		Livez:                     NewLivezHandler(e.Livez, mux, decoder, encoder, errhandler, formatter),
-		CreateCommitteeMember:     NewCreateCommitteeMemberHandler(e.CreateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
-		GetCommitteeMember:        NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
-		GetOrgCommitteeSeats:      NewGetOrgCommitteeSeatsHandler(e.GetOrgCommitteeSeats, mux, decoder, encoder, errhandler, formatter),
-		ReassignOrgCommitteeSeat:  NewReassignOrgCommitteeSeatHandler(e.ReassignOrgCommitteeSeat, mux, decoder, encoder, errhandler, formatter),
-		UpdateCommitteeMember:     NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
-		DeleteCommitteeMember:     NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
-		GetInvite:                 NewGetInviteHandler(e.GetInvite, mux, decoder, encoder, errhandler, formatter),
-		CreateInvite:              NewCreateInviteHandler(e.CreateInvite, mux, decoder, encoder, errhandler, formatter),
-		RevokeInvite:              NewRevokeInviteHandler(e.RevokeInvite, mux, decoder, encoder, errhandler, formatter),
-		AcceptInvite:              NewAcceptInviteHandler(e.AcceptInvite, mux, decoder, encoder, errhandler, formatter),
-		DeclineInvite:             NewDeclineInviteHandler(e.DeclineInvite, mux, decoder, encoder, errhandler, formatter),
-		GetApplication:            NewGetApplicationHandler(e.GetApplication, mux, decoder, encoder, errhandler, formatter),
-		SubmitApplication:         NewSubmitApplicationHandler(e.SubmitApplication, mux, decoder, encoder, errhandler, formatter),
-		ApproveApplication:        NewApproveApplicationHandler(e.ApproveApplication, mux, decoder, encoder, errhandler, formatter),
-		RejectApplication:         NewRejectApplicationHandler(e.RejectApplication, mux, decoder, encoder, errhandler, formatter),
-		JoinCommittee:             NewJoinCommitteeHandler(e.JoinCommittee, mux, decoder, encoder, errhandler, formatter),
-		LeaveCommittee:            NewLeaveCommitteeHandler(e.LeaveCommittee, mux, decoder, encoder, errhandler, formatter),
-		GetCommitteeLink:          NewGetCommitteeLinkHandler(e.GetCommitteeLink, mux, decoder, encoder, errhandler, formatter),
-		ListCommitteeLinks:        NewListCommitteeLinksHandler(e.ListCommitteeLinks, mux, decoder, encoder, errhandler, formatter),
-		CreateCommitteeLink:       NewCreateCommitteeLinkHandler(e.CreateCommitteeLink, mux, decoder, encoder, errhandler, formatter),
-		DeleteCommitteeLink:       NewDeleteCommitteeLinkHandler(e.DeleteCommitteeLink, mux, decoder, encoder, errhandler, formatter),
-		GetCommitteeLinkFolder:    NewGetCommitteeLinkFolderHandler(e.GetCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
-		ListCommitteeLinkFolders:  NewListCommitteeLinkFoldersHandler(e.ListCommitteeLinkFolders, mux, decoder, encoder, errhandler, formatter),
-		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderHandler(e.CreateCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
-		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderHandler(e.DeleteCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
-		UploadCommitteeDocument:   NewUploadCommitteeDocumentHandler(e.UploadCommitteeDocument, mux, NewCommitteeServiceUploadCommitteeDocumentDecoder(mux, committeeServiceUploadCommitteeDocumentDecoderFn), encoder, errhandler, formatter),
-		GetCommitteeDocument:      NewGetCommitteeDocumentHandler(e.GetCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
-		DownloadCommitteeDocument: NewDownloadCommitteeDocumentHandler(e.DownloadCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
-		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentHandler(e.DeleteCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
-		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefHandler(e.GetCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
-		GenerateWeeklyBrief:       NewGenerateWeeklyBriefHandler(e.GenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
-		UpdateCurrentWeeklyBrief:  NewUpdateCurrentWeeklyBriefHandler(e.UpdateCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
-		ShareWeeklyBriefToChat:    NewShareWeeklyBriefToChatHandler(e.ShareWeeklyBriefToChat, mux, decoder, encoder, errhandler, formatter),
-		GenHTTPOpenapiJSON:        http.FileServer(fileSystemGenHTTPOpenapiJSON),
-		GenHTTPOpenapiYaml:        http.FileServer(fileSystemGenHTTPOpenapiYaml),
-		GenHTTPOpenapi3JSON:       http.FileServer(fileSystemGenHTTPOpenapi3JSON),
-		GenHTTPOpenapi3Yaml:       http.FileServer(fileSystemGenHTTPOpenapi3Yaml),
+		CreateCommittee:            NewCreateCommitteeHandler(e.CreateCommittee, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeBase:           NewGetCommitteeBaseHandler(e.GetCommitteeBase, mux, decoder, encoder, errhandler, formatter),
+		UpdateCommitteeBase:        NewUpdateCommitteeBaseHandler(e.UpdateCommitteeBase, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommittee:            NewDeleteCommitteeHandler(e.DeleteCommittee, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeSettings:       NewGetCommitteeSettingsHandler(e.GetCommitteeSettings, mux, decoder, encoder, errhandler, formatter),
+		UpdateCommitteeSettings:    NewUpdateCommitteeSettingsHandler(e.UpdateCommitteeSettings, mux, decoder, encoder, errhandler, formatter),
+		Readyz:                     NewReadyzHandler(e.Readyz, mux, decoder, encoder, errhandler, formatter),
+		Livez:                      NewLivezHandler(e.Livez, mux, decoder, encoder, errhandler, formatter),
+		CreateCommitteeMember:      NewCreateCommitteeMemberHandler(e.CreateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeMember:         NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		GetOrgCommitteeSeats:       NewGetOrgCommitteeSeatsHandler(e.GetOrgCommitteeSeats, mux, decoder, encoder, errhandler, formatter),
+		ReassignOrgCommitteeSeat:   NewReassignOrgCommitteeSeatHandler(e.ReassignOrgCommitteeSeat, mux, decoder, encoder, errhandler, formatter),
+		UpdateCommitteeMember:      NewUpdateCommitteeMemberHandler(e.UpdateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommitteeMember:      NewDeleteCommitteeMemberHandler(e.DeleteCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		GetInvite:                  NewGetInviteHandler(e.GetInvite, mux, decoder, encoder, errhandler, formatter),
+		CreateInvite:               NewCreateInviteHandler(e.CreateInvite, mux, decoder, encoder, errhandler, formatter),
+		RevokeInvite:               NewRevokeInviteHandler(e.RevokeInvite, mux, decoder, encoder, errhandler, formatter),
+		AcceptInvite:               NewAcceptInviteHandler(e.AcceptInvite, mux, decoder, encoder, errhandler, formatter),
+		DeclineInvite:              NewDeclineInviteHandler(e.DeclineInvite, mux, decoder, encoder, errhandler, formatter),
+		GetApplication:             NewGetApplicationHandler(e.GetApplication, mux, decoder, encoder, errhandler, formatter),
+		SubmitApplication:          NewSubmitApplicationHandler(e.SubmitApplication, mux, decoder, encoder, errhandler, formatter),
+		ApproveApplication:         NewApproveApplicationHandler(e.ApproveApplication, mux, decoder, encoder, errhandler, formatter),
+		RejectApplication:          NewRejectApplicationHandler(e.RejectApplication, mux, decoder, encoder, errhandler, formatter),
+		JoinCommittee:              NewJoinCommitteeHandler(e.JoinCommittee, mux, decoder, encoder, errhandler, formatter),
+		LeaveCommittee:             NewLeaveCommitteeHandler(e.LeaveCommittee, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeLink:           NewGetCommitteeLinkHandler(e.GetCommitteeLink, mux, decoder, encoder, errhandler, formatter),
+		ListCommitteeLinks:         NewListCommitteeLinksHandler(e.ListCommitteeLinks, mux, decoder, encoder, errhandler, formatter),
+		CreateCommitteeLink:        NewCreateCommitteeLinkHandler(e.CreateCommitteeLink, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommitteeLink:        NewDeleteCommitteeLinkHandler(e.DeleteCommitteeLink, mux, decoder, encoder, errhandler, formatter),
+		GetCommitteeLinkFolder:     NewGetCommitteeLinkFolderHandler(e.GetCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
+		ListCommitteeLinkFolders:   NewListCommitteeLinkFoldersHandler(e.ListCommitteeLinkFolders, mux, decoder, encoder, errhandler, formatter),
+		CreateCommitteeLinkFolder:  NewCreateCommitteeLinkFolderHandler(e.CreateCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommitteeLinkFolder:  NewDeleteCommitteeLinkFolderHandler(e.DeleteCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
+		UploadCommitteeDocument:    NewUploadCommitteeDocumentHandler(e.UploadCommitteeDocument, mux, NewCommitteeServiceUploadCommitteeDocumentDecoder(mux, committeeServiceUploadCommitteeDocumentDecoderFn), encoder, errhandler, formatter),
+		GetCommitteeDocument:       NewGetCommitteeDocumentHandler(e.GetCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		DownloadCommitteeDocument:  NewDownloadCommitteeDocumentHandler(e.DownloadCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		DeleteCommitteeDocument:    NewDeleteCommitteeDocumentHandler(e.DeleteCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		GetCurrentWeeklyBrief:      NewGetCurrentWeeklyBriefHandler(e.GetCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		GenerateWeeklyBrief:        NewGenerateWeeklyBriefHandler(e.GenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		PreviewGenerateWeeklyBrief: NewPreviewGenerateWeeklyBriefHandler(e.PreviewGenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		UpdateCurrentWeeklyBrief:   NewUpdateCurrentWeeklyBriefHandler(e.UpdateCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
+		ShareWeeklyBriefToChat:     NewShareWeeklyBriefToChatHandler(e.ShareWeeklyBriefToChat, mux, decoder, encoder, errhandler, formatter),
+		GenHTTPOpenapiJSON:         http.FileServer(fileSystemGenHTTPOpenapiJSON),
+		GenHTTPOpenapiYaml:         http.FileServer(fileSystemGenHTTPOpenapiYaml),
+		GenHTTPOpenapi3JSON:        http.FileServer(fileSystemGenHTTPOpenapi3JSON),
+		GenHTTPOpenapi3Yaml:        http.FileServer(fileSystemGenHTTPOpenapi3Yaml),
 	}
 }
 
@@ -262,6 +265,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.DeleteCommitteeDocument = m(s.DeleteCommitteeDocument)
 	s.GetCurrentWeeklyBrief = m(s.GetCurrentWeeklyBrief)
 	s.GenerateWeeklyBrief = m(s.GenerateWeeklyBrief)
+	s.PreviewGenerateWeeklyBrief = m(s.PreviewGenerateWeeklyBrief)
 	s.UpdateCurrentWeeklyBrief = m(s.UpdateCurrentWeeklyBrief)
 	s.ShareWeeklyBriefToChat = m(s.ShareWeeklyBriefToChat)
 }
@@ -310,6 +314,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountDeleteCommitteeDocumentHandler(mux, h.DeleteCommitteeDocument)
 	MountGetCurrentWeeklyBriefHandler(mux, h.GetCurrentWeeklyBrief)
 	MountGenerateWeeklyBriefHandler(mux, h.GenerateWeeklyBrief)
+	MountPreviewGenerateWeeklyBriefHandler(mux, h.PreviewGenerateWeeklyBrief)
 	MountUpdateCurrentWeeklyBriefHandler(mux, h.UpdateCurrentWeeklyBrief)
 	MountShareWeeklyBriefToChatHandler(mux, h.ShareWeeklyBriefToChat)
 	MountGenHTTPOpenapiJSON(mux, http.StripPrefix("/_committees", h.GenHTTPOpenapiJSON))
@@ -2417,6 +2422,60 @@ func NewGenerateWeeklyBriefHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "generate-weekly-brief")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountPreviewGenerateWeeklyBriefHandler configures the mux to serve the
+// "committee-service" service "preview-generate-weekly-brief" endpoint.
+func MountPreviewGenerateWeeklyBriefHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/weekly-briefs/preview-generate", f)
+}
+
+// NewPreviewGenerateWeeklyBriefHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "preview-generate-weekly-brief" endpoint.
+func NewPreviewGenerateWeeklyBriefHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodePreviewGenerateWeeklyBriefRequest(mux, decoder)
+		encodeResponse = EncodePreviewGenerateWeeklyBriefResponse(encoder)
+		encodeError    = EncodePreviewGenerateWeeklyBriefError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "preview-generate-weekly-brief")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

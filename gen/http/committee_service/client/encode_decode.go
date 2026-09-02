@@ -6254,6 +6254,175 @@ func DecodeGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Deco
 	}
 }
 
+// BuildPreviewGenerateWeeklyBriefRequest instantiates a HTTP request object
+// with method and path set to call the "committee-service" service
+// "preview-generate-weekly-brief" endpoint
+func (c *Client) BuildPreviewGenerateWeeklyBriefRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		uid string
+	)
+	{
+		p, ok := v.(*committeeservice.PreviewGenerateWeeklyBriefPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("committee-service", "preview-generate-weekly-brief", "*committeeservice.PreviewGenerateWeeklyBriefPayload", v)
+		}
+		uid = p.UID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: PreviewGenerateWeeklyBriefCommitteeServicePath(uid)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("committee-service", "preview-generate-weekly-brief", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodePreviewGenerateWeeklyBriefRequest returns an encoder for requests sent
+// to the committee-service preview-generate-weekly-brief server.
+func EncodePreviewGenerateWeeklyBriefRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*committeeservice.PreviewGenerateWeeklyBriefPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("committee-service", "preview-generate-weekly-brief", "*committeeservice.PreviewGenerateWeeklyBriefPayload", v)
+		}
+		if p.BearerToken != nil {
+			head := *p.BearerToken
+			if !strings.Contains(head, " ") {
+				req.Header.Set("Authorization", "Bearer "+head)
+			} else {
+				req.Header.Set("Authorization", head)
+			}
+		}
+		values := req.URL.Query()
+		if p.Version != nil {
+			values.Add("v", *p.Version)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodePreviewGenerateWeeklyBriefResponse returns a decoder for responses
+// returned by the committee-service preview-generate-weekly-brief endpoint.
+// restoreBody controls whether the response body should be restored after
+// having been read.
+// DecodePreviewGenerateWeeklyBriefResponse may return the following errors:
+//   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Forbidden" (type *committeeservice.ForbiddenError): http.StatusForbidden
+//   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
+//   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
+//   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
+//   - error: internal error
+func DecodePreviewGenerateWeeklyBriefResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body PreviewGenerateWeeklyBriefResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			res := NewPreviewGenerateWeeklyBriefGroupWeeklyBriefPreviewResultOK(&body)
+			return res, nil
+		case http.StatusBadRequest:
+			var (
+				body PreviewGenerateWeeklyBriefBadRequestResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefBadRequestResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			return nil, NewPreviewGenerateWeeklyBriefBadRequest(&body)
+		case http.StatusForbidden:
+			var (
+				body PreviewGenerateWeeklyBriefForbiddenResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefForbiddenResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			return nil, NewPreviewGenerateWeeklyBriefForbidden(&body)
+		case http.StatusInternalServerError:
+			var (
+				body PreviewGenerateWeeklyBriefInternalServerErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefInternalServerErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			return nil, NewPreviewGenerateWeeklyBriefInternalServerError(&body)
+		case http.StatusNotFound:
+			var (
+				body PreviewGenerateWeeklyBriefNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			return nil, NewPreviewGenerateWeeklyBriefNotFound(&body)
+		case http.StatusServiceUnavailable:
+			var (
+				body PreviewGenerateWeeklyBriefServiceUnavailableResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			err = ValidatePreviewGenerateWeeklyBriefServiceUnavailableResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "preview-generate-weekly-brief", err)
+			}
+			return nil, NewPreviewGenerateWeeklyBriefServiceUnavailable(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("committee-service", "preview-generate-weekly-brief", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // BuildUpdateCurrentWeeklyBriefRequest instantiates a HTTP request object with
 // method and path set to call the "committee-service" service
 // "update-current-weekly-brief" endpoint

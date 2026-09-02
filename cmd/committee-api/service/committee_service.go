@@ -2109,6 +2109,54 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	return out
 }
 
+// previewOutputToGoa maps a GroupWeeklyBriefPreviewOutput to its Goa wire type.
+// Window times are formatted as RFC3339Nano to preserve the nanosecond-precision
+// inclusive end that WeeklyWindow produces (23:59:59.999999999Z), matching the
+// window fields returned by domainGroupWeeklyBriefToGoa for GET /current.
+func previewOutputToGoa(out *service.GroupWeeklyBriefPreviewOutput) *committeeservice.GroupWeeklyBriefPreviewResult {
+	res := &committeeservice.GroupWeeklyBriefPreviewResult{}
+	if out.BriefText != "" {
+		v := out.BriefText
+		res.BriefText = &v
+	}
+	psp := out.PrivateSourcePresent
+	res.PrivateSourcePresent = &psp
+	if !out.WindowStart.IsZero() {
+		v := out.WindowStart.UTC().Format(time.RFC3339Nano)
+		res.WindowStart = &v
+	}
+	if !out.WindowEnd.IsZero() {
+		v := out.WindowEnd.UTC().Format(time.RFC3339Nano)
+		res.WindowEnd = &v
+	}
+	if out.PromptVersion != "" {
+		v := out.PromptVersion
+		res.PromptVersion = &v
+	}
+	if out.Model != "" {
+		v := out.Model
+		res.Model = &v
+	}
+	for _, sr := range out.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		res.SourceRefs = append(res.SourceRefs, ref)
+	}
+	return res
+}
+
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
 // response type: the split counters (generates / regenerations) with their
 // limits, plus the window reset timestamp.
@@ -2216,6 +2264,56 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 		res.Throttle = domainGroupWeeklyBriefThrottleToGoa(out.Throttle)
 	}
 	return res, nil
+}
+
+// PreviewGenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/preview-generate
+// handler. It synchronously gathers sources and runs the AI adapter for the current
+// UTC Sun→Sat window, returning the generated brief text and source refs without
+// persisting anything. No throttle is consumed, no brief state is changed, and no
+// KV write occurs. Responds 404 when the window has no activity.
+func (s *committeeServicesrvc) PreviewGenerateWeeklyBrief(ctx context.Context, p *committeeservice.PreviewGenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefPreviewResult, error) {
+	slog.DebugContext(ctx, "committeeService.preview-generate-weekly-brief",
+		"committee_uid", p.UID,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	// Verify the committee exists first — a typo'd UID must return 404
+	// regardless of whether the generator is configured.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+
+	// Default to hidden — same safe default as GenerateWeeklyBrief. A transient
+	// settings read failure leaves membersHidden=true so names never leak.
+	membersHidden := true
+	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil {
+		membersHidden = settings.MemberVisibility != "basic_profile"
+	}
+
+	out, err := s.weeklyBriefGenerator.Preview(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectUID:    base.ProjectUID,
+		ProjectName:   base.ProjectName,
+		Force:         false,
+		Now:           time.Now().UTC(),
+		MembersHidden: membersHidden,
+	})
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return previewOutputToGoa(out), nil
 }
 
 // UpdateCurrentWeeklyBrief is the PUT /committees/{uid}/weekly-briefs/current
