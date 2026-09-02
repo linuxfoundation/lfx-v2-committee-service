@@ -733,3 +733,42 @@ func TestPreviewGenerateWeeklyBrief_PreviewError(t *testing.T) {
 	var nf *committeeservice.NotFoundError
 	require.ErrorAs(t, err, &nf)
 }
+
+func TestPreviewGenerateWeeklyBrief_MembersHidden_PropagatedToPreview(t *testing.T) {
+	gen := &stubGroupWeeklyBriefGenerator{previewOut: &internalsvc.GroupWeeklyBriefPreviewOutput{}}
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{
+			base:     &model.CommitteeBase{Name: "WG", ProjectName: "P"},
+			settings: &model.CommitteeSettings{MemberVisibility: "hidden"},
+			rev:      1,
+		},
+		weeklyBriefGenerator: gen,
+	}
+	_, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.True(t, gen.previewIn.MembersHidden, "MembersHidden must be true when member_visibility is hidden")
+}
+
+func TestPreviewGenerateWeeklyBrief_MembersVisible_WhenBasicProfile(t *testing.T) {
+	gen := &stubGroupWeeklyBriefGenerator{previewOut: &internalsvc.GroupWeeklyBriefPreviewOutput{}}
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{
+			base:     &model.CommitteeBase{Name: "WG", ProjectName: "P"},
+			settings: &model.CommitteeSettings{MemberVisibility: "basic_profile"},
+			rev:      1,
+		},
+		weeklyBriefGenerator: gen,
+	}
+	_, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.False(t, gen.previewIn.MembersHidden, "MembersHidden must be false when member_visibility is basic_profile")
+}
+
+func TestPreviewGenerateWeeklyBrief_MembersHidden_WhenSettingsNil(t *testing.T) {
+	// nil settings → fail-closed → names hidden (matches API/migration default)
+	gen := &stubGroupWeeklyBriefGenerator{previewOut: &internalsvc.GroupWeeklyBriefPreviewOutput{}}
+	svc := newPreviewSvc(&model.CommitteeBase{Name: "WG", ProjectName: "P"}, gen)
+	_, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	assert.True(t, gen.previewIn.MembersHidden, "MembersHidden must be true when settings are absent (fail-closed)")
+}
