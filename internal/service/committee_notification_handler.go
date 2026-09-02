@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -61,6 +62,29 @@ func NewCommitteeNotificationHandler(
 		lfxSelfServeBaseURL:         baseURL,
 		projectReader:               projectReader,
 	}
+}
+
+// lookupRecipientHasAccount reports whether the given email address is associated
+// with an existing LFX account. Normalizes the email before the lookup. Returns false
+// on any error, treating the absence of an account as the safe fallback for invite
+// email template selection. Non-NotFound errors are logged so transport failures are
+// observable.
+func (h *committeeNotificationHandler) lookupRecipientHasAccount(ctx context.Context, email, committeeUID string) bool {
+	lookupEmail := strings.ToLower(strings.TrimSpace(email))
+	if lookupEmail == "" || h.userReader == nil {
+		return false
+	}
+	username, err := h.userReader.UsernameByEmail(ctx, lookupEmail)
+	if err != nil {
+		var notFound errors.NotFound
+		if !stderrors.As(err, &notFound) {
+			slog.WarnContext(ctx, "recipient account lookup failed — using new-user template",
+				"error", err, "committee_uid", committeeUID,
+				"recipient_email", redaction.RedactEmail(email))
+		}
+		return false
+	}
+	return username != ""
 }
 
 // HandleCommitteeMemberCreated handles committee_member.created events and notifies
@@ -177,22 +201,35 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 		return nil
 	}
 
-	// Resolve the inviter's display name from the acting user principal.
-	// An empty result is intentional: the invite-service template switches to
-	// "You've been invited to join …" when HasInviter is false (Inviter.Name == "").
-	// Use a separate bounded context so a slow lookup cannot consume the invite deadline.
-	inviterName := ""
-	if createdBy != "" && h.userReader != nil {
-		lookupCtx, lookupCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
-		if meta, err := h.userReader.UserMetadataByPrincipal(lookupCtx, createdBy); err == nil && meta != nil {
+	// Run inviter-name lookup and recipient account lookup concurrently under one
+	// shared budget so a slow auth service cannot double the worst-case latency per
+	// member-created message. The two lookups are independent: inviter keys on
+	// createdBy, account on member.Email.
+	var inviterName string
+	var recipientHasAccount bool
+	var wg sync.WaitGroup
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, committeeNotificationTimeout)
+	defer resolveCancel()
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if createdBy == "" || h.userReader == nil {
+			return
+		}
+		if meta, err := h.userReader.UserMetadataByPrincipal(resolveCtx, createdBy); err == nil && meta != nil {
 			if name := strings.TrimSpace(meta.Name); name != "" {
 				inviterName = name
 			} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
 				inviterName = full
 			}
 		}
-		lookupCancel()
-	}
+	}()
+	go func() {
+		defer wg.Done()
+		recipientHasAccount = h.lookupRecipientHasAccount(resolveCtx, member.Email, member.CommitteeUID)
+	}()
+	wg.Wait()
 
 	sendCtx, cancel := context.WithTimeout(ctx, committeeNotificationTimeout)
 	defer cancel()
@@ -210,8 +247,9 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 			Name: member.CommitteeName,
 			Type: "group",
 		},
-		Role:      string(inviteapi.InviteRoleMember),
-		ReturnURL: deepLinkURL,
+		Role:                string(inviteapi.InviteRoleMember),
+		ReturnURL:           deepLinkURL,
+		RecipientHasAccount: recipientHasAccount,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to send member invite request",
@@ -223,7 +261,8 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 		"committee_uid", member.CommitteeUID,
 		"member_uid", member.UID,
 		"recipient_email", redaction.RedactEmail(member.Email),
-		"invite_uid", result.InviteUID)
+		"invite_uid", result.InviteUID,
+		"recipient_has_account", recipientHasAccount)
 	return nil
 }
 
@@ -334,6 +373,14 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 				}
 				// Use the highest new role for the invite (Writer > Auditor for access level).
 				inviteRole := mapRoleToInviteRole(highestRole(newRoles))
+
+				// Re-check whether the recipient has an LFX account. enrichAllRoleFields
+				// confirmed no LFID at write time, but a sub-second race exists where the
+				// account could be created between the write and this notification.
+				acctCtx, acctCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
+				settingsRecipientHasAccount := h.lookupRecipientHasAccount(acctCtx, u.Email, data.CommitteeUID)
+				acctCancel()
+
 				sendCtx, sendCancel := context.WithTimeout(gctx, committeeNotificationTimeout)
 				defer sendCancel()
 				result, inviteErr := h.inviteSender.SendInvite(sendCtx, inviteapi.SendInviteRequest{
@@ -349,8 +396,9 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 						Name: data.CommitteeName,
 						Type: "group",
 					},
-					Role:      inviteRole,
-					ReturnURL: committeeURL,
+					Role:                inviteRole,
+					ReturnURL:           committeeURL,
+					RecipientHasAccount: settingsRecipientHasAccount,
 				})
 				if inviteErr != nil {
 					slog.WarnContext(gctx, "failed to send settings invite request",
