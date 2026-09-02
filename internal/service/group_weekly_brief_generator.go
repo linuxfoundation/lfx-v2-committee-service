@@ -558,6 +558,8 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 			meetings, summaries, members, mailing, votes, surveys, projectMemberships,
 			memberCount, in.MembersHidden)
 	if errGen != nil {
+		slog.ErrorContext(ctx, "weekly-brief preview: AI generation failed",
+			"committee_uid", in.CommitteeUID, "error", errGen)
 		// AI adapter errors can contain upstream response bodies; wrap in a
 		// stable message so callers never receive raw provider payloads.
 		return nil, errors.NewServiceUnavailable("brief generation is temporarily unavailable")
