@@ -15,9 +15,8 @@ a duplicated KB drifts, and the drifting copy is always the one a reviewer happe
 
 Two consumers read this directory, and both benefit from it being current:
 
-- **Local pre-PR review** — the `repo_learnings` role of `/lfx-skills:lfx-local-review`, whose brain lives at
-  `.claude/skills/committee-service-learnings-reviewer/SKILL.md`. It runs after every commit while the branch
-  is pre-PR.
+- **Local pre-PR review** — the `repo_learnings` reviewer of `/lfx-skills:lfx-local-review`, the repo-owned
+  skill at `.claude/skills/committee-service-learnings-reviewer/SKILL.md`.
 - **The GitHub PR review surface** — `.github/skills/committee-service-code-review/SKILL.md` names this
   directory directly and treats `known-false-positives.md` as its posting floor.
 
@@ -206,7 +205,8 @@ give the command that produces it.
 `<gate>`, not here" reads as coverage and functions as deletion when the named gate does not do it. Before
 writing that sentence, open the gate's own skill and confirm the check is in its scope; if it is not, the
 finding belongs here as an entry, or is explicitly recorded as valid-but-unowned. Two entries were lost this
-way — `go.mod` pseudo-version pins attributed to a readiness gate that `CLAUDE.md` says does not audit code,
+way — `go.mod` pseudo-version pins attributed to a readiness gate whose own skill
+(`.claude/skills/committee-service-pr-readiness/SKILL.md`) says it does not audit code,
 and semconv drift attributed to a preflight that never compares declared versions. A wrong owner is worse
 than no owner, because no owner at least reads as an open gap.
 

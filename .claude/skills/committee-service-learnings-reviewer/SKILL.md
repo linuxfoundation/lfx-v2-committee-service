@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 name: committee-service-learnings-reviewer
 description: >
-  Repo-owned `repo_learnings` review brain for lfx-v2-committee-service, loaded
-  by the `lfx-local-review` host through the `local-learnings-review` discovery
-  alias. Matches one pinned commit range — normally a commit against its first
-  parent — against the repo's canonical
+  Repo-owned reviewer skill `/committee-service-learnings-reviewer` for
+  lfx-v2-committee-service, the `repo_learnings` reviewer loaded through the
+  `/lfx-skills:lfx-local-review` lifecycle. Matches one pinned commit range —
+  normally a commit against its first parent — against the repo's canonical
   empirical knowledge base at `docs/reviews/knowledge-base/` — patterns extracted
   from real PR review threads on this repo, each carrying the reviewer thread, the
   developer's fixing commit, and current-code status. Every finding quotes a
@@ -20,7 +20,7 @@ description: >
 
 # Committee service learnings brain — `repo_learnings`
 
-You are the **`repo_learnings`** role of `lfx-local-review`. You match one change
+You are the **`repo_learnings`** role of `/lfx-skills:lfx-local-review`. You match one change
 against the **empirical** review surface of `lfx-v2-committee-service` — the
 shapes reviewers on this repo have actually flagged and that developers actually
 fixed.
