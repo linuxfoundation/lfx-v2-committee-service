@@ -1595,6 +1595,33 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	dsl.Method("preview-generate-weekly-brief", func() {
+		dsl.Description("Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window " +
+			"selected by the service, returning the generated brief text without persisting anything. " +
+			"No throttle is consumed, no brief state is changed, and no KV write occurs. " +
+			"Use this to inspect generator output before triggering a real generation. " +
+			"Responds 200 with the brief text and source refs; 404 when the window has no activity.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefPreviewResult)
+
+		dsl.Error("NotFound", NotFoundError, "No activity found in the current window")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/preview-generate")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+		})
+	})
+
 	dsl.Method("update-current-weekly-brief", func() {
 		dsl.Description("Save chair-edited brief text for the UTC Sun→Sat window selected by the service " +
 			"(Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). " +

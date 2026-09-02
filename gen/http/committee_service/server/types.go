@@ -388,6 +388,13 @@ type GenerateWeeklyBriefRequestBody struct {
 	Force *bool `form:"force,omitempty" json:"force,omitempty" xml:"force,omitempty"`
 }
 
+// PreviewGenerateWeeklyBriefRequestBody is the type of the "committee-service"
+// service "preview-generate-weekly-brief" endpoint HTTP request body.
+type PreviewGenerateWeeklyBriefRequestBody struct {
+	// Version of the API
+	Version *string `form:"version,omitempty" json:"version,omitempty" xml:"version,omitempty"`
+}
+
 // UpdateCurrentWeeklyBriefRequestBody is the type of the "committee-service"
 // service "update-current-weekly-brief" endpoint HTTP request body.
 type UpdateCurrentWeeklyBriefRequestBody struct {
@@ -1225,6 +1232,26 @@ type GenerateWeeklyBriefResponseBody struct {
 	Brief *GroupWeeklyBriefWithReadonlyAttributesResponseBody `form:"brief,omitempty" json:"brief,omitempty" xml:"brief,omitempty"`
 	// Updated throttle counters for the current window
 	Throttle *GroupWeeklyBriefThrottleResponseBody `form:"throttle,omitempty" json:"throttle,omitempty" xml:"throttle,omitempty"`
+}
+
+// PreviewGenerateWeeklyBriefResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body.
+type PreviewGenerateWeeklyBriefResponseBody struct {
+	// Generated brief body markdown text
+	BriefText *string `form:"brief_text,omitempty" json:"brief_text,omitempty" xml:"brief_text,omitempty"`
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRefResponseBody `form:"source_refs,omitempty" json:"source_refs,omitempty" xml:"source_refs,omitempty"`
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool `form:"private_source_present,omitempty" json:"private_source_present,omitempty" xml:"private_source_present,omitempty"`
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string `form:"window_start,omitempty" json:"window_start,omitempty" xml:"window_start,omitempty"`
+	// Inclusive UTC end of the window
+	WindowEnd *string `form:"window_end,omitempty" json:"window_end,omitempty" xml:"window_end,omitempty"`
+	// Prompt version used by the generator
+	PromptVersion *string `form:"prompt_version,omitempty" json:"prompt_version,omitempty" xml:"prompt_version,omitempty"`
+	// AI model used by the generator
+	Model *string `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
 }
 
 // UpdateCurrentWeeklyBriefResponseBody is the type of the "committee-service"
@@ -2593,6 +2620,14 @@ type GenerateWeeklyBriefNotFoundResponseBody struct {
 // "committee-service" service "generate-weekly-brief" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GenerateWeeklyBriefServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// PreviewGenerateWeeklyBriefNotFoundResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "NotFound" error.
+type PreviewGenerateWeeklyBriefNotFoundResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -4615,6 +4650,27 @@ func NewGenerateWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefGe
 	return body
 }
 
+// NewPreviewGenerateWeeklyBriefResponseBody builds the HTTP response body from
+// the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefResponseBody(res *committeeservice.GroupWeeklyBriefPreviewResult) *PreviewGenerateWeeklyBriefResponseBody {
+	body := &PreviewGenerateWeeklyBriefResponseBody{
+		BriefText:            res.BriefText,
+		PrivateSourcePresent: res.PrivateSourcePresent,
+		WindowStart:          res.WindowStart,
+		WindowEnd:            res.WindowEnd,
+		PromptVersion:        res.PromptVersion,
+		Model:                res.Model,
+	}
+	if res.SourceRefs != nil {
+		body.SourceRefs = make([]*GroupWeeklyBriefSourceRefResponseBody, len(res.SourceRefs))
+		for i, val := range res.SourceRefs {
+			body.SourceRefs[i] = marshalCommitteeserviceGroupWeeklyBriefSourceRefToGroupWeeklyBriefSourceRefResponseBody(val)
+		}
+	}
+	return body
+}
+
 // NewUpdateCurrentWeeklyBriefResponseBody builds the HTTP response body from
 // the result of the "update-current-weekly-brief" endpoint of the
 // "committee-service" service.
@@ -6283,6 +6339,16 @@ func NewGenerateWeeklyBriefServiceUnavailableResponseBody(res *committeeservice.
 	return body
 }
 
+// NewPreviewGenerateWeeklyBriefNotFoundResponseBody builds the HTTP response
+// body from the result of the "preview-generate-weekly-brief" endpoint of the
+// "committee-service" service.
+func NewPreviewGenerateWeeklyBriefNotFoundResponseBody(res *committeeservice.NotFoundError) *PreviewGenerateWeeklyBriefNotFoundResponseBody {
+	body := &PreviewGenerateWeeklyBriefNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewUpdateCurrentWeeklyBriefBadRequestResponseBody builds the HTTP response
 // body from the result of the "update-current-weekly-brief" endpoint of the
 // "committee-service" service.
@@ -7328,6 +7394,18 @@ func NewGenerateWeeklyBriefPayload(body *GenerateWeeklyBriefRequestBody, uid str
 	return v
 }
 
+// NewPreviewGenerateWeeklyBriefPayload builds a committee-service service
+// preview-generate-weekly-brief endpoint payload.
+func NewPreviewGenerateWeeklyBriefPayload(body *PreviewGenerateWeeklyBriefRequestBody, uid string, bearerToken *string) *committeeservice.PreviewGenerateWeeklyBriefPayload {
+	v := &committeeservice.PreviewGenerateWeeklyBriefPayload{
+		Version: body.Version,
+	}
+	v.UID = uid
+	v.BearerToken = bearerToken
+
+	return v
+}
+
 // NewUpdateCurrentWeeklyBriefPayload builds a committee-service service
 // update-current-weekly-brief endpoint payload.
 func NewUpdateCurrentWeeklyBriefPayload(body *UpdateCurrentWeeklyBriefRequestBody, uid string, version *string, bearerToken *string) *committeeservice.UpdateCurrentWeeklyBriefPayload {
@@ -7982,6 +8060,17 @@ func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentReq
 	}
 	if body.FolderUID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidatePreviewGenerateWeeklyBriefRequestBody runs the validations defined
+// on Preview-Generate-Weekly-BriefRequestBody
+func ValidatePreviewGenerateWeeklyBriefRequestBody(body *PreviewGenerateWeeklyBriefRequestBody) (err error) {
+	if body.Version != nil {
+		if !(*body.Version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.version", *body.Version, []any{"1"}))
+		}
 	}
 	return
 }

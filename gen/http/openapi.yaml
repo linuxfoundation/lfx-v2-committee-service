@@ -2620,6 +2620,45 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/weekly-briefs/preview-generate:
+        post:
+            tags:
+                - committee-service
+            summary: preview-generate-weekly-brief committee-service
+            description: Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window selected by the service, returning the generated brief text without persisting anything. No throttle is consumed, no brief state is changed, and no KV write occurs. Use this to inspect generator output before triggering a real generation. Responds 200 with the brief text and source refs; 404 when the window has no activity.
+            operationId: committee-service#preview-generate-weekly-brief
+            parameters:
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: Preview-Generate-Weekly-BriefRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServicePreviewGenerateWeeklyBriefRequestBody'
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/GroupWeeklyBriefPreviewResult'
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/weekly-briefs/share-to-chat:
         post:
             tags:
@@ -4576,6 +4615,18 @@ definitions:
     CommitteeServiceGetCommitteeSettingsResponseBody:
         title: CommitteeServiceGetCommitteeSettingsResponseBody
         $ref: '#/definitions/CommitteeSettingsWithReadonlyAttributes'
+    CommitteeServicePreviewGenerateWeeklyBriefRequestBody:
+        title: CommitteeServicePreviewGenerateWeeklyBriefRequestBody
+        type: object
+        properties:
+            version:
+                type: string
+                description: Version of the API
+                example: "1"
+                enum:
+                    - "1"
+        example:
+            version: "1"
     CommitteeServiceReassignOrgCommitteeSeatRequestBody:
         title: CommitteeServiceReassignOrgCommitteeSeatRequestBody
         type: object
@@ -5534,6 +5585,66 @@ definitions:
                 regenerations_limit: 3
                 regenerations_used: 0
                 window_resets_at: "2026-05-17T00:00:00Z"
+    GroupWeeklyBriefPreviewResult:
+        title: GroupWeeklyBriefPreviewResult
+        type: object
+        properties:
+            brief_text:
+                type: string
+                description: Generated brief body markdown text
+                example: The committee met on 2026-08-27 to review the Q3 roadmap...
+                maxLength: 20000
+            model:
+                type: string
+                description: AI model used by the generator
+                example: claude-sonnet-4-6
+            private_source_present:
+                type: boolean
+                description: Whether any non-public source was used
+                example: false
+            prompt_version:
+                type: string
+                description: Prompt version used by the generator
+                example: v1
+            source_refs:
+                type: array
+                items:
+                    $ref: '#/definitions/GroupWeeklyBriefSourceRef'
+                description: Sources considered by the generator
+                example:
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 0jc
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+            window_end:
+                type: string
+                description: Inclusive UTC end of the window
+                example: "2026-08-29T23:59:59.999999999Z"
+                format: date-time
+            window_start:
+                type: string
+                description: UTC Sunday 00:00:00 marking the start of the window
+                example: "2026-08-23T00:00:00Z"
+                format: date-time
+        example:
+            brief_text: The committee met on 2026-08-27...
+            model: claude-sonnet-4-6
+            private_source_present: false
+            prompt_version: v1
+            window_end: "2026-08-29T23:59:59.999999999Z"
+            window_start: "2026-08-23T00:00:00Z"
     GroupWeeklyBriefRevisionConflictError:
         title: GroupWeeklyBriefRevisionConflictError
         type: object
@@ -5835,11 +5946,11 @@ definitions:
             message:
                 type: string
                 description: Human-readable description
-                example: Sapiente maxime facilis laudantium.
+                example: Maxime facilis laudantium ut quam quisquam et.
         description: No chat webhook URL is configured for this committee
         example:
             code: no_chat_webhook
-            message: Quam quisquam.
+            message: Voluptatum voluptas perferendis officiis similique accusantium sed.
         required:
             - code
             - message

@@ -18,47 +18,48 @@ import (
 
 // Endpoints wraps the "committee-service" service endpoints.
 type Endpoints struct {
-	CreateCommittee           goa.Endpoint
-	GetCommitteeBase          goa.Endpoint
-	UpdateCommitteeBase       goa.Endpoint
-	DeleteCommittee           goa.Endpoint
-	GetCommitteeSettings      goa.Endpoint
-	UpdateCommitteeSettings   goa.Endpoint
-	Readyz                    goa.Endpoint
-	Livez                     goa.Endpoint
-	CreateCommitteeMember     goa.Endpoint
-	GetCommitteeMember        goa.Endpoint
-	GetOrgCommitteeSeats      goa.Endpoint
-	ReassignOrgCommitteeSeat  goa.Endpoint
-	UpdateCommitteeMember     goa.Endpoint
-	DeleteCommitteeMember     goa.Endpoint
-	GetInvite                 goa.Endpoint
-	CreateInvite              goa.Endpoint
-	RevokeInvite              goa.Endpoint
-	AcceptInvite              goa.Endpoint
-	DeclineInvite             goa.Endpoint
-	GetApplication            goa.Endpoint
-	SubmitApplication         goa.Endpoint
-	ApproveApplication        goa.Endpoint
-	RejectApplication         goa.Endpoint
-	JoinCommittee             goa.Endpoint
-	LeaveCommittee            goa.Endpoint
-	GetCommitteeLink          goa.Endpoint
-	ListCommitteeLinks        goa.Endpoint
-	CreateCommitteeLink       goa.Endpoint
-	DeleteCommitteeLink       goa.Endpoint
-	GetCommitteeLinkFolder    goa.Endpoint
-	ListCommitteeLinkFolders  goa.Endpoint
-	CreateCommitteeLinkFolder goa.Endpoint
-	DeleteCommitteeLinkFolder goa.Endpoint
-	UploadCommitteeDocument   goa.Endpoint
-	GetCommitteeDocument      goa.Endpoint
-	DownloadCommitteeDocument goa.Endpoint
-	DeleteCommitteeDocument   goa.Endpoint
-	GetCurrentWeeklyBrief     goa.Endpoint
-	GenerateWeeklyBrief       goa.Endpoint
-	UpdateCurrentWeeklyBrief  goa.Endpoint
-	ShareWeeklyBriefToChat    goa.Endpoint
+	CreateCommittee            goa.Endpoint
+	GetCommitteeBase           goa.Endpoint
+	UpdateCommitteeBase        goa.Endpoint
+	DeleteCommittee            goa.Endpoint
+	GetCommitteeSettings       goa.Endpoint
+	UpdateCommitteeSettings    goa.Endpoint
+	Readyz                     goa.Endpoint
+	Livez                      goa.Endpoint
+	CreateCommitteeMember      goa.Endpoint
+	GetCommitteeMember         goa.Endpoint
+	GetOrgCommitteeSeats       goa.Endpoint
+	ReassignOrgCommitteeSeat   goa.Endpoint
+	UpdateCommitteeMember      goa.Endpoint
+	DeleteCommitteeMember      goa.Endpoint
+	GetInvite                  goa.Endpoint
+	CreateInvite               goa.Endpoint
+	RevokeInvite               goa.Endpoint
+	AcceptInvite               goa.Endpoint
+	DeclineInvite              goa.Endpoint
+	GetApplication             goa.Endpoint
+	SubmitApplication          goa.Endpoint
+	ApproveApplication         goa.Endpoint
+	RejectApplication          goa.Endpoint
+	JoinCommittee              goa.Endpoint
+	LeaveCommittee             goa.Endpoint
+	GetCommitteeLink           goa.Endpoint
+	ListCommitteeLinks         goa.Endpoint
+	CreateCommitteeLink        goa.Endpoint
+	DeleteCommitteeLink        goa.Endpoint
+	GetCommitteeLinkFolder     goa.Endpoint
+	ListCommitteeLinkFolders   goa.Endpoint
+	CreateCommitteeLinkFolder  goa.Endpoint
+	DeleteCommitteeLinkFolder  goa.Endpoint
+	UploadCommitteeDocument    goa.Endpoint
+	GetCommitteeDocument       goa.Endpoint
+	DownloadCommitteeDocument  goa.Endpoint
+	DeleteCommitteeDocument    goa.Endpoint
+	GetCurrentWeeklyBrief      goa.Endpoint
+	GenerateWeeklyBrief        goa.Endpoint
+	PreviewGenerateWeeklyBrief goa.Endpoint
+	UpdateCurrentWeeklyBrief   goa.Endpoint
+	ShareWeeklyBriefToChat     goa.Endpoint
 }
 
 // DownloadCommitteeDocumentResponseData holds both the result and the HTTP
@@ -74,47 +75,48 @@ func NewEndpoints(s Service) *Endpoints {
 	// Casting service to Auther interface
 	a := s.(Auther)
 	return &Endpoints{
-		CreateCommittee:           NewCreateCommitteeEndpoint(s, a.JWTAuth),
-		GetCommitteeBase:          NewGetCommitteeBaseEndpoint(s, a.JWTAuth),
-		UpdateCommitteeBase:       NewUpdateCommitteeBaseEndpoint(s, a.JWTAuth),
-		DeleteCommittee:           NewDeleteCommitteeEndpoint(s, a.JWTAuth),
-		GetCommitteeSettings:      NewGetCommitteeSettingsEndpoint(s, a.JWTAuth),
-		UpdateCommitteeSettings:   NewUpdateCommitteeSettingsEndpoint(s, a.JWTAuth),
-		Readyz:                    NewReadyzEndpoint(s),
-		Livez:                     NewLivezEndpoint(s),
-		CreateCommitteeMember:     NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
-		GetCommitteeMember:        NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
-		GetOrgCommitteeSeats:      NewGetOrgCommitteeSeatsEndpoint(s, a.JWTAuth),
-		ReassignOrgCommitteeSeat:  NewReassignOrgCommitteeSeatEndpoint(s, a.JWTAuth),
-		UpdateCommitteeMember:     NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
-		DeleteCommitteeMember:     NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
-		GetInvite:                 NewGetInviteEndpoint(s, a.JWTAuth),
-		CreateInvite:              NewCreateInviteEndpoint(s, a.JWTAuth),
-		RevokeInvite:              NewRevokeInviteEndpoint(s, a.JWTAuth),
-		AcceptInvite:              NewAcceptInviteEndpoint(s, a.JWTAuth),
-		DeclineInvite:             NewDeclineInviteEndpoint(s, a.JWTAuth),
-		GetApplication:            NewGetApplicationEndpoint(s, a.JWTAuth),
-		SubmitApplication:         NewSubmitApplicationEndpoint(s, a.JWTAuth),
-		ApproveApplication:        NewApproveApplicationEndpoint(s, a.JWTAuth),
-		RejectApplication:         NewRejectApplicationEndpoint(s, a.JWTAuth),
-		JoinCommittee:             NewJoinCommitteeEndpoint(s, a.JWTAuth),
-		LeaveCommittee:            NewLeaveCommitteeEndpoint(s, a.JWTAuth),
-		GetCommitteeLink:          NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
-		ListCommitteeLinks:        NewListCommitteeLinksEndpoint(s, a.JWTAuth),
-		CreateCommitteeLink:       NewCreateCommitteeLinkEndpoint(s, a.JWTAuth),
-		DeleteCommitteeLink:       NewDeleteCommitteeLinkEndpoint(s, a.JWTAuth),
-		GetCommitteeLinkFolder:    NewGetCommitteeLinkFolderEndpoint(s, a.JWTAuth),
-		ListCommitteeLinkFolders:  NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
-		CreateCommitteeLinkFolder: NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
-		DeleteCommitteeLinkFolder: NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
-		UploadCommitteeDocument:   NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
-		GetCommitteeDocument:      NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
-		DownloadCommitteeDocument: NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
-		DeleteCommitteeDocument:   NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
-		GetCurrentWeeklyBrief:     NewGetCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
-		GenerateWeeklyBrief:       NewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
-		UpdateCurrentWeeklyBrief:  NewUpdateCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
-		ShareWeeklyBriefToChat:    NewShareWeeklyBriefToChatEndpoint(s, a.JWTAuth),
+		CreateCommittee:            NewCreateCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeBase:           NewGetCommitteeBaseEndpoint(s, a.JWTAuth),
+		UpdateCommitteeBase:        NewUpdateCommitteeBaseEndpoint(s, a.JWTAuth),
+		DeleteCommittee:            NewDeleteCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeSettings:       NewGetCommitteeSettingsEndpoint(s, a.JWTAuth),
+		UpdateCommitteeSettings:    NewUpdateCommitteeSettingsEndpoint(s, a.JWTAuth),
+		Readyz:                     NewReadyzEndpoint(s),
+		Livez:                      NewLivezEndpoint(s),
+		CreateCommitteeMember:      NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetCommitteeMember:         NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetOrgCommitteeSeats:       NewGetOrgCommitteeSeatsEndpoint(s, a.JWTAuth),
+		ReassignOrgCommitteeSeat:   NewReassignOrgCommitteeSeatEndpoint(s, a.JWTAuth),
+		UpdateCommitteeMember:      NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
+		DeleteCommitteeMember:      NewDeleteCommitteeMemberEndpoint(s, a.JWTAuth),
+		GetInvite:                  NewGetInviteEndpoint(s, a.JWTAuth),
+		CreateInvite:               NewCreateInviteEndpoint(s, a.JWTAuth),
+		RevokeInvite:               NewRevokeInviteEndpoint(s, a.JWTAuth),
+		AcceptInvite:               NewAcceptInviteEndpoint(s, a.JWTAuth),
+		DeclineInvite:              NewDeclineInviteEndpoint(s, a.JWTAuth),
+		GetApplication:             NewGetApplicationEndpoint(s, a.JWTAuth),
+		SubmitApplication:          NewSubmitApplicationEndpoint(s, a.JWTAuth),
+		ApproveApplication:         NewApproveApplicationEndpoint(s, a.JWTAuth),
+		RejectApplication:          NewRejectApplicationEndpoint(s, a.JWTAuth),
+		JoinCommittee:              NewJoinCommitteeEndpoint(s, a.JWTAuth),
+		LeaveCommittee:             NewLeaveCommitteeEndpoint(s, a.JWTAuth),
+		GetCommitteeLink:           NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
+		ListCommitteeLinks:         NewListCommitteeLinksEndpoint(s, a.JWTAuth),
+		CreateCommitteeLink:        NewCreateCommitteeLinkEndpoint(s, a.JWTAuth),
+		DeleteCommitteeLink:        NewDeleteCommitteeLinkEndpoint(s, a.JWTAuth),
+		GetCommitteeLinkFolder:     NewGetCommitteeLinkFolderEndpoint(s, a.JWTAuth),
+		ListCommitteeLinkFolders:   NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
+		CreateCommitteeLinkFolder:  NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
+		DeleteCommitteeLinkFolder:  NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
+		UploadCommitteeDocument:    NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
+		GetCommitteeDocument:       NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
+		DownloadCommitteeDocument:  NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
+		DeleteCommitteeDocument:    NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
+		GetCurrentWeeklyBrief:      NewGetCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
+		GenerateWeeklyBrief:        NewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
+		PreviewGenerateWeeklyBrief: NewPreviewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
+		UpdateCurrentWeeklyBrief:   NewUpdateCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
+		ShareWeeklyBriefToChat:     NewShareWeeklyBriefToChatEndpoint(s, a.JWTAuth),
 	}
 }
 
@@ -160,6 +162,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.DeleteCommitteeDocument = m(e.DeleteCommitteeDocument)
 	e.GetCurrentWeeklyBrief = m(e.GetCurrentWeeklyBrief)
 	e.GenerateWeeklyBrief = m(e.GenerateWeeklyBrief)
+	e.PreviewGenerateWeeklyBrief = m(e.PreviewGenerateWeeklyBrief)
 	e.UpdateCurrentWeeklyBrief = m(e.UpdateCurrentWeeklyBrief)
 	e.ShareWeeklyBriefToChat = m(e.ShareWeeklyBriefToChat)
 }
@@ -1032,6 +1035,30 @@ func NewGenerateWeeklyBriefEndpoint(s Service, authJWTFn security.AuthJWTFunc) g
 			return nil, err
 		}
 		return s.GenerateWeeklyBrief(ctx, p)
+	}
+}
+
+// NewPreviewGenerateWeeklyBriefEndpoint returns an endpoint function that
+// calls the method "preview-generate-weekly-brief" of service
+// "committee-service".
+func NewPreviewGenerateWeeklyBriefEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*PreviewGenerateWeeklyBriefPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.PreviewGenerateWeeklyBrief(ctx, p)
 	}
 }
 

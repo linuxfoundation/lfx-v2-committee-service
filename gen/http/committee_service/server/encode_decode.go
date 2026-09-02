@@ -5447,6 +5447,99 @@ func EncodeGenerateWeeklyBriefError(encoder func(context.Context, http.ResponseW
 	}
 }
 
+// EncodePreviewGenerateWeeklyBriefResponse returns an encoder for responses
+// returned by the committee-service preview-generate-weekly-brief endpoint.
+func EncodePreviewGenerateWeeklyBriefResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.GroupWeeklyBriefPreviewResult)
+		enc := encoder(ctx, w)
+		body := NewPreviewGenerateWeeklyBriefResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodePreviewGenerateWeeklyBriefRequest returns a decoder for requests sent
+// to the committee-service preview-generate-weekly-brief endpoint.
+func DecodePreviewGenerateWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
+	return func(r *http.Request) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
+		var (
+			body PreviewGenerateWeeklyBriefRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidatePreviewGenerateWeeklyBriefRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid         string
+			bearerToken *string
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewPreviewGenerateWeeklyBriefPayload(&body, uid, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodePreviewGenerateWeeklyBriefError returns an encoder for errors returned
+// by the preview-generate-weekly-brief committee-service endpoint.
+func EncodePreviewGenerateWeeklyBriefError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewPreviewGenerateWeeklyBriefNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeUpdateCurrentWeeklyBriefResponse returns an encoder for responses
 // returned by the committee-service update-current-weekly-brief endpoint.
 func EncodeUpdateCurrentWeeklyBriefResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {

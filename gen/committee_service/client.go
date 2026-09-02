@@ -17,94 +17,96 @@ import (
 
 // Client is the "committee-service" service client.
 type Client struct {
-	CreateCommitteeEndpoint           goa.Endpoint
-	GetCommitteeBaseEndpoint          goa.Endpoint
-	UpdateCommitteeBaseEndpoint       goa.Endpoint
-	DeleteCommitteeEndpoint           goa.Endpoint
-	GetCommitteeSettingsEndpoint      goa.Endpoint
-	UpdateCommitteeSettingsEndpoint   goa.Endpoint
-	ReadyzEndpoint                    goa.Endpoint
-	LivezEndpoint                     goa.Endpoint
-	CreateCommitteeMemberEndpoint     goa.Endpoint
-	GetCommitteeMemberEndpoint        goa.Endpoint
-	GetOrgCommitteeSeatsEndpoint      goa.Endpoint
-	ReassignOrgCommitteeSeatEndpoint  goa.Endpoint
-	UpdateCommitteeMemberEndpoint     goa.Endpoint
-	DeleteCommitteeMemberEndpoint     goa.Endpoint
-	GetInviteEndpoint                 goa.Endpoint
-	CreateInviteEndpoint              goa.Endpoint
-	RevokeInviteEndpoint              goa.Endpoint
-	AcceptInviteEndpoint              goa.Endpoint
-	DeclineInviteEndpoint             goa.Endpoint
-	GetApplicationEndpoint            goa.Endpoint
-	SubmitApplicationEndpoint         goa.Endpoint
-	ApproveApplicationEndpoint        goa.Endpoint
-	RejectApplicationEndpoint         goa.Endpoint
-	JoinCommitteeEndpoint             goa.Endpoint
-	LeaveCommitteeEndpoint            goa.Endpoint
-	GetCommitteeLinkEndpoint          goa.Endpoint
-	ListCommitteeLinksEndpoint        goa.Endpoint
-	CreateCommitteeLinkEndpoint       goa.Endpoint
-	DeleteCommitteeLinkEndpoint       goa.Endpoint
-	GetCommitteeLinkFolderEndpoint    goa.Endpoint
-	ListCommitteeLinkFoldersEndpoint  goa.Endpoint
-	CreateCommitteeLinkFolderEndpoint goa.Endpoint
-	DeleteCommitteeLinkFolderEndpoint goa.Endpoint
-	UploadCommitteeDocumentEndpoint   goa.Endpoint
-	GetCommitteeDocumentEndpoint      goa.Endpoint
-	DownloadCommitteeDocumentEndpoint goa.Endpoint
-	DeleteCommitteeDocumentEndpoint   goa.Endpoint
-	GetCurrentWeeklyBriefEndpoint     goa.Endpoint
-	GenerateWeeklyBriefEndpoint       goa.Endpoint
-	UpdateCurrentWeeklyBriefEndpoint  goa.Endpoint
-	ShareWeeklyBriefToChatEndpoint    goa.Endpoint
+	CreateCommitteeEndpoint            goa.Endpoint
+	GetCommitteeBaseEndpoint           goa.Endpoint
+	UpdateCommitteeBaseEndpoint        goa.Endpoint
+	DeleteCommitteeEndpoint            goa.Endpoint
+	GetCommitteeSettingsEndpoint       goa.Endpoint
+	UpdateCommitteeSettingsEndpoint    goa.Endpoint
+	ReadyzEndpoint                     goa.Endpoint
+	LivezEndpoint                      goa.Endpoint
+	CreateCommitteeMemberEndpoint      goa.Endpoint
+	GetCommitteeMemberEndpoint         goa.Endpoint
+	GetOrgCommitteeSeatsEndpoint       goa.Endpoint
+	ReassignOrgCommitteeSeatEndpoint   goa.Endpoint
+	UpdateCommitteeMemberEndpoint      goa.Endpoint
+	DeleteCommitteeMemberEndpoint      goa.Endpoint
+	GetInviteEndpoint                  goa.Endpoint
+	CreateInviteEndpoint               goa.Endpoint
+	RevokeInviteEndpoint               goa.Endpoint
+	AcceptInviteEndpoint               goa.Endpoint
+	DeclineInviteEndpoint              goa.Endpoint
+	GetApplicationEndpoint             goa.Endpoint
+	SubmitApplicationEndpoint          goa.Endpoint
+	ApproveApplicationEndpoint         goa.Endpoint
+	RejectApplicationEndpoint          goa.Endpoint
+	JoinCommitteeEndpoint              goa.Endpoint
+	LeaveCommitteeEndpoint             goa.Endpoint
+	GetCommitteeLinkEndpoint           goa.Endpoint
+	ListCommitteeLinksEndpoint         goa.Endpoint
+	CreateCommitteeLinkEndpoint        goa.Endpoint
+	DeleteCommitteeLinkEndpoint        goa.Endpoint
+	GetCommitteeLinkFolderEndpoint     goa.Endpoint
+	ListCommitteeLinkFoldersEndpoint   goa.Endpoint
+	CreateCommitteeLinkFolderEndpoint  goa.Endpoint
+	DeleteCommitteeLinkFolderEndpoint  goa.Endpoint
+	UploadCommitteeDocumentEndpoint    goa.Endpoint
+	GetCommitteeDocumentEndpoint       goa.Endpoint
+	DownloadCommitteeDocumentEndpoint  goa.Endpoint
+	DeleteCommitteeDocumentEndpoint    goa.Endpoint
+	GetCurrentWeeklyBriefEndpoint      goa.Endpoint
+	GenerateWeeklyBriefEndpoint        goa.Endpoint
+	PreviewGenerateWeeklyBriefEndpoint goa.Endpoint
+	UpdateCurrentWeeklyBriefEndpoint   goa.Endpoint
+	ShareWeeklyBriefToChatEndpoint     goa.Endpoint
 }
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
 	return &Client{
-		CreateCommitteeEndpoint:           createCommittee,
-		GetCommitteeBaseEndpoint:          getCommitteeBase,
-		UpdateCommitteeBaseEndpoint:       updateCommitteeBase,
-		DeleteCommitteeEndpoint:           deleteCommittee,
-		GetCommitteeSettingsEndpoint:      getCommitteeSettings,
-		UpdateCommitteeSettingsEndpoint:   updateCommitteeSettings,
-		ReadyzEndpoint:                    readyz,
-		LivezEndpoint:                     livez,
-		CreateCommitteeMemberEndpoint:     createCommitteeMember,
-		GetCommitteeMemberEndpoint:        getCommitteeMember,
-		GetOrgCommitteeSeatsEndpoint:      getOrgCommitteeSeats,
-		ReassignOrgCommitteeSeatEndpoint:  reassignOrgCommitteeSeat,
-		UpdateCommitteeMemberEndpoint:     updateCommitteeMember,
-		DeleteCommitteeMemberEndpoint:     deleteCommitteeMember,
-		GetInviteEndpoint:                 getInvite,
-		CreateInviteEndpoint:              createInvite,
-		RevokeInviteEndpoint:              revokeInvite,
-		AcceptInviteEndpoint:              acceptInvite,
-		DeclineInviteEndpoint:             declineInvite,
-		GetApplicationEndpoint:            getApplication,
-		SubmitApplicationEndpoint:         submitApplication,
-		ApproveApplicationEndpoint:        approveApplication,
-		RejectApplicationEndpoint:         rejectApplication,
-		JoinCommitteeEndpoint:             joinCommittee,
-		LeaveCommitteeEndpoint:            leaveCommittee,
-		GetCommitteeLinkEndpoint:          getCommitteeLink,
-		ListCommitteeLinksEndpoint:        listCommitteeLinks,
-		CreateCommitteeLinkEndpoint:       createCommitteeLink,
-		DeleteCommitteeLinkEndpoint:       deleteCommitteeLink,
-		GetCommitteeLinkFolderEndpoint:    getCommitteeLinkFolder,
-		ListCommitteeLinkFoldersEndpoint:  listCommitteeLinkFolders,
-		CreateCommitteeLinkFolderEndpoint: createCommitteeLinkFolder,
-		DeleteCommitteeLinkFolderEndpoint: deleteCommitteeLinkFolder,
-		UploadCommitteeDocumentEndpoint:   uploadCommitteeDocument,
-		GetCommitteeDocumentEndpoint:      getCommitteeDocument,
-		DownloadCommitteeDocumentEndpoint: downloadCommitteeDocument,
-		DeleteCommitteeDocumentEndpoint:   deleteCommitteeDocument,
-		GetCurrentWeeklyBriefEndpoint:     getCurrentWeeklyBrief,
-		GenerateWeeklyBriefEndpoint:       generateWeeklyBrief,
-		UpdateCurrentWeeklyBriefEndpoint:  updateCurrentWeeklyBrief,
-		ShareWeeklyBriefToChatEndpoint:    shareWeeklyBriefToChat,
+		CreateCommitteeEndpoint:            createCommittee,
+		GetCommitteeBaseEndpoint:           getCommitteeBase,
+		UpdateCommitteeBaseEndpoint:        updateCommitteeBase,
+		DeleteCommitteeEndpoint:            deleteCommittee,
+		GetCommitteeSettingsEndpoint:       getCommitteeSettings,
+		UpdateCommitteeSettingsEndpoint:    updateCommitteeSettings,
+		ReadyzEndpoint:                     readyz,
+		LivezEndpoint:                      livez,
+		CreateCommitteeMemberEndpoint:      createCommitteeMember,
+		GetCommitteeMemberEndpoint:         getCommitteeMember,
+		GetOrgCommitteeSeatsEndpoint:       getOrgCommitteeSeats,
+		ReassignOrgCommitteeSeatEndpoint:   reassignOrgCommitteeSeat,
+		UpdateCommitteeMemberEndpoint:      updateCommitteeMember,
+		DeleteCommitteeMemberEndpoint:      deleteCommitteeMember,
+		GetInviteEndpoint:                  getInvite,
+		CreateInviteEndpoint:               createInvite,
+		RevokeInviteEndpoint:               revokeInvite,
+		AcceptInviteEndpoint:               acceptInvite,
+		DeclineInviteEndpoint:              declineInvite,
+		GetApplicationEndpoint:             getApplication,
+		SubmitApplicationEndpoint:          submitApplication,
+		ApproveApplicationEndpoint:         approveApplication,
+		RejectApplicationEndpoint:          rejectApplication,
+		JoinCommitteeEndpoint:              joinCommittee,
+		LeaveCommitteeEndpoint:             leaveCommittee,
+		GetCommitteeLinkEndpoint:           getCommitteeLink,
+		ListCommitteeLinksEndpoint:         listCommitteeLinks,
+		CreateCommitteeLinkEndpoint:        createCommitteeLink,
+		DeleteCommitteeLinkEndpoint:        deleteCommitteeLink,
+		GetCommitteeLinkFolderEndpoint:     getCommitteeLinkFolder,
+		ListCommitteeLinkFoldersEndpoint:   listCommitteeLinkFolders,
+		CreateCommitteeLinkFolderEndpoint:  createCommitteeLinkFolder,
+		DeleteCommitteeLinkFolderEndpoint:  deleteCommitteeLinkFolder,
+		UploadCommitteeDocumentEndpoint:    uploadCommitteeDocument,
+		GetCommitteeDocumentEndpoint:       getCommitteeDocument,
+		DownloadCommitteeDocumentEndpoint:  downloadCommitteeDocument,
+		DeleteCommitteeDocumentEndpoint:    deleteCommitteeDocument,
+		GetCurrentWeeklyBriefEndpoint:      getCurrentWeeklyBrief,
+		GenerateWeeklyBriefEndpoint:        generateWeeklyBrief,
+		PreviewGenerateWeeklyBriefEndpoint: previewGenerateWeeklyBrief,
+		UpdateCurrentWeeklyBriefEndpoint:   updateCurrentWeeklyBrief,
+		ShareWeeklyBriefToChatEndpoint:     shareWeeklyBriefToChat,
 	}
 }
 
@@ -746,6 +748,20 @@ func (c *Client) GenerateWeeklyBrief(ctx context.Context, p *GenerateWeeklyBrief
 		return
 	}
 	return ires.(*GroupWeeklyBriefGenerateResult), nil
+}
+
+// PreviewGenerateWeeklyBrief calls the "preview-generate-weekly-brief"
+// endpoint of the "committee-service" service.
+// PreviewGenerateWeeklyBrief may return the following errors:
+//   - "NotFound" (type *NotFoundError): No activity found in the current window
+//   - error: internal error
+func (c *Client) PreviewGenerateWeeklyBrief(ctx context.Context, p *PreviewGenerateWeeklyBriefPayload) (res *GroupWeeklyBriefPreviewResult, err error) {
+	var ires any
+	ires, err = c.PreviewGenerateWeeklyBriefEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*GroupWeeklyBriefPreviewResult), nil
 }
 
 // UpdateCurrentWeeklyBrief calls the "update-current-weekly-brief" endpoint of

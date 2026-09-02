@@ -239,13 +239,17 @@ func TestGetCurrentWeeklyBrief_CommitteeNotFound(t *testing.T) {
 //  POST /committees/{uid}/weekly-briefs/generate
 // ─────────────────────────────────────────────────────────────────────────────
 
-// stubGroupWeeklyBriefGenerator records the Claim input and returns canned
-// output/err. Fulfill panics — the handler never calls it directly.
+// stubGroupWeeklyBriefGenerator records the Claim/Preview inputs and returns
+// canned output/err. Fulfill panics — the handler never calls it directly.
 type stubGroupWeeklyBriefGenerator struct {
-	out     *internalsvc.GroupWeeklyBriefGenerateOutput
-	err     error
-	gotIn   internalsvc.GroupWeeklyBriefGenerateInput
-	claimed bool
+	out        *internalsvc.GroupWeeklyBriefGenerateOutput
+	err        error
+	gotIn      internalsvc.GroupWeeklyBriefGenerateInput
+	claimed    bool
+	previewOut *internalsvc.GroupWeeklyBriefPreviewOutput
+	previewErr error
+	previewed  bool
+	previewIn  internalsvc.GroupWeeklyBriefGenerateInput
 }
 
 func (g *stubGroupWeeklyBriefGenerator) Claim(_ context.Context, in internalsvc.GroupWeeklyBriefGenerateInput) (*internalsvc.GroupWeeklyBriefGenerateOutput, error) {
@@ -256,6 +260,12 @@ func (g *stubGroupWeeklyBriefGenerator) Claim(_ context.Context, in internalsvc.
 
 func (g *stubGroupWeeklyBriefGenerator) Fulfill(_ context.Context, _ internalsvc.GroupWeeklyBriefGenerateInput) error {
 	panic("Fulfill is not called from the handler under test")
+}
+
+func (g *stubGroupWeeklyBriefGenerator) Preview(_ context.Context, in internalsvc.GroupWeeklyBriefGenerateInput) (*internalsvc.GroupWeeklyBriefPreviewOutput, error) {
+	g.previewed = true
+	g.previewIn = in
+	return g.previewOut, g.previewErr
 }
 
 var _ internalsvc.GroupWeeklyBriefGenerator = (*stubGroupWeeklyBriefGenerator)(nil)
@@ -631,4 +641,95 @@ func TestGenerateWeeklyBrief_PublishError(t *testing.T) {
 	assert.Nil(t, res)
 	var su *committeeservice.ServiceUnavailableError
 	require.ErrorAs(t, err, &su)
+}
+
+// newPreviewSvc builds a minimal svc wired for preview tests (no publisher needed).
+func newPreviewSvc(base *model.CommitteeBase, gen internalsvc.GroupWeeklyBriefGenerator) *committeeServicesrvc {
+	return &committeeServicesrvc{
+		committeeReaderOrchestrator: &stubCommitteeReader{base: base, rev: 1},
+		weeklyBriefGenerator:        gen,
+	}
+}
+
+func TestPreviewGenerateWeeklyBrief_Success(t *testing.T) {
+	now := time.Now().UTC()
+	start, end := model.WeeklyWindow(now)
+	briefText := "The committee reviewed the Q3 roadmap."
+	gen := &stubGroupWeeklyBriefGenerator{
+		previewOut: &internalsvc.GroupWeeklyBriefPreviewOutput{
+			BriefText:            briefText,
+			PrivateSourcePresent: false,
+			WindowStart:          start,
+			WindowEnd:            end,
+			PromptVersion:        "v1",
+			Model:                "claude-sonnet-4-6",
+			SourceRefs: []model.SourceRef{
+				{Kind: "meeting", ID: "m-1", Title: "Board Meeting"},
+			},
+		},
+	}
+	base := &model.CommitteeBase{Name: "TAC", ProjectName: "Project X"}
+	svc := newPreviewSvc(base, gen)
+
+	res, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	// Brief text is forwarded.
+	require.NotNil(t, res.BriefText)
+	assert.Equal(t, briefText, *res.BriefText)
+
+	// Window times are formatted as RFC3339.
+	require.NotNil(t, res.WindowStart)
+	assert.Equal(t, start.UTC().Format(time.RFC3339), *res.WindowStart)
+	require.NotNil(t, res.WindowEnd)
+	assert.Equal(t, end.UTC().Format(time.RFC3339), *res.WindowEnd)
+
+	// Metadata fields forwarded.
+	require.NotNil(t, res.PromptVersion)
+	assert.Equal(t, "v1", *res.PromptVersion)
+	require.NotNil(t, res.Model)
+	assert.Equal(t, "claude-sonnet-4-6", *res.Model)
+
+	// Source ref forwarded.
+	require.Len(t, res.SourceRefs, 1)
+	assert.Equal(t, "meeting", *res.SourceRefs[0].Kind)
+	assert.Equal(t, "m-1", *res.SourceRefs[0].ID)
+	assert.Equal(t, "Board Meeting", *res.SourceRefs[0].Title)
+
+	// Preview called with correct identity fields.
+	require.True(t, gen.previewed)
+	assert.Equal(t, "c-1", gen.previewIn.CommitteeUID)
+	assert.Equal(t, "TAC", gen.previewIn.CommitteeName)
+	assert.Equal(t, "Project X", gen.previewIn.ProjectName)
+	assert.False(t, gen.previewIn.Force, "Preview must always pass Force=false")
+}
+
+func TestPreviewGenerateWeeklyBrief_GeneratorNotConfigured(t *testing.T) {
+	svc := newPreviewSvc(&model.CommitteeBase{Name: "TAC"}, nil)
+	res, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var su *committeeservice.ServiceUnavailableError
+	require.ErrorAs(t, err, &su)
+}
+
+func TestPreviewGenerateWeeklyBrief_CommitteeNotFound(t *testing.T) {
+	svc := newPreviewSvc(nil /*base=nil → 404*/, &stubGroupWeeklyBriefGenerator{})
+	res, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "unknown"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var nf *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nf)
+}
+
+func TestPreviewGenerateWeeklyBrief_PreviewError(t *testing.T) {
+	// Preview returns NotFound (no activity in window) → handler surfaces 404.
+	gen := &stubGroupWeeklyBriefGenerator{previewErr: errors.NewNotFound("no activity in window")}
+	svc := newPreviewSvc(&model.CommitteeBase{Name: "TAC"}, gen)
+	res, err := svc.PreviewGenerateWeeklyBrief(context.Background(), &committeeservice.PreviewGenerateWeeklyBriefPayload{UID: "c-1"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	var nf *committeeservice.NotFoundError
+	require.ErrorAs(t, err, &nf)
 }

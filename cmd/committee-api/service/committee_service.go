@@ -2218,6 +2218,95 @@ func (s *committeeServicesrvc) GenerateWeeklyBrief(ctx context.Context, p *commi
 	return res, nil
 }
 
+// PreviewGenerateWeeklyBrief is the POST /committees/{uid}/weekly-briefs/preview-generate
+// handler. It synchronously gathers sources and runs the AI adapter for the current
+// UTC Sun→Sat window, returning the generated brief text and source refs without
+// persisting anything. No throttle is consumed, no brief state is changed, and no
+// KV write occurs. Responds 404 when the window has no activity.
+func (s *committeeServicesrvc) PreviewGenerateWeeklyBrief(ctx context.Context, p *committeeservice.PreviewGenerateWeeklyBriefPayload) (*committeeservice.GroupWeeklyBriefPreviewResult, error) {
+	slog.DebugContext(ctx, "committeeService.preview-generate-weekly-brief",
+		"committee_uid", p.UID,
+	)
+
+	// Authorization (committee writer relation) is enforced at the edge by
+	// Heimdall before the request reaches this service; no in-code check here.
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
+	}
+
+	// Verify the committee exists so a typo'd UID returns 404, not an AI error.
+	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if base == nil {
+		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	// Default to hidden — same safe default as GenerateWeeklyBrief. A transient
+	// settings read failure leaves membersHidden=true so names never leak.
+	membersHidden := true
+	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil {
+		membersHidden = settings.MemberVisibility != "basic_profile"
+	}
+
+	out, err := s.weeklyBriefGenerator.Preview(ctx, service.GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  p.UID,
+		CommitteeName: base.Name,
+		ProjectUID:    base.ProjectUID,
+		ProjectName:   base.ProjectName,
+		Force:         false,
+		Now:           time.Now().UTC(),
+		MembersHidden: membersHidden,
+	})
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	res := &committeeservice.GroupWeeklyBriefPreviewResult{}
+	if out.BriefText != "" {
+		v := out.BriefText
+		res.BriefText = &v
+	}
+	psp := out.PrivateSourcePresent
+	res.PrivateSourcePresent = &psp
+	if !out.WindowStart.IsZero() {
+		v := out.WindowStart.UTC().Format(time.RFC3339)
+		res.WindowStart = &v
+	}
+	if !out.WindowEnd.IsZero() {
+		v := out.WindowEnd.UTC().Format(time.RFC3339)
+		res.WindowEnd = &v
+	}
+	if out.PromptVersion != "" {
+		v := out.PromptVersion
+		res.PromptVersion = &v
+	}
+	if out.Model != "" {
+		v := out.Model
+		res.Model = &v
+	}
+	for _, sr := range out.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		res.SourceRefs = append(res.SourceRefs, ref)
+	}
+	return res, nil
+}
+
 // UpdateCurrentWeeklyBrief is the PUT /committees/{uid}/weekly-briefs/current
 // handler. It saves chair-edited brief text for the current UTC Sun→Sat window,
 // transitioning the brief to "edited" and preserving source_refs. Optimistic

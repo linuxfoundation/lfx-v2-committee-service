@@ -42,6 +42,18 @@ type GroupWeeklyBriefGenerateOutput struct {
 	Throttle *model.GroupWeeklyBriefThrottle
 }
 
+// GroupWeeklyBriefPreviewOutput is the result of a preview generation — the
+// brief text and metadata computed by the generator without writing anything.
+type GroupWeeklyBriefPreviewOutput struct {
+	BriefText            string
+	SourceRefs           []model.SourceRef
+	PrivateSourcePresent bool
+	WindowStart          time.Time
+	WindowEnd            time.Time
+	PromptVersion        string
+	Model                string
+}
+
 // GenerateWeeklyBriefRequestedEvent is the payload published on
 // GenerateWeeklyBriefRequestedSubject after a brief is claimed. The durable
 // generate consumer decodes it and calls Fulfill. RequestedAt pins the window
@@ -76,6 +88,10 @@ type GroupWeeklyBriefGenerator interface {
 	// failure). A nil return ACKs the consumer message; a non-nil return NAKs it
 	// for retry (used for infrastructure errors).
 	Fulfill(ctx context.Context, in GroupWeeklyBriefGenerateInput) error
+	// Preview gathers sources and calls the AI adapter exactly as Fulfill does,
+	// but returns the result directly without writing to storage or modifying
+	// any throttle or brief state. It is synchronous and side-effect-free.
+	Preview(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefPreviewOutput, error)
 }
 
 // ActivitySources bundles all external data-source ports for the weekly-brief
@@ -435,10 +451,140 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 		return g.finalizeError(ctx, brief, "no_sources")
 	}
 
-	// Prompt construction (fenced source markers prevent injection).
-	committeeName, projectName := in.CommitteeName, in.ProjectName
+	briefText, sourceRefs, privateSourcePresent, promptVersion, modelLabel, errGen :=
+		g.gatherAndGenerate(ctx, in.CommitteeUID, in.CommitteeName, in.ProjectName,
+			windowStart, windowEnd,
+			meetings, summaries, members, mailing, votes, surveys, projectMemberships,
+			memberCount, in.MembersHidden)
+	if errGen != nil {
+		slog.ErrorContext(ctx, "weekly-brief fulfill: AI generation failed",
+			"committee_uid", in.CommitteeUID, "error", errGen)
+		return g.finalizeError(ctx, brief, "ai_error")
+	}
+
+	// Finalize → generated.
+	brief.State = model.GroupWeeklyBriefStateGenerated
+	brief.BriefText = briefText
+	brief.PromptVersion = promptVersion
+	brief.Model = modelLabel
+	brief.PrivateSourcePresent = privateSourcePresent
+	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
+	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
+	if errPut != nil {
+		return errPut // infrastructure / CAS error → retry
+	}
+	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
+	return nil
+}
+
+// Preview gathers sources and calls the AI adapter for the current window,
+// returning the generated brief without writing to storage. It is synchronous
+// and has no side effects — no throttle consumed, no brief state changed.
+func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyBriefGenerateInput) (*GroupWeeklyBriefPreviewOutput, error) {
+	if in.CommitteeUID == "" {
+		return nil, errors.NewValidation("committee_uid is required")
+	}
+	if in.Now.IsZero() {
+		in.Now = time.Now().UTC()
+	}
+	windowStart, windowEnd := model.WeeklyWindow(in.Now)
+
+	meetings, errMeetings := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief preview: meeting source failed; continuing with zero meetings",
+		func() ([]port.MeetingActivity, error) {
+			return g.sources.Meetings.ListMeetingsForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	members, errMembers := g.sources.MemberReader.ListMemberActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+	if errMembers != nil {
+		return nil, errMembers
+	}
+	mailing, _ := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief preview: mailing list source failed; continuing with zero threads",
+		func() ([]port.MailingListActivity, error) {
+			return g.sources.MailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	votes, _ := gatherDegradable(ctx, in.CommitteeUID,
+		"weekly-brief preview: vote source failed; continuing with zero votes",
+		func() ([]port.VoteActivity, error) {
+			return g.sources.Votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+		})
+	if g.sources.VoteResults != nil {
+		g.enrichVotesWithResults(ctx, votes)
+	}
+	var surveys []port.SurveyActivity
+	if g.sources.Surveys != nil {
+		surveys, _ = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief preview: survey source failed; continuing with zero surveys",
+			func() ([]port.SurveyActivity, error) {
+				return g.sources.Surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
+	}
+	var projectMemberships []port.ProjectMembershipActivity
+	if g.sources.ProjectMemberships != nil {
+		projectMemberships, _ = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief preview: project membership source failed; continuing with zero memberships",
+			func() ([]port.ProjectMembershipActivity, error) {
+				return g.sources.ProjectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
+			})
+	}
+	var summaries []port.MeetingAISummaryActivity
+	if g.sources.AISummaries != nil {
+		summaries, _ = gatherDegradable(ctx, in.CommitteeUID,
+			"weekly-brief preview: AI summary source failed; continuing with zero summaries",
+			func() ([]port.MeetingAISummaryActivity, error) {
+				return g.sources.AISummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
+			})
+	}
+
+	memberCount := len(members.Joined) + len(members.Updated)
+	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 && len(projectMemberships) == 0 {
+		// Surface the error if present; otherwise report no sources.
+		if errMeetings != nil {
+			return nil, errMeetings
+		}
+		return nil, errors.NewNotFound("no activity found in the current window")
+	}
+
+	briefText, sourceRefs, privateSourcePresent, promptVersion, modelLabel, errGen :=
+		g.gatherAndGenerate(ctx, in.CommitteeUID, in.CommitteeName, in.ProjectName,
+			windowStart, windowEnd,
+			meetings, summaries, members, mailing, votes, surveys, projectMemberships,
+			memberCount, in.MembersHidden)
+	if errGen != nil {
+		return nil, errGen
+	}
+
+	return &GroupWeeklyBriefPreviewOutput{
+		BriefText:            briefText,
+		SourceRefs:           sourceRefs,
+		PrivateSourcePresent: privateSourcePresent,
+		WindowStart:          windowStart,
+		WindowEnd:            windowEnd,
+		PromptVersion:        promptVersion,
+		Model:                modelLabel,
+	}, nil
+}
+
+// gatherAndGenerate resolves committee/project names, builds claims, calls the
+// AI adapter, and returns the generated brief text and metadata. It is the
+// shared core of both Fulfill and Preview — it has no storage side effects.
+func (g *groupWeeklyBriefGenerator) gatherAndGenerate(
+	ctx context.Context,
+	committeeUID, committeeName, projectName string,
+	windowStart, windowEnd time.Time,
+	meetings []port.MeetingActivity,
+	summaries []port.MeetingAISummaryActivity,
+	members port.WeeklyMemberActivity,
+	mailing []port.MailingListActivity,
+	votes []port.VoteActivity,
+	surveys []port.SurveyActivity,
+	projectMemberships []port.ProjectMembershipActivity,
+	memberCount int,
+	membersHidden bool,
+) (briefText string, sourceRefs []model.SourceRef, privateSourcePresent bool, promptVersion, modelLabel string, err error) {
+	// Resolve names from the committee lookup if not supplied by the caller.
 	if (committeeName == "" || projectName == "") && g.committeeName != nil {
-		if cn, pn, errLookup := g.committeeName(ctx, in.CommitteeUID); errLookup == nil {
+		if cn, pn, errLookup := g.committeeName(ctx, committeeUID); errLookup == nil {
 			if committeeName == "" {
 				committeeName = cn
 			}
@@ -450,10 +596,10 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}
-	claims, sourceRefs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, projectMemberships, in.MembersHidden)
+	claims, refs := buildClaimsAndRefs(meetings, summaries, members, mailing, votes, surveys, projectMemberships, membersHidden)
 
 	aiInput := port.WeeklyBriefInput{
-		CommitteeID:   in.CommitteeUID,
+		CommitteeID:   committeeUID,
 		CommitteeName: committeeName,
 		ProjectName:   projectName,
 		PeriodStart:   windowStart.UTC().Format(time.RFC3339),
@@ -464,27 +610,15 @@ func (g *groupWeeklyBriefGenerator) Fulfill(ctx context.Context, in GroupWeeklyB
 
 	aiOut, errAI := g.ai.GenerateWeeklyBrief(ctx, aiInput)
 	if errAI != nil {
-		// Mark the brief as errored so it doesn't stay "generating" forever; the
-		// caller can re-trigger generation. (A bounded retry policy could be
-		// added later.)
-		slog.ErrorContext(ctx, "weekly-brief fulfill: AI generation failed",
-			"committee_uid", in.CommitteeUID, "error", errAI)
-		return g.finalizeError(ctx, brief, "ai_error")
+		return "", nil, false, "", "", errAI
 	}
 
-	// Finalize → generated.
-	brief.State = model.GroupWeeklyBriefStateGenerated
-	brief.BriefText = aiOut.BriefText
-	brief.PromptVersion = g.ai.PromptVersion()
-	brief.Model = modelLabelFromAdapter(g.ai)
-	brief.PrivateSourcePresent = derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys, projectMemberships)
-	brief.SourceRefs = append([]model.SourceRef(nil), sourceRefs...)
-	persisted, errPut := g.briefWriter.PutGroupWeeklyBrief(ctx, brief)
-	if errPut != nil {
-		return errPut // infrastructure / CAS error → retry
-	}
-	publishGroupWeeklyBriefIndex(ctx, g.publisher, persisted)
-	return nil
+	return aiOut.BriefText,
+		refs,
+		derivePrivateSourcePresent(memberCount, meetings, summaries, mailing, votes, surveys, projectMemberships),
+		g.ai.PromptVersion(),
+		modelLabelFromAdapter(g.ai),
+		nil
 }
 
 // gatherDegradable calls fetch and returns its result. On error it logs failMsg at

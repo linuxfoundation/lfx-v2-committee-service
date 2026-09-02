@@ -207,6 +207,11 @@ func GenerateWeeklyBriefCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/weekly-briefs/generate", uid)
 }
 
+// PreviewGenerateWeeklyBriefCommitteeServicePath returns the URL path to the committee-service service preview-generate-weekly-brief HTTP endpoint.
+func PreviewGenerateWeeklyBriefCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/weekly-briefs/preview-generate", uid)
+}
+
 // UpdateCurrentWeeklyBriefCommitteeServicePath returns the URL path to the committee-service service update-current-weekly-brief HTTP endpoint.
 func UpdateCurrentWeeklyBriefCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/weekly-briefs/current", uid)

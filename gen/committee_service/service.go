@@ -114,6 +114,13 @@ type Service interface {
 	// generations and 3 regenerations, enforced synchronously. Returns 409 when an
 	// edited brief exists and force is not set, 429 when the throttle is exhausted.
 	GenerateWeeklyBrief(context.Context, *GenerateWeeklyBriefPayload) (res *GroupWeeklyBriefGenerateResult, err error)
+	// Synchronously gather sources and call the AI adapter for the UTC Sun→Sat
+	// window selected by the service, returning the generated brief text without
+	// persisting anything. No throttle is consumed, no brief state is changed, and
+	// no KV write occurs. Use this to inspect generator output before triggering a
+	// real generation. Responds 200 with the brief text and source refs; 404 when
+	// the window has no activity.
+	PreviewGenerateWeeklyBrief(context.Context, *PreviewGenerateWeeklyBriefPayload) (res *GroupWeeklyBriefPreviewResult, err error)
 	// Save chair-edited brief text for the UTC Sun→Sat window selected by the
 	// service (Sunday–Friday → the previous, completed week; Saturday → the
 	// current, not-yet-completed week). Overwrites brief_text and transitions the
@@ -153,7 +160,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [41]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
+var MethodNames = [42]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -1151,6 +1158,25 @@ type GroupWeeklyBriefGenerateResult struct {
 	Throttle *GroupWeeklyBriefThrottle
 }
 
+// GroupWeeklyBriefPreviewResult is the result type of the committee-service
+// service preview-generate-weekly-brief method.
+type GroupWeeklyBriefPreviewResult struct {
+	// Generated brief body markdown text
+	BriefText *string
+	// Sources considered by the generator
+	SourceRefs []*GroupWeeklyBriefSourceRef
+	// Whether any non-public source was used
+	PrivateSourcePresent *bool
+	// UTC Sunday 00:00:00 marking the start of the window
+	WindowStart *string
+	// Inclusive UTC end of the window
+	WindowEnd *string
+	// Prompt version used by the generator
+	PromptVersion *string
+	// AI model used by the generator
+	Model *string
+}
+
 // Reference to a source document considered by the weekly-brief generator.
 type GroupWeeklyBriefSourceRef struct {
 	// Source category (meeting, mailing-list, doc, …)
@@ -1335,6 +1361,17 @@ type OrgCommitteeSeatPage struct {
 	Seats []*OrgCommitteeSeat
 	// Opaque cursor for the next page; empty when there are no more results
 	PageToken *string
+}
+
+// PreviewGenerateWeeklyBriefPayload is the payload type of the
+// committee-service service preview-generate-weekly-brief method.
+type PreviewGenerateWeeklyBriefPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
 }
 
 // ReassignOrgCommitteeSeatPayload is the payload type of the committee-service

@@ -1428,6 +1428,43 @@ var GroupWeeklyBriefGenerateResult = dsl.Type("group-weekly-brief-generate-resul
 	})
 })
 
+// GroupWeeklyBriefPreviewResult is the envelope returned by
+// POST /committees/{uid}/weekly-briefs/preview-generate.
+var GroupWeeklyBriefPreviewResult = dsl.Type("group-weekly-brief-preview-result", func() {
+	dsl.Description("Envelope returned by POST /committees/{uid}/weekly-briefs/preview-generate. " +
+		"Contains the generated brief text and metadata without persisting anything.")
+	dsl.Attribute("brief_text", dsl.String, "Generated brief body markdown text", func() {
+		dsl.MaxLength(20000)
+		dsl.Example("The committee met on 2026-08-27 to review the Q3 roadmap...")
+	})
+	dsl.Attribute("source_refs", dsl.ArrayOf(GroupWeeklyBriefSourceRef), "Sources considered by the generator")
+	dsl.Attribute("private_source_present", dsl.Boolean, "Whether any non-public source was used", func() {
+		dsl.Example(false)
+	})
+	dsl.Attribute("window_start", dsl.String, "UTC Sunday 00:00:00 marking the start of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-08-23T00:00:00Z")
+	})
+	dsl.Attribute("window_end", dsl.String, "Inclusive UTC end of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-08-29T23:59:59.999999999Z")
+	})
+	dsl.Attribute("prompt_version", dsl.String, "Prompt version used by the generator", func() {
+		dsl.Example("v1")
+	})
+	dsl.Attribute("model", dsl.String, "AI model used by the generator", func() {
+		dsl.Example("claude-sonnet-4-6")
+	})
+	dsl.Example("preview", map[string]any{
+		"brief_text":             "The committee met on 2026-08-27...",
+		"private_source_present": false,
+		"window_start":           "2026-08-23T00:00:00Z",
+		"window_end":             "2026-08-29T23:59:59.999999999Z",
+		"prompt_version":         "v1",
+		"model":                  "claude-sonnet-4-6",
+	})
+})
+
 // GroupWeeklyBriefThrottleExceededError is the 429 body. It carries the throttle
 // counters so the BFF can render a precise "try again at" hint without a second
 // round-trip.
