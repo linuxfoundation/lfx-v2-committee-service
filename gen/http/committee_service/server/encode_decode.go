@@ -5464,33 +5464,24 @@ func EncodePreviewGenerateWeeklyBriefResponse(encoder func(context.Context, http
 func DecodePreviewGenerateWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
 	return func(r *http.Request) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
 		var (
-			body PreviewGenerateWeeklyBriefRequestBody
-			err  error
-		)
-		err = decoder(r).Decode(&body)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil, goa.MissingPayloadError()
-			}
-			var gerr *goa.ServiceError
-			if errors.As(err, &gerr) {
-				return nil, gerr
-			}
-			return nil, goa.DecodePayloadError(err.Error())
-		}
-		err = ValidatePreviewGenerateWeeklyBriefRequestBody(&body)
-		if err != nil {
-			return nil, err
-		}
-
-		var (
 			uid         string
+			version     *string
 			bearerToken *string
+			err         error
 
 			params = mux.Vars(r)
 		)
 		uid = params["uid"]
 		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
 		bearerTokenRaw := r.Header.Get("Authorization")
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
@@ -5498,7 +5489,7 @@ func DecodePreviewGenerateWeeklyBriefRequest(mux goahttp.Muxer, decoder func(*ht
 		if err != nil {
 			return nil, err
 		}
-		payload := NewPreviewGenerateWeeklyBriefPayload(&body, uid, bearerToken)
+		payload := NewPreviewGenerateWeeklyBriefPayload(uid, version, bearerToken)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")
@@ -5521,6 +5512,45 @@ func EncodePreviewGenerateWeeklyBriefError(encoder func(context.Context, http.Re
 			return encodeError(ctx, w, v)
 		}
 		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewPreviewGenerateWeeklyBriefBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewPreviewGenerateWeeklyBriefForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewPreviewGenerateWeeklyBriefInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
 		case "NotFound":
 			var res *committeeservice.NotFoundError
 			errors.As(v, &res)
@@ -5533,6 +5563,19 @@ func EncodePreviewGenerateWeeklyBriefError(encoder func(context.Context, http.Re
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewPreviewGenerateWeeklyBriefServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return enc.Encode(body)
 		default:
 			return encodeError(ctx, w, v)

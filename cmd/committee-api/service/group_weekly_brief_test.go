@@ -679,11 +679,11 @@ func TestPreviewGenerateWeeklyBrief_Success(t *testing.T) {
 	require.NotNil(t, res.BriefText)
 	assert.Equal(t, briefText, *res.BriefText)
 
-	// Window times are formatted as RFC3339.
+	// Window times are formatted as RFC3339Nano to preserve nanosecond precision.
 	require.NotNil(t, res.WindowStart)
-	assert.Equal(t, start.UTC().Format(time.RFC3339), *res.WindowStart)
+	assert.Equal(t, start.UTC().Format(time.RFC3339Nano), *res.WindowStart)
 	require.NotNil(t, res.WindowEnd)
-	assert.Equal(t, end.UTC().Format(time.RFC3339), *res.WindowEnd)
+	assert.Equal(t, end.UTC().Format(time.RFC3339Nano), *res.WindowEnd)
 
 	// Metadata fields forwarded.
 	require.NotNil(t, res.PromptVersion)

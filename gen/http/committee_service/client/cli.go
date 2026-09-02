@@ -2909,23 +2909,8 @@ func BuildGenerateWeeklyBriefPayload(committeeServiceGenerateWeeklyBriefBody str
 
 // BuildPreviewGenerateWeeklyBriefPayload builds the payload for the
 // committee-service preview-generate-weekly-brief endpoint from CLI flags.
-func BuildPreviewGenerateWeeklyBriefPayload(committeeServicePreviewGenerateWeeklyBriefBody string, committeeServicePreviewGenerateWeeklyBriefUID string, committeeServicePreviewGenerateWeeklyBriefBearerToken string) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
+func BuildPreviewGenerateWeeklyBriefPayload(committeeServicePreviewGenerateWeeklyBriefUID string, committeeServicePreviewGenerateWeeklyBriefVersion string, committeeServicePreviewGenerateWeeklyBriefBearerToken string) (*committeeservice.PreviewGenerateWeeklyBriefPayload, error) {
 	var err error
-	var body PreviewGenerateWeeklyBriefRequestBody
-	{
-		err = json.Unmarshal([]byte(committeeServicePreviewGenerateWeeklyBriefBody), &body)
-		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version\": \"1\"\n   }'")
-		}
-		if body.Version != nil {
-			if !(*body.Version == "1") {
-				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.version", *body.Version, []any{"1"}))
-			}
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
 	var uid string
 	{
 		uid = committeeServicePreviewGenerateWeeklyBriefUID
@@ -2934,16 +2919,27 @@ func BuildPreviewGenerateWeeklyBriefPayload(committeeServicePreviewGenerateWeekl
 			return nil, err
 		}
 	}
+	var version *string
+	{
+		if committeeServicePreviewGenerateWeeklyBriefVersion != "" {
+			version = &committeeServicePreviewGenerateWeeklyBriefVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	var bearerToken *string
 	{
 		if committeeServicePreviewGenerateWeeklyBriefBearerToken != "" {
 			bearerToken = &committeeServicePreviewGenerateWeeklyBriefBearerToken
 		}
 	}
-	v := &committeeservice.PreviewGenerateWeeklyBriefPayload{
-		Version: body.Version,
-	}
+	v := &committeeservice.PreviewGenerateWeeklyBriefPayload{}
 	v.UID = uid
+	v.Version = version
 	v.BearerToken = bearerToken
 
 	return v, nil

@@ -2628,6 +2628,13 @@ paths:
             description: Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window selected by the service, returning the generated brief text without persisting anything. No throttle is consumed, no brief state is changed, and no KV write occurs. Use this to inspect generator output before triggering a real generation. Responds 200 with the brief text and source refs; 404 when the window has no activity.
             operationId: committee-service#preview-generate-weekly-brief
             parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
                 - name: uid
                   in: path
                   description: Committee UID -- v2 uid, not related to v1 id directly
@@ -2639,20 +2646,39 @@ paths:
                   description: JWT token issued by Heimdall
                   required: false
                   type: string
-                - name: Preview-Generate-Weekly-BriefRequestBody
-                  in: body
-                  required: true
-                  schema:
-                    $ref: '#/definitions/CommitteeServicePreviewGenerateWeeklyBriefRequestBody'
             responses:
                 "200":
                     description: OK response.
                     schema:
                         $ref: '#/definitions/GroupWeeklyBriefPreviewResult'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
                 "404":
                     description: Not Found response.
                     schema:
                         $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
                         required:
                             - message
             schemes:
@@ -4615,18 +4641,6 @@ definitions:
     CommitteeServiceGetCommitteeSettingsResponseBody:
         title: CommitteeServiceGetCommitteeSettingsResponseBody
         $ref: '#/definitions/CommitteeSettingsWithReadonlyAttributes'
-    CommitteeServicePreviewGenerateWeeklyBriefRequestBody:
-        title: CommitteeServicePreviewGenerateWeeklyBriefRequestBody
-        type: object
-        properties:
-            version:
-                type: string
-                description: Version of the API
-                example: "1"
-                enum:
-                    - "1"
-        example:
-            version: "1"
     CommitteeServiceReassignOrgCommitteeSeatRequestBody:
         title: CommitteeServiceReassignOrgCommitteeSeatRequestBody
         type: object

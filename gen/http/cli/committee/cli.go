@@ -302,8 +302,8 @@ func ParseEndpoint(
 		committeeServiceGenerateWeeklyBriefBearerTokenFlag = committeeServiceGenerateWeeklyBriefFlags.String("bearer-token", "", "")
 
 		committeeServicePreviewGenerateWeeklyBriefFlags           = flag.NewFlagSet("preview-generate-weekly-brief", flag.ExitOnError)
-		committeeServicePreviewGenerateWeeklyBriefBodyFlag        = committeeServicePreviewGenerateWeeklyBriefFlags.String("body", "REQUIRED", "")
 		committeeServicePreviewGenerateWeeklyBriefUIDFlag         = committeeServicePreviewGenerateWeeklyBriefFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServicePreviewGenerateWeeklyBriefVersionFlag     = committeeServicePreviewGenerateWeeklyBriefFlags.String("version", "", "")
 		committeeServicePreviewGenerateWeeklyBriefBearerTokenFlag = committeeServicePreviewGenerateWeeklyBriefFlags.String("bearer-token", "", "")
 
 		committeeServiceUpdateCurrentWeeklyBriefFlags           = flag.NewFlagSet("update-current-weekly-brief", flag.ExitOnError)
@@ -664,7 +664,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildGenerateWeeklyBriefPayload(*committeeServiceGenerateWeeklyBriefBodyFlag, *committeeServiceGenerateWeeklyBriefUIDFlag, *committeeServiceGenerateWeeklyBriefVersionFlag, *committeeServiceGenerateWeeklyBriefBearerTokenFlag)
 			case "preview-generate-weekly-brief":
 				endpoint = c.PreviewGenerateWeeklyBrief()
-				data, err = committeeservicec.BuildPreviewGenerateWeeklyBriefPayload(*committeeServicePreviewGenerateWeeklyBriefBodyFlag, *committeeServicePreviewGenerateWeeklyBriefUIDFlag, *committeeServicePreviewGenerateWeeklyBriefBearerTokenFlag)
+				data, err = committeeservicec.BuildPreviewGenerateWeeklyBriefPayload(*committeeServicePreviewGenerateWeeklyBriefUIDFlag, *committeeServicePreviewGenerateWeeklyBriefVersionFlag, *committeeServicePreviewGenerateWeeklyBriefBearerTokenFlag)
 			case "update-current-weekly-brief":
 				endpoint = c.UpdateCurrentWeeklyBrief()
 				data, err = committeeservicec.BuildUpdateCurrentWeeklyBriefPayload(*committeeServiceUpdateCurrentWeeklyBriefBodyFlag, *committeeServiceUpdateCurrentWeeklyBriefUIDFlag, *committeeServiceUpdateCurrentWeeklyBriefVersionFlag, *committeeServiceUpdateCurrentWeeklyBriefBearerTokenFlag)
@@ -1712,8 +1712,8 @@ func committeeServiceGenerateWeeklyBriefUsage() {
 func committeeServicePreviewGenerateWeeklyBriefUsage() {
 	// Header with flags
 	fmt.Fprintf(os.Stderr, "%s [flags] committee-service preview-generate-weekly-brief", os.Args[0])
-	fmt.Fprint(os.Stderr, " -body JSON")
 	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
 	fmt.Fprintln(os.Stderr)
 
@@ -1722,13 +1722,13 @@ func committeeServicePreviewGenerateWeeklyBriefUsage() {
 	fmt.Fprintln(os.Stderr, `Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window selected by the service, returning the generated brief text without persisting anything. No throttle is consumed, no brief state is changed, and no KV write occurs. Use this to inspect generator output before triggering a real generation. Responds 200 with the brief text and source refs; 404 when the window has no activity.`)
 
 	// Flags list
-	fmt.Fprintln(os.Stderr, `    -body JSON: `)
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service preview-generate-weekly-brief --body '{\n      \"version\": \"1\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service preview-generate-weekly-brief --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceUpdateCurrentWeeklyBriefUsage() {

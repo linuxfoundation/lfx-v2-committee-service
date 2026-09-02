@@ -498,12 +498,12 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 	if errMembers != nil {
 		return nil, errMembers
 	}
-	mailing, _ := gatherDegradable(ctx, in.CommitteeUID,
+	mailing, errMailing := gatherDegradable(ctx, in.CommitteeUID,
 		"weekly-brief preview: mailing list source failed; continuing with zero threads",
 		func() ([]port.MailingListActivity, error) {
 			return g.sources.MailingLists.ListMailingListActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 		})
-	votes, _ := gatherDegradable(ctx, in.CommitteeUID,
+	votes, errVotes := gatherDegradable(ctx, in.CommitteeUID,
 		"weekly-brief preview: vote source failed; continuing with zero votes",
 		func() ([]port.VoteActivity, error) {
 			return g.sources.Votes.ListVoteActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
@@ -511,25 +511,30 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 	if g.sources.VoteResults != nil {
 		g.enrichVotesWithResults(ctx, votes)
 	}
-	var surveys []port.SurveyActivity
+	var (
+		surveys            []port.SurveyActivity
+		errSurveys         error
+		projectMemberships []port.ProjectMembershipActivity
+		errMemberships     error
+		summaries          []port.MeetingAISummaryActivity
+		errSummaries       error
+	)
 	if g.sources.Surveys != nil {
-		surveys, _ = gatherDegradable(ctx, in.CommitteeUID,
+		surveys, errSurveys = gatherDegradable(ctx, in.CommitteeUID,
 			"weekly-brief preview: survey source failed; continuing with zero surveys",
 			func() ([]port.SurveyActivity, error) {
 				return g.sources.Surveys.ListSurveyActivityForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
 			})
 	}
-	var projectMemberships []port.ProjectMembershipActivity
 	if g.sources.ProjectMemberships != nil {
-		projectMemberships, _ = gatherDegradable(ctx, in.CommitteeUID,
+		projectMemberships, errMemberships = gatherDegradable(ctx, in.CommitteeUID,
 			"weekly-brief preview: project membership source failed; continuing with zero memberships",
 			func() ([]port.ProjectMembershipActivity, error) {
 				return g.sources.ProjectMemberships.ListMembershipActivityForWindow(ctx, in.ProjectUID, windowStart, windowEnd)
 			})
 	}
-	var summaries []port.MeetingAISummaryActivity
 	if g.sources.AISummaries != nil {
-		summaries, _ = gatherDegradable(ctx, in.CommitteeUID,
+		summaries, errSummaries = gatherDegradable(ctx, in.CommitteeUID,
 			"weekly-brief preview: AI summary source failed; continuing with zero summaries",
 			func() ([]port.MeetingAISummaryActivity, error) {
 				return g.sources.AISummaries.ListAISummariesForWindow(ctx, in.CommitteeUID, windowStart, windowEnd)
@@ -538,9 +543,10 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 
 	memberCount := len(members.Joined) + len(members.Updated)
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 && len(projectMemberships) == 0 {
-		// Surface the error if present; otherwise report no sources.
-		if errMeetings != nil {
-			return nil, errMeetings
+		// If any source failed, surface the first error rather than claiming no
+		// activity — an upstream outage must not masquerade as an empty window.
+		if firstErr := firstNonNilErr(errMeetings, errMailing, errVotes, errSummaries, errSurveys, errMemberships); firstErr != nil {
+			return nil, firstErr
 		}
 		return nil, errors.NewNotFound("no activity found in the current window")
 	}
@@ -619,6 +625,18 @@ func (g *groupWeeklyBriefGenerator) gatherAndGenerate(
 		g.ai.PromptVersion(),
 		modelLabelFromAdapter(g.ai),
 		nil
+}
+
+// firstNonNilErr returns the first non-nil error from its arguments, or nil when
+// all are nil. Used to surface the first upstream source failure rather than
+// reporting "no activity" when the empty window is caused by an outage.
+func firstNonNilErr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // gatherDegradable calls fetch and returns its result. On error it logs failMsg at

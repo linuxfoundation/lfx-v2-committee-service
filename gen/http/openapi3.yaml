@@ -4189,6 +4189,17 @@ paths:
             description: Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window selected by the service, returning the generated brief text without persisting anything. No throttle is consumed, no brief state is changed, and no KV write occurs. Use this to inspect generator output before triggering a real generation. Responds 200 with the brief text and source refs; 404 when the window has no activity.
             operationId: committee-service#preview-generate-weekly-brief
             parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
                 - name: uid
                   in: path
                   description: Committee UID -- v2 uid, not related to v1 id directly
@@ -4199,14 +4210,6 @@ paths:
                     example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                     format: uuid
                   example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-            requestBody:
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/PreviewGenerateWeeklyBriefRequestBody'
-                        example:
-                            version: "1"
             responses:
                 "200":
                     description: OK response.
@@ -4221,14 +4224,46 @@ paths:
                                 prompt_version: v1
                                 window_end: "2026-08-29T23:59:59.999999999Z"
                                 window_start: "2026-08-23T00:00:00Z"
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: Caller lacks writer access on the committee'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
                 "404":
-                    description: 'NotFound: No activity found in the current window'
+                    description: 'NotFound: Committee not found or no activity in the current window'
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/NotFoundError'
                             example:
                                 message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/weekly-briefs/share-to-chat:
@@ -8062,17 +8097,6 @@ components:
                       voting_status: Voting Rep
             required:
                 - seats
-        PreviewGenerateWeeklyBriefRequestBody:
-            type: object
-            properties:
-                version:
-                    type: string
-                    description: Version of the API
-                    example: "1"
-                    enum:
-                        - "1"
-            example:
-                version: "1"
         ReassignOrgCommitteeSeatRequestBody:
             type: object
             properties:

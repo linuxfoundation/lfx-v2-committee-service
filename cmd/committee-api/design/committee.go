@@ -1613,12 +1613,23 @@ var _ = dsl.Service("committee-service", func() {
 
 		dsl.Result(GroupWeeklyBriefPreviewResult)
 
-		dsl.Error("NotFound", NotFoundError, "No activity found in the current window")
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found or no activity in the current window")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
 		dsl.HTTP(func() {
 			dsl.POST("/committees/{uid}/weekly-briefs/preview-generate")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
 			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
 			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})
 	})
 

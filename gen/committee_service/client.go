@@ -753,7 +753,11 @@ func (c *Client) GenerateWeeklyBrief(ctx context.Context, p *GenerateWeeklyBrief
 // PreviewGenerateWeeklyBrief calls the "preview-generate-weekly-brief"
 // endpoint of the "committee-service" service.
 // PreviewGenerateWeeklyBrief may return the following errors:
-//   - "NotFound" (type *NotFoundError): No activity found in the current window
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): Caller lacks writer access on the committee
+//   - "NotFound" (type *NotFoundError): Committee not found or no activity in the current window
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
 func (c *Client) PreviewGenerateWeeklyBrief(ctx context.Context, p *PreviewGenerateWeeklyBriefPayload) (res *GroupWeeklyBriefPreviewResult, err error) {
 	var ires any

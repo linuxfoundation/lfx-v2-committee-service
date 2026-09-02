@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1474,4 +1475,79 @@ func TestFulfill_NilPublisher_DoesNotPanic(t *testing.T) {
 			Now:          testNow,
 		})
 	})
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Preview tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestPreview_EmptyCommitteeUID_ReturnsValidation(t *testing.T) {
+	g, _ := newGenerator(t, ActivitySources{})
+	_, err := g.Preview(context.Background(), GroupWeeklyBriefGenerateInput{Now: testNow})
+	require.Error(t, err)
+	var ve errors.Validation
+	require.ErrorAs(t, err, &ve)
+}
+
+func TestPreview_Success_ReturnsBriefAndMetadata(t *testing.T) {
+	g, bw := newGenerator(t, ActivitySources{
+		Meetings: &fakeMeetingSource{meetings: []port.MeetingActivity{{UID: "m-1", Title: "Board Meeting"}}},
+	})
+	out, err := g.Preview(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID:  "c-1",
+		CommitteeName: "TAC",
+		ProjectName:   "LFX",
+		Now:           testNow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.NotEmpty(t, out.BriefText)
+	assert.NotEmpty(t, out.PromptVersion)
+	assert.NotEmpty(t, out.Model)
+	assert.False(t, out.WindowStart.IsZero())
+	assert.False(t, out.WindowEnd.IsZero())
+	// No KV write occurred — Preview must not touch storage.
+	assert.Zero(t, bw.briefPutCount.Load(), "Preview must not write to brief storage")
+	assert.Zero(t, bw.thPutCount.Load(), "Preview must not write throttle")
+}
+
+func TestPreview_AllSourcesEmpty_ReturnsNotFound(t *testing.T) {
+	g, _ := newGenerator(t, ActivitySources{})
+	_, err := g.Preview(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err)
+	var nf errors.NotFound
+	require.ErrorAs(t, err, &nf)
+}
+
+func TestPreview_MeetingSourceError_EmptyWindow_SurfacesError(t *testing.T) {
+	// Meeting source fails AND window would otherwise be empty → surface the error
+	// rather than claiming no activity.
+	g, _ := newGenerator(t, ActivitySources{
+		Meetings: &fakeMeetingSource{err: errors.NewServiceUnavailable("meeting source unavailable")},
+	})
+	_, err := g.Preview(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err)
+	// Must NOT be a NotFound — a source outage must not masquerade as no activity.
+	var nf errors.NotFound
+	isNotFound := stderrors.As(err, &nf)
+	require.False(t, isNotFound, "outage must not surface as 404 NotFound")
+}
+
+func TestPreview_MemberReaderError_ReturnsMemberError(t *testing.T) {
+	g, _ := newGenerator(t, ActivitySources{
+		MemberReader: &fakeMemberReader{err: errors.NewServiceUnavailable("member reader unavailable")},
+	})
+	_, err := g.Preview(context.Background(), GroupWeeklyBriefGenerateInput{
+		CommitteeUID: "c-1",
+		Now:          testNow,
+	})
+	require.Error(t, err)
+	var su errors.ServiceUnavailable
+	require.ErrorAs(t, err, &su)
 }

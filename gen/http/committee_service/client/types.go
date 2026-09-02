@@ -388,13 +388,6 @@ type GenerateWeeklyBriefRequestBody struct {
 	Force bool `form:"force" json:"force" xml:"force"`
 }
 
-// PreviewGenerateWeeklyBriefRequestBody is the type of the "committee-service"
-// service "preview-generate-weekly-brief" endpoint HTTP request body.
-type PreviewGenerateWeeklyBriefRequestBody struct {
-	// Version of the API
-	Version *string `form:"version,omitempty" json:"version,omitempty" xml:"version,omitempty"`
-}
-
 // UpdateCurrentWeeklyBriefRequestBody is the type of the "committee-service"
 // service "update-current-weekly-brief" endpoint HTTP request body.
 type UpdateCurrentWeeklyBriefRequestBody struct {
@@ -2624,10 +2617,42 @@ type GenerateWeeklyBriefServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// PreviewGenerateWeeklyBriefBadRequestResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "BadRequest" error.
+type PreviewGenerateWeeklyBriefBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// PreviewGenerateWeeklyBriefForbiddenResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "Forbidden" error.
+type PreviewGenerateWeeklyBriefForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// PreviewGenerateWeeklyBriefInternalServerErrorResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "InternalServerError" error.
+type PreviewGenerateWeeklyBriefInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // PreviewGenerateWeeklyBriefNotFoundResponseBody is the type of the
 // "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
 // response body for the "NotFound" error.
 type PreviewGenerateWeeklyBriefNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// PreviewGenerateWeeklyBriefServiceUnavailableResponseBody is the type of the
+// "committee-service" service "preview-generate-weekly-brief" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type PreviewGenerateWeeklyBriefServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -3816,16 +3841,6 @@ func NewGenerateWeeklyBriefRequestBody(p *committeeservice.GenerateWeeklyBriefPa
 		if body.Force == zero {
 			body.Force = false
 		}
-	}
-	return body
-}
-
-// NewPreviewGenerateWeeklyBriefRequestBody builds the HTTP request body from
-// the payload of the "preview-generate-weekly-brief" endpoint of the
-// "committee-service" service.
-func NewPreviewGenerateWeeklyBriefRequestBody(p *committeeservice.PreviewGenerateWeeklyBriefPayload) *PreviewGenerateWeeklyBriefRequestBody {
-	body := &PreviewGenerateWeeklyBriefRequestBody{
-		Version: p.Version,
 	}
 	return body
 }
@@ -6944,10 +6959,50 @@ func NewPreviewGenerateWeeklyBriefGroupWeeklyBriefPreviewResultOK(body *PreviewG
 	return v
 }
 
+// NewPreviewGenerateWeeklyBriefBadRequest builds a committee-service service
+// preview-generate-weekly-brief endpoint BadRequest error.
+func NewPreviewGenerateWeeklyBriefBadRequest(body *PreviewGenerateWeeklyBriefBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewPreviewGenerateWeeklyBriefForbidden builds a committee-service service
+// preview-generate-weekly-brief endpoint Forbidden error.
+func NewPreviewGenerateWeeklyBriefForbidden(body *PreviewGenerateWeeklyBriefForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewPreviewGenerateWeeklyBriefInternalServerError builds a committee-service
+// service preview-generate-weekly-brief endpoint InternalServerError error.
+func NewPreviewGenerateWeeklyBriefInternalServerError(body *PreviewGenerateWeeklyBriefInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewPreviewGenerateWeeklyBriefNotFound builds a committee-service service
 // preview-generate-weekly-brief endpoint NotFound error.
 func NewPreviewGenerateWeeklyBriefNotFound(body *PreviewGenerateWeeklyBriefNotFoundResponseBody) *committeeservice.NotFoundError {
 	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewPreviewGenerateWeeklyBriefServiceUnavailable builds a committee-service
+// service preview-generate-weekly-brief endpoint ServiceUnavailable error.
+func NewPreviewGenerateWeeklyBriefServiceUnavailable(body *PreviewGenerateWeeklyBriefServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
 
@@ -10437,9 +10492,47 @@ func ValidateGenerateWeeklyBriefServiceUnavailableResponseBody(body *GenerateWee
 	return
 }
 
+// ValidatePreviewGenerateWeeklyBriefBadRequestResponseBody runs the
+// validations defined on preview-generate-weekly-brief_BadRequest_response_body
+func ValidatePreviewGenerateWeeklyBriefBadRequestResponseBody(body *PreviewGenerateWeeklyBriefBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidatePreviewGenerateWeeklyBriefForbiddenResponseBody runs the validations
+// defined on preview-generate-weekly-brief_Forbidden_response_body
+func ValidatePreviewGenerateWeeklyBriefForbiddenResponseBody(body *PreviewGenerateWeeklyBriefForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidatePreviewGenerateWeeklyBriefInternalServerErrorResponseBody runs the
+// validations defined on
+// preview-generate-weekly-brief_InternalServerError_response_body
+func ValidatePreviewGenerateWeeklyBriefInternalServerErrorResponseBody(body *PreviewGenerateWeeklyBriefInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidatePreviewGenerateWeeklyBriefNotFoundResponseBody runs the validations
 // defined on preview-generate-weekly-brief_NotFound_response_body
 func ValidatePreviewGenerateWeeklyBriefNotFoundResponseBody(body *PreviewGenerateWeeklyBriefNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidatePreviewGenerateWeeklyBriefServiceUnavailableResponseBody runs the
+// validations defined on
+// preview-generate-weekly-brief_ServiceUnavailable_response_body
+func ValidatePreviewGenerateWeeklyBriefServiceUnavailableResponseBody(body *PreviewGenerateWeeklyBriefServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

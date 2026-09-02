@@ -2272,11 +2272,13 @@ func (s *committeeServicesrvc) PreviewGenerateWeeklyBrief(ctx context.Context, p
 	psp := out.PrivateSourcePresent
 	res.PrivateSourcePresent = &psp
 	if !out.WindowStart.IsZero() {
-		v := out.WindowStart.UTC().Format(time.RFC3339)
+		v := out.WindowStart.UTC().Format(time.RFC3339Nano)
 		res.WindowStart = &v
 	}
 	if !out.WindowEnd.IsZero() {
-		v := out.WindowEnd.UTC().Format(time.RFC3339)
+		// RFC3339Nano preserves the nanosecond-precision inclusive end that
+		// WeeklyWindow produces (23:59:59.999999999Z), matching GET /current.
+		v := out.WindowEnd.UTC().Format(time.RFC3339Nano)
 		res.WindowEnd = &v
 	}
 	if out.PromptVersion != "" {
