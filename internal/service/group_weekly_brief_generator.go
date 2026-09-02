@@ -543,10 +543,11 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 
 	memberCount := len(members.Joined) + len(members.Updated)
 	if len(meetings) == 0 && memberCount == 0 && len(mailing) == 0 && len(votes) == 0 && len(summaries) == 0 && len(surveys) == 0 && len(projectMemberships) == 0 {
-		// If any source failed, surface the first error rather than claiming no
+		// If any source failed, surface a stable 503 rather than claiming no
 		// activity — an upstream outage must not masquerade as an empty window.
-		if firstErr := firstNonNilErr(errMeetings, errMailing, errVotes, errSummaries, errSurveys, errMemberships); firstErr != nil {
-			return nil, firstErr
+		// The underlying cause is already logged by gatherDegradable.
+		if firstNonNilErr(errMeetings, errMailing, errVotes, errSummaries, errSurveys, errMemberships) != nil {
+			return nil, errors.NewServiceUnavailable("source data is temporarily unavailable")
 		}
 		return nil, errors.NewNotFound("no activity found in the current window")
 	}
@@ -557,7 +558,9 @@ func (g *groupWeeklyBriefGenerator) Preview(ctx context.Context, in GroupWeeklyB
 			meetings, summaries, members, mailing, votes, surveys, projectMemberships,
 			memberCount, in.MembersHidden)
 	if errGen != nil {
-		return nil, errGen
+		// AI adapter errors can contain upstream response bodies; wrap in a
+		// stable message so callers never receive raw provider payloads.
+		return nil, errors.NewServiceUnavailable("brief generation is temporarily unavailable")
 	}
 
 	return &GroupWeeklyBriefPreviewOutput{

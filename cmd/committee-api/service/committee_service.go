@@ -2109,6 +2109,54 @@ func domainGroupWeeklyBriefToGoa(b *model.GroupWeeklyBrief) *committeeservice.Gr
 	return out
 }
 
+// previewOutputToGoa maps a GroupWeeklyBriefPreviewOutput to its Goa wire type.
+// Window times are formatted as RFC3339Nano to preserve the nanosecond-precision
+// inclusive end that WeeklyWindow produces (23:59:59.999999999Z), matching the
+// window fields returned by domainGroupWeeklyBriefToGoa for GET /current.
+func previewOutputToGoa(out *service.GroupWeeklyBriefPreviewOutput) *committeeservice.GroupWeeklyBriefPreviewResult {
+	res := &committeeservice.GroupWeeklyBriefPreviewResult{}
+	if out.BriefText != "" {
+		v := out.BriefText
+		res.BriefText = &v
+	}
+	psp := out.PrivateSourcePresent
+	res.PrivateSourcePresent = &psp
+	if !out.WindowStart.IsZero() {
+		v := out.WindowStart.UTC().Format(time.RFC3339Nano)
+		res.WindowStart = &v
+	}
+	if !out.WindowEnd.IsZero() {
+		v := out.WindowEnd.UTC().Format(time.RFC3339Nano)
+		res.WindowEnd = &v
+	}
+	if out.PromptVersion != "" {
+		v := out.PromptVersion
+		res.PromptVersion = &v
+	}
+	if out.Model != "" {
+		v := out.Model
+		res.Model = &v
+	}
+	for _, sr := range out.SourceRefs {
+		kind := sr.Kind
+		id := sr.ID
+		ref := &committeeservice.GroupWeeklyBriefSourceRef{
+			Kind: &kind,
+			ID:   &id,
+		}
+		if sr.Title != "" {
+			t := sr.Title
+			ref.Title = &t
+		}
+		if sr.Excerpt != "" {
+			e := sr.Excerpt
+			ref.Excerpt = &e
+		}
+		res.SourceRefs = append(res.SourceRefs, ref)
+	}
+	return res
+}
+
 // domainGroupWeeklyBriefThrottleToGoa converts a domain throttle to its Goa
 // response type: the split counters (generates / regenerations) with their
 // limits, plus the window reset timestamp.
@@ -2231,17 +2279,18 @@ func (s *committeeServicesrvc) PreviewGenerateWeeklyBrief(ctx context.Context, p
 	// Authorization (committee writer relation) is enforced at the edge by
 	// Heimdall before the request reaches this service; no in-code check here.
 
-	if s.weeklyBriefGenerator == nil {
-		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
-	}
-
-	// Verify the committee exists so a typo'd UID returns 404, not an AI error.
+	// Verify the committee exists first — a typo'd UID must return 404
+	// regardless of whether the generator is configured.
 	base, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID)
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
 	if base == nil {
 		return nil, wrapError(ctx, errors.NewNotFound("committee not found"))
+	}
+
+	if s.weeklyBriefGenerator == nil {
+		return nil, wrapError(ctx, errors.NewServiceUnavailable("weekly brief generator is not configured"))
 	}
 
 	// Default to hidden — same safe default as GenerateWeeklyBrief. A transient
@@ -2264,49 +2313,7 @@ func (s *committeeServicesrvc) PreviewGenerateWeeklyBrief(ctx context.Context, p
 		return nil, wrapError(ctx, err)
 	}
 
-	res := &committeeservice.GroupWeeklyBriefPreviewResult{}
-	if out.BriefText != "" {
-		v := out.BriefText
-		res.BriefText = &v
-	}
-	psp := out.PrivateSourcePresent
-	res.PrivateSourcePresent = &psp
-	if !out.WindowStart.IsZero() {
-		v := out.WindowStart.UTC().Format(time.RFC3339Nano)
-		res.WindowStart = &v
-	}
-	if !out.WindowEnd.IsZero() {
-		// RFC3339Nano preserves the nanosecond-precision inclusive end that
-		// WeeklyWindow produces (23:59:59.999999999Z), matching GET /current.
-		v := out.WindowEnd.UTC().Format(time.RFC3339Nano)
-		res.WindowEnd = &v
-	}
-	if out.PromptVersion != "" {
-		v := out.PromptVersion
-		res.PromptVersion = &v
-	}
-	if out.Model != "" {
-		v := out.Model
-		res.Model = &v
-	}
-	for _, sr := range out.SourceRefs {
-		kind := sr.Kind
-		id := sr.ID
-		ref := &committeeservice.GroupWeeklyBriefSourceRef{
-			Kind: &kind,
-			ID:   &id,
-		}
-		if sr.Title != "" {
-			t := sr.Title
-			ref.Title = &t
-		}
-		if sr.Excerpt != "" {
-			e := sr.Excerpt
-			ref.Excerpt = &e
-		}
-		res.SourceRefs = append(res.SourceRefs, ref)
-	}
-	return res, nil
+	return previewOutputToGoa(out), nil
 }
 
 // UpdateCurrentWeeklyBrief is the PUT /committees/{uid}/weekly-briefs/current
