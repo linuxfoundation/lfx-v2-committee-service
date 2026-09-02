@@ -1199,6 +1199,31 @@ func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
 	})
 }
 
+// ── buildClaimsAndRefs — meeting date in claim summary ───────────────────────
+
+func TestBuildClaimsAndRefs_MeetingDateInSummary(t *testing.T) {
+	meetingTime := time.Date(2026, 8, 27, 19, 0, 0, 0, time.UTC)
+
+	t.Run("non-zero StartTime appends date to summary", func(t *testing.T) {
+		meetings := []port.MeetingActivity{
+			{UID: "m-1", Title: "Q3 2026 LF Board Meeting", StartTime: meetingTime},
+		}
+		claims, _ := buildClaimsAndRefs(meetings, nil, port.WeeklyMemberActivity{}, nil, nil, nil, nil, false)
+		require.Len(t, claims, 1)
+		assert.Contains(t, claims[0].Summary, "2026-08-27", "claim must include the meeting date so the LLM can verify it falls within the window")
+		assert.Contains(t, claims[0].Summary, "Q3 2026 LF Board Meeting")
+	})
+
+	t.Run("zero StartTime omits date from summary", func(t *testing.T) {
+		meetings := []port.MeetingActivity{
+			{UID: "m-2", Title: "Untimed Meeting"},
+		}
+		claims, _ := buildClaimsAndRefs(meetings, nil, port.WeeklyMemberActivity{}, nil, nil, nil, nil, false)
+		require.Len(t, claims, 1)
+		assert.NotContains(t, claims[0].Summary, "(", "no date parenthetical when StartTime is zero")
+	})
+}
+
 // ── voteTallyLabel ────────────────────────────────────────────────────────────
 
 func TestVoteTallyLabel_NilTally_ReturnsEmpty(t *testing.T) {

@@ -95,8 +95,8 @@ func (m *MeetingAISummarySource) ListAISummariesForWindow(ctx context.Context, c
 	q.Set("type", "v1_past_meeting_summary")
 	q.Set("tags", "committee_uid:"+committeeUID)
 	q.Set("date_field", "summary_start_time")
-	q.Set("date_from", windowStart.UTC().Format(time.RFC3339))
-	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339))
+	q.Set("date_from", windowStart.UTC().Format(time.RFC3339Nano))
+	q.Set("date_to", windowEnd.UTC().Format(time.RFC3339Nano))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)

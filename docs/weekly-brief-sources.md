@@ -17,7 +17,7 @@ query-service sources over a caller-supplied time window. Each source is an adap
 |-------|-------|
 | Resource type | `v1_past_meeting` |
 | Committee tag | `committee_uid:{uid}` |
-| Date filter | `start_time[gte]`/`start_time[lte]` (bracket notation, v1 style) |
+| Date filter | `date_field=start_time` + `date_from`/`date_to` |
 | Date field | `start_time` |
 
 ### Meeting AI Summaries — `meeting_ai_summary_source.go`
@@ -84,12 +84,14 @@ earliest in-window message is used as the thread representative. This is accepta
 
 ## Date filter styles
 
-There are two query-service date filtering styles in use across these sources:
+All sources that filter by a date window use the field+range style:
 
 | Style | Params | Used by |
 |-------|--------|---------|
-| Bracket notation (v1) | `start_time[gte]`, `start_time[lte]` | Meetings |
-| Field + range (current) | `date_field=<field>`, `date_from`, `date_to` | Meeting AI Summaries, Votes, Surveys, Project Membership, Mailing List Messages |
+| Field + range | `date_field=<field>`, `date_from`, `date_to` | All window-filtered sources |
 
-New sources should use the field+range style. `date_field` names a key inside the resource's
-`data` blob; `date_from`/`date_to` are ISO 8601 timestamps.
+`date_field` names a key inside the resource's `data` blob; `date_from`/`date_to` are
+ISO 8601 datetime strings. Query-service normalizes them to second precision internally
+(`parseDateFilter` re-formats parsed values with `time.RFC3339`), so sub-second
+components are not forwarded to OpenSearch. Vote Results has no date-window filter —
+it is looked up per-vote, not by time range.
