@@ -33,8 +33,10 @@ type CommitteeInvite struct {
 	Inviter *CommitteeUser `json:"inviter,omitempty"`
 	// ExpiresAt is when the invite link expires. Set at creation to CreatedAt + 30
 	// days to mirror the invite-service default token TTL (SendInviteRequest with no
-	// ExpirationDays defaults to 30 days). Zero when unset on legacy records.
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	// ExpirationDays defaults to 30 days). Uses omitzero (not omitempty, which does not
+	// omit a zero time.Time) so legacy records without an expiry are absent from the
+	// marshaled indexer body rather than serialized as "0001-01-01T00:00:00Z".
+	ExpiresAt time.Time `json:"expires_at,omitzero"`
 }
 
 // InviteDefaultTTL is the invite link lifetime, mirroring the invite-service default
