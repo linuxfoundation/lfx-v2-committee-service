@@ -3511,6 +3511,53 @@ func TestCreateInvite_InviterUsernameOnlyWhenNoUserReader(t *testing.T) {
 	assert.Nil(t, resp.Inviter.Avatar)
 }
 
+// TestCreateInvite_ReinstatePersistsInviterAndExpiry verifies the revoked -> pending reinstate
+// path refreshes the inviter to the re-inviting principal and starts a fresh 30-day expiry window
+// (rather than carrying the stale values from the original invite).
+func TestCreateInvite_ReinstatePersistsInviterAndExpiry(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	principal := "reinstate-inviter"
+	svc.userReader = newMockUserReader(principal, "reinstater@lf.org").
+		withMetadata(principal, &model.UserMetadata{Name: "Rita Reinstater", Picture: "https://cdn.example.com/r.png"})
+
+	const email = "reinstate-invitee@example.com"
+	// Seed a revoked invite with a long-past expiry to prove the reinstate refreshes it.
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID:          "revoked-invite-reinstate",
+		CommitteeUID: "committee-1",
+		InviteeEmail: email,
+		Status:       "revoked",
+		CreatedAt:    time.Now().Add(-100 * 24 * time.Hour),
+		ExpiresAt:    time.Now().Add(-70 * 24 * time.Hour),
+	})
+
+	before := time.Now().UTC()
+	resp, err := svc.CreateInvite(testCtx(principal), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: email,
+	})
+	after := time.Now().UTC()
+	require.NoError(t, err)
+	assert.Equal(t, "pending", resp.Status)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Name)
+	assert.Equal(t, "Rita Reinstater", *resp.Inviter.Name)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, principal, *resp.Inviter.Username)
+	require.NotNil(t, resp.Inviter.Email)
+	assert.Equal(t, "reinstater@lf.org", *resp.Inviter.Email)
+	require.NotNil(t, resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/r.png", *resp.Inviter.Avatar)
+
+	require.NotNil(t, resp.ExpiresAt)
+	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
+	require.NoError(t, perr)
+	// Refreshed to now + 30 days (not the seeded past expiry), with 1s slack for second-precision formatting.
+	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry not refreshed to now+30d")
+	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than now+30d")
+}
+
 func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	windowStart := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
 	windowEnd := time.Date(2026, 5, 16, 23, 59, 59, 999999999, time.UTC)
