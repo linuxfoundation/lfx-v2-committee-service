@@ -842,8 +842,14 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 func (s *committeeServicesrvc) resolveInviterUser(ctx context.Context) *model.CommitteeUser {
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	principal = strings.TrimSpace(principal)
-	if principal == "" || s.userReader == nil {
+	if principal == "" {
 		return nil
+	}
+	// With a principal but no user reader, profile/email enrichment is unavailable — still return
+	// the username so attribution is preserved (the contract omits inviter only when there is no
+	// principal, not when enrichment is unavailable).
+	if s.userReader == nil {
+		return &model.CommitteeUser{Username: principal}
 	}
 
 	var name, avatar, email string
@@ -1073,6 +1079,14 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 		}
 		// Invite is accepted but no matching member record found — data inconsistency.
 		return nil, wrapError(ctx, errors.NewConflict("invite has already been processed"))
+	}
+
+	// Reject expired invites so in-app acceptance stays consistent with the email link, whose token
+	// shares the same TTL and is already dead by this point. Only pending/declined invites reach here
+	// (revoked/accepted are handled above, so an already-accepted member is still returned
+	// idempotently regardless of expiry). Legacy records with a zero ExpiresAt are unaffected.
+	if !invite.ExpiresAt.IsZero() && time.Now().UTC().After(invite.ExpiresAt) {
+		return nil, wrapError(ctx, errors.NewConflict("invite has expired"))
 	}
 
 	// Create the committee member first — if this fails the invite remains pending/declined

@@ -1334,7 +1334,8 @@ func TestAcceptInvite(t *testing.T) {
 		seedStatus               string
 		seedMember               *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
 		principal                string
-		inviteeEmail             string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		inviteeEmail             string    // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expiresAt                time.Time // invite expiry; zero means unset (legacy record)
 		expectError              bool
 		expectResult             bool // false means nil result is acceptable
 		expectCreateMemberCalled bool // whether AcceptInvite reaches the CreateMember call at all
@@ -1385,6 +1386,43 @@ func TestAcceptInvite(t *testing.T) {
 			principal:   "accept@example.com",
 			expectError: true,
 		},
+		{
+			name:                     "accepts pending invite with a future expiry",
+			seedStatus:               "pending",
+			principal:                "future-expiry@example.com",
+			inviteeEmail:             "future-expiry@example.com",
+			expiresAt:                time.Now().Add(24 * time.Hour),
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
+		},
+		{
+			name:         "cannot accept an expired pending invite",
+			seedStatus:   "pending",
+			principal:    "expired@example.com",
+			inviteeEmail: "expired@example.com",
+			expiresAt:    time.Now().Add(-time.Hour),
+			expectError:  true,
+		},
+		{
+			// Expiry is checked after the accepted-status short-circuit, so an already-accepted
+			// invite still returns its member idempotently even when past expiry.
+			name:       "already accepted invite past expiry is still idempotent",
+			seedStatus: "accepted",
+			seedMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "existing-member-expired-uid",
+					CommitteeUID: "committee-1",
+					Email:        "idempotent-expired@example.com",
+					Status:       "Active",
+				},
+			},
+			principal:    "idempotent-expired@example.com",
+			inviteeEmail: "idempotent-expired@example.com",
+			expiresAt:    time.Now().Add(-time.Hour),
+			expectError:  false,
+			expectResult: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1402,6 +1440,7 @@ func TestAcceptInvite(t *testing.T) {
 				InviteeEmail: inviteeEmail,
 				Status:       tt.seedStatus,
 				CreatedAt:    time.Now(),
+				ExpiresAt:    tt.expiresAt,
 			}
 			repo.AddCommitteeInvite(invite)
 
@@ -3449,6 +3488,27 @@ func TestCreateInvite_PersistsInviterAndExpiry(t *testing.T) {
 	// created_at + 30 days, allowing 1s of slack for second-precision formatting.
 	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry earlier than created_at+30d")
 	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than created_at+30d")
+}
+
+// TestCreateInvite_InviterUsernameOnlyWhenNoUserReader verifies that when a principal is present
+// but profile enrichment is unavailable (no user reader), the inviter is still persisted with the
+// username — attribution is dropped only when there is no principal at all.
+func TestCreateInvite_InviterUsernameOnlyWhenNoUserReader(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	svc.userReader = nil
+
+	resp, err := svc.CreateInvite(testCtx("inviter-principal"), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "invitee-no-reader@example.com",
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, "inviter-principal", *resp.Inviter.Username)
+	assert.Nil(t, resp.Inviter.Name)
+	assert.Nil(t, resp.Inviter.Email)
+	assert.Nil(t, resp.Inviter.Avatar)
 }
 
 func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
