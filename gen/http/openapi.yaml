@@ -3678,11 +3678,18 @@ definitions:
                 description: The timestamp when the resource was created (read-only)
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
+            expires_at:
+                type: string
+                description: The timestamp when the invite link expires (read-only)
+                example: "2023-02-14T10:30:00Z"
+                format: date-time
             invitee_email:
                 type: string
                 description: Email of the invited person
                 example: invitee@example.com
                 format: email
+            inviter:
+                $ref: '#/definitions/CommitteeUser'
             organization:
                 type: object
                 properties:
@@ -3732,7 +3739,13 @@ definitions:
             committee_name: Technical Steering Committee
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
+            expires_at: "2023-02-14T10:30:00Z"
             invitee_email: invitee@example.com
+            inviter:
+                avatar: https://example.com/avatar.png
+                email: alexlee@linuxfoundation.org
+                name: Alex Lee
+                username: alexlee
             organization:
                 id: org-123456
                 name: The Linux Foundation

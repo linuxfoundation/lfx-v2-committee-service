@@ -1109,6 +1109,18 @@ var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-read
 		dsl.Default("pending")
 		dsl.Example("pending")
 	})
+	dsl.Attribute("inviter", CommitteeUserType, "The user who created the invite (read-only)", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "alexlee",
+			"name":     "Alex Lee",
+			"email":    "alexlee@linuxfoundation.org",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("expires_at", dsl.String, "The timestamp when the invite link expires (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-02-14T10:30:00Z")
+	})
 	CreatedAtAttribute()
 })
 

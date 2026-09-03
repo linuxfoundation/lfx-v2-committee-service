@@ -344,6 +344,8 @@ _(none)_
 | `role` | string | Role the invitee is being invited to |
 | `organization` | object | Organization for the invitee (`id`, `name`, `website`) when provided on create |
 | `status` | string | Invite status (e.g., `pending`, `accepted`, `declined`, `revoked`) |
+| `inviter` | object (optional) | The user who created the invite (`name`, `username`, `email`, `avatar`), resolved from the authenticated principal at creation time; absent when the principal could not be resolved. Surfaced in-app so the invitee sees who invited them |
+| `expires_at` | timestamp (optional) | Invite link expiry (RFC3339). Set at creation to `created_at + 30 days`, mirroring the invite-service default token TTL; absent on legacy records created before this field existed |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
 ### Tags

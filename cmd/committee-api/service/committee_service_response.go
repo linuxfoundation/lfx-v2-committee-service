@@ -811,6 +811,29 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 			result.Organization = orgResp
 		}
 	}
+	if invite.Inviter != nil {
+		inviter := invite.Inviter
+		if inviter.Name != "" || inviter.Username != "" || inviter.Email != "" || inviter.Avatar != "" {
+			inviterResp := &committeeservice.CommitteeUser{}
+			if inviter.Avatar != "" {
+				inviterResp.Avatar = &inviter.Avatar
+			}
+			if inviter.Email != "" {
+				inviterResp.Email = &inviter.Email
+			}
+			if inviter.Name != "" {
+				inviterResp.Name = &inviter.Name
+			}
+			if inviter.Username != "" {
+				inviterResp.Username = &inviter.Username
+			}
+			result.Inviter = inviterResp
+		}
+	}
+	if !invite.ExpiresAt.IsZero() {
+		expiresAt := invite.ExpiresAt.Format("2006-01-02T15:04:05Z07:00")
+		result.ExpiresAt = &expiresAt
+	}
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt

@@ -687,6 +687,13 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 	inviteOrganization := organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 
+	// Resolve the inviter (name/username/email/avatar) from the authenticated principal
+	// once, then persist it on the invite so the invitee can see who invited them in-app
+	// without depending on email delivery. Best-effort: a nil result degrades to no inviter
+	// rather than failing invite creation.
+	inviter := s.resolveInviterUser(ctx)
+
+	createdAt := time.Now().UTC()
 	invite := &model.CommitteeInvite{
 		UID:                  uuid.New().String(),
 		CommitteeUID:         p.UID,
@@ -695,7 +702,11 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		InviteeEmail:         p.InviteeEmail,
 		Organization:         inviteOrganization,
 		Status:               "pending",
-		CreatedAt:            time.Now().UTC(),
+		CreatedAt:            createdAt,
+		Inviter:              inviter,
+		// Mirror the invite-service default token TTL (30 days) so the persisted expiry
+		// matches the actual invite link lifetime.
+		ExpiresAt: createdAt.Add(model.InviteDefaultTTL),
 	}
 	if p.Role != nil {
 		invite.Role = *p.Role
@@ -733,6 +744,10 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		revokedInvite.Status = "pending"
 		revokedInvite.CommitteeName = committeeBase.Name
 		revokedInvite.OrganizationRequired = orgRequired
+		// Reinstating is effectively re-sending the invite: refresh the inviter to the
+		// person re-inviting and start a fresh expiry window from now.
+		revokedInvite.Inviter = inviter
+		revokedInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role
 		}
@@ -816,6 +831,74 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 	return strings.TrimSpace(meta.GivenName + " " + meta.FamilyName), true
 }
 
+// resolveInviterUser resolves the authenticated principal into an inviter profile
+// (name, username, email, avatar) so it can be persisted on the invite and surfaced
+// in-app — letting the invitee see who invited them without depending on email delivery.
+// Username is the principal (LFID); name and avatar come from the auth-service profile
+// metadata; email from the principal's primary email. The two auth-service lookups run
+// concurrently within inviteNameResolveTimeout. Returns nil when there is no principal or
+// no user reader; individual lookup failures degrade to partial data (best-effort — this
+// never fails invite creation).
+func (s *committeeServicesrvc) resolveInviterUser(ctx context.Context) *model.CommitteeUser {
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	principal = strings.TrimSpace(principal)
+	if principal == "" || s.userReader == nil {
+		return nil
+	}
+
+	var name, avatar, email string
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		metaCtx, cancel := context.WithTimeout(ctx, inviteNameResolveTimeout)
+		defer cancel()
+		meta, err := s.userReader.UserMetadataByPrincipal(metaCtx, principal)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to resolve inviter profile metadata — persisting inviter without name/avatar",
+				"error", err, "principal", redaction.Redact(principal))
+			return
+		}
+		if meta == nil {
+			return
+		}
+		if n := strings.TrimSpace(meta.Name); n != "" {
+			name = n
+		} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
+			name = full
+		}
+		avatar = strings.TrimSpace(meta.Picture)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		emailCtx, cancel := context.WithTimeout(ctx, inviteNameResolveTimeout)
+		defer cancel()
+		emails, err := s.userReader.EmailsByAuthToken(emailCtx, principal)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to resolve inviter email — persisting inviter without email",
+				"error", err, "principal", redaction.Redact(principal))
+			return
+		}
+		if emails != nil {
+			email = strings.TrimSpace(emails.PrimaryEmail)
+		}
+	}()
+
+	wg.Wait()
+
+	// Return the inviter even when only the username resolved — the username alone is
+	// useful and lets the UI render an inviter attribution.
+	return &model.CommitteeUser{
+		Name:     name,
+		Username: principal,
+		Email:    email,
+		Avatar:   avatar,
+	}
+}
+
 // dispatchInviteEmail publishes a send-invite request to the invite service so the
 // invitee receives an email. Best-effort: failures are logged and do not fail the
 // caller, since the invite record has already been persisted.
@@ -832,43 +915,22 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 	dispatchCtx, dispatchCancel := context.WithTimeout(ctx, inviteDispatchTimeout)
 	defer dispatchCancel()
 
-	// Resolve invitee and inviter display names concurrently so both lookups run within
-	// inviteNameResolveTimeout wall-clock time rather than consuming up to 2×timeout
-	// sequentially, leaving more of the dispatch budget for SendInvite.
-	var recipientName, inviterName string
-	var recipientHasAccount bool
-	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	// Resolve the invitee display name (drives the email greeting and which template is
+	// used). The inviter was already resolved and persisted at invite-creation time, so it
+	// is reused from the invite record here rather than looked up a second time.
+	resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
+	recipientName, recipientHasAccount := s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
+	resolveCancel()
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resolveCtx, resolveCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
-		defer resolveCancel()
-		recipientName, recipientHasAccount = s.resolveInviteeDisplayName(resolveCtx, invite.InviteeEmail)
-	}()
-
-	if principal != "" && s.userReader != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			inviterCtx, inviterCancel := context.WithTimeout(dispatchCtx, inviteNameResolveTimeout)
-			defer inviterCancel()
-			if meta, metaErr := s.userReader.UserMetadataByPrincipal(inviterCtx, principal); metaErr != nil {
-				slog.WarnContext(ctx, "failed to resolve inviter display name — sending without inviter name",
-					"error", metaErr, "principal", redaction.Redact(principal))
-			} else if meta != nil {
-				if n := strings.TrimSpace(meta.Name); n != "" {
-					inviterName = n
-				} else if full := strings.TrimSpace(strings.TrimSpace(meta.GivenName) + " " + strings.TrimSpace(meta.FamilyName)); full != "" {
-					inviterName = full
-				}
-			}
-		}()
+	var emailInviter *inviteapi.Inviter
+	if invite.Inviter != nil {
+		emailInviter = &inviteapi.Inviter{
+			Name:     invite.Inviter.Name,
+			Username: invite.Inviter.Username,
+			Email:    invite.Inviter.Email,
+			Avatar:   invite.Inviter.Avatar,
+		}
 	}
-
-	wg.Wait()
 
 	// Role on the invite record is the committee role applied after acceptance.
 	// The Role field on SendInviteRequest is the invite-service permission grant
@@ -889,9 +951,7 @@ func (s *committeeServicesrvc) dispatchInviteEmail(ctx context.Context, committe
 			Email: strings.TrimSpace(invite.InviteeEmail),
 			Name:  recipientName,
 		},
-		Inviter: &inviteapi.Inviter{
-			Name: inviterName,
-		},
+		Inviter: emailInviter,
 		Resource: &inviteapi.Resource{
 			UID:  committee.UID,
 			Name: committee.Name,

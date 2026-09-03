@@ -3400,10 +3400,55 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, sender.calls, 1)
+			if tt.principal == "" {
+				// No authenticated principal — the inviter cannot be resolved, so the email
+				// is sent without an inviter object (rather than an empty one).
+				assert.Nil(t, sender.calls[0].Inviter)
+				return
+			}
 			require.NotNil(t, sender.calls[0].Inviter)
 			assert.Equal(t, tt.wantInviterName, sender.calls[0].Inviter.Name)
+			// Username is always the principal, even when profile/email lookups fail.
+			assert.Equal(t, tt.principal, sender.calls[0].Inviter.Username)
 		})
 	}
+}
+
+// TestCreateInvite_PersistsInviterAndExpiry verifies the full inviter object
+// (name/username/email/avatar) and the 30-day expiry are resolved and surfaced on the
+// created invite so they can be indexed and shown in-app to the invitee.
+func TestCreateInvite_PersistsInviterAndExpiry(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	principal := "inviter-full-alice"
+	reader := newMockUserReader(principal, "alice@lf.org").
+		withMetadata(principal, &model.UserMetadata{Name: "Alice Admin", Picture: "https://cdn.example.com/a.png"})
+	svc.userReader = reader
+
+	ctx := testCtx(principal)
+	before := time.Now().UTC()
+	resp, err := svc.CreateInvite(ctx, &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "invitee-full@example.com",
+	})
+	after := time.Now().UTC()
+	require.NoError(t, err)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Name)
+	assert.Equal(t, "Alice Admin", *resp.Inviter.Name)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, principal, *resp.Inviter.Username)
+	require.NotNil(t, resp.Inviter.Email)
+	assert.Equal(t, "alice@lf.org", *resp.Inviter.Email)
+	require.NotNil(t, resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/a.png", *resp.Inviter.Avatar)
+
+	require.NotNil(t, resp.ExpiresAt)
+	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
+	require.NoError(t, perr)
+	// created_at + 30 days, allowing 1s of slack for second-precision formatting.
+	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry earlier than created_at+30d")
+	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than created_at+30d")
 }
 
 func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {

@@ -58,6 +58,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 **Creating an invite** (`POST /committees/{uid}/invites`):
 - Creates a new invite with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
+- The service resolves the acting user (the authenticated principal) into an `inviter` object (`name`, `username`, `email`, `avatar`) and persists it on the invite, and sets `expires_at` to `created_at + 30 days` (mirroring the invite-service default token TTL). Both are indexed so the invitee can see who invited them and when the invite expires in-app, independent of email delivery. Inviter resolution is best-effort (`resolveInviterUser` in `cmd/committee-api/service/committee_service.go`): `username` is always the principal, while `name`/`avatar` (auth-service profile metadata) and `email` (primary email) degrade to empty on lookup failure. When there is no principal, `inviter` is omitted. On reinstate of a revoked invite, both `inviter` and `expires_at` are refreshed to the re-inviting actor and a fresh 30-day window.
 - If an invite for the same email already exists in this committee:
   - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role and organization are updated if provided.
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
