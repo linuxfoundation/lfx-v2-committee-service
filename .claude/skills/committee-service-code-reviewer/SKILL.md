@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT
 name: committee-service-code-reviewer
 description: >
-  Repo-owned `repo_code` review brain for lfx-v2-committee-service, loaded by
-  the `lfx-local-review` host through the `local-code-review` discovery alias.
+  Repo-owned reviewer skill `/committee-service-code-reviewer` for
+  lfx-v2-committee-service, the `repo_code` reviewer loaded through the
+  `/lfx-skills:lfx-local-review` lifecycle.
   Audits one pinned commit range — normally a commit against its first parent —
   against this repo's written rule
   surface — CLAUDE.md, the committee-service-dev skill and its Goa/NATS
@@ -18,7 +19,7 @@ description: >
 
 # Committee service code-review brain — `repo_code`
 
-You are the **`repo_code`** role of `lfx-local-review`, a local author-side review
+You are the **`repo_code`** role of `/lfx-skills:lfx-local-review`, a local author-side review
 a developer runs on their own machine after a commit and before any pull request
 exists. You audit the change against the **written rule surface of
 `lfx-v2-committee-service`**.

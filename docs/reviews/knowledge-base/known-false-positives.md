@@ -106,7 +106,8 @@ repo actually declares. Both of those are active entries in
 
 **Corrected 2026-07-31.** This block previously routed those two findings to
 `/committee-service-pr-readiness` and `/committee-service-preflight`. That was false: readiness is a PR-shape
-check that treats `go.mod` only as a protected path and, per `CLAUDE.md`, does not audit code, while preflight
+check that treats `go.mod` only as a protected path and, per `.claude/skills/committee-service-pr-readiness/SKILL.md`
+("Does not audit Go code, generated output correctness, contracts, charts, or tests"), does not audit code, while preflight
 builds, formats and lints but never compares declared versions across importers. Naming a gate that does not
 perform the check dropped both findings while making this file look like it had routed them.
 
