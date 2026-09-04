@@ -56,3 +56,7 @@ reason = "stdlib/html/template: JS regexp context XSS; fixed in go 1.26.6; go.mo
 [[IgnoredVulns]]
 id = "GO-2026-6218"
 reason = "stdlib/net/url: quadratic complexity in resolvePath; fixed in go 1.26.6; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-5856"
+reason = "stdlib/crypto/tls: ECH pre-shared key identity disclosure; fixed in go 1.26.5; go.mod capped at 1.26.3 by MegaLinter toolchain"
