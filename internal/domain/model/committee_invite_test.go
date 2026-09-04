@@ -58,5 +58,9 @@ func TestCommitteeInvite_MarshalJSON_OmitsZeroExpiryAndNilInviter(t *testing.T) 
 
 		assert.Equal(t, "2026-02-01T03:04:05Z", decoded["expires_at"])
 		require.Contains(t, decoded, "inviter")
+		inviterMap, ok := decoded["inviter"].(map[string]any)
+		require.True(t, ok, "inviter must be a JSON object, got: %T", decoded["inviter"])
+		assert.Equal(t, "First Last", inviterMap["name"], "inviter.name mismatch")
+		assert.Equal(t, "first-last", inviterMap["username"], "inviter.username mismatch")
 	})
 }
