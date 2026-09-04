@@ -47,7 +47,7 @@ func TestCommitteeInvite_MarshalJSON_OmitsZeroExpiryAndNilInviter(t *testing.T) 
 			Status:       "pending",
 			CreatedAt:    time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
 			ExpiresAt:    time.Date(2026, 2, 1, 3, 4, 5, 0, time.UTC),
-			Inviter:      &model.CommitteeUser{Name: "Alice Admin", Username: "alice"},
+			Inviter:      &model.CommitteeUser{Name: "First Last", Username: "first-last"},
 		}
 
 		raw, err := json.Marshal(invite)

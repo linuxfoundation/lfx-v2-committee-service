@@ -3458,9 +3458,9 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 // created invite so they can be indexed and shown in-app to the invitee.
 func TestCreateInvite_PersistsInviterAndExpiry(t *testing.T) {
 	svc, _, _ := setupServiceTestWithRepo()
-	principal := "inviter-full-alice"
-	reader := newMockUserReader(principal, "alice@lf.org").
-		withMetadata(principal, &model.UserMetadata{Name: "Alice Admin", Picture: "https://cdn.example.com/a.png"})
+	principal := "inviter-principal-1"
+	reader := newMockUserReader(principal, "first.last@example.com").
+		withMetadata(principal, &model.UserMetadata{Name: "First Last", Picture: "https://cdn.example.com/avatar.png"})
 	svc.userReader = reader
 
 	ctx := testCtx(principal)
@@ -3474,13 +3474,13 @@ func TestCreateInvite_PersistsInviterAndExpiry(t *testing.T) {
 
 	require.NotNil(t, resp.Inviter)
 	require.NotNil(t, resp.Inviter.Name)
-	assert.Equal(t, "Alice Admin", *resp.Inviter.Name)
+	assert.Equal(t, "First Last", *resp.Inviter.Name)
 	require.NotNil(t, resp.Inviter.Username)
 	assert.Equal(t, principal, *resp.Inviter.Username)
 	require.NotNil(t, resp.Inviter.Email)
-	assert.Equal(t, "alice@lf.org", *resp.Inviter.Email)
+	assert.Equal(t, "first.last@example.com", *resp.Inviter.Email)
 	require.NotNil(t, resp.Inviter.Avatar)
-	assert.Equal(t, "https://cdn.example.com/a.png", *resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", *resp.Inviter.Avatar)
 
 	require.NotNil(t, resp.ExpiresAt)
 	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
@@ -3516,9 +3516,9 @@ func TestCreateInvite_InviterUsernameOnlyWhenNoUserReader(t *testing.T) {
 // (rather than carrying the stale values from the original invite).
 func TestCreateInvite_ReinstatePersistsInviterAndExpiry(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
-	principal := "reinstate-inviter"
-	svc.userReader = newMockUserReader(principal, "reinstater@lf.org").
-		withMetadata(principal, &model.UserMetadata{Name: "Rita Reinstater", Picture: "https://cdn.example.com/r.png"})
+	principal := "inviter-principal-2"
+	svc.userReader = newMockUserReader(principal, "first.last@example.com").
+		withMetadata(principal, &model.UserMetadata{Name: "First Last", Picture: "https://cdn.example.com/avatar.png"})
 
 	const email = "reinstate-invitee@example.com"
 	// Seed a revoked invite with a long-past expiry to prove the reinstate refreshes it.
@@ -3542,13 +3542,13 @@ func TestCreateInvite_ReinstatePersistsInviterAndExpiry(t *testing.T) {
 
 	require.NotNil(t, resp.Inviter)
 	require.NotNil(t, resp.Inviter.Name)
-	assert.Equal(t, "Rita Reinstater", *resp.Inviter.Name)
+	assert.Equal(t, "First Last", *resp.Inviter.Name)
 	require.NotNil(t, resp.Inviter.Username)
 	assert.Equal(t, principal, *resp.Inviter.Username)
 	require.NotNil(t, resp.Inviter.Email)
-	assert.Equal(t, "reinstater@lf.org", *resp.Inviter.Email)
+	assert.Equal(t, "first.last@example.com", *resp.Inviter.Email)
 	require.NotNil(t, resp.Inviter.Avatar)
-	assert.Equal(t, "https://cdn.example.com/r.png", *resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", *resp.Inviter.Avatar)
 
 	require.NotNil(t, resp.ExpiresAt)
 	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
@@ -3556,6 +3556,18 @@ func TestCreateInvite_ReinstatePersistsInviterAndExpiry(t *testing.T) {
 	// Refreshed to now + 30 days (not the seeded past expiry), with 1s slack for second-precision formatting.
 	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry not refreshed to now+30d")
 	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than now+30d")
+
+	// Read the invite back from storage to prove the refreshed fields were persisted, not just
+	// reflected in the response (which is built from the same in-memory object passed to UpdateInvite).
+	stored, _, getErr := repo.GetInvite(context.Background(), "revoked-invite-reinstate")
+	require.NoError(t, getErr)
+	require.NotNil(t, stored.Inviter)
+	assert.Equal(t, "First Last", stored.Inviter.Name)
+	assert.Equal(t, principal, stored.Inviter.Username)
+	assert.Equal(t, "first.last@example.com", stored.Inviter.Email)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", stored.Inviter.Avatar)
+	assert.False(t, stored.ExpiresAt.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "persisted expiry not refreshed to now+30d")
+	assert.False(t, stored.ExpiresAt.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "persisted expiry later than now+30d")
 }
 
 func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {

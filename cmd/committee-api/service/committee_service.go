@@ -836,9 +836,10 @@ func (s *committeeServicesrvc) resolveInviteeDisplayName(ctx context.Context, em
 // in-app — letting the invitee see who invited them without depending on email delivery.
 // Username is the principal (LFID); name and avatar come from the auth-service profile
 // metadata; email from the principal's primary email. The two auth-service lookups run
-// concurrently within inviteNameResolveTimeout. Returns nil when there is no principal or
-// no user reader; individual lookup failures degrade to partial data (best-effort — this
-// never fails invite creation).
+// concurrently within inviteNameResolveTimeout. Returns nil only when there is no principal;
+// when a principal is present but the user reader is unavailable, returns a username-only
+// inviter. Individual lookup failures degrade to partial data (best-effort — this never fails
+// invite creation).
 func (s *committeeServicesrvc) resolveInviterUser(ctx context.Context) *model.CommitteeUser {
 	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 	principal = strings.TrimSpace(principal)
