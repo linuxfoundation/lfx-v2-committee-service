@@ -1085,9 +1085,9 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 description: Technical architecture decisions for Q1 2025
                                 file_name: architecture-decisions-q1-2025.pdf
                                 file_size: 204800
@@ -1097,9 +1097,9 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -1305,9 +1305,9 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 description: Technical architecture decisions for Q1 2025
                                 file_name: architecture-decisions-q1-2025.pdf
                                 file_size: 204800
@@ -1317,9 +1317,9 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -1462,78 +1462,78 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       name: Meeting Notes
                                       uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   name: Meeting Notes
                                   uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -1618,17 +1618,17 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 name: Meeting Notes
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                 "400":
                     description: 'BadRequest: Bad request'
                     content:
@@ -1824,17 +1824,17 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 name: Meeting Notes
                                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                 "404":
                     description: 'NotFound: Resource not found'
                     content:
@@ -1925,7 +1925,13 @@ paths:
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
+                                expires_at: "2023-02-14T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                inviter:
+                                    avatar: https://example.com/avatar.png
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -2103,7 +2109,13 @@ paths:
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
+                                expires_at: "2023-02-14T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                inviter:
+                                    avatar: https://example.com/avatar.png
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -2325,7 +2337,13 @@ paths:
                                 committee_name: Technical Steering Committee
                                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 created_at: "2023-01-15T10:30:00Z"
+                                expires_at: "2023-02-14T10:30:00Z"
                                 invitee_email: invitee@example.com
+                                inviter:
+                                    avatar: https://example.com/avatar.png
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -2638,9 +2656,9 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2648,17 +2666,17 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2666,17 +2684,17 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       description: Confluence wiki — architecture decisions log
                                       folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                       name: Technical Architecture Decision Records
@@ -2684,18 +2702,18 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: alexlee@linuxfoundation.org
-                                        name: Alex Lee
-                                        username: alexlee
+                                        email: first.last@example.com
+                                        name: First Last
+                                        username: first-last
                                       url: https://confluence.example.com/architecture-decisions
                             example:
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   description: Confluence wiki — architecture decisions log
                                   folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   name: Technical Architecture Decision Records
@@ -2703,17 +2721,17 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   description: Confluence wiki — architecture decisions log
                                   folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                   name: Technical Architecture Decision Records
@@ -2721,9 +2739,9 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                   url: https://confluence.example.com/architecture-decisions
                 "404":
                     description: 'NotFound: Resource not found'
@@ -2812,9 +2830,9 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 description: Confluence wiki — architecture decisions log
                                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 name: Technical Architecture Decision Records
@@ -2822,9 +2840,9 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 url: https://confluence.example.com/architecture-decisions
                 "400":
                     description: 'BadRequest: Bad request'
@@ -3013,9 +3031,9 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 description: Confluence wiki — architecture decisions log
                                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                                 name: Technical Architecture Decision Records
@@ -3023,9 +3041,9 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: alexlee@linuxfoundation.org
-                                    name: Alex Lee
-                                    username: alexlee
+                                    email: first.last@example.com
+                                    name: First Last
+                                    username: first-last
                                 url: https://confluence.example.com/architecture-decisions
                 "404":
                     description: 'NotFound: Resource not found'
@@ -5269,9 +5287,9 @@ components:
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
                 description: Technical architecture decisions for Q1 2025
                 file_name: architecture-decisions-q1-2025.pdf
                 file_size: 204800
@@ -5281,9 +5299,9 @@ components:
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
         CommitteeFull:
             type: object
             properties:
@@ -5840,11 +5858,18 @@ components:
                     description: The timestamp when the resource was created (read-only)
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
+                expires_at:
+                    type: string
+                    description: The timestamp when the invite link expires (read-only)
+                    example: "2023-02-14T10:30:00Z"
+                    format: date-time
                 invitee_email:
                     type: string
                     description: Email of the invited person
                     example: invitee@example.com
                     format: email
+                inviter:
+                    $ref: '#/components/schemas/CommitteeUser'
                 organization:
                     type: object
                     properties:
@@ -5895,7 +5920,13 @@ components:
                 committee_name: Technical Steering Committee
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
+                expires_at: "2023-02-14T10:30:00Z"
                 invitee_email: invitee@example.com
+                inviter:
+                    avatar: https://example.com/avatar.png
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
                 organization:
                     id: org-123456
                     name: The Linux Foundation
@@ -5942,17 +5973,17 @@ components:
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
                 name: Meeting Notes
                 uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
         CommitteeLinkWithReadonlyAttributes:
             type: object
             properties:
@@ -6006,9 +6037,9 @@ components:
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
                 description: Confluence wiki — architecture decisions log
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Technical Architecture Decision Records
@@ -6016,9 +6047,9 @@ components:
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: alexlee@linuxfoundation.org
-                    name: Alex Lee
-                    username: alexlee
+                    email: first.last@example.com
+                    name: First Last
+                    username: first-last
                 url: https://confluence.example.com/architecture-decisions
         CommitteeMemberBase:
             type: object

@@ -786,6 +786,10 @@ type GetInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -817,6 +821,10 @@ type CreateInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -908,6 +916,10 @@ type DeclineInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -5160,6 +5172,7 @@ func NewGetInviteCommitteeInviteWithReadonlyAttributesOK(body *GetInviteResponse
 		OrganizationRequired: body.OrganizationRequired,
 		InviteeEmail:         body.InviteeEmail,
 		Role:                 body.Role,
+		ExpiresAt:            body.ExpiresAt,
 		CreatedAt:            body.CreatedAt,
 	}
 	if body.Status != nil {
@@ -5181,6 +5194,9 @@ func NewGetInviteCommitteeInviteWithReadonlyAttributesOK(body *GetInviteResponse
 	}
 	if body.Status == nil {
 		v.Status = "pending"
+	}
+	if body.Inviter != nil {
+		v.Inviter = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.Inviter)
 	}
 
 	return v
@@ -5227,6 +5243,7 @@ func NewCreateInviteCommitteeInviteWithReadonlyAttributesCreated(body *CreateInv
 		OrganizationRequired: body.OrganizationRequired,
 		InviteeEmail:         body.InviteeEmail,
 		Role:                 body.Role,
+		ExpiresAt:            body.ExpiresAt,
 		CreatedAt:            body.CreatedAt,
 	}
 	if body.Status != nil {
@@ -5248,6 +5265,9 @@ func NewCreateInviteCommitteeInviteWithReadonlyAttributesCreated(body *CreateInv
 	}
 	if body.Status == nil {
 		v.Status = "pending"
+	}
+	if body.Inviter != nil {
+		v.Inviter = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.Inviter)
 	}
 
 	return v
@@ -5500,6 +5520,7 @@ func NewDeclineInviteCommitteeInviteWithReadonlyAttributesOK(body *DeclineInvite
 		OrganizationRequired: body.OrganizationRequired,
 		InviteeEmail:         body.InviteeEmail,
 		Role:                 body.Role,
+		ExpiresAt:            body.ExpiresAt,
 		CreatedAt:            body.CreatedAt,
 	}
 	if body.Status != nil {
@@ -5521,6 +5542,9 @@ func NewDeclineInviteCommitteeInviteWithReadonlyAttributesOK(body *DeclineInvite
 	}
 	if body.Status == nil {
 		v.Status = "pending"
+	}
+	if body.Inviter != nil {
+		v.Inviter = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.Inviter)
 	}
 
 	return v
@@ -8052,6 +8076,14 @@ func ValidateGetInviteResponseBody(body *GetInviteResponseBody) (err error) {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
 		}
 	}
+	if body.Inviter != nil {
+		if err2 := ValidateCommitteeUserResponseBody(body.Inviter); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
+	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
@@ -8084,6 +8116,14 @@ func ValidateCreateInviteResponseBody(body *CreateInviteResponseBody) (err error
 		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
 		}
+	}
+	if body.Inviter != nil {
+		if err2 := ValidateCommitteeUserResponseBody(body.Inviter); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
@@ -8220,6 +8260,14 @@ func ValidateDeclineInviteResponseBody(body *DeclineInviteResponseBody) (err err
 		if !(*body.Status == "pending" || *body.Status == "accepted" || *body.Status == "declined" || *body.Status == "revoked") {
 			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "accepted", "declined", "revoked"}))
 		}
+	}
+	if body.Inviter != nil {
+		if err2 := ValidateCommitteeUserResponseBody(body.Inviter); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))

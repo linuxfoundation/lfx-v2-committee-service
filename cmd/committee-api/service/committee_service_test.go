@@ -1334,7 +1334,8 @@ func TestAcceptInvite(t *testing.T) {
 		seedStatus               string
 		seedMember               *model.CommitteeMember // pre-existing member to seed (for idempotent accepted case)
 		principal                string
-		inviteeEmail             string // overrides principal for invite InviteeEmail; defaults to principal when empty
+		inviteeEmail             string    // overrides principal for invite InviteeEmail; defaults to principal when empty
+		expiresAt                time.Time // invite expiry; zero means unset (legacy record)
 		expectError              bool
 		expectResult             bool // false means nil result is acceptable
 		expectCreateMemberCalled bool // whether AcceptInvite reaches the CreateMember call at all
@@ -1385,6 +1386,43 @@ func TestAcceptInvite(t *testing.T) {
 			principal:   "accept@example.com",
 			expectError: true,
 		},
+		{
+			name:                     "accepts pending invite with a future expiry",
+			seedStatus:               "pending",
+			principal:                "future-expiry@example.com",
+			inviteeEmail:             "future-expiry@example.com",
+			expiresAt:                time.Now().Add(24 * time.Hour),
+			expectError:              false,
+			expectResult:             true,
+			expectCreateMemberCalled: true,
+		},
+		{
+			name:         "cannot accept an expired pending invite",
+			seedStatus:   "pending",
+			principal:    "expired@example.com",
+			inviteeEmail: "expired@example.com",
+			expiresAt:    time.Now().Add(-time.Hour),
+			expectError:  true,
+		},
+		{
+			// Expiry is checked after the accepted-status short-circuit, so an already-accepted
+			// invite still returns its member idempotently even when past expiry.
+			name:       "already accepted invite past expiry is still idempotent",
+			seedStatus: "accepted",
+			seedMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "existing-member-expired-uid",
+					CommitteeUID: "committee-1",
+					Email:        "idempotent-expired@example.com",
+					Status:       "Active",
+				},
+			},
+			principal:    "idempotent-expired@example.com",
+			inviteeEmail: "idempotent-expired@example.com",
+			expiresAt:    time.Now().Add(-time.Hour),
+			expectError:  false,
+			expectResult: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1402,6 +1440,7 @@ func TestAcceptInvite(t *testing.T) {
 				InviteeEmail: inviteeEmail,
 				Status:       tt.seedStatus,
 				CreatedAt:    time.Now(),
+				ExpiresAt:    tt.expiresAt,
 			}
 			repo.AddCommitteeInvite(invite)
 
@@ -3400,10 +3439,135 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, sender.calls, 1)
+			if tt.principal == "" {
+				// No authenticated principal — the inviter cannot be resolved, so the email
+				// is sent without an inviter object (rather than an empty one).
+				assert.Nil(t, sender.calls[0].Inviter)
+				return
+			}
 			require.NotNil(t, sender.calls[0].Inviter)
 			assert.Equal(t, tt.wantInviterName, sender.calls[0].Inviter.Name)
+			// Username is always the principal, even when profile/email lookups fail.
+			assert.Equal(t, tt.principal, sender.calls[0].Inviter.Username)
 		})
 	}
+}
+
+// TestCreateInvite_PersistsInviterAndExpiry verifies the full inviter object
+// (name/username/email/avatar) and the 30-day expiry are resolved and surfaced on the
+// created invite so they can be indexed and shown in-app to the invitee.
+func TestCreateInvite_PersistsInviterAndExpiry(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	principal := "inviter-principal-1"
+	reader := newMockUserReader(principal, "first.last@example.com").
+		withMetadata(principal, &model.UserMetadata{Name: "First Last", Picture: "https://cdn.example.com/avatar.png"})
+	svc.userReader = reader
+
+	ctx := testCtx(principal)
+	before := time.Now().UTC()
+	resp, err := svc.CreateInvite(ctx, &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "invitee-full@example.com",
+	})
+	after := time.Now().UTC()
+	require.NoError(t, err)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Name)
+	assert.Equal(t, "First Last", *resp.Inviter.Name)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, principal, *resp.Inviter.Username)
+	require.NotNil(t, resp.Inviter.Email)
+	assert.Equal(t, "first.last@example.com", *resp.Inviter.Email)
+	require.NotNil(t, resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", *resp.Inviter.Avatar)
+
+	require.NotNil(t, resp.ExpiresAt)
+	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
+	require.NoError(t, perr)
+	// created_at + 30 days, allowing 1s of slack for second-precision formatting.
+	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry earlier than created_at+30d")
+	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than created_at+30d")
+}
+
+// TestCreateInvite_InviterUsernameOnlyWhenNoUserReader verifies that when a principal is present
+// but profile enrichment is unavailable (no user reader), the inviter is still persisted with the
+// username — attribution is dropped only when there is no principal at all.
+func TestCreateInvite_InviterUsernameOnlyWhenNoUserReader(t *testing.T) {
+	svc, _, _ := setupServiceTestWithRepo()
+	svc.userReader = nil
+
+	resp, err := svc.CreateInvite(testCtx("inviter-principal"), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: "invitee-no-reader@example.com",
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, "inviter-principal", *resp.Inviter.Username)
+	assert.Nil(t, resp.Inviter.Name)
+	assert.Nil(t, resp.Inviter.Email)
+	assert.Nil(t, resp.Inviter.Avatar)
+}
+
+// TestCreateInvite_ReinstatePersistsInviterAndExpiry verifies the revoked -> pending reinstate
+// path refreshes the inviter to the re-inviting principal and starts a fresh 30-day expiry window
+// (rather than carrying the stale values from the original invite).
+func TestCreateInvite_ReinstatePersistsInviterAndExpiry(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	principal := "inviter-principal-2"
+	svc.userReader = newMockUserReader(principal, "first.last@example.com").
+		withMetadata(principal, &model.UserMetadata{Name: "First Last", Picture: "https://cdn.example.com/avatar.png"})
+
+	const email = "reinstate-invitee@example.com"
+	// Seed a revoked invite with a long-past expiry to prove the reinstate refreshes it.
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID:          "revoked-invite-reinstate",
+		CommitteeUID: "committee-1",
+		InviteeEmail: email,
+		Status:       "revoked",
+		CreatedAt:    time.Now().Add(-100 * 24 * time.Hour),
+		ExpiresAt:    time.Now().Add(-70 * 24 * time.Hour),
+	})
+
+	before := time.Now().UTC()
+	resp, err := svc.CreateInvite(testCtx(principal), &committeeservice.CreateInvitePayload{
+		UID:          "committee-1",
+		InviteeEmail: email,
+	})
+	after := time.Now().UTC()
+	require.NoError(t, err)
+	assert.Equal(t, "pending", resp.Status)
+
+	require.NotNil(t, resp.Inviter)
+	require.NotNil(t, resp.Inviter.Name)
+	assert.Equal(t, "First Last", *resp.Inviter.Name)
+	require.NotNil(t, resp.Inviter.Username)
+	assert.Equal(t, principal, *resp.Inviter.Username)
+	require.NotNil(t, resp.Inviter.Email)
+	assert.Equal(t, "first.last@example.com", *resp.Inviter.Email)
+	require.NotNil(t, resp.Inviter.Avatar)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", *resp.Inviter.Avatar)
+
+	require.NotNil(t, resp.ExpiresAt)
+	expires, perr := time.Parse(time.RFC3339, *resp.ExpiresAt)
+	require.NoError(t, perr)
+	// Refreshed to now + 30 days (not the seeded past expiry), with 1s slack for second-precision formatting.
+	assert.False(t, expires.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "expiry not refreshed to now+30d")
+	assert.False(t, expires.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "expiry later than now+30d")
+
+	// Read the invite back from storage to prove the refreshed fields were persisted, not just
+	// reflected in the response (which is built from the same in-memory object passed to UpdateInvite).
+	stored, _, getErr := repo.GetInvite(context.Background(), "revoked-invite-reinstate")
+	require.NoError(t, getErr)
+	require.NotNil(t, stored.Inviter)
+	assert.Equal(t, "First Last", stored.Inviter.Name)
+	assert.Equal(t, principal, stored.Inviter.Username)
+	assert.Equal(t, "first.last@example.com", stored.Inviter.Email)
+	assert.Equal(t, "https://cdn.example.com/avatar.png", stored.Inviter.Avatar)
+	assert.False(t, stored.ExpiresAt.Before(before.Add(model.InviteDefaultTTL).Add(-time.Second)), "persisted expiry not refreshed to now+30d")
+	assert.False(t, stored.ExpiresAt.After(after.Add(model.InviteDefaultTTL).Add(time.Second)), "persisted expiry later than now+30d")
 }
 
 func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {

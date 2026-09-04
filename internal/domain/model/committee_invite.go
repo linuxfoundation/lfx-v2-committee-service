@@ -26,7 +26,22 @@ type CommitteeInvite struct {
 	Organization         *CommitteeMemberOrganization `json:"organization,omitempty"`
 	Status               string                       `json:"status"`
 	CreatedAt            time.Time                    `json:"created_at"`
+	// Inviter is the user who created the invite (name, username, email, avatar),
+	// resolved from the authenticated principal at creation time. Nil when the
+	// principal could not be resolved. Surfaced in-app so the invitee sees who
+	// invited them without depending on email delivery.
+	Inviter *CommitteeUser `json:"inviter,omitempty"`
+	// ExpiresAt is when the invite link expires. Set at creation to CreatedAt + 30
+	// days to mirror the invite-service default token TTL (SendInviteRequest with no
+	// ExpirationDays defaults to 30 days). Uses omitzero (not omitempty, which does not
+	// omit a zero time.Time) so legacy records without an expiry are absent from the
+	// marshaled indexer body rather than serialized as "0001-01-01T00:00:00Z".
+	ExpiresAt time.Time `json:"expires_at,omitzero"`
 }
+
+// InviteDefaultTTL is the invite link lifetime, mirroring the invite-service default
+// token TTL used when SendInviteRequest.ExpirationDays is 0 or omitted (30 days).
+const InviteDefaultTTL = 30 * 24 * time.Hour
 
 // BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
 // The hash is generated from the committee UID and the invitee's email (i.e., committee_uid + invitee_email).

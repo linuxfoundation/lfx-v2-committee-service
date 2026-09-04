@@ -811,6 +811,18 @@ func (s *committeeServicesrvc) convertInviteDomainToResponse(invite *model.Commi
 			result.Organization = orgResp
 		}
 	}
+	if invite.Inviter != nil {
+		inviter := invite.Inviter
+		// Emit an inviter object only when at least one field is populated, so an all-empty
+		// inviter never surfaces as an empty object.
+		if inviter.Name != "" || inviter.Username != "" || inviter.Email != "" || inviter.Avatar != "" {
+			result.Inviter = convertModelUserToResponse(*inviter)
+		}
+	}
+	if !invite.ExpiresAt.IsZero() {
+		expiresAt := invite.ExpiresAt.Format("2006-01-02T15:04:05Z07:00")
+		result.ExpiresAt = &expiresAt
+	}
 	if !invite.CreatedAt.IsZero() {
 		createdAt := invite.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.CreatedAt = &createdAt
@@ -895,26 +907,33 @@ func ptrStr(s *string) string {
 
 // convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
 // Returns nil when users is nil so that omitted fields are not serialized as empty arrays.
+// convertModelUserToResponse projects a single domain CommitteeUser to its Goa response type,
+// emitting only non-empty fields as pointers. Shared by the slice converter and the invite
+// inviter mapping so the empty-string guards live in one place.
+func convertModelUserToResponse(u model.CommitteeUser) *committeeservice.CommitteeUser {
+	cu := &committeeservice.CommitteeUser{}
+	if u.Avatar != "" {
+		cu.Avatar = &u.Avatar
+	}
+	if u.Email != "" {
+		cu.Email = &u.Email
+	}
+	if u.Name != "" {
+		cu.Name = &u.Name
+	}
+	if u.Username != "" {
+		cu.Username = &u.Username
+	}
+	return cu
+}
+
 func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservice.CommitteeUser {
 	if users == nil {
 		return nil
 	}
 	result := make([]*committeeservice.CommitteeUser, 0, len(users))
 	for _, u := range users {
-		cu := &committeeservice.CommitteeUser{}
-		if u.Avatar != "" {
-			cu.Avatar = &u.Avatar
-		}
-		if u.Email != "" {
-			cu.Email = &u.Email
-		}
-		if u.Name != "" {
-			cu.Name = &u.Name
-		}
-		if u.Username != "" {
-			cu.Username = &u.Username
-		}
-		result = append(result, cu)
+		result = append(result, convertModelUserToResponse(u))
 	}
 	return result
 }

@@ -58,6 +58,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 **Creating an invite** (`POST /committees/{uid}/invites`):
 - Creates a new invite with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
+- The service resolves the acting user (the authenticated principal) into an `inviter` object (`name`, `username`, `email`, `avatar`) and persists it on the invite, and sets `expires_at` to `created_at + 30 days` (mirroring the invite-service default token TTL). Both are indexed so the invitee can see who invited them and when the invite expires in-app, independent of email delivery. Inviter resolution is best-effort (`resolveInviterUser` in `cmd/committee-api/service/committee_service.go`): `username` is always the principal, while `name`/`avatar` (auth-service profile metadata) and `email` (primary email) degrade to empty on lookup failure. When there is no principal, `inviter` is omitted. On reinstate of a revoked invite, both `inviter` and `expires_at` are refreshed to the re-inviting actor and a fresh 30-day window.
 - If an invite for the same email already exists in this committee:
   - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role and organization are updated if provided.
   - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
@@ -81,6 +82,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
 - Blocked from: `revoked` (invite was withdrawn) — returns `409 Conflict`.
+- **Blocked when expired:** a `pending`/`declined` invite whose stored non-zero `expires_at` has passed is rejected with `409 Conflict` ("invite has expired"), keeping in-app acceptance consistent with the email link, whose token shares the same TTL and is already dead. `expires_at` is `created_at + 30 days` for a fresh invite, but a reinstated invite gets a fresh `now + 30 days` window (its original `created_at` is preserved), so the check reads the stored value rather than deriving it. Legacy records with a zero `expires_at` are never treated as expired. The check runs after the `accepted`-status short-circuit, so an already-accepted invite still returns its member idempotently regardless of expiry.
 - **Idempotent for `accepted` status:** if the invite is already `accepted` (e.g. when the caller retries a prior successful HTTP acceptance), the endpoint looks up the existing committee member by email and returns it as a success (`200 OK`). If no matching member record is found despite the accepted status (data inconsistency), returns `409 Conflict`.
 - On success (from `pending`/`declined`): creates a committee member and marks the invite `accepted`. Member creation runs first — if it fails, the invite stays unchanged so the invitee can safely retry.
 - Returns the created or existing committee member.
