@@ -2990,6 +2990,52 @@ definitions:
             message: The request was invalid.
         required:
             - message
+    Charter:
+        title: Charter
+        type: object
+        properties:
+            updated_at:
+                type: string
+                description: When the charter was last set or cleared
+                example: "2026-09-06T00:00:00Z"
+                format: date-time
+            updated_by:
+                $ref: '#/definitions/CommitteeUser'
+            url:
+                type: string
+                description: URL of the externally hosted charter document. Empty once the charter has been cleared.
+                example: https://example.org/governance/charter.pdf
+                pattern: ^$|^https?://[^\s/$.?#][^\s]*$
+                maxLength: 2048
+            version:
+                type: integer
+                description: Number of times the charter has been set or cleared. Never resets, including across a clear followed by a re-set.
+                example: 1
+                format: int64
+                minimum: 1
+        description: 'A committee''s charter: a link to an externally hosted document, with an audit trail of who last set or cleared it.'
+        example:
+            updated_at: "2026-09-06T00:00:00Z"
+            updated_by:
+                avatar: https://example.com/avatar.png
+                email: alice.johnson@example.com
+                name: Alice Johnson
+                username: alicejohnson789
+            url: https://example.org/governance/charter.pdf
+            version: 1
+    CharterWrite:
+        title: CharterWrite
+        type: object
+        properties:
+            url:
+                type: string
+                description: URL of the externally hosted charter document. Send an empty string to clear a previously set charter.
+                example: https://example.org/governance/charter.pdf
+                pattern: ^$|^https?://[^\s/$.?#][^\s]*$
+                maxLength: 2048
+        description: Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.
+        example:
+            url: https://example.org/governance/charter.pdf
     CommitteeApplicationWithReadonlyAttributes:
         title: CommitteeApplicationWithReadonlyAttributes
         type: object
@@ -3107,6 +3153,8 @@ definitions:
                     - Technical Oversight Committee
                     - Technical Steering Committee
                     - Working Group
+            charter:
+                $ref: '#/definitions/Charter'
             chat_channel:
                 type: string
                 description: The chat channel URL or identifier for the committee
@@ -3262,6 +3310,15 @@ definitions:
             calendar:
                 public: true
             category: Technical Steering Committee
+            charter:
+                updated_at: "2026-09-06T00:00:00Z"
+                updated_by:
+                    avatar: https://example.com/avatar.png
+                    email: alice.johnson@example.com
+                    name: Alice Johnson
+                    username: alicejohnson789
+                url: https://example.org/governance/charter.pdf
+                version: 1
             chat_channel: https://slack.example.org/channels/tsc
             deliverables:
                 - Quarterly technical roadmap
@@ -3431,6 +3488,8 @@ definitions:
                     - Technical Oversight Committee
                     - Technical Steering Committee
                     - Working Group
+            charter:
+                $ref: '#/definitions/Charter'
             chat_channel:
                 type: string
                 description: The chat channel URL or identifier for the committee
@@ -3618,6 +3677,15 @@ definitions:
             calendar:
                 public: true
             category: Technical Steering Committee
+            charter:
+                updated_at: "2026-09-06T00:00:00Z"
+                updated_by:
+                    avatar: https://example.com/avatar.png
+                    email: alice.johnson@example.com
+                    name: Alice Johnson
+                    username: alicejohnson789
+                url: https://example.org/governance/charter.pdf
+                version: 1
             chat_channel: https://slack.example.org/channels/tsc
             deliverables:
                 - Quarterly technical roadmap
@@ -4359,6 +4427,8 @@ definitions:
                     - Technical Oversight Committee
                     - Technical Steering Committee
                     - Working Group
+            charter:
+                $ref: '#/definitions/CharterWrite'
             chat_channel:
                 type: string
                 description: The chat channel URL or identifier for the committee
@@ -4526,6 +4596,8 @@ definitions:
             calendar:
                 public: true
             category: Technical Steering Committee
+            charter:
+                url: https://example.org/governance/charter.pdf
             chat_channel: https://slack.example.org/channels/tsc
             chat_webhook_url: cp3
             deliverables:
@@ -4790,6 +4862,8 @@ definitions:
                     - Technical Oversight Committee
                     - Technical Steering Committee
                     - Working Group
+            charter:
+                $ref: '#/definitions/CharterWrite'
             chat_channel:
                 type: string
                 description: The chat channel URL or identifier for the committee
@@ -4913,6 +4987,8 @@ definitions:
             calendar:
                 public: true
             category: Technical Steering Committee
+            charter:
+                url: https://example.org/governance/charter.pdf
             chat_channel: https://slack.example.org/channels/tsc
             deliverables:
                 - Quarterly technical roadmap

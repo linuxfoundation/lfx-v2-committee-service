@@ -21,6 +21,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -498,6 +499,255 @@ func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
 			tc.validate(t, result, mockRepo)
 		})
 	}
+}
+
+// TestCommitteeWriterOrchestrator_Create_Charter exercises the charter stamping block in
+// Create: version starts at 1 only when a non-empty URL was supplied, updated_by is resolved
+// from the context principal, and an absent or empty-url charter stays nil rather than
+// becoming a stamped empty object.
+func TestCommitteeWriterOrchestrator_Create_Charter(t *testing.T) {
+	testCases := []struct {
+		name           string
+		charter        *model.Charter
+		withPrincipal  bool
+		validateResult func(t *testing.T, charter *model.Charter)
+	}{
+		{
+			name:          "charter with url stamps version 1 and updated_by from principal",
+			charter:       &model.Charter{URL: "https://example.org/governance/charter.pdf"},
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, "https://example.org/governance/charter.pdf", charter.URL)
+				assert.Equal(t, 1, charter.Version)
+				assert.False(t, charter.UpdatedAt.IsZero())
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+			},
+		},
+		{
+			name:    "charter absent stays nil",
+			charter: nil,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				assert.Nil(t, charter)
+			},
+		},
+		{
+			name:    "charter with empty url stays nil",
+			charter: &model.Charter{URL: ""},
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				assert.Nil(t, charter)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			committeeReader := mock.NewMockCommitteeReader(mockRepo)
+			committeeWriter := NewTestMockCommitteeWriter(mockRepo)
+			projectReader := mock.NewMockProjectRetriever(mockRepo)
+			committeePublisher := mock.NewMockCommitteePublisher()
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(committeeReader),
+				WithCommitteeWriter(committeeWriter),
+				WithProjectRetriever(projectReader),
+				WithCommitteePublisher(committeePublisher),
+				WithUserReader(&writerTestUserReader{}),
+			)
+
+			inputCommittee := &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+					Charter:    tc.charter,
+				},
+			}
+
+			ctx := context.Background()
+			if tc.withPrincipal {
+				ctx = context.WithValue(ctx, constants.PrincipalContextID, "alice")
+			}
+
+			result, err := orchestrator.Create(ctx, inputCommittee, false)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			tc.validateResult(t, result.Charter)
+		})
+	}
+}
+
+// TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter exercises the charter stamping
+// block in mergeCommitteeData: version/updated_at/updated_by are only restamped when the URL
+// actually changes (including a change to/from ""); a same-value echo or an absent payload
+// key is a no-op that carries the existing charter forward untouched.
+func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
+	fixedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name           string
+		existing       *model.Charter
+		updated        *model.Charter
+		withPrincipal  bool
+		validateResult func(t *testing.T, charter *model.Charter)
+	}{
+		{
+			name:          "same url is a no-op — existing charter carried forward untouched",
+			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			updated:       &model.Charter{URL: "https://example.org/charter.pdf"},
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, "https://example.org/charter.pdf", charter.URL)
+				assert.Equal(t, 2, charter.Version)
+				assert.Equal(t, fixedTime, charter.UpdatedAt)
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "bob", charter.UpdatedBy.Username)
+			},
+		},
+		{
+			name:          "url changed stamps new version and updated_by from principal",
+			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			updated:       &model.Charter{URL: "https://example.org/new.pdf"},
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, "https://example.org/new.pdf", charter.URL)
+				assert.Equal(t, 2, charter.Version)
+				assert.True(t, charter.UpdatedAt.After(fixedTime))
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+			},
+		},
+		{
+			name:          "cleared charter (empty url) is stamped like any other change",
+			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			updated:       &model.Charter{URL: ""},
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, "", charter.URL)
+				assert.Equal(t, 2, charter.Version)
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+			},
+		},
+		{
+			name:          "charter set for the first time starts at version 1",
+			existing:      nil,
+			updated:       &model.Charter{URL: "https://example.org/new.pdf"},
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, 1, charter.Version)
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+			},
+		},
+		{
+			name:          "no principal in context — updated_by stays nil",
+			existing:      nil,
+			updated:       &model.Charter{URL: "https://example.org/new.pdf"},
+			withPrincipal: false,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, 1, charter.Version)
+				assert.Nil(t, charter.UpdatedBy)
+			},
+		},
+		{
+			name:          "both nil is a no-op",
+			existing:      nil,
+			updated:       nil,
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				assert.Nil(t, charter)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			orchestrator := &committeeWriterOrchestrator{userReader: &writerTestUserReader{}}
+
+			existingBase := &model.CommitteeBase{
+				UID:        "committee-1",
+				ProjectUID: "project-1",
+				Name:       "Existing Committee",
+				Category:   "governance",
+				Charter:    tc.existing,
+			}
+			updatedCommittee := &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID: "project-1",
+					Name:       "Existing Committee",
+					Category:   "governance",
+					Charter:    tc.updated,
+				},
+			}
+
+			ctx := context.Background()
+			if tc.withPrincipal {
+				ctx = context.WithValue(ctx, constants.PrincipalContextID, "alice")
+			}
+
+			orchestrator.mergeCommitteeData(ctx, existingBase, updatedCommittee)
+
+			tc.validateResult(t, updatedCommittee.Charter)
+		})
+	}
+}
+
+// TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter_SetClearReSetCycle guards the
+// version-never-resets guarantee across a full set -> clear -> re-set cycle, not just a single
+// update -- each step increments version by exactly one and clearing never drops it back to 1.
+func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter_SetClearReSetCycle(t *testing.T) {
+	orchestrator := &committeeWriterOrchestrator{userReader: &writerTestUserReader{}}
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+
+	base := &model.CommitteeBase{
+		UID:        "committee-1",
+		ProjectUID: "project-1",
+		Name:       "Existing Committee",
+		Category:   "governance",
+	}
+
+	// Step 1: set for the first time -> version 1.
+	step1 := &model.Committee{CommitteeBase: model.CommitteeBase{
+		ProjectUID: "project-1", Name: "Existing Committee", Category: "governance",
+		Charter: &model.Charter{URL: "https://example.org/v1.pdf"},
+	}}
+	orchestrator.mergeCommitteeData(ctx, base, step1)
+	require.NotNil(t, step1.Charter)
+	assert.Equal(t, 1, step1.Charter.Version)
+	base.Charter = step1.Charter
+
+	// Step 2: clear -> version 2, url "".
+	step2 := &model.Committee{CommitteeBase: model.CommitteeBase{
+		ProjectUID: "project-1", Name: "Existing Committee", Category: "governance",
+		Charter: &model.Charter{URL: ""},
+	}}
+	orchestrator.mergeCommitteeData(ctx, base, step2)
+	require.NotNil(t, step2.Charter)
+	assert.Equal(t, "", step2.Charter.URL)
+	assert.Equal(t, 2, step2.Charter.Version)
+	base.Charter = step2.Charter
+
+	// Step 3: re-set -> version 3, not reset to 1.
+	step3 := &model.Committee{CommitteeBase: model.CommitteeBase{
+		ProjectUID: "project-1", Name: "Existing Committee", Category: "governance",
+		Charter: &model.Charter{URL: "https://example.org/v2.pdf"},
+	}}
+	orchestrator.mergeCommitteeData(ctx, base, step3)
+	require.NotNil(t, step3.Charter)
+	assert.Equal(t, "https://example.org/v2.pdf", step3.Charter.URL)
+	assert.Equal(t, 3, step3.Charter.Version)
 }
 
 func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {

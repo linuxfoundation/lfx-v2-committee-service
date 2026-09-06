@@ -82,6 +82,7 @@ var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly
 	TotalVotingReposAttribute()
 
 	HasMailingListAttribute()
+	CharterAttribute()
 
 })
 
@@ -105,6 +106,7 @@ var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly
 	AuditorsAttribute()
 
 	HasMailingListAttribute()
+	CharterAttribute()
 
 })
 
@@ -281,6 +283,54 @@ func KeyDatesAttribute() {
 			{"date": "2026-04", "label": "Charter renewal"},
 		})
 	})
+}
+
+// charterURLPattern validates an HTTP(S) URL or an empty string.
+// Empty string is the explicit clear signal, mirroring slackWebhookURLPattern: once a charter
+// has ever been set for a committee, clearing it is a stamped update to url: "", not a return
+// to an absent charter (see CharterWriteAttribute).
+const charterURLPattern = `^$|^https?://[^\s/$.?#][^\s]*$`
+
+// CharterType is the DSL type for a committee's charter as returned from GET/PUT results.
+// Present once a charter has ever existed for the committee -- including after removal, where
+// url is "" but version/updated_at/updated_by remain populated from the last change.
+var CharterType = dsl.Type("charter", func() {
+	dsl.Description("A committee's charter: a link to an externally hosted document, with an audit trail of who last set or cleared it.")
+	dsl.Attribute("url", dsl.String, "URL of the externally hosted charter document. Empty once the charter has been cleared.", func() {
+		dsl.Pattern(charterURLPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://example.org/governance/charter.pdf")
+	})
+	dsl.Attribute("version", dsl.Int, "Number of times the charter has been set or cleared. Never resets, including across a clear followed by a re-set.", func() {
+		dsl.Minimum(1)
+		dsl.Example(1)
+	})
+	dsl.Attribute("updated_at", dsl.String, "When the charter was last set or cleared", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-09-06T00:00:00Z")
+	})
+	dsl.Attribute("updated_by", CommitteeUserType, "User who last set or cleared the charter")
+})
+
+// CharterWriteType is the DSL type for a committee's charter as accepted in create/update
+// payloads. Only url is writable -- version/updated_at/updated_by are stamped server-side.
+var CharterWriteType = dsl.Type("charter-write", func() {
+	dsl.Description("Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.")
+	dsl.Attribute("url", dsl.String, "URL of the externally hosted charter document. Send an empty string to clear a previously set charter.", func() {
+		dsl.Pattern(charterURLPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://example.org/governance/charter.pdf")
+	})
+})
+
+// CharterAttribute is the DSL attribute for a committee's charter, result side.
+func CharterAttribute() {
+	dsl.Attribute("charter", CharterType, "The committee's charter")
+}
+
+// CharterWriteAttribute is the DSL attribute for a committee's charter, payload side.
+func CharterWriteAttribute() {
+	dsl.Attribute("charter", CharterWriteType, "The committee's charter")
 }
 
 // ExternalSourceType is the DSL type for a single external source linked to a committee.

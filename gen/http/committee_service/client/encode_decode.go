@@ -6836,6 +6836,20 @@ func marshalCommitteeserviceExternalSourceToExternalSourceRequestBody(v *committ
 	return res
 }
 
+// marshalCommitteeserviceCharterWriteToCharterWriteRequestBody builds a value
+// of type *CharterWriteRequestBody from a value of type
+// *committeeservice.CharterWrite.
+func marshalCommitteeserviceCharterWriteToCharterWriteRequestBody(v *committeeservice.CharterWrite) *CharterWriteRequestBody {
+	if v == nil {
+		return nil
+	}
+	res := &CharterWriteRequestBody{
+		URL: v.URL,
+	}
+
+	return res
+}
+
 // marshalCommitteeserviceCommitteeUserToCommitteeUserRequestBody builds a
 // value of type *CommitteeUserRequestBody from a value of type
 // *committeeservice.CommitteeUser.
@@ -6883,6 +6897,20 @@ func marshalExternalSourceRequestBodyToCommitteeserviceExternalSource(v *Externa
 		ExternalCategory:      v.ExternalCategory,
 		ExternalRegion:        v.ExternalRegion,
 		ExternalEventCategory: v.ExternalEventCategory,
+	}
+
+	return res
+}
+
+// marshalCharterWriteRequestBodyToCommitteeserviceCharterWrite builds a value
+// of type *committeeservice.CharterWrite from a value of type
+// *CharterWriteRequestBody.
+func marshalCharterWriteRequestBodyToCommitteeserviceCharterWrite(v *CharterWriteRequestBody) *committeeservice.CharterWrite {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CharterWrite{
+		URL: v.URL,
 	}
 
 	return res
@@ -6952,6 +6980,24 @@ func unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(v *Commit
 		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+
+	return res
+}
+
+// unmarshalCharterResponseBodyToCommitteeserviceCharter builds a value of type
+// *committeeservice.Charter from a value of type *CharterResponseBody.
+func unmarshalCharterResponseBodyToCommitteeserviceCharter(v *CharterResponseBody) *committeeservice.Charter {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.Charter{
+		URL:       v.URL,
+		Version:   v.Version,
+		UpdatedAt: v.UpdatedAt,
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(v.UpdatedBy)
 	}
 
 	return res

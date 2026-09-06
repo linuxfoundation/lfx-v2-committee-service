@@ -33,6 +33,7 @@ var _ = dsl.Service("committee-service", func() {
 			XSyncAttribute()
 
 			CommitteeBaseAttributes()
+			CharterWriteAttribute()
 
 			CommitteeSettingsAttributes()
 			ChatWebhookURLAttribute()
@@ -115,6 +116,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			CommitteeUIDAttribute()
 			CommitteeBaseAttributes()
+			CharterWriteAttribute()
 
 			dsl.Required("name", "category", "project_uid")
 		})

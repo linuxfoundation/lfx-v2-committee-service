@@ -411,6 +411,38 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	}
 	updated.SSOGroupName = ssoGroupName
 
+	// Charter: stamp version/updated_at/updated_by only when the URL actually changes
+	// (including a change to/from ""), never on a same-value echo or on an absent payload
+	// key -- both of those normalize to comparing "" against "" below. Once a charter has
+	// ever existed, clearing it stamps url: "" like any other change rather than nilling
+	// the field back out, so a removed charter still carries its own version/updated_at/
+	// updated_by for "removed by X on Y" display, and Version never resets across a
+	// clear -> re-set cycle.
+	existingCharterURL, existingCharterVersion := "", 0
+	if existing.Charter != nil {
+		existingCharterURL = existing.Charter.URL
+		existingCharterVersion = existing.Charter.Version
+	}
+	incomingCharterURL := ""
+	if updated.Charter != nil {
+		incomingCharterURL = updated.Charter.URL
+	}
+	if incomingCharterURL == existingCharterURL {
+		updated.Charter = existing.Charter
+	} else {
+		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+		principal = strings.TrimSpace(principal)
+		var updatedBy *model.CommitteeUser
+		if principal != "" {
+			updatedBy = ResolveAuditUserProfile(ctx, uc.userReader, principal)
+		}
+		updated.Charter = &model.Charter{
+			URL:       incomingCharterURL,
+			Version:   existingCharterVersion + 1,
+			UpdatedAt: time.Now(),
+			UpdatedBy: updatedBy,
+		}
+	}
 }
 
 // Execute orchestrates the committee creation process
@@ -434,6 +466,26 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		committee.CommitteeSettings.UpdatedAt = now
 		cs := committee.CommitteeSettings
 		cs.HasChatWebhook = cs.ChatWebhookURL != nil && *cs.ChatWebhookURL != ""
+	}
+
+	// Charter: stamp version/updated_at/updated_by only when a non-empty URL was supplied
+	// at creation time -- an empty/absent charter on a brand-new committee stays nil rather
+	// than becoming a stamped empty object (mirrors the no-op case in mergeCommitteeData).
+	if committee.Charter != nil && committee.Charter.URL != "" {
+		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+		principal = strings.TrimSpace(principal)
+		var updatedBy *model.CommitteeUser
+		if principal != "" {
+			updatedBy = ResolveAuditUserProfile(ctx, uc.userReader, principal)
+		}
+		committee.Charter = &model.Charter{
+			URL:       committee.Charter.URL,
+			Version:   1,
+			UpdatedAt: now,
+			UpdatedBy: updatedBy,
+		}
+	} else {
+		committee.Charter = nil
 	}
 
 	// for rollback purposes

@@ -207,6 +207,29 @@ type ApproveApplicationPayload struct {
 	Notify bool
 }
 
+// A committee's charter: a link to an externally hosted document, with an
+// audit trail of who last set or cleared it.
+type Charter struct {
+	// URL of the externally hosted charter document. Empty once the charter has
+	// been cleared.
+	URL *string
+	// Number of times the charter has been set or cleared. Never resets, including
+	// across a clear followed by a re-set.
+	Version *int
+	// When the charter was last set or cleared
+	UpdatedAt *string
+	// User who last set or cleared the charter
+	UpdatedBy *CommitteeUser
+}
+
+// Payload shape for setting or clearing a committee's charter. Send an empty
+// url to clear a previously set charter.
+type CharterWrite struct {
+	// URL of the externally hosted charter document. Send an empty string to clear
+	// a previously set charter.
+	URL *string
+}
+
 // CommitteeApplicationWithReadonlyAttributes is the result type of the
 // committee-service service get-application method.
 type CommitteeApplicationWithReadonlyAttributes struct {
@@ -296,6 +319,8 @@ type CommitteeBaseWithReadonlyAttributes struct {
 	TotalVotingRepos *int
 	// Whether the committee has any associated mailing lists
 	HasMailingList bool
+	// The committee's charter
+	Charter *Charter
 }
 
 // CommitteeDocumentWithReadonlyAttributes is the result type of the
@@ -402,6 +427,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	Auditors []*CommitteeUser
 	// Whether the committee has any associated mailing lists
 	HasMailingList bool
+	// The committee's charter
+	Charter *Charter
 }
 
 // CommitteeInviteWithReadonlyAttributes is the result type of the
@@ -748,6 +775,8 @@ type CreateCommitteePayload struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSource
+	// The committee's charter
+	Charter *CharterWrite
 	// Whether business email is required for committee members
 	BusinessEmailRequired bool
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -1531,6 +1560,8 @@ type UpdateCommitteeBasePayload struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSource
+	// The committee's charter
+	Charter *CharterWrite
 }
 
 // UpdateCommitteeMemberPayload is the payload type of the committee-service
