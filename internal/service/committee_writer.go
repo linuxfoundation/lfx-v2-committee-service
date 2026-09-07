@@ -441,11 +441,12 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 		existingCharterURL = existing.Charter.URL
 		existingCharterVersion = existing.Charter.Version
 	}
-	if updated.Charter == nil {
+	switch {
+	case updated.Charter == nil:
 		updated.Charter = existing.Charter
-	} else if updated.Charter.URL == existingCharterURL {
+	case updated.Charter.URL == existingCharterURL:
 		updated.Charter = existing.Charter
-	} else {
+	default:
 		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
 		principal = strings.TrimSpace(principal)
 		var updatedBy *model.CommitteeUser
