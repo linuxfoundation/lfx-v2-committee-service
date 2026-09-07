@@ -220,7 +220,7 @@ func (h *committeeMemberHandler) HandleCommitteeTotalMembersSync(ctx context.Con
 		fullCommittee.CommitteeSettings = settings
 	}
 
-	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, committee, fullCommittee.Tags())
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, sanitizeCommitteeBaseForIndex(*committee), fullCommittee.Tags())
 	if err != nil {
 		return err
 	}

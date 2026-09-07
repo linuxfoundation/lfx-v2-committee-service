@@ -500,6 +500,8 @@ func TestMessageHandlerOrchestratorIntegration(t *testing.T) {
 type spyCommitteePublisher struct {
 	indexerCallCount int
 	lastSubject      string
+	// lastIndexerMessage captures the most recently published indexer message for content assertions.
+	lastIndexerMessage any
 	// indexerErr, when non-nil, is returned by Indexer and then cleared so subsequent calls succeed.
 	indexerErr error
 	// capturedUpdateAccessMsgs records messages sent through the asynchronous-only operation.
@@ -510,9 +512,10 @@ type spyCommitteePublisher struct {
 	capturedMemberRemoveMsgs []any
 }
 
-func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
+func (s *spyCommitteePublisher) Indexer(_ context.Context, subject string, message any, _ bool) error {
 	s.indexerCallCount++
 	s.lastSubject = subject
+	s.lastIndexerMessage = message
 	if s.indexerErr != nil {
 		err := s.indexerErr
 		s.indexerErr = nil // clear so redelivery can succeed
@@ -655,6 +658,57 @@ func TestHandleCommitteeMailingListChanged(t *testing.T) {
 				"indexer called mismatch: got %d calls", spy.indexerCallCount)
 		})
 	}
+}
+
+// TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex guards against a
+// regression where this handler re-indexed the raw *model.CommitteeBase returned by
+// UpdateHasMailingList without stripping charter.updated_by.email (unlike the
+// create/update flows in committee_writer.go, which call sanitizeCommitteeBaseForIndex).
+func TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex(t *testing.T) {
+	ctx := context.Background()
+	uid := uuid.New().String()
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:            uid,
+			ProjectUID:     "proj-1",
+			Name:           "Test Committee",
+			Category:       "technical",
+			HasMailingList: false,
+			Charter: &model.Charter{
+				URL:       "https://example.org/charter.pdf",
+				Version:   1,
+				UpdatedAt: time.Now(),
+				UpdatedBy: &model.CommitteeUser{Username: "alice", Email: "alice@example.com"},
+			},
+		},
+	})
+
+	spy := &spyCommitteePublisher{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+		WithCommitteePublisherForMessageHandler(spy),
+	)
+
+	messageData, err := json.Marshal(model.CommitteeMailingListChangedEvent{CommitteeUID: uid, HasMailingList: true})
+	require.NoError(t, err)
+
+	msg := newMockTransportMessenger(constants.MailingListCommitteeChangedSubject, messageData)
+	_, err = handler.HandleCommitteeMailingListChanged(ctx, msg)
+	require.NoError(t, err)
+	require.Greater(t, spy.indexerCallCount, 0)
+
+	indexerMsg, ok := spy.lastIndexerMessage.(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "published message must be *model.CommitteeIndexerMessage")
+
+	dataJSON, err := json.Marshal(indexerMsg.Data)
+	require.NoError(t, err)
+	assert.NotContains(t, string(dataJSON), "alice@example.com",
+		"re-indexing after a mailing-list change must not leak the charter editor's email")
 }
 
 // mockStreamMessenger implements port.StreamMessenger for testing
@@ -1105,6 +1159,58 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandleCommitteeTotalMembersSync_SanitizesCharterEmailForIndex guards against a
+// regression where this handler re-indexed the raw *model.CommitteeBase returned by
+// UpdateTotalMembers (or GetBase, on the already-correct/redelivery path) without
+// stripping charter.updated_by.email, unlike the create/update flows in
+// committee_writer.go which call sanitizeCommitteeBaseForIndex.
+func TestHandleCommitteeTotalMembersSync_SanitizesCharterEmailForIndex(t *testing.T) {
+	ctx := context.Background()
+	uid := uuid.New().String()
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:          uid,
+			ProjectUID:   "proj-1",
+			Name:         "Test Committee",
+			Category:     "technical",
+			TotalMembers: 0,
+			Charter: &model.Charter{
+				URL:       "https://example.org/charter.pdf",
+				Version:   1,
+				UpdatedAt: time.Now(),
+				UpdatedBy: &model.CommitteeUser{Username: "alice", Email: "alice@example.com"},
+			},
+		},
+	})
+	mockRepo.AddCommitteeMember(uid, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{UID: uuid.New().String(), CommitteeUID: uid},
+	})
+
+	spy := &spyCommitteePublisher{}
+	handler := NewMessageHandlerOrchestrator(
+		WithCommitteeReaderForMessageHandler(
+			NewCommitteeReaderOrchestrator(WithCommitteeReader(mockRepo)),
+		),
+		WithCommitteeWriterForMessageHandler(mock.NewMockCommitteeWriter(mockRepo)),
+		WithCommitteePublisherForMessageHandler(spy),
+	)
+
+	msg := &mockStreamMessenger{subject: constants.CommitteeMemberCreatedSubject, data: buildTotalMembersSyncMsg(uid)}
+	err := handler.HandleCommitteeTotalMembersSync(ctx, msg)
+	require.NoError(t, err)
+	require.Greater(t, spy.indexerCallCount, 0)
+
+	indexerMsg, ok := spy.lastIndexerMessage.(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "published message must be *model.CommitteeIndexerMessage")
+
+	dataJSON, err := json.Marshal(indexerMsg.Data)
+	require.NoError(t, err)
+	assert.NotContains(t, string(dataJSON), "alice@example.com",
+		"re-indexing after a total_members sync must not leak the charter editor's email")
 }
 
 func TestHandleCommitteeTotalMembersSync_MissingDependencies(t *testing.T) {
