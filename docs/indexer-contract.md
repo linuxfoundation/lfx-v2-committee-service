@@ -60,7 +60,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `deliverables` | []string (optional) | Committee deliverables bullet points |
 | `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
 | `external_sources` | []object (optional) | Source-labeled external entities linked to the committee (e.g. OCG groups/events), each with `provider`, `entity_type`, `label`, `url`, and optional `external_id`, `external_category`, `external_region`, `external_event_category` |
-| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal |
+| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal. `charter.updated_by` has `avatar` (string), `name` (string), `username` (string — LFX username) — **`email` is deliberately omitted** (unlike `created_by`/`updated_by` elsewhere in this document) because a public committee's charter is reachable by anonymous callers via `GET /committees/{uid}`; see `sanitizeCommitteeBaseForIndex` in `internal/service/committee_writer.go` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |
