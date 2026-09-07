@@ -1,0 +1,32 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+# grype configuration — https://github.com/anchore/grype
+
+ignore:
+  - vulnerability: GO-2026-6354
+    reason: >-
+      DoS on deadlocked undecided channel in golang.org/x/crypto/ssh. The ssh
+      subpackage is not in this service's build graph — confirmed via
+      `go list -deps ./...`, which shows zero references to
+      golang.org/x/crypto/ssh; x/crypto is pulled in only transitively (for
+      chacha20poly1305/curve25519/ed25519/nacl), and `go mod why
+      golang.org/x/crypto` reports "main module does not need package
+      golang.org/x/crypto". This service does not act as an SSH client or
+      server. Fixed in v0.56.0, which requires go 1.26.0 — one minor version
+      above the ceiling this repo holds go.mod to (see CLAUDE.md's Go
+      Toolchain Version section), so upgrading is deferred rather than
+      justified by an unreachable finding.
+    package:
+      name: golang.org/x/crypto
+
+  - vulnerability: GO-2026-6355
+    reason: >-
+      DoS on deadlocked established channel in golang.org/x/crypto/ssh. Same
+      unreachable code path as GO-2026-6354 above — the ssh subpackage is not
+      in this service's build graph (verified via `go list -deps ./...`).
+      Fixed in v0.56.0, which requires go 1.26.0; deferring that bump per
+      CLAUDE.md's Go Toolchain Version policy rather than upgrading for an
+      unreachable finding.
+    package:
+      name: golang.org/x/crypto
