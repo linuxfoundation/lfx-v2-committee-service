@@ -310,10 +310,13 @@ var CharterType = dsl.Type("charter", func() {
 		dsl.Example("2026-09-06T00:00:00Z")
 	})
 	dsl.Attribute("updated_by", PublicAuditUserType, "User who last set or cleared the charter")
+	dsl.Required("url", "version", "updated_at")
 })
 
 // CharterWriteType is the DSL type for a committee's charter as accepted in create/update
 // payloads. Only url is writable -- version/updated_at/updated_by are stamped server-side.
+// url is required within the object: omit the whole "charter" key for no change, send it with
+// url to set or clear -- an empty charter object would otherwise silently collapse to a no-op.
 var CharterWriteType = dsl.Type("charter-write", func() {
 	dsl.Description("Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.")
 	dsl.Attribute("url", dsl.String, "URL of the externally hosted charter document. Send an empty string to clear a previously set charter.", func() {
@@ -321,6 +324,7 @@ var CharterWriteType = dsl.Type("charter-write", func() {
 		dsl.MaxLength(2048)
 		dsl.Example("https://example.org/governance/charter.pdf")
 	})
+	dsl.Required("url")
 })
 
 // CharterAttribute is the DSL attribute for a committee's charter, result side.

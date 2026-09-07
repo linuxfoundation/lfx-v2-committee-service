@@ -71,8 +71,9 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	base.ExternalSources = convertPayloadExternalSourcesToModel(p.ExternalSources)
 
 	// Handle Charter (URL only -- version/updated_at/updated_by are stamped server-side, see Create)
-	if p.Charter != nil && p.Charter.URL != nil {
-		base.Charter = &model.Charter{URL: *p.Charter.URL}
+	// url is required in CharterWriteType, so it's always present once Charter itself is present.
+	if p.Charter != nil {
+		base.Charter = &model.Charter{URL: p.Charter.URL}
 	}
 
 	// Handle calendar if present
@@ -157,8 +158,9 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 
 	// Handle Charter (URL only -- comparison against existing + stamping happens in
 	// mergeCommitteeData, since only there is the prior version/updated_at/updated_by known)
-	if p.Charter != nil && p.Charter.URL != nil {
-		base.Charter = &model.Charter{URL: *p.Charter.URL}
+	// url is required in CharterWriteType, so it's always present once Charter itself is present.
+	if p.Charter != nil {
+		base.Charter = &model.Charter{URL: p.Charter.URL}
 	}
 
 	base.JoinMode = p.JoinMode
@@ -296,15 +298,9 @@ func convertModelCharterToResponse(charter *model.Charter) *committeeservice.Cha
 	}
 
 	result := &committeeservice.Charter{
-		URL: &charter.URL,
-	}
-
-	if charter.Version > 0 {
-		result.Version = &charter.Version
-	}
-	if !charter.UpdatedAt.IsZero() {
-		updatedAt := charter.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
-		result.UpdatedAt = &updatedAt
+		URL:       charter.URL,
+		Version:   charter.Version,
+		UpdatedAt: charter.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	result.UpdatedBy = committeeUserToGoaPublicAuditUser(charter.UpdatedBy)
 

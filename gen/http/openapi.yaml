@@ -3022,6 +3022,10 @@ definitions:
                 username: alicejohnson789
             url: https://example.org/governance/charter.pdf
             version: 1
+        required:
+            - url
+            - version
+            - updated_at
     CharterWrite:
         title: CharterWrite
         type: object
@@ -3035,6 +3039,8 @@ definitions:
         description: Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.
         example:
             url: https://example.org/governance/charter.pdf
+        required:
+            - url
     CommitteeApplicationWithReadonlyAttributes:
         title: CommitteeApplicationWithReadonlyAttributes
         type: object

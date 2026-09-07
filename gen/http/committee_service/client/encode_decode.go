@@ -6992,9 +6992,9 @@ func unmarshalCharterResponseBodyToCommitteeserviceCharter(v *CharterResponseBod
 		return nil
 	}
 	res := &committeeservice.Charter{
-		URL:       v.URL,
-		Version:   v.Version,
-		UpdatedAt: v.UpdatedAt,
+		URL:       *v.URL,
+		Version:   *v.Version,
+		UpdatedAt: *v.UpdatedAt,
 	}
 	if v.UpdatedBy != nil {
 		res.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(v.UpdatedBy)

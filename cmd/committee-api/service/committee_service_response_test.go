@@ -1808,7 +1808,7 @@ func TestConvertPayloadToBase_Charter(t *testing.T) {
 				ProjectUID: "project-123",
 				Name:       "Test Committee",
 				Category:   "governance",
-				Charter:    &committeeservice.CharterWrite{URL: stringPtr("https://example.org/governance/charter.pdf")},
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
 			},
 			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
 		},
@@ -1818,16 +1818,6 @@ func TestConvertPayloadToBase_Charter(t *testing.T) {
 				ProjectUID: "project-123",
 				Name:       "Test Committee",
 				Category:   "governance",
-			},
-			expected: nil,
-		},
-		{
-			name: "charter present without url",
-			payload: &committeeservice.CreateCommitteePayload{
-				ProjectUID: "project-123",
-				Name:       "Test Committee",
-				Category:   "governance",
-				Charter:    &committeeservice.CharterWrite{},
 			},
 			expected: nil,
 		},
@@ -1856,7 +1846,7 @@ func TestConvertPayloadToUpdateBase_Charter(t *testing.T) {
 				ProjectUID: "project-123",
 				Name:       "Test Committee",
 				Category:   "governance",
-				Charter:    &committeeservice.CharterWrite{URL: stringPtr("https://example.org/governance/charter.pdf")},
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
 			},
 			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
 		},
@@ -1867,7 +1857,7 @@ func TestConvertPayloadToUpdateBase_Charter(t *testing.T) {
 				ProjectUID: "project-123",
 				Name:       "Test Committee",
 				Category:   "governance",
-				Charter:    &committeeservice.CharterWrite{URL: stringPtr("")},
+				Charter:    &committeeservice.CharterWrite{URL: ""},
 			},
 			expected: &model.Charter{URL: ""},
 		},
@@ -1921,9 +1911,9 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 				},
 			},
 			expected: &committeeservice.Charter{
-				URL:       stringPtr("https://example.org/governance/charter.pdf"),
-				Version:   intPtr(3),
-				UpdatedAt: stringPtr("2026-09-06T12:00:00Z"),
+				URL:       "https://example.org/governance/charter.pdf",
+				Version:   3,
+				UpdatedAt: "2026-09-06T12:00:00Z",
 				UpdatedBy: &committeeservice.PublicAuditUser{
 					Username: stringPtr("alice"),
 					Name:     stringPtr("Alice Admin"),
@@ -1945,9 +1935,9 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 				},
 			},
 			expected: &committeeservice.Charter{
-				URL:       stringPtr(""),
-				Version:   intPtr(2),
-				UpdatedAt: stringPtr("2026-09-06T12:00:00Z"),
+				URL:       "",
+				Version:   2,
+				UpdatedAt: "2026-09-06T12:00:00Z",
 			},
 		},
 		{
@@ -1994,9 +1984,9 @@ func TestConvertDomainToFullResponse_Charter(t *testing.T) {
 	result := svc.convertDomainToFullResponse(domain)
 
 	assert.Equal(t, &committeeservice.Charter{
-		URL:       stringPtr("https://example.org/governance/charter.pdf"),
-		Version:   intPtr(1),
-		UpdatedAt: stringPtr("2026-09-06T12:00:00Z"),
+		URL:       "https://example.org/governance/charter.pdf",
+		Version:   1,
+		UpdatedAt: "2026-09-06T12:00:00Z",
 		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("alice")},
 	}, result.Charter)
 }

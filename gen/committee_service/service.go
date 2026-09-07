@@ -212,12 +212,12 @@ type ApproveApplicationPayload struct {
 type Charter struct {
 	// URL of the externally hosted charter document. Empty once the charter has
 	// been cleared.
-	URL *string
+	URL string
 	// Number of times the charter has been set or cleared. Never resets, including
 	// across a clear followed by a re-set.
-	Version *int
+	Version int
 	// When the charter was last set or cleared
-	UpdatedAt *string
+	UpdatedAt string
 	// User who last set or cleared the charter
 	UpdatedBy *PublicAuditUser
 }
@@ -227,7 +227,7 @@ type Charter struct {
 type CharterWrite struct {
 	// URL of the externally hosted charter document. Send an empty string to clear
 	// a previously set charter.
-	URL *string
+	URL string
 }
 
 // CommitteeApplicationWithReadonlyAttributes is the result type of the

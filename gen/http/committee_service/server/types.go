@@ -2819,12 +2819,12 @@ type CommitteeUserResponseBody struct {
 type CharterResponseBody struct {
 	// URL of the externally hosted charter document. Empty once the charter has
 	// been cleared.
-	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	URL string `form:"url" json:"url" xml:"url"`
 	// Number of times the charter has been set or cleared. Never resets, including
 	// across a clear followed by a re-set.
-	Version *int `form:"version,omitempty" json:"version,omitempty" xml:"version,omitempty"`
+	Version int `form:"version" json:"version" xml:"version"`
 	// When the charter was last set or cleared
-	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	UpdatedAt string `form:"updated_at" json:"updated_at" xml:"updated_at"`
 	// User who last set or cleared the charter
 	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 }
@@ -8317,6 +8317,9 @@ func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err err
 // ValidateCharterWriteRequestBody runs the validations defined on
 // charter-writeRequestBody
 func ValidateCharterWriteRequestBody(body *CharterWriteRequestBody) (err error) {
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
 	if body.URL != nil {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^$|^https?://[^\\s/$.?#][^\\s]*$"))
 	}

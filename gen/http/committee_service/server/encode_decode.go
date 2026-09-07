@@ -5972,7 +5972,7 @@ func unmarshalCharterWriteRequestBodyToCommitteeserviceCharterWrite(v *CharterWr
 		return nil
 	}
 	res := &committeeservice.CharterWrite{
-		URL: v.URL,
+		URL: *v.URL,
 	}
 
 	return res

@@ -2807,7 +2807,7 @@ type ExternalSourceRequestBody struct {
 type CharterWriteRequestBody struct {
 	// URL of the externally hosted charter document. Send an empty string to clear
 	// a previously set charter.
-	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	URL string `form:"url" json:"url" xml:"url"`
 }
 
 // CommitteeUserRequestBody is used to define fields on request body types.
@@ -10810,13 +10810,9 @@ func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err err
 // ValidateCharterWriteRequestBody runs the validations defined on
 // charter-writeRequestBody
 func ValidateCharterWriteRequestBody(body *CharterWriteRequestBody) (err error) {
-	if body.URL != nil {
-		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^$|^https?://[^\\s/$.?#][^\\s]*$"))
-	}
-	if body.URL != nil {
-		if utf8.RuneCountInString(*body.URL) > 2048 {
-			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
-		}
+	err = goa.MergeErrors(err, goa.ValidatePattern("body.url", body.URL, "^$|^https?://[^\\s/$.?#][^\\s]*$"))
+	if utf8.RuneCountInString(body.URL) > 2048 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", body.URL, utf8.RuneCountInString(body.URL), 2048, false))
 	}
 	return
 }
@@ -10926,6 +10922,15 @@ func ValidateCommitteeUserResponseBody(body *CommitteeUserResponseBody) (err err
 // ValidateCharterResponseBody runs the validations defined on
 // charterResponseBody
 func ValidateCharterResponseBody(body *CharterResponseBody) (err error) {
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.Version == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("version", "body"))
+	}
+	if body.UpdatedAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("updated_at", "body"))
+	}
 	if body.URL != nil {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^$|^https?://[^\\s/$.?#][^\\s]*$"))
 	}
