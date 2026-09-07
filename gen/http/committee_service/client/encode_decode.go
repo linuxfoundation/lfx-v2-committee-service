@@ -6997,7 +6997,23 @@ func unmarshalCharterResponseBodyToCommitteeserviceCharter(v *CharterResponseBod
 		UpdatedAt: v.UpdatedAt,
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(v.UpdatedBy)
+		res.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(v.UpdatedBy)
+	}
+
+	return res
+}
+
+// unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser builds
+// a value of type *committeeservice.PublicAuditUser from a value of type
+// *PublicAuditUserResponseBody.
+func unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(v *PublicAuditUserResponseBody) *committeeservice.PublicAuditUser {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.PublicAuditUser{
+		Avatar:   v.Avatar,
+		Name:     v.Name,
+		Username: v.Username,
 	}
 
 	return res

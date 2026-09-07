@@ -306,7 +306,7 @@ func convertModelCharterToResponse(charter *model.Charter) *committeeservice.Cha
 		updatedAt := charter.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
 		result.UpdatedAt = &updatedAt
 	}
-	result.UpdatedBy = committeeUserToGoa(charter.UpdatedBy)
+	result.UpdatedBy = committeeUserToGoaPublicAuditUser(charter.UpdatedBy)
 
 	return result
 }

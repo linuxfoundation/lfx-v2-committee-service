@@ -6059,7 +6059,23 @@ func marshalCommitteeserviceCharterToCharterResponseBody(v *committeeservice.Cha
 		UpdatedAt: v.UpdatedAt,
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(v.UpdatedBy)
+		res.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(v.UpdatedBy)
+	}
+
+	return res
+}
+
+// marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody builds a
+// value of type *PublicAuditUserResponseBody from a value of type
+// *committeeservice.PublicAuditUser.
+func marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(v *committeeservice.PublicAuditUser) *PublicAuditUserResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &PublicAuditUserResponseBody{
+		Avatar:   v.Avatar,
+		Name:     v.Name,
+		Username: v.Username,
 	}
 
 	return res

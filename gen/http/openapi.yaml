@@ -3000,7 +3000,7 @@ definitions:
                 example: "2026-09-06T00:00:00Z"
                 format: date-time
             updated_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
             url:
                 type: string
                 description: URL of the externally hosted charter document. Empty once the charter has been cleared.
@@ -3018,7 +3018,6 @@ definitions:
             updated_at: "2026-09-06T00:00:00Z"
             updated_by:
                 avatar: https://example.com/avatar.png
-                email: alice.johnson@example.com
                 name: Alice Johnson
                 username: alicejohnson789
             url: https://example.org/governance/charter.pdf
@@ -3314,7 +3313,6 @@ definitions:
                 updated_at: "2026-09-06T00:00:00Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: alice.johnson@example.com
                     name: Alice Johnson
                     username: alicejohnson789
                 url: https://example.org/governance/charter.pdf
@@ -3681,7 +3679,6 @@ definitions:
                 updated_at: "2026-09-06T00:00:00Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: alice.johnson@example.com
                     name: Alice Johnson
                     username: alicejohnson789
                 url: https://example.org/governance/charter.pdf
@@ -6324,6 +6321,28 @@ definitions:
                   voting_status: Voting Rep
         required:
             - seats
+    PublicAuditUser:
+        title: PublicAuditUser
+        type: object
+        properties:
+            avatar:
+                type: string
+                description: URL to the user's avatar image; empty when none.
+                example: https://example.com/avatar.png
+                format: uri
+            name:
+                type: string
+                description: Display name of the user
+                example: Alice Johnson
+            username:
+                type: string
+                description: User identifier (LF ID / sub)
+                example: alicejohnson789
+        description: A user reference shown on publicly-visible committee fields, without contact details.
+        example:
+            avatar: https://example.com/avatar.png
+            name: Alice Johnson
+            username: alicejohnson789
     ServiceUnavailableError:
         title: ServiceUnavailableError
         type: object

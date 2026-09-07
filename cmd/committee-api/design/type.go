@@ -309,7 +309,7 @@ var CharterType = dsl.Type("charter", func() {
 		dsl.Format(dsl.FormatDateTime)
 		dsl.Example("2026-09-06T00:00:00Z")
 	})
-	dsl.Attribute("updated_by", CommitteeUserType, "User who last set or cleared the charter")
+	dsl.Attribute("updated_by", PublicAuditUserType, "User who last set or cleared the charter")
 })
 
 // CharterWriteType is the DSL type for a committee's charter as accepted in create/update
@@ -506,6 +506,21 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Attribute("email", dsl.String, "The user's email address", func() {
 		dsl.Example("alice.johnson@example.com")
 	})
+	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
+		dsl.Example("Alice Johnson")
+	})
+	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
+		dsl.Example("alicejohnson789")
+	})
+})
+
+// PublicAuditUserType is the DSL type for an audit-user reference on a field that is visible on
+// the anonymous-accessible committee GET endpoint (e.g. the charter). Omits email -- unlike
+// CommitteeUserType's writers/auditors lists, which are only ever returned from
+// authenticated/authorized endpoints, this shape can reach anonymous viewers of public committees.
+var PublicAuditUserType = dsl.Type("public-audit-user", func() {
+	dsl.Description("A user reference shown on publicly-visible committee fields, without contact details.")
+	AvatarAttribute()
 	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
 		dsl.Example("Alice Johnson")
 	})

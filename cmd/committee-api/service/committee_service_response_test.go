@@ -1902,7 +1902,7 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 		expected *committeeservice.Charter
 	}{
 		{
-			name: "charter with full audit trail",
+			name: "charter with full audit trail omits email from the public response",
 			base: &model.CommitteeBase{
 				UID:        "committee-123",
 				ProjectUID: "project-123",
@@ -1924,10 +1924,9 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 				URL:       stringPtr("https://example.org/governance/charter.pdf"),
 				Version:   intPtr(3),
 				UpdatedAt: stringPtr("2026-09-06T12:00:00Z"),
-				UpdatedBy: &committeeservice.CommitteeUser{
+				UpdatedBy: &committeeservice.PublicAuditUser{
 					Username: stringPtr("alice"),
 					Name:     stringPtr("Alice Admin"),
-					Email:    stringPtr("alice@example.com"),
 					Avatar:   stringPtr("https://example.com/alice.png"),
 				},
 			},
@@ -1998,7 +1997,7 @@ func TestConvertDomainToFullResponse_Charter(t *testing.T) {
 		URL:       stringPtr("https://example.org/governance/charter.pdf"),
 		Version:   intPtr(1),
 		UpdatedAt: stringPtr("2026-09-06T12:00:00Z"),
-		UpdatedBy: &committeeservice.CommitteeUser{Username: stringPtr("alice")},
+		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("alice")},
 	}, result.Charter)
 }
 

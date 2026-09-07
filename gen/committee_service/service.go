@@ -219,7 +219,7 @@ type Charter struct {
 	// When the charter was last set or cleared
 	UpdatedAt *string
 	// User who last set or cleared the charter
-	UpdatedBy *CommitteeUser
+	UpdatedBy *PublicAuditUser
 }
 
 // Payload shape for setting or clearing a committee's charter. Send an empty
@@ -1401,6 +1401,17 @@ type PreviewGenerateWeeklyBriefPayload struct {
 	Version *string
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
+}
+
+// A user reference shown on publicly-visible committee fields, without contact
+// details.
+type PublicAuditUser struct {
+	// URL to the user's avatar image; empty when none.
+	Avatar *string
+	// Display name of the user
+	Name *string
+	// User identifier (LF ID / sub)
+	Username *string
 }
 
 // ReassignOrgCommitteeSeatPayload is the payload type of the committee-service
