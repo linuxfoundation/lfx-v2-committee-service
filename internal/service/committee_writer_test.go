@@ -836,6 +836,75 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 	}
 }
 
+func TestSanitizeCommitteeBaseForIndex(t *testing.T) {
+	fixedTime := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name          string
+		base          model.CommitteeBase
+		validateEmail func(t *testing.T, result model.CommitteeBase)
+	}{
+		{
+			name: "charter nil is untouched",
+			base: model.CommitteeBase{UID: "committee-1"},
+			validateEmail: func(t *testing.T, result model.CommitteeBase) {
+				assert.Nil(t, result.Charter)
+			},
+		},
+		{
+			name: "charter with no updated_by is untouched",
+			base: model.CommitteeBase{
+				UID:     "committee-1",
+				Charter: &model.Charter{URL: "https://example.org/charter.pdf", Version: 1, UpdatedAt: fixedTime},
+			},
+			validateEmail: func(t *testing.T, result model.CommitteeBase) {
+				require.NotNil(t, result.Charter)
+				assert.Nil(t, result.Charter.UpdatedBy)
+			},
+		},
+		{
+			name: "charter updated_by email is stripped, other fields preserved",
+			base: model.CommitteeBase{
+				UID: "committee-1",
+				Charter: &model.Charter{
+					URL:       "https://example.org/charter.pdf",
+					Version:   2,
+					UpdatedAt: fixedTime,
+					UpdatedBy: &model.CommitteeUser{Username: "alice", Name: "Alice Admin", Email: "alice@example.com", Avatar: "https://example.com/alice.png"},
+				},
+			},
+			validateEmail: func(t *testing.T, result model.CommitteeBase) {
+				require.NotNil(t, result.Charter)
+				require.NotNil(t, result.Charter.UpdatedBy)
+				assert.Empty(t, result.Charter.UpdatedBy.Email)
+				assert.Equal(t, "alice", result.Charter.UpdatedBy.Username)
+				assert.Equal(t, "Alice Admin", result.Charter.UpdatedBy.Name)
+				assert.Equal(t, "https://example.com/alice.png", result.Charter.UpdatedBy.Avatar)
+				assert.Equal(t, "https://example.org/charter.pdf", result.Charter.URL)
+				assert.Equal(t, 2, result.Charter.Version)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			original := tc.base
+			var originalEmail string
+			if original.Charter != nil && original.Charter.UpdatedBy != nil {
+				originalEmail = original.Charter.UpdatedBy.Email
+			}
+
+			result := sanitizeCommitteeBaseForIndex(tc.base)
+			tc.validateEmail(t, result)
+
+			// the input value must not be mutated -- callers reuse it after building the indexer message
+			if tc.base.Charter != nil && tc.base.Charter.UpdatedBy != nil {
+				assert.Equal(t, originalEmail, tc.base.Charter.UpdatedBy.Email)
+			}
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_buildAccessControlMessage(t *testing.T) {
 	testCases := []struct {
 		name      string

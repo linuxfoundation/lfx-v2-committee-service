@@ -22,6 +22,23 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
+// sanitizeCommitteeBaseForIndex returns a copy of base with the charter's updated_by email
+// stripped. CommitteeIndexerMessage.Build marshals its input verbatim into Data, and that
+// message is published alongside IndexingConfig.Public -- so an unsanitized copy would put the
+// charter editor's email into a public committee's search document (same treatment as
+// ChatWebhookURL on CommitteeSettings below).
+func sanitizeCommitteeBaseForIndex(base model.CommitteeBase) model.CommitteeBase {
+	if base.Charter == nil || base.Charter.UpdatedBy == nil || base.Charter.UpdatedBy.Email == "" {
+		return base
+	}
+	charter := *base.Charter
+	updatedBy := *base.Charter.UpdatedBy
+	updatedBy.Email = ""
+	charter.UpdatedBy = &updatedBy
+	base.Charter = &charter
+	return base
+}
+
 // buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
 func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	var nameAndAliases []string
@@ -580,7 +597,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
 
-	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeBase, committee.Tags())
+	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, sanitizeCommitteeBaseForIndex(committee.CommitteeBase), committee.Tags())
 	if errBuildCommitteeMsg != nil {
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildCommitteeMsg)
 	}
@@ -800,7 +817,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 7: Publish messages
 
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, committee.CommitteeBase, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, sanitizeCommitteeBaseForIndex(committee.CommitteeBase), committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,
