@@ -3,7 +3,7 @@
 
 module github.com/linuxfoundation/lfx-v2-committee-service
 
-go 1.26.6
+go 1.26.3
 
 require (
 	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f
