@@ -413,21 +413,20 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 
 	// Charter: stamp version/updated_at/updated_by only when the URL actually changes
 	// (including a change to/from ""), never on a same-value echo or on an absent payload
-	// key -- both of those normalize to comparing "" against "" below. Once a charter has
-	// ever existed, clearing it stamps url: "" like any other change rather than nilling
-	// the field back out, so a removed charter still carries its own version/updated_at/
-	// updated_by for "removed by X on Y" display, and Version never resets across a
-	// clear -> re-set cycle.
+	// key. An absent key (updated.Charter == nil) means "caller didn't touch this field" and
+	// must carry the existing charter forward untouched -- it is NOT the same as an explicit
+	// {url: ""} clear, which is a real, stamped change. Once a charter has ever existed,
+	// clearing it stamps url: "" like any other change rather than nilling the field back
+	// out, so a removed charter still carries its own version/updated_at/updated_by for
+	// "removed by X on Y" display, and Version never resets across a clear -> re-set cycle.
 	existingCharterURL, existingCharterVersion := "", 0
 	if existing.Charter != nil {
 		existingCharterURL = existing.Charter.URL
 		existingCharterVersion = existing.Charter.Version
 	}
-	incomingCharterURL := ""
-	if updated.Charter != nil {
-		incomingCharterURL = updated.Charter.URL
-	}
-	if incomingCharterURL == existingCharterURL {
+	if updated.Charter == nil {
+		updated.Charter = existing.Charter
+	} else if updated.Charter.URL == existingCharterURL {
 		updated.Charter = existing.Charter
 	} else {
 		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
@@ -437,7 +436,7 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 			updatedBy = ResolveAuditUserProfile(ctx, uc.userReader, principal)
 		}
 		updated.Charter = &model.Charter{
-			URL:       incomingCharterURL,
+			URL:       updated.Charter.URL,
 			Version:   existingCharterVersion + 1,
 			UpdatedAt: time.Now(),
 			UpdatedBy: updatedBy,

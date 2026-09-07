@@ -586,7 +586,8 @@ func TestCommitteeWriterOrchestrator_Create_Charter(t *testing.T) {
 // TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter exercises the charter stamping
 // block in mergeCommitteeData: version/updated_at/updated_by are only restamped when the URL
 // actually changes (including a change to/from ""); a same-value echo or an absent payload
-// key is a no-op that carries the existing charter forward untouched.
+// key (updated.Charter == nil) is a no-op that carries the existing charter forward untouched
+// rather than being conflated with an explicit {url: ""} clear.
 func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 	fixedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -668,6 +669,20 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 			withPrincipal: true,
 			validateResult: func(t *testing.T, charter *model.Charter) {
 				assert.Nil(t, charter)
+			},
+		},
+		{
+			name:          "omitted charter on an update preserves an existing charter untouched",
+			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			updated:       nil,
+			withPrincipal: true,
+			validateResult: func(t *testing.T, charter *model.Charter) {
+				require.NotNil(t, charter)
+				assert.Equal(t, "https://example.org/charter.pdf", charter.URL)
+				assert.Equal(t, 2, charter.Version)
+				assert.Equal(t, fixedTime, charter.UpdatedAt)
+				require.NotNil(t, charter.UpdatedBy)
+				assert.Equal(t, "bob", charter.UpdatedBy.Username)
 			},
 		},
 	}
