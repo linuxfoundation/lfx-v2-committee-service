@@ -847,10 +847,16 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 
+	// Both before/after snapshots are marshaled verbatim into the committee.updated NATS
+	// event; sanitize the charter editor's email out of each the same way the indexer
+	// messages are sanitized above -- the sole in-repo consumer only reads
+	// name/category/project fields, and this event has external subscribers too.
+	sanitizedOldCommittee := sanitizeCommitteeBaseForIndex(*existing)
+	sanitizedCommittee := sanitizeCommitteeBaseForIndex(committee.CommitteeBase)
 	updateEventData := &model.CommitteeUpdateEventData{
 		CommitteeUID: committee.CommitteeBase.UID,
-		OldCommittee: existing,
-		Committee:    &committee.CommitteeBase,
+		OldCommittee: &sanitizedOldCommittee,
+		Committee:    &sanitizedCommittee,
 	}
 
 	messages := []func() error{
