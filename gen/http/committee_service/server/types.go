@@ -794,6 +794,10 @@ type GetInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -825,6 +829,10 @@ type CreateInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -916,6 +924,10 @@ type DeclineInviteResponseBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 	// Invite status
 	Status string `form:"status" json:"status" xml:"status"`
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUserResponseBody `form:"inviter,omitempty" json:"inviter,omitempty" xml:"inviter,omitempty"`
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
@@ -4070,6 +4082,7 @@ func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyA
 		InviteeEmail:         res.InviteeEmail,
 		Role:                 res.Role,
 		Status:               res.Status,
+		ExpiresAt:            res.ExpiresAt,
 		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
@@ -4091,6 +4104,9 @@ func NewGetInviteResponseBody(res *committeeservice.CommitteeInviteWithReadonlyA
 		if body.Status == zero {
 			body.Status = "pending"
 		}
+	}
+	if res.Inviter != nil {
+		body.Inviter = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.Inviter)
 	}
 	return body
 }
@@ -4106,6 +4122,7 @@ func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadon
 		InviteeEmail:         res.InviteeEmail,
 		Role:                 res.Role,
 		Status:               res.Status,
+		ExpiresAt:            res.ExpiresAt,
 		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
@@ -4127,6 +4144,9 @@ func NewCreateInviteResponseBody(res *committeeservice.CommitteeInviteWithReadon
 		if body.Status == zero {
 			body.Status = "pending"
 		}
+	}
+	if res.Inviter != nil {
+		body.Inviter = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.Inviter)
 	}
 	return body
 }
@@ -4230,6 +4250,7 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 		InviteeEmail:         res.InviteeEmail,
 		Role:                 res.Role,
 		Status:               res.Status,
+		ExpiresAt:            res.ExpiresAt,
 		CreatedAt:            res.CreatedAt,
 	}
 	if res.Organization != nil {
@@ -4251,6 +4272,9 @@ func NewDeclineInviteResponseBody(res *committeeservice.CommitteeInviteWithReado
 		if body.Status == zero {
 			body.Status = "pending"
 		}
+	}
+	if res.Inviter != nil {
+		body.Inviter = marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(res.Inviter)
 	}
 	return body
 }
