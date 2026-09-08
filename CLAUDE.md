@@ -132,7 +132,7 @@ Always use **obviously fake** placeholder identities in tests, fixture structs, 
 | email | `first.last@example.com` |
 | avatar | `https://example.com/avatar.png` |
 
-Do **not** use names like "Alice Admin", "Bob Smith", "Alex Lee", or any combination that reads as a realistic person. `First Last` / `first-last` / `first.last@example.com` is the canonical placeholder across all test files in this repo.
+Do **not** use names like "Alice Admin", "Bob Smith", "Alex Lee", or any combination that reads as a realistic person. `First Last` / `first-last` / `first.last@example.com` is the canonical placeholder for new and modified test data in this repo.
 
 ## Design Decisions
 

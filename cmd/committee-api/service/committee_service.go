@@ -744,9 +744,13 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		revokedInvite.Status = "pending"
 		revokedInvite.CommitteeName = committeeBase.Name
 		revokedInvite.OrganizationRequired = orgRequired
-		// Reinstating is effectively re-sending the invite: refresh the inviter to the
-		// person re-inviting and start a fresh expiry window from now.
-		revokedInvite.Inviter = inviter
+		// Reinstating is effectively re-sending the invite: start a fresh expiry window from
+		// now. If a new inviter resolved (non-nil), refresh it; otherwise keep the stored
+		// attribution rather than overwriting valid data with nil (matches the pattern in
+		// enrichInviteFromCommittee, which deliberately leaves fields unchanged on lookup failure).
+		if inviter != nil {
+			revokedInvite.Inviter = inviter
+		}
 		revokedInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
 		if p.Role != nil {
 			revokedInvite.Role = *p.Role

@@ -905,8 +905,6 @@ func ptrStr(s *string) string {
 	return *s
 }
 
-// convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
-// Returns nil when users is nil so that omitted fields are not serialized as empty arrays.
 // convertModelUserToResponse projects a single domain CommitteeUser to its Goa response type,
 // emitting only non-empty fields as pointers. Shared by the slice converter and the invite
 // inviter mapping so the empty-string guards live in one place.
@@ -927,6 +925,8 @@ func convertModelUserToResponse(u model.CommitteeUser) *committeeservice.Committ
 	return cu
 }
 
+// convertModelUsersToResponse converts domain model CommitteeUser slice to Goa response type.
+// Returns nil when users is nil so that omitted fields are not serialized as empty arrays.
 func convertModelUsersToResponse(users []model.CommitteeUser) []*committeeservice.CommitteeUser {
 	if users == nil {
 		return nil

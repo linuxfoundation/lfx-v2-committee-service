@@ -3379,17 +3379,17 @@ func TestCreateInvite_InviterNameResolution(t *testing.T) {
 	}{
 		{
 			name:            "resolves inviter name from meta.Name",
-			principal:       "inviter-name-alice",
-			inviteeEmail:    "invitee-for-alice@example.com",
-			userMeta:        &model.UserMetadata{Name: "Alice Admin"},
-			wantInviterName: "Alice Admin",
+			principal:       "inviter-name-first",
+			inviteeEmail:    "invitee-for-first@example.com",
+			userMeta:        &model.UserMetadata{Name: "First Last"},
+			wantInviterName: "First Last",
 		},
 		{
 			name:            "resolves from GivenName+FamilyName when Name is empty",
-			principal:       "inviter-name-bob",
-			inviteeEmail:    "invitee-for-bob@example.com",
-			userMeta:        &model.UserMetadata{GivenName: "Bob", FamilyName: "Builder"},
-			wantInviterName: "Bob Builder",
+			principal:       "inviter-name-second",
+			inviteeEmail:    "invitee-for-second@example.com",
+			userMeta:        &model.UserMetadata{GivenName: "Second", FamilyName: "Person"},
+			wantInviterName: "Second Person",
 		},
 		{
 			name:            "empty inviter name when lookup fails",
