@@ -5,6 +5,7 @@
 
 ignore:
   - vulnerability: GO-2026-6354
+    include-aliases: true
     reason: >-
       DoS on deadlocked undecided channel in golang.org/x/crypto/ssh. The ssh
       subpackage is not in this service's build graph — confirmed via
@@ -17,10 +18,20 @@ ignore:
       above the ceiling this repo holds go.mod to (see CLAUDE.md's Go
       Toolchain Version section), so upgrading is deferred rather than
       justified by an unreachable finding.
+
+      Verified against grype's own v6 vulnerability DB (sqlite
+      vulnerability_handles/vulnerability_aliases tables): GO-2026-6354 is
+      the canonical name grype assigns this finding (provider: govulndb),
+      with CVE-2026-78662 recorded as its alias — the opposite direction of
+      "GO-* is an alias" — so this bare vulnerability id already matches
+      grype's primary id. include-aliases: true is added anyway as
+      defense-in-depth in case a future DB rebuild changes which id a
+      provider treats as canonical.
     package:
       name: golang.org/x/crypto
 
   - vulnerability: GO-2026-6355
+    include-aliases: true
     reason: >-
       DoS on deadlocked established channel in golang.org/x/crypto/ssh. Same
       unreachable code path as GO-2026-6354 above — the ssh subpackage is not
@@ -28,5 +39,10 @@ ignore:
       Fixed in v0.56.0, which requires go 1.26.0; deferring that bump per
       CLAUDE.md's Go Toolchain Version policy rather than upgrading for an
       unreachable finding.
+
+      Verified against grype's own v6 vulnerability DB: GO-2026-6355 is the
+      canonical name (provider: govulndb), with CVE-2026-56855 as its alias.
+      include-aliases: true added as defense-in-depth for the same reason as
+      GO-2026-6354 above.
     package:
       name: golang.org/x/crypto
