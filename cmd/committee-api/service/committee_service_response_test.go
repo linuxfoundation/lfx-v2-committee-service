@@ -1903,10 +1903,10 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 					Version:   3,
 					UpdatedAt: updatedAt,
 					UpdatedBy: &model.CommitteeUser{
-						Username: "alice",
-						Name:     "Alice Admin",
-						Email:    "alice@example.com",
-						Avatar:   "https://example.com/alice.png",
+						Username: "first-last",
+						Name:     "First Last",
+						Email:    "first.last@example.com",
+						Avatar:   "https://example.com/avatar.png",
 					},
 				},
 			},
@@ -1915,9 +1915,9 @@ func TestConvertBaseToResponse_Charter(t *testing.T) {
 				Version:   3,
 				UpdatedAt: "2026-09-06T12:00:00Z",
 				UpdatedBy: &committeeservice.PublicAuditUser{
-					Username: stringPtr("alice"),
-					Name:     stringPtr("Alice Admin"),
-					Avatar:   stringPtr("https://example.com/alice.png"),
+					Username: stringPtr("first-last"),
+					Name:     stringPtr("First Last"),
+					Avatar:   stringPtr("https://example.com/avatar.png"),
 				},
 			},
 		},
@@ -1975,7 +1975,7 @@ func TestConvertDomainToFullResponse_Charter(t *testing.T) {
 				URL:       "https://example.org/governance/charter.pdf",
 				Version:   1,
 				UpdatedAt: updatedAt,
-				UpdatedBy: &model.CommitteeUser{Username: "alice"},
+				UpdatedBy: &model.CommitteeUser{Username: "first-last"},
 			},
 		},
 	}
@@ -1987,7 +1987,7 @@ func TestConvertDomainToFullResponse_Charter(t *testing.T) {
 		URL:       "https://example.org/governance/charter.pdf",
 		Version:   1,
 		UpdatedAt: "2026-09-06T12:00:00Z",
-		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("alice")},
+		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("first-last")},
 	}, result.Charter)
 }
 

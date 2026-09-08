@@ -680,7 +680,7 @@ func TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex(t *test
 				URL:       "https://example.org/charter.pdf",
 				Version:   1,
 				UpdatedAt: time.Now(),
-				UpdatedBy: &model.CommitteeUser{Username: "alice", Email: "alice@example.com"},
+				UpdatedBy: &model.CommitteeUser{Username: "first-last", Email: "first.last@example.com"},
 			},
 		},
 	})
@@ -707,7 +707,7 @@ func TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex(t *test
 
 	dataJSON, err := json.Marshal(indexerMsg.Data)
 	require.NoError(t, err)
-	assert.NotContains(t, string(dataJSON), "alice@example.com",
+	assert.NotContains(t, string(dataJSON), "first.last@example.com",
 		"re-indexing after a mailing-list change must not leak the charter editor's email")
 }
 
@@ -1182,7 +1182,7 @@ func TestHandleCommitteeTotalMembersSync_SanitizesCharterEmailForIndex(t *testin
 				URL:       "https://example.org/charter.pdf",
 				Version:   1,
 				UpdatedAt: time.Now(),
-				UpdatedBy: &model.CommitteeUser{Username: "alice", Email: "alice@example.com"},
+				UpdatedBy: &model.CommitteeUser{Username: "first-last", Email: "first.last@example.com"},
 			},
 		},
 	})
@@ -1209,7 +1209,7 @@ func TestHandleCommitteeTotalMembersSync_SanitizesCharterEmailForIndex(t *testin
 
 	dataJSON, err := json.Marshal(indexerMsg.Data)
 	require.NoError(t, err)
-	assert.NotContains(t, string(dataJSON), "alice@example.com",
+	assert.NotContains(t, string(dataJSON), "first.last@example.com",
 		"re-indexing after a total_members sync must not leak the charter editor's email")
 }
 
