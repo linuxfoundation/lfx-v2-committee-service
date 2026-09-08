@@ -3018,8 +3018,8 @@ definitions:
             updated_at: "2026-09-06T00:00:00Z"
             updated_by:
                 avatar: https://example.com/avatar.png
-                name: Alice Johnson
-                username: alicejohnson789
+                name: First Last
+                username: first-last
             url: https://example.org/governance/charter.pdf
             version: 1
         required:
@@ -3319,8 +3319,8 @@ definitions:
                 updated_at: "2026-09-06T00:00:00Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    name: Alice Johnson
-                    username: alicejohnson789
+                    name: First Last
+                    username: first-last
                 url: https://example.org/governance/charter.pdf
                 version: 1
             chat_channel: https://slack.example.org/channels/tsc
@@ -3685,8 +3685,8 @@ definitions:
                 updated_at: "2026-09-06T00:00:00Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    name: Alice Johnson
-                    username: alicejohnson789
+                    name: First Last
+                    username: first-last
                 url: https://example.org/governance/charter.pdf
                 version: 1
             chat_channel: https://slack.example.org/channels/tsc
@@ -5514,21 +5514,21 @@ definitions:
             email:
                 type: string
                 description: The user's email address
-                example: alice.johnson@example.com
+                example: first.last@example.com
             name:
                 type: string
                 description: Display name of the user
-                example: Alice Johnson
+                example: First Last
             username:
                 type: string
                 description: User identifier (LF ID / sub)
-                example: alicejohnson789
+                example: first-last
         description: A user object stored in writers or auditors lists.
         example:
             avatar: https://example.com/avatar.png
-            email: alice.johnson@example.com
-            name: Alice Johnson
-            username: alicejohnson789
+            email: first.last@example.com
+            name: First Last
+            username: first-last
     ConflictError:
         title: ConflictError
         type: object
@@ -6352,16 +6352,16 @@ definitions:
             name:
                 type: string
                 description: Display name of the user
-                example: Alice Johnson
+                example: First Last
             username:
                 type: string
                 description: User identifier (LF ID / sub)
-                example: alicejohnson789
+                example: first-last
         description: A user reference shown on publicly-visible committee fields, without contact details.
         example:
             avatar: https://example.com/avatar.png
-            name: Alice Johnson
-            username: alicejohnson789
+            name: First Last
+            username: first-last
     ServiceUnavailableError:
         title: ServiceUnavailableError
         type: object

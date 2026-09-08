@@ -508,13 +508,13 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 	dsl.Description("A user object stored in writers or auditors lists.")
 	AvatarAttribute()
 	dsl.Attribute("email", dsl.String, "The user's email address", func() {
-		dsl.Example("alice.johnson@example.com")
+		dsl.Example("first.last@example.com")
 	})
 	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
-		dsl.Example("Alice Johnson")
+		dsl.Example("First Last")
 	})
 	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
-		dsl.Example("alicejohnson789")
+		dsl.Example("first-last")
 	})
 })
 
@@ -526,10 +526,10 @@ var PublicAuditUserType = dsl.Type("public-audit-user", func() {
 	dsl.Description("A user reference shown on publicly-visible committee fields, without contact details.")
 	AvatarAttribute()
 	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
-		dsl.Example("Alice Johnson")
+		dsl.Example("First Last")
 	})
 	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
-		dsl.Example("alicejohnson789")
+		dsl.Example("first-last")
 	})
 })
 
