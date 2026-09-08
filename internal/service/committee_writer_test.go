@@ -522,7 +522,7 @@ func TestCommitteeWriterOrchestrator_Create_Charter(t *testing.T) {
 				assert.Equal(t, 1, charter.Version)
 				assert.False(t, charter.UpdatedAt.IsZero())
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+				assert.Equal(t, "first-last", charter.UpdatedBy.Username)
 			},
 		},
 		{
@@ -571,7 +571,7 @@ func TestCommitteeWriterOrchestrator_Create_Charter(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.withPrincipal {
-				ctx = context.WithValue(ctx, constants.PrincipalContextID, "alice")
+				ctx = context.WithValue(ctx, constants.PrincipalContextID, "first-last")
 			}
 
 			result, err := orchestrator.Create(ctx, inputCommittee, false)
@@ -600,7 +600,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 	}{
 		{
 			name:          "same url is a no-op — existing charter carried forward untouched",
-			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "second-last"}},
 			updated:       &model.Charter{URL: "https://example.org/charter.pdf"},
 			withPrincipal: true,
 			validateResult: func(t *testing.T, charter *model.Charter) {
@@ -609,12 +609,12 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 				assert.Equal(t, 2, charter.Version)
 				assert.Equal(t, fixedTime, charter.UpdatedAt)
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "bob", charter.UpdatedBy.Username)
+				assert.Equal(t, "second-last", charter.UpdatedBy.Username)
 			},
 		},
 		{
 			name:          "url changed stamps new version and updated_by from principal",
-			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "second-last"}},
 			updated:       &model.Charter{URL: "https://example.org/new.pdf"},
 			withPrincipal: true,
 			validateResult: func(t *testing.T, charter *model.Charter) {
@@ -623,12 +623,12 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 				assert.Equal(t, 2, charter.Version)
 				assert.True(t, charter.UpdatedAt.After(fixedTime))
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+				assert.Equal(t, "first-last", charter.UpdatedBy.Username)
 			},
 		},
 		{
 			name:          "cleared charter (empty url) is stamped like any other change",
-			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			existing:      &model.Charter{URL: "https://example.org/old.pdf", Version: 1, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "second-last"}},
 			updated:       &model.Charter{URL: ""},
 			withPrincipal: true,
 			validateResult: func(t *testing.T, charter *model.Charter) {
@@ -636,7 +636,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 				assert.Equal(t, "", charter.URL)
 				assert.Equal(t, 2, charter.Version)
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+				assert.Equal(t, "first-last", charter.UpdatedBy.Username)
 			},
 		},
 		{
@@ -648,7 +648,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 				require.NotNil(t, charter)
 				assert.Equal(t, 1, charter.Version)
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "alice", charter.UpdatedBy.Username)
+				assert.Equal(t, "first-last", charter.UpdatedBy.Username)
 			},
 		},
 		{
@@ -673,7 +673,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 		},
 		{
 			name:          "omitted charter on an update preserves an existing charter untouched",
-			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "bob"}},
+			existing:      &model.Charter{URL: "https://example.org/charter.pdf", Version: 2, UpdatedAt: fixedTime, UpdatedBy: &model.CommitteeUser{Username: "second-last"}},
 			updated:       nil,
 			withPrincipal: true,
 			validateResult: func(t *testing.T, charter *model.Charter) {
@@ -682,7 +682,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 				assert.Equal(t, 2, charter.Version)
 				assert.Equal(t, fixedTime, charter.UpdatedAt)
 				require.NotNil(t, charter.UpdatedBy)
-				assert.Equal(t, "bob", charter.UpdatedBy.Username)
+				assert.Equal(t, "second-last", charter.UpdatedBy.Username)
 			},
 		},
 	}
@@ -709,7 +709,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.withPrincipal {
-				ctx = context.WithValue(ctx, constants.PrincipalContextID, "alice")
+				ctx = context.WithValue(ctx, constants.PrincipalContextID, "first-last")
 			}
 
 			orchestrator.mergeCommitteeData(ctx, existingBase, updatedCommittee)
@@ -724,7 +724,7 @@ func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter(t *testing.T) {
 // update -- each step increments version by exactly one and clearing never drops it back to 1.
 func TestCommitteeWriterOrchestrator_mergeCommitteeData_Charter_SetClearReSetCycle(t *testing.T) {
 	orchestrator := &committeeWriterOrchestrator{userReader: &writerTestUserReader{}}
-	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "alice")
+	ctx := context.WithValue(context.Background(), constants.PrincipalContextID, "first-last")
 
 	base := &model.CommitteeBase{
 		UID:        "committee-1",
@@ -836,7 +836,7 @@ func TestCommitteeWriterOrchestrator_buildIndexerMessage(t *testing.T) {
 	}
 }
 
-func TestSanitizeCommitteeBaseForIndex(t *testing.T) {
+func TestSanitizeCommitteeBaseForPublish(t *testing.T) {
 	fixedTime := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 
 	testCases := []struct {
@@ -870,16 +870,16 @@ func TestSanitizeCommitteeBaseForIndex(t *testing.T) {
 					URL:       "https://example.org/charter.pdf",
 					Version:   2,
 					UpdatedAt: fixedTime,
-					UpdatedBy: &model.CommitteeUser{Username: "alice", Name: "Alice Admin", Email: "alice@example.com", Avatar: "https://example.com/alice.png"},
+					UpdatedBy: &model.CommitteeUser{Username: "first-last", Name: "First Last", Email: "first.last@example.com", Avatar: "https://example.com/avatar.png"},
 				},
 			},
 			validateEmail: func(t *testing.T, result model.CommitteeBase) {
 				require.NotNil(t, result.Charter)
 				require.NotNil(t, result.Charter.UpdatedBy)
 				assert.Empty(t, result.Charter.UpdatedBy.Email)
-				assert.Equal(t, "alice", result.Charter.UpdatedBy.Username)
-				assert.Equal(t, "Alice Admin", result.Charter.UpdatedBy.Name)
-				assert.Equal(t, "https://example.com/alice.png", result.Charter.UpdatedBy.Avatar)
+				assert.Equal(t, "first-last", result.Charter.UpdatedBy.Username)
+				assert.Equal(t, "First Last", result.Charter.UpdatedBy.Name)
+				assert.Equal(t, "https://example.com/avatar.png", result.Charter.UpdatedBy.Avatar)
 				assert.Equal(t, "https://example.org/charter.pdf", result.Charter.URL)
 				assert.Equal(t, 2, result.Charter.Version)
 			},
