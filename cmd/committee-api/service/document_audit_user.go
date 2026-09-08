@@ -179,3 +179,23 @@ func committeeUserToGoa(u *model.CommitteeUser) *committeeservice.CommitteeUser 
 	}
 	return cu
 }
+
+// committeeUserToGoaPublicAuditUser converts a domain CommitteeUser to the email-less GOA shape
+// used on committee fields reachable by anonymous viewers of public committees (e.g. charter's
+// updated_by). See PublicAuditUserType.
+func committeeUserToGoaPublicAuditUser(u *model.CommitteeUser) *committeeservice.PublicAuditUser {
+	if u == nil {
+		return nil
+	}
+	cu := &committeeservice.PublicAuditUser{}
+	if u.Avatar != "" {
+		cu.Avatar = &u.Avatar
+	}
+	if u.Name != "" {
+		cu.Name = &u.Name
+	}
+	if u.Username != "" {
+		cu.Username = &u.Username
+	}
+	return cu
+}

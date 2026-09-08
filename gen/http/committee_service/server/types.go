@@ -64,6 +64,8 @@ type CreateCommitteeRequestBody struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
+	// The committee's charter
+	Charter *CharterWriteRequestBody `form:"charter,omitempty" json:"charter,omitempty" xml:"charter,omitempty"`
 	// Whether business email is required for committee members
 	BusinessEmailRequired *bool `form:"business_email_required,omitempty" json:"business_email_required,omitempty" xml:"business_email_required,omitempty"`
 	// The timestamp when the committee was last reviewed in RFC3339 format
@@ -137,6 +139,8 @@ type UpdateCommitteeBaseRequestBody struct {
 	// External source-labeled entities linked to this committee (e.g. OCG groups
 	// or events)
 	ExternalSources []*ExternalSourceRequestBody `form:"external_sources,omitempty" json:"external_sources,omitempty" xml:"external_sources,omitempty"`
+	// The committee's charter
+	Charter *CharterWriteRequestBody `form:"charter,omitempty" json:"charter,omitempty" xml:"charter,omitempty"`
 }
 
 // UpdateCommitteeSettingsRequestBody is the type of the "committee-service"
@@ -479,6 +483,8 @@ type CreateCommitteeResponseBody struct {
 	Auditors []*CommitteeUserResponseBody `form:"auditors,omitempty" json:"auditors,omitempty" xml:"auditors,omitempty"`
 	// Whether the committee has any associated mailing lists
 	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
+	// The committee's charter
+	Charter *CharterResponseBody `form:"charter,omitempty" json:"charter,omitempty" xml:"charter,omitempty"`
 }
 
 // GetCommitteeBaseResponseBody is the type of the "committee-service" service
@@ -546,6 +552,8 @@ type UpdateCommitteeBaseResponseBody struct {
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether the committee has any associated mailing lists
 	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
+	// The committee's charter
+	Charter *CharterResponseBody `form:"charter,omitempty" json:"charter,omitempty" xml:"charter,omitempty"`
 }
 
 // GetCommitteeSettingsResponseBody is the type of the "committee-service"
@@ -2819,6 +2827,30 @@ type CommitteeUserResponseBody struct {
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
 }
 
+// CharterResponseBody is used to define fields on response body types.
+type CharterResponseBody struct {
+	// URL of the externally hosted charter document. Empty once the charter has
+	// been cleared.
+	URL string `form:"url" json:"url" xml:"url"`
+	// Number of times the charter has been set or cleared. Never resets, including
+	// across a clear followed by a re-set.
+	Version int `form:"version" json:"version" xml:"version"`
+	// When the charter was last set or cleared
+	UpdatedAt string `form:"updated_at" json:"updated_at" xml:"updated_at"`
+	// User who last set or cleared the charter
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+}
+
+// PublicAuditUserResponseBody is used to define fields on response body types.
+type PublicAuditUserResponseBody struct {
+	// URL to the user's avatar image; empty when none.
+	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
+	// Display name of the user
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User identifier (LF ID / sub)
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+}
+
 // CommitteeBaseWithReadonlyAttributesResponseBody is used to define fields on
 // response body types.
 type CommitteeBaseWithReadonlyAttributesResponseBody struct {
@@ -2880,6 +2912,8 @@ type CommitteeBaseWithReadonlyAttributesResponseBody struct {
 	TotalVotingRepos *int `form:"total_voting_repos,omitempty" json:"total_voting_repos,omitempty" xml:"total_voting_repos,omitempty"`
 	// Whether the committee has any associated mailing lists
 	HasMailingList bool `form:"has_mailing_list" json:"has_mailing_list" xml:"has_mailing_list"`
+	// The committee's charter
+	Charter *CharterResponseBody `form:"charter,omitempty" json:"charter,omitempty" xml:"charter,omitempty"`
 }
 
 // CommitteeSettingsWithReadonlyAttributesResponseBody is used to define fields
@@ -3244,6 +3278,13 @@ type ExternalSourceRequestBody struct {
 	ExternalEventCategory *string `form:"external_event_category,omitempty" json:"external_event_category,omitempty" xml:"external_event_category,omitempty"`
 }
 
+// CharterWriteRequestBody is used to define fields on request body types.
+type CharterWriteRequestBody struct {
+	// URL of the externally hosted charter document. Send an empty string to clear
+	// a previously set charter.
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+}
+
 // CommitteeUserRequestBody is used to define fields on request body types.
 type CommitteeUserRequestBody struct {
 	// URL to the user's avatar image; empty when none.
@@ -3390,6 +3431,9 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 			body.HasMailingList = false
 		}
 	}
+	if res.Charter != nil {
+		body.Charter = marshalCommitteeserviceCharterToCharterResponseBody(res.Charter)
+	}
 	return body
 }
 
@@ -3494,6 +3538,9 @@ func NewGetCommitteeBaseResponseBody(res *committeeservice.GetCommitteeBaseResul
 			body.HasMailingList = false
 		}
 	}
+	if res.CommitteeBase.Charter != nil {
+		body.Charter = marshalCommitteeserviceCharterToCharterResponseBody(res.CommitteeBase.Charter)
+	}
 	return body
 }
 
@@ -3597,6 +3644,9 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 		if body.HasMailingList == zero {
 			body.HasMailingList = false
 		}
+	}
+	if res.Charter != nil {
+		body.Charter = marshalCommitteeserviceCharterToCharterResponseBody(res.Charter)
 	}
 	return body
 }
@@ -6664,6 +6714,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
 		}
 	}
+	if body.Charter != nil {
+		v.Charter = unmarshalCharterWriteRequestBodyToCommitteeserviceCharterWrite(body.Charter)
+	}
 	if body.BusinessEmailRequired == nil {
 		v.BusinessEmailRequired = false
 	}
@@ -6783,6 +6836,9 @@ func NewUpdateCommitteeBasePayload(body *UpdateCommitteeBaseRequestBody, uid str
 		for i, val := range body.ExternalSources {
 			v.ExternalSources[i] = unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(val)
 		}
+	}
+	if body.Charter != nil {
+		v.Charter = unmarshalCharterWriteRequestBodyToCommitteeserviceCharterWrite(body.Charter)
 	}
 	v.UID = &uid
 	v.Version = version
@@ -7620,6 +7676,11 @@ func ValidateCreateCommitteeRequestBody(body *CreateCommitteeRequestBody) (err e
 			}
 		}
 	}
+	if body.Charter != nil {
+		if err2 := ValidateCharterWriteRequestBody(body.Charter); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
 	if body.LastReviewedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
 	}
@@ -7750,6 +7811,11 @@ func ValidateUpdateCommitteeBaseRequestBody(body *UpdateCommitteeBaseRequestBody
 			if err2 := ValidateExternalSourceRequestBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
+		}
+	}
+	if body.Charter != nil {
+		if err2 := ValidateCharterWriteRequestBody(body.Charter); err2 != nil {
+			err = goa.MergeErrors(err, err2)
 		}
 	}
 	return
@@ -8267,6 +8333,23 @@ func ValidateExternalSourceRequestBody(body *ExternalSourceRequestBody) (err err
 	if body.ExternalEventCategory != nil {
 		if utf8.RuneCountInString(*body.ExternalEventCategory) > 200 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.external_event_category", *body.ExternalEventCategory, utf8.RuneCountInString(*body.ExternalEventCategory), 200, false))
+		}
+	}
+	return
+}
+
+// ValidateCharterWriteRequestBody runs the validations defined on
+// charter-writeRequestBody
+func ValidateCharterWriteRequestBody(body *CharterWriteRequestBody) (err error) {
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^$|^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
 		}
 	}
 	return

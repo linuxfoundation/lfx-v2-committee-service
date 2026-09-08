@@ -52,6 +52,7 @@ type CommitteeBase struct {
 	Deliverables     []string         `json:"deliverables,omitempty"`
 	KeyDates         []KeyDate        `json:"key_dates,omitempty"`
 	ExternalSources  []ExternalSource `json:"external_sources,omitempty"`
+	Charter          *Charter         `json:"charter,omitempty"`
 	TotalMembers     int              `json:"total_members"`
 	TotalVotingRepos int              `json:"total_voting_repos"`
 	HasMailingList   bool             `json:"has_mailing_list"`
@@ -68,6 +69,17 @@ type Calendar struct {
 type KeyDate struct {
 	Date  string `json:"date"`
 	Label string `json:"label"`
+}
+
+// Charter represents a committee's charter: a link to an externally hosted document, with
+// an audit trail of who last set or cleared it. Stays nil only until a charter is set for
+// the first time -- clearing it stamps URL back to "" rather than nilling the field out, so
+// Version climbs monotonically across set/clear/re-set cycles instead of resetting to 1.
+type Charter struct {
+	URL       string         `json:"url"`
+	Version   int            `json:"version"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedBy *CommitteeUser `json:"updated_by,omitempty"`
 }
 
 // ExternalSource represents a single source-labeled external entity linked to a

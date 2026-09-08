@@ -5964,6 +5964,20 @@ func unmarshalExternalSourceRequestBodyToCommitteeserviceExternalSource(v *Exter
 	return res
 }
 
+// unmarshalCharterWriteRequestBodyToCommitteeserviceCharterWrite builds a
+// value of type *committeeservice.CharterWrite from a value of type
+// *CharterWriteRequestBody.
+func unmarshalCharterWriteRequestBodyToCommitteeserviceCharterWrite(v *CharterWriteRequestBody) *committeeservice.CharterWrite {
+	if v == nil {
+		return nil
+	}
+	res := &committeeservice.CharterWrite{
+		URL: *v.URL,
+	}
+
+	return res
+}
+
 // unmarshalCommitteeUserRequestBodyToCommitteeserviceCommitteeUser builds a
 // value of type *committeeservice.CommitteeUser from a value of type
 // *CommitteeUserRequestBody.
@@ -6026,6 +6040,40 @@ func marshalCommitteeserviceCommitteeUserToCommitteeUserResponseBody(v *committe
 	res := &CommitteeUserResponseBody{
 		Avatar:   v.Avatar,
 		Email:    v.Email,
+		Name:     v.Name,
+		Username: v.Username,
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCharterToCharterResponseBody builds a value of type
+// *CharterResponseBody from a value of type *committeeservice.Charter.
+func marshalCommitteeserviceCharterToCharterResponseBody(v *committeeservice.Charter) *CharterResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CharterResponseBody{
+		URL:       v.URL,
+		Version:   v.Version,
+		UpdatedAt: v.UpdatedAt,
+	}
+	if v.UpdatedBy != nil {
+		res.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(v.UpdatedBy)
+	}
+
+	return res
+}
+
+// marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody builds a
+// value of type *PublicAuditUserResponseBody from a value of type
+// *committeeservice.PublicAuditUser.
+func marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(v *committeeservice.PublicAuditUser) *PublicAuditUserResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &PublicAuditUserResponseBody{
+		Avatar:   v.Avatar,
 		Name:     v.Name,
 		Username: v.Username,
 	}

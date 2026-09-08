@@ -1796,6 +1796,201 @@ func TestConvertBaseToResponse_CommitteeMetadata(t *testing.T) {
 	}
 }
 
+func TestConvertPayloadToBase_Charter(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected *model.Charter
+	}{
+		{
+			name: "charter with url set",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
+			},
+			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
+		},
+		{
+			name: "charter absent",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateBase_Charter(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeBasePayload
+		expected *model.Charter
+	}{
+		{
+			name: "charter with url set",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
+			},
+			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
+		},
+		{
+			name: "charter cleared with empty url",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: ""},
+			},
+			expected: &model.Charter{URL: ""},
+		},
+		{
+			name: "charter absent",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertBaseToResponse_Charter(t *testing.T) {
+	updatedAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		base     *model.CommitteeBase
+		expected *committeeservice.Charter
+	}{
+		{
+			name: "charter with full audit trail omits email from the public response",
+			base: &model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter: &model.Charter{
+					URL:       "https://example.org/governance/charter.pdf",
+					Version:   3,
+					UpdatedAt: updatedAt,
+					UpdatedBy: &model.CommitteeUser{
+						Username: "first-last",
+						Name:     "First Last",
+						Email:    "first.last@example.com",
+						Avatar:   "https://example.com/avatar.png",
+					},
+				},
+			},
+			expected: &committeeservice.Charter{
+				URL:       "https://example.org/governance/charter.pdf",
+				Version:   3,
+				UpdatedAt: "2026-09-06T12:00:00Z",
+				UpdatedBy: &committeeservice.PublicAuditUser{
+					Username: stringPtr("first-last"),
+					Name:     stringPtr("First Last"),
+					Avatar:   stringPtr("https://example.com/avatar.png"),
+				},
+			},
+		},
+		{
+			name: "charter cleared -- url empty but audit trail retained",
+			base: &model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter: &model.Charter{
+					URL:       "",
+					Version:   2,
+					UpdatedAt: updatedAt,
+				},
+			},
+			expected: &committeeservice.Charter{
+				URL:       "",
+				Version:   2,
+				UpdatedAt: "2026-09-06T12:00:00Z",
+			},
+		},
+		{
+			name: "charter never set",
+			base: &model.CommitteeBase{
+				UID:        "committee-456",
+				ProjectUID: "project-456",
+				Name:       "Minimal Committee",
+				Category:   "technical",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertBaseToResponse(tt.base)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertDomainToFullResponse_Charter(t *testing.T) {
+	updatedAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+
+	domain := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-123",
+			ProjectUID: "project-123",
+			Name:       "Test Committee",
+			Category:   "governance",
+			Charter: &model.Charter{
+				URL:       "https://example.org/governance/charter.pdf",
+				Version:   1,
+				UpdatedAt: updatedAt,
+				UpdatedBy: &model.CommitteeUser{Username: "first-last"},
+			},
+		},
+	}
+
+	svc := &committeeServicesrvc{}
+	result := svc.convertDomainToFullResponse(domain)
+
+	assert.Equal(t, &committeeservice.Charter{
+		URL:       "https://example.org/governance/charter.pdf",
+		Version:   1,
+		UpdatedAt: "2026-09-06T12:00:00Z",
+		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("first-last")},
+	}, result.Charter)
+}
+
 // TestValidateCreateCommitteeRequestBody_Metadata exercises the Goa-generated
 // validation for the new repository/key_dates fields on the
 // create-committee request body.
@@ -1878,6 +2073,27 @@ func TestValidateCreateCommitteeRequestBody_Metadata(t *testing.T) {
 				}
 			},
 			wantErr: true,
+		},
+		{
+			name: "charter with invalid url scheme rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("javascript:alert(1)")}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with empty url accepted -- clear signal",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("")}
+			},
+			wantErr: false,
+		},
+		{
+			name: "charter with valid https url accepted",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("https://example.org/governance/charter.pdf")}
+			},
+			wantErr: false,
 		},
 	}
 
@@ -1966,6 +2182,27 @@ func TestValidateUpdateCommitteeBaseRequestBody_Metadata(t *testing.T) {
 				}
 			},
 			wantErr: true,
+		},
+		{
+			name: "charter with invalid url scheme rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("javascript:alert(1)")}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with empty url accepted -- clear signal",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("")}
+			},
+			wantErr: false,
+		},
+		{
+			name: "charter with valid https url accepted",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("https://example.org/governance/charter.pdf")}
+			},
+			wantErr: false,
 		},
 	}
 

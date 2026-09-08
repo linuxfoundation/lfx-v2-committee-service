@@ -22,6 +22,39 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
+// sanitizeCommitteeBaseForPublish returns a copy of base with the charter's updated_by email
+// stripped. Used both for CommitteeIndexerMessage.Build, which marshals its input verbatim into
+// Data alongside IndexingConfig.Public, and for the committee.updated NATS event payload -- in
+// both cases an unsanitized copy would put the charter editor's email into a public-facing
+// document (same treatment as ChatWebhookURL on CommitteeSettings below).
+func sanitizeCommitteeBaseForPublish(base model.CommitteeBase) model.CommitteeBase {
+	if base.Charter == nil || base.Charter.UpdatedBy == nil || base.Charter.UpdatedBy.Email == "" {
+		return base
+	}
+	charter := *base.Charter
+	updatedBy := *base.Charter.UpdatedBy
+	updatedBy.Email = ""
+	charter.UpdatedBy = &updatedBy
+	base.Charter = &charter
+	return base
+}
+
+// stampCharter builds a Charter with UpdatedBy resolved from the request's principal.
+func (uc *committeeWriterOrchestrator) stampCharter(ctx context.Context, url string, version int, at time.Time) *model.Charter {
+	principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+	principal = strings.TrimSpace(principal)
+	var updatedBy *model.CommitteeUser
+	if principal != "" {
+		updatedBy = ResolveAuditUserProfile(ctx, uc.userReader, principal)
+	}
+	return &model.Charter{
+		URL:       url,
+		Version:   version,
+		UpdatedAt: at,
+		UpdatedBy: updatedBy,
+	}
+}
+
 // buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
 func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
 	var nameAndAliases []string
@@ -411,6 +444,27 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	}
 	updated.SSOGroupName = ssoGroupName
 
+	// Charter: stamp version/updated_at/updated_by only when the URL actually changes
+	// (including a change to/from ""), never on a same-value echo or on an absent payload
+	// key. An absent key (updated.Charter == nil) means "caller didn't touch this field" and
+	// must carry the existing charter forward untouched -- it is NOT the same as an explicit
+	// {url: ""} clear, which is a real, stamped change. Once a charter has ever existed,
+	// clearing it stamps url: "" like any other change rather than nilling the field back
+	// out, so a removed charter still carries its own version/updated_at/updated_by for
+	// "removed by X on Y" display, and Version never resets across a clear -> re-set cycle.
+	existingCharterURL, existingCharterVersion := "", 0
+	if existing.Charter != nil {
+		existingCharterURL = existing.Charter.URL
+		existingCharterVersion = existing.Charter.Version
+	}
+	switch {
+	case updated.Charter == nil:
+		updated.Charter = existing.Charter
+	case updated.Charter.URL == existingCharterURL:
+		updated.Charter = existing.Charter
+	default:
+		updated.Charter = uc.stampCharter(ctx, updated.Charter.URL, existingCharterVersion+1, time.Now())
+	}
 }
 
 // Execute orchestrates the committee creation process
@@ -434,6 +488,15 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		committee.CommitteeSettings.UpdatedAt = now
 		cs := committee.CommitteeSettings
 		cs.HasChatWebhook = cs.ChatWebhookURL != nil && *cs.ChatWebhookURL != ""
+	}
+
+	// Charter: stamp version/updated_at/updated_by only when a non-empty URL was supplied
+	// at creation time -- an empty/absent charter on a brand-new committee stays nil rather
+	// than becoming a stamped empty object (mirrors the no-op case in mergeCommitteeData).
+	if committee.Charter != nil && committee.Charter.URL != "" {
+		committee.Charter = uc.stampCharter(ctx, committee.Charter.URL, 1, now)
+	} else {
+		committee.Charter = nil
 	}
 
 	// for rollback purposes
@@ -529,7 +592,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// Publish indexer messages for the committee and settings
 	messages := []func() error{}
 
-	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, committee.CommitteeBase, committee.Tags())
+	committeeMsg, errBuildCommitteeMsg := uc.buildIndexerMessage(ctx, model.ActionCreated, sanitizeCommitteeBaseForPublish(committee.CommitteeBase), committee.Tags())
 	if errBuildCommitteeMsg != nil {
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildCommitteeMsg)
 	}
@@ -749,7 +812,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 7: Publish messages
 
 	// Build and publish indexer message
-	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, committee.CommitteeBase, committee.Tags())
+	messageIndexer, errBuildIndexerMessage := uc.buildIndexerMessage(ctx, model.ActionUpdated, sanitizeCommitteeBaseForPublish(committee.CommitteeBase), committee.Tags())
 	if errBuildIndexerMessage != nil {
 		slog.WarnContext(ctx, "failed to build indexer message for update",
 			"error", errBuildIndexerMessage,
@@ -778,10 +841,16 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	accessControlMessage := uc.buildAccessControlMessage(ctx, fullCommittee)
 
+	// Both before/after snapshots are marshaled verbatim into the committee.updated NATS
+	// event; sanitize the charter editor's email out of each the same way the indexer
+	// messages are sanitized above -- the sole in-repo consumer only reads
+	// name/category/project fields, and this event has external subscribers too.
+	sanitizedOldCommittee := sanitizeCommitteeBaseForPublish(*existing)
+	sanitizedCommittee := sanitizeCommitteeBaseForPublish(committee.CommitteeBase)
 	updateEventData := &model.CommitteeUpdateEventData{
 		CommitteeUID: committee.CommitteeBase.UID,
-		OldCommittee: existing,
-		Committee:    &committee.CommitteeBase,
+		OldCommittee: &sanitizedOldCommittee,
+		Committee:    &sanitizedCommittee,
 	}
 
 	messages := []func() error{

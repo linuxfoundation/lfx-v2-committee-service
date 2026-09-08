@@ -51,6 +51,8 @@ paths:
                             calendar:
                                 public: true
                             category: Technical Steering Committee
+                            charter:
+                                url: https://example.org/governance/charter.pdf
                             chat_channel: https://slack.example.org/channels/tsc
                             chat_webhook_url: pvz
                             deliverables:
@@ -106,6 +108,14 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                charter:
+                                    updated_at: "2026-09-06T00:00:00Z"
+                                    updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
+                                    url: https://example.org/governance/charter.pdf
+                                    version: 1
                                 chat_channel: https://slack.example.org/channels/tsc
                                 deliverables:
                                     - Quarterly technical roadmap
@@ -330,6 +340,14 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                charter:
+                                    updated_at: "2026-09-06T00:00:00Z"
+                                    updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
+                                    url: https://example.org/governance/charter.pdf
+                                    version: 1
                                 chat_channel: https://slack.example.org/channels/tsc
                                 deliverables:
                                     - Quarterly technical roadmap
@@ -447,6 +465,8 @@ paths:
                             calendar:
                                 public: true
                             category: Technical Steering Committee
+                            charter:
+                                url: https://example.org/governance/charter.pdf
                             chat_channel: https://slack.example.org/channels/tsc
                             deliverables:
                                 - Quarterly technical roadmap
@@ -486,6 +506,14 @@ paths:
                                 calendar:
                                     public: true
                                 category: Technical Steering Committee
+                                charter:
+                                    updated_at: "2026-09-06T00:00:00Z"
+                                    updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
+                                    url: https://example.org/governance/charter.pdf
+                                    version: 1
                                 chat_channel: https://slack.example.org/channels/tsc
                                 deliverables:
                                     - Quarterly technical roadmap
@@ -4726,6 +4754,55 @@ components:
                 message: The request was invalid.
             required:
                 - message
+        Charter:
+            type: object
+            properties:
+                updated_at:
+                    type: string
+                    description: When the charter was last set or cleared
+                    example: "2026-09-06T00:00:00Z"
+                    format: date-time
+                updated_by:
+                    $ref: '#/components/schemas/PublicAuditUser'
+                url:
+                    type: string
+                    description: URL of the externally hosted charter document. Empty once the charter has been cleared.
+                    example: https://example.org/governance/charter.pdf
+                    pattern: ^$|^https?://[^\s/$.?#][^\s]*$
+                    maxLength: 2048
+                version:
+                    type: integer
+                    description: Number of times the charter has been set or cleared. Never resets, including across a clear followed by a re-set.
+                    example: 1
+                    format: int64
+                    minimum: 1
+            description: 'A committee''s charter: a link to an externally hosted document, with an audit trail of who last set or cleared it.'
+            example:
+                updated_at: "2026-09-06T00:00:00Z"
+                updated_by:
+                    avatar: https://example.com/avatar.png
+                    name: First Last
+                    username: first-last
+                url: https://example.org/governance/charter.pdf
+                version: 1
+            required:
+                - url
+                - version
+                - updated_at
+        CharterWrite:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: URL of the externally hosted charter document. Send an empty string to clear a previously set charter.
+                    example: https://example.org/governance/charter.pdf
+                    pattern: ^$|^https?://[^\s/$.?#][^\s]*$
+                    maxLength: 2048
+            description: Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.
+            example:
+                url: https://example.org/governance/charter.pdf
+            required:
+                - url
         CommitteeApplicationWithReadonlyAttributes:
             type: object
             properties:
@@ -5034,6 +5111,8 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                charter:
+                    $ref: '#/components/schemas/Charter'
                 chat_channel:
                     type: string
                     description: The chat channel URL or identifier for the committee
@@ -5043,7 +5122,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 9nd
+                        example: c2z
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5145,7 +5224,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: vws
+                        example: sem
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5189,6 +5268,14 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                charter:
+                    updated_at: "2026-09-06T00:00:00Z"
+                    updated_by:
+                        avatar: https://example.com/avatar.png
+                        name: First Last
+                        username: first-last
+                    url: https://example.org/governance/charter.pdf
+                    version: 1
                 chat_channel: https://slack.example.org/channels/tsc
                 deliverables:
                     - Quarterly technical roadmap
@@ -5366,7 +5453,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: c2z
+                        example: 9nd
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5475,7 +5562,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: sem
+                        example: vws
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5611,6 +5698,8 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                charter:
+                    $ref: '#/components/schemas/Charter'
                 chat_channel:
                     type: string
                     description: The chat channel URL or identifier for the committee
@@ -5799,6 +5888,14 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                charter:
+                    updated_at: "2026-09-06T00:00:00Z"
+                    updated_by:
+                        avatar: https://example.com/avatar.png
+                        name: First Last
+                        username: first-last
+                    url: https://example.org/governance/charter.pdf
+                    version: 1
                 chat_channel: https://slack.example.org/channels/tsc
                 deliverables:
                     - Quarterly technical roadmap
@@ -6742,21 +6839,21 @@ components:
                 email:
                     type: string
                     description: The user's email address
-                    example: alice.johnson@example.com
+                    example: first.last@example.com
                 name:
                     type: string
                     description: Display name of the user
-                    example: Alice Johnson
+                    example: First Last
                 username:
                     type: string
                     description: User identifier (LF ID / sub)
-                    example: alicejohnson789
+                    example: first-last
             description: A user object stored in writers or auditors lists.
             example:
                 avatar: https://example.com/avatar.png
-                email: alice.johnson@example.com
-                name: Alice Johnson
-                username: alicejohnson789
+                email: first.last@example.com
+                name: First Last
+                username: first-last
         ConflictError:
             type: object
             properties:
@@ -7039,6 +7136,8 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                charter:
+                    $ref: '#/components/schemas/CharterWrite'
                 chat_channel:
                     type: string
                     description: The chat channel URL or identifier for the committee
@@ -7206,6 +7305,8 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                charter:
+                    url: https://example.org/governance/charter.pdf
                 chat_channel: https://slack.example.org/channels/tsc
                 chat_webhook_url: c8b
                 deliverables:
@@ -8128,6 +8229,27 @@ components:
                       voting_status: Voting Rep
             required:
                 - seats
+        PublicAuditUser:
+            type: object
+            properties:
+                avatar:
+                    type: string
+                    description: URL to the user's avatar image; empty when none.
+                    example: https://example.com/avatar.png
+                    format: uri
+                name:
+                    type: string
+                    description: Display name of the user
+                    example: First Last
+                username:
+                    type: string
+                    description: User identifier (LF ID / sub)
+                    example: first-last
+            description: A user reference shown on publicly-visible committee fields, without contact details.
+            example:
+                avatar: https://example.com/avatar.png
+                name: First Last
+                username: first-last
         ReassignOrgCommitteeSeatRequestBody:
             type: object
             properties:
@@ -8267,6 +8389,8 @@ components:
                         - Technical Oversight Committee
                         - Technical Steering Committee
                         - Working Group
+                charter:
+                    $ref: '#/components/schemas/CharterWrite'
                 chat_channel:
                     type: string
                     description: The chat channel URL or identifier for the committee
@@ -8390,6 +8514,8 @@ components:
                 calendar:
                     public: true
                 category: Technical Steering Committee
+                charter:
+                    url: https://example.org/governance/charter.pdf
                 chat_channel: https://slack.example.org/channels/tsc
                 deliverables:
                     - Quarterly technical roadmap

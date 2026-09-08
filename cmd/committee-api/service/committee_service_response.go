@@ -70,6 +70,12 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 	// Handle ExternalSources if present
 	base.ExternalSources = convertPayloadExternalSourcesToModel(p.ExternalSources)
 
+	// Handle Charter (URL only -- version/updated_at/updated_by are stamped server-side, see Create)
+	// url is required in CharterWriteType, so it's always present once Charter itself is present.
+	if p.Charter != nil {
+		base.Charter = &model.Charter{URL: p.Charter.URL}
+	}
+
 	// Handle calendar if present
 	if p.Calendar != nil {
 		base.Calendar = model.Calendar{
@@ -149,6 +155,13 @@ func (s *committeeServicesrvc) convertPayloadToUpdateBase(p *committeeservice.Up
 
 	// Handle ExternalSources if present
 	base.ExternalSources = convertPayloadExternalSourcesToModel(p.ExternalSources)
+
+	// Handle Charter (URL only -- comparison against existing + stamping happens in
+	// mergeCommitteeData, since only there is the prior version/updated_at/updated_by known)
+	// url is required in CharterWriteType, so it's always present once Charter itself is present.
+	if p.Charter != nil {
+		base.Charter = &model.Charter{URL: p.Charter.URL}
+	}
 
 	base.JoinMode = p.JoinMode
 
@@ -278,6 +291,22 @@ func convertModelExternalSourcesToResponse(sources []model.ExternalSource) []*co
 	return result
 }
 
+// convertModelCharterToResponse converts a domain Charter to the GOA response Charter.
+func convertModelCharterToResponse(charter *model.Charter) *committeeservice.Charter {
+	if charter == nil {
+		return nil
+	}
+
+	result := &committeeservice.Charter{
+		URL:       charter.URL,
+		Version:   charter.Version,
+		UpdatedAt: charter.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	result.UpdatedBy = committeeUserToGoaPublicAuditUser(charter.UpdatedBy)
+
+	return result
+}
+
 // convertPayloadToUpdateSettings converts GOA UpdateCommitteeSettingsPayload to CommitteeSettings domain model.
 // existing, when non-nil, is used to seed each writer/auditor entry so stored identity fields
 // are preserved across PUT requests without the client having to send them.
@@ -352,6 +381,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 	result.Deliverables = response.Deliverables
 	result.KeyDates = convertModelKeyDatesToResponse(response.KeyDates)
 	result.ExternalSources = convertModelExternalSourcesToResponse(response.ExternalSources)
+	result.Charter = convertModelCharterToResponse(response.Charter)
 	if response.SSOGroupName != "" {
 		result.SsoGroupName = &response.SSOGroupName
 	}
@@ -440,6 +470,7 @@ func (s *committeeServicesrvc) convertBaseToResponse(base *model.CommitteeBase) 
 	result.Deliverables = base.Deliverables
 	result.KeyDates = convertModelKeyDatesToResponse(base.KeyDates)
 	result.ExternalSources = convertModelExternalSourcesToResponse(base.ExternalSources)
+	result.Charter = convertModelCharterToResponse(base.Charter)
 	if base.SSOGroupName != "" {
 		result.SsoGroupName = &base.SSOGroupName
 	}

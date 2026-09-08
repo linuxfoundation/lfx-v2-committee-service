@@ -62,7 +62,7 @@ These are published by this service and also subscribed by this service (queue
 ### Outbound notification subjects
 
 ```go
-"lfx.committee-api.committee.updated"             // committee changed (before/after)
+"lfx.committee-api.committee.updated"             // committee changed (before/after); payload embeds CommitteeBase (now includes charter, sanitized: updated_by.email omitted, when a charter has ever been set)
 "lfx.committee-api.committee_settings.updated"    // committee settings changed (before/after)
 "lfx.committee-api.committee_member.created"
 "lfx.committee-api.committee_member.updated"
