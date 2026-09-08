@@ -7,6 +7,14 @@
 id = "GO-2026-5932"
 reason = "golang.org/x/crypto/openpgp is deprecated/unmaintained; the service does not use the openpgp package, and no fixed version is available"
 
+[[IgnoredVulns]]
+id = "GO-2026-6354"
+reason = "golang.org/x/crypto/ssh is not in this service's build graph — verified via go list -deps ./...; fixed in v0.56.0 which requires go 1.26.0, above the MegaLinter toolchain ceiling"
+
+[[IgnoredVulns]]
+id = "GO-2026-6355"
+reason = "golang.org/x/crypto/ssh is not in this service's build graph — verified via go list -deps ./...; fixed in v0.56.0 which requires go 1.26.0, above the MegaLinter toolchain ceiling"
+
 # stdlib CVEs that are fixed in go versions beyond 1.26.3.
 # go.mod is pinned at go 1.26.3 because MegaLinter bundles go 1.26.3
 # (GOTOOLCHAIN=local) and the go directive must not exceed the bundled
