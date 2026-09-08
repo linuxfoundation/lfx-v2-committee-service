@@ -431,6 +431,10 @@ type CommitteeInviteWithReadonlyAttributes struct {
 	}
 	// Invite status
 	Status string
+	// The user who created the invite (read-only)
+	Inviter *CommitteeUser
+	// The timestamp when the invite link expires (read-only)
+	ExpiresAt *string
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 }

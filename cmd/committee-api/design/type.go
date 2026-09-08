@@ -468,17 +468,17 @@ var CommitteeUserType = dsl.Type("committee-user", func() {
 func ResourceAuditUserAttributes() {
 	dsl.Attribute("created_by", CommitteeUserType, "User who created this resource", func() {
 		dsl.Example(map[string]interface{}{
-			"username": "alexlee",
-			"name":     "Alex Lee",
-			"email":    "alexlee@linuxfoundation.org",
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
 			"avatar":   "https://example.com/avatar.png",
 		})
 	})
 	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
 		dsl.Example(map[string]interface{}{
-			"username": "alexlee",
-			"name":     "Alex Lee",
-			"email":    "alexlee@linuxfoundation.org",
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
 			"avatar":   "https://example.com/avatar.png",
 		})
 	})
@@ -1108,6 +1108,18 @@ var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-read
 		dsl.Enum("pending", "accepted", "declined", "revoked")
 		dsl.Default("pending")
 		dsl.Example("pending")
+	})
+	dsl.Attribute("inviter", CommitteeUserType, "The user who created the invite (read-only)", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("expires_at", dsl.String, "The timestamp when the invite link expires (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-02-14T10:30:00Z")
 	})
 	CreatedAtAttribute()
 })
