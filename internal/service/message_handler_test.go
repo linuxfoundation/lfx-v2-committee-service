@@ -663,7 +663,7 @@ func TestHandleCommitteeMailingListChanged(t *testing.T) {
 // TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex guards against a
 // regression where this handler re-indexed the raw *model.CommitteeBase returned by
 // UpdateHasMailingList without stripping charter.updated_by.email (unlike the
-// create/update flows in committee_writer.go, which call sanitizeCommitteeBaseForIndex).
+// create/update flows in committee_writer.go, which call sanitizeCommitteeBaseForPublish).
 func TestHandleCommitteeMailingListChanged_SanitizesCharterEmailForIndex(t *testing.T) {
 	ctx := context.Background()
 	uid := uuid.New().String()
@@ -1165,7 +1165,7 @@ func TestHandleCommitteeTotalMembersSync(t *testing.T) {
 // regression where this handler re-indexed the raw *model.CommitteeBase returned by
 // UpdateTotalMembers (or GetBase, on the already-correct/redelivery path) without
 // stripping charter.updated_by.email, unlike the create/update flows in
-// committee_writer.go which call sanitizeCommitteeBaseForIndex.
+// committee_writer.go which call sanitizeCommitteeBaseForPublish.
 func TestHandleCommitteeTotalMembersSync_SanitizesCharterEmailForIndex(t *testing.T) {
 	ctx := context.Background()
 	uid := uuid.New().String()

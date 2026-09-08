@@ -65,7 +65,7 @@ func (h *committeeMailingListHandler) HandleCommitteeMailingListChanged(ctx cont
 		fullCommittee.CommitteeSettings = settings
 	}
 
-	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, sanitizeCommitteeBaseForIndex(*committee), fullCommittee.Tags())
+	indexerMsg, err := buildIndexerMessage(ctx, model.ActionUpdated, sanitizeCommitteeBaseForPublish(*committee), fullCommittee.Tags())
 	if err != nil {
 		return nil, err
 	}

@@ -894,7 +894,7 @@ func TestSanitizeCommitteeBaseForIndex(t *testing.T) {
 				originalEmail = original.Charter.UpdatedBy.Email
 			}
 
-			result := sanitizeCommitteeBaseForIndex(tc.base)
+			result := sanitizeCommitteeBaseForPublish(tc.base)
 			tc.validateEmail(t, result)
 
 			// the input value must not be mutated -- callers reuse it after building the indexer message
