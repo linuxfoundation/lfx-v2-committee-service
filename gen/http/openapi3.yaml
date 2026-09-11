@@ -4728,6 +4728,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -4854,6 +4855,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -5996,6 +5998,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6228,6 +6231,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6400,6 +6404,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6592,6 +6597,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6988,6 +6994,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -7386,6 +7393,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -7908,6 +7916,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -8380,6 +8389,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456

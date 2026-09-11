@@ -783,14 +783,22 @@ func CommitteeMemberUpdateAttributes() {
 }
 
 // AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).
-// Mapped via dsl.Body so clients may omit the body entirely for backward compatibility.
+// Mapped via dsl.Body with the attribute left optional so the generated server decoder
+// tolerates a missing body (io.EOF) for backward compatibility. Note: Goa marks any
+// non-empty body as a required requestBody in the OpenAPI specs, and its generated
+// client/CLI assume a body is present — generated consumers must send at least "{}".
+// Raw HTTP clients may omit the body entirely.
 var AcceptInviteOptionalBody = dsl.Type("accept-invite-optional-body", func() {
 	dsl.Description("Optional accept-invite request body.")
 	OrganizationInfoAttributes()
 })
 
 // JoinCommitteeOptionalBody is an optional HTTP body for join-committee (organization only).
-// Mapped via dsl.Body so clients may omit the body entirely for backward compatibility.
+// Mapped via dsl.Body with the attribute left optional so the generated server decoder
+// tolerates a missing body (io.EOF) for backward compatibility. Note: Goa marks any
+// non-empty body as a required requestBody in the OpenAPI specs, and its generated
+// client/CLI assume a body is present — generated consumers must send at least "{}".
+// Raw HTTP clients may omit the body entirely.
 var JoinCommitteeOptionalBody = dsl.Type("join-committee-optional-body", func() {
 	dsl.Description("Optional join-committee request body.")
 	OrganizationInfoAttributes()
@@ -1051,6 +1059,7 @@ func OrganizationNameAttribute() {
 func OrganizationWebsiteAttribute() {
 	dsl.Attribute("website", dsl.String, "Organization website URL", func() {
 		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
 		dsl.Example("https://linuxfoundation.org")
 	})
 }

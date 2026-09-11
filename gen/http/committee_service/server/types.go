@@ -7971,6 +7971,9 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
 	}
 	return
 }
@@ -8089,6 +8092,9 @@ func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequest
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
 	}
 	return
 }
@@ -8111,6 +8117,9 @@ func ValidateCreateInviteRequestBody(body *CreateInviteRequestBody) (err error) 
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
 	}
 	return
 }
@@ -8126,6 +8135,9 @@ func ValidateAcceptInviteRequestBody(body *AcceptInviteRequestBody) (err error) 
 		}
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 		}
 	}
 	return
@@ -8147,6 +8159,9 @@ func ValidateSubmitApplicationRequestBody(body *SubmitApplicationRequestBody) (e
 		}
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 		}
 	}
 	return
@@ -8185,6 +8200,9 @@ func ValidateJoinCommitteeRequestBody(body *JoinCommitteeRequestBody) (err error
 		}
 		if body.Organization.Website != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
 		}
 	}
 	return
