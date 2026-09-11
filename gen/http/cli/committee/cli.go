@@ -199,6 +199,7 @@ func ParseEndpoint(
 		committeeServiceRejectApplicationBearerTokenFlag    = committeeServiceRejectApplicationFlags.String("bearer-token", "", "")
 
 		committeeServiceJoinCommitteeFlags           = flag.NewFlagSet("join-committee", flag.ExitOnError)
+		committeeServiceJoinCommitteeBodyFlag        = committeeServiceJoinCommitteeFlags.String("body", "REQUIRED", "")
 		committeeServiceJoinCommitteeUIDFlag         = committeeServiceJoinCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceJoinCommitteeVersionFlag     = committeeServiceJoinCommitteeFlags.String("version", "REQUIRED", "")
 		committeeServiceJoinCommitteeBearerTokenFlag = committeeServiceJoinCommitteeFlags.String("bearer-token", "", "")
@@ -616,7 +617,7 @@ func ParseEndpoint(
 				data, err = committeeservicec.BuildRejectApplicationPayload(*committeeServiceRejectApplicationBodyFlag, *committeeServiceRejectApplicationUIDFlag, *committeeServiceRejectApplicationApplicationUIDFlag, *committeeServiceRejectApplicationVersionFlag, *committeeServiceRejectApplicationBearerTokenFlag)
 			case "join-committee":
 				endpoint = c.JoinCommittee()
-				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
+				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeBodyFlag, *committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
 			case "leave-committee":
 				endpoint = c.LeaveCommittee()
 				data, err = committeeservicec.BuildLeaveCommitteePayload(*committeeServiceLeaveCommitteeUIDFlag, *committeeServiceLeaveCommitteeVersionFlag, *committeeServiceLeaveCommitteeBearerTokenFlag, *committeeServiceLeaveCommitteeXSyncFlag)
@@ -1314,6 +1315,7 @@ func committeeServiceRejectApplicationUsage() {
 func committeeServiceJoinCommitteeUsage() {
 	// Header with flags
 	fmt.Fprintf(os.Stderr, "%s [flags] committee-service join-committee", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
 	fmt.Fprint(os.Stderr, " -uid STRING")
 	fmt.Fprint(os.Stderr, " -version STRING")
 	fmt.Fprint(os.Stderr, " -bearer-token STRING")
@@ -1325,6 +1327,7 @@ func committeeServiceJoinCommitteeUsage() {
 	fmt.Fprintln(os.Stderr, `Self-join a committee (only works when join_mode is open)`)
 
 	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
 	fmt.Fprintln(os.Stderr, `    -version STRING: `)
 	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
@@ -1332,7 +1335,7 @@ func committeeServiceJoinCommitteeUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service join-committee --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service join-committee --body '{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceLeaveCommitteeUsage() {

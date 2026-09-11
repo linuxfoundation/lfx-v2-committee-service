@@ -956,6 +956,7 @@ var _ = dsl.Service("committee-service", func() {
 			VersionAttribute()
 			XSyncAttribute()
 			CommitteeUIDAttribute()
+			dsl.Attribute("body", JoinCommitteeOptionalBody, "Optional JSON body")
 
 			dsl.Required("version", "uid")
 		})
@@ -975,6 +976,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Param("uid")
 			dsl.Header("bearer_token:Authorization")
 			dsl.Header("x_sync:X-Sync")
+			dsl.Body("body")
 			dsl.Response(dsl.StatusCreated)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("Forbidden", dsl.StatusForbidden)

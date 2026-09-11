@@ -2470,6 +2470,18 @@ paths:
                     default: false
                     example: true
                   example: true
+            requestBody:
+                description: Optional JSON body
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JoinCommitteeOptionalBody'
+                        example:
+                            organization:
+                                id: org-123456
+                                name: The Linux Foundation
+                                website: https://linuxfoundation.org
             responses:
                 "201":
                     description: Created response.
@@ -4716,6 +4728,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -4842,6 +4855,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -5984,6 +5998,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6216,6 +6231,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6388,6 +6404,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6580,6 +6597,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -6976,6 +6994,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -7374,6 +7393,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456
@@ -7876,6 +7896,38 @@ components:
                 message: An internal server error occurred.
             required:
                 - message
+        JoinCommitteeOptionalBody:
+            type: object
+            properties:
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+            description: Optional join-committee request body.
+            example:
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
         KeyDate:
             type: object
             properties:
@@ -8337,6 +8389,7 @@ components:
                             description: Organization website URL
                             example: https://linuxfoundation.org
                             format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
                     description: Organization information for the committee member
                     example:
                         id: org-123456

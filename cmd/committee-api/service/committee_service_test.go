@@ -119,6 +119,9 @@ type mockCommitteeWriterOrchestrator struct {
 	createMemberErr      error
 	createMemberCalls    []*model.CommitteeMember
 	createMemberSyncArgs []bool
+	// createMemberValidator optionally applies domain validation to the member,
+	// mirroring the real orchestrator's member.Validate gate in CreateMember.
+	createMemberValidator func(*model.CommitteeMember) error
 }
 
 type updateMemberCall struct {
@@ -150,6 +153,11 @@ func (m *mockCommitteeWriterOrchestrator) Delete(ctx context.Context, uid string
 func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	m.createMemberCalls = append(m.createMemberCalls, member)
 	m.createMemberSyncArgs = append(m.createMemberSyncArgs, sync)
+	if m.createMemberValidator != nil {
+		if err := m.createMemberValidator(member); err != nil {
+			return nil, err
+		}
+	}
 	if m.createMemberErr != nil {
 		return nil, m.createMemberErr
 	}
@@ -2389,6 +2397,123 @@ func TestJoinCommittee(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJoinCommittee_Organization(t *testing.T) {
+	// domainMemberValidator wires the real domain membership gate into the mock
+	// orchestrator so these subtests exercise organization validation exactly as the
+	// production orchestrator applies it in CreateMember (Step 2b).
+	domainMemberValidator := func(t *testing.T, repo *mock.MockRepository) func(*model.CommitteeMember) error {
+		return func(member *model.CommitteeMember) error {
+			base, _, err := repo.GetBase(context.Background(), member.CommitteeUID)
+			require.NoError(t, err)
+			return member.Validate(&model.Committee{
+				CommitteeBase:     *base,
+				CommitteeSettings: repo.GetSettingsPtr(member.CommitteeUID),
+			})
+		}
+	}
+
+	t.Run("payload organization stored on voting-enabled committee join", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+
+		// committee-1 is gated: enable_voting=true and business_email_required=true.
+		repo.SetJoinMode("committee-1", "open")
+		mockOrch.createMemberValidator = domainMemberValidator(t, repo)
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "new-member-uid",
+				CommitteeUID: "committee-1",
+				Email:        "first.last@example.com",
+				Status:       "Active",
+			},
+		}
+
+		payloadName := "Payload Org"
+		payloadWebsite := "https://payload.org"
+		result, err := svc.JoinCommittee(testCtx("first-last"), &committeeservice.JoinCommitteePayload{
+			UID: "committee-1",
+			Body: &committeeservice.JoinCommitteeOptionalBody{
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					Name:    &payloadName,
+					Website: &payloadWebsite,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Equal(t, "Payload Org", member.Organization.Name)
+		assert.Equal(t, "https://payload.org", member.Organization.Website)
+		assert.Empty(t, member.Organization.ID)
+	})
+
+	t.Run("no body on voting-enabled committee still rejected", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+
+		repo.SetJoinMode("committee-1", "open")
+		mockOrch.createMemberValidator = domainMemberValidator(t, repo)
+
+		result, err := svc.JoinCommittee(testCtx("first-last"), &committeeservice.JoinCommitteePayload{
+			UID: "committee-1",
+		})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var badReq *committeeservice.BadRequestError
+		assert.ErrorAs(t, err, &badReq, "expected a 400 bad-request error")
+		assert.Contains(t, badReq.Message, "organization id or organization name and domain")
+	})
+
+	t.Run("no body on non-gated open committee succeeds", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+
+		// committee-2 is non-gated: enable_voting=false and business_email_required=false.
+		repo.SetJoinMode("committee-2", "open")
+		mockOrch.createMemberValidator = domainMemberValidator(t, repo)
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "new-member-uid",
+				CommitteeUID: "committee-2",
+				Email:        "first.last@example.com",
+				Status:       "Active",
+			},
+		}
+
+		result, err := svc.JoinCommittee(testCtx("first-last"), &committeeservice.JoinCommitteePayload{
+			UID: "committee-2",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		assert.Empty(t, member.Organization.ID)
+		assert.Empty(t, member.Organization.Name)
+		assert.Empty(t, member.Organization.Website)
+	})
+
+	t.Run("already a member returns conflict", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+
+		repo.SetJoinMode("committee-2", "open")
+		mockOrch.createMemberErr = errs.NewConflict("requester is already a member of this committee")
+
+		result, err := svc.JoinCommittee(testCtx("first-last"), &committeeservice.JoinCommitteePayload{
+			UID: "committee-2",
+		})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var conflictErr *committeeservice.ConflictError
+		assert.ErrorAs(t, err, &conflictErr, "expected a 409 conflict error")
+	})
 }
 
 func TestLeaveCommittee(t *testing.T) {

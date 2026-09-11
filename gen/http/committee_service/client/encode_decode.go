@@ -3707,6 +3707,10 @@ func EncodeJoinCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) fun
 		values := req.URL.Query()
 		values.Add("v", p.Version)
 		req.URL.RawQuery = values.Encode()
+		body := NewJoinCommitteeRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("committee-service", "join-committee", err)
+		}
 		return nil
 	}
 }

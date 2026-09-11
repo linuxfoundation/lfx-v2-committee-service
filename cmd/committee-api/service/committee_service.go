@@ -1440,12 +1440,21 @@ func (s *committeeServicesrvc) JoinCommittee(ctx context.Context, p *committeese
 		return nil, wrapError(ctx, err)
 	}
 
-	// Create member via the existing orchestrator
+	// Create member via the existing orchestrator. An optional request body may carry
+	// the caller's organization (required by voting / business-email committees);
+	// when absent, enrichMemberOrganization remains the last-resort fallback.
+	var joinOrgID, joinOrgName, joinOrgWebsite *string
+	if p.Body != nil && p.Body.Organization != nil {
+		joinOrgID = p.Body.Organization.ID
+		joinOrgName = p.Body.Organization.Name
+		joinOrgWebsite = p.Body.Organization.Website
+	}
 	member := &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			CommitteeUID: p.UID,
 			Email:        email,
 			Status:       "Active",
+			Organization: organizationFromOptionalFields(joinOrgID, joinOrgName, joinOrgWebsite),
 		},
 	}
 	s.enrichMember(ctx, member)
