@@ -789,6 +789,13 @@ var AcceptInviteOptionalBody = dsl.Type("accept-invite-optional-body", func() {
 	OrganizationInfoAttributes()
 })
 
+// JoinCommitteeOptionalBody is an optional HTTP body for join-committee (organization only).
+// Mapped via dsl.Body so clients may omit the body entirely for backward compatibility.
+var JoinCommitteeOptionalBody = dsl.Type("join-committee-optional-body", func() {
+	dsl.Description("Optional join-committee request body.")
+	OrganizationInfoAttributes()
+})
+
 // Organization Information Attributes
 func OrganizationInfoAttributes() {
 	dsl.Attribute("organization", func() {

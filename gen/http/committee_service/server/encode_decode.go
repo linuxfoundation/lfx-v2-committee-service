@@ -3251,11 +3251,31 @@ func EncodeJoinCommitteeResponse(encoder func(context.Context, http.ResponseWrit
 func DecodeJoinCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.JoinCommitteePayload, error) {
 	return func(r *http.Request) (*committeeservice.JoinCommitteePayload, error) {
 		var (
+			body JoinCommitteeRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				err = nil
+			} else {
+				var gerr *goa.ServiceError
+				if errors.As(err, &gerr) {
+					return nil, gerr
+				}
+				return nil, goa.DecodePayloadError(err.Error())
+			}
+		}
+		err = ValidateJoinCommitteeRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
 			uid         string
 			version     string
 			bearerToken *string
 			xSync       bool
-			err         error
 
 			params = mux.Vars(r)
 		)
@@ -3285,7 +3305,7 @@ func DecodeJoinCommitteeRequest(mux goahttp.Muxer, decoder func(*http.Request) g
 		if err != nil {
 			return nil, err
 		}
-		payload := NewJoinCommitteePayload(uid, version, bearerToken, xSync)
+		payload := NewJoinCommitteePayload(&body, uid, version, bearerToken, xSync)
 		if payload.BearerToken != nil {
 			if strings.Contains(*payload.BearerToken, " ") {
 				// Remove authorization scheme prefix (e.g. "Bearer")

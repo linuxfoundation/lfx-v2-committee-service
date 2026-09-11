@@ -2058,8 +2058,15 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 
 // BuildJoinCommitteePayload builds the payload for the committee-service
 // join-committee endpoint from CLI flags.
-func BuildJoinCommitteePayload(committeeServiceJoinCommitteeUID string, committeeServiceJoinCommitteeVersion string, committeeServiceJoinCommitteeBearerToken string, committeeServiceJoinCommitteeXSync string) (*committeeservice.JoinCommitteePayload, error) {
+func BuildJoinCommitteePayload(committeeServiceJoinCommitteeBody string, committeeServiceJoinCommitteeUID string, committeeServiceJoinCommitteeVersion string, committeeServiceJoinCommitteeBearerToken string, committeeServiceJoinCommitteeXSync string) (*committeeservice.JoinCommitteePayload, error) {
 	var err error
+	var body JoinCommitteeRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceJoinCommitteeBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"organization\": {\n         \"id\": \"org-123456\",\n         \"name\": \"The Linux Foundation\",\n         \"website\": \"https://linuxfoundation.org\"\n      }\n   }'")
+		}
+	}
 	var uid string
 	{
 		uid = committeeServiceJoinCommitteeUID
@@ -2093,13 +2100,30 @@ func BuildJoinCommitteePayload(committeeServiceJoinCommitteeUID string, committe
 			}
 		}
 	}
-	v := &committeeservice.JoinCommitteePayload{}
-	v.UID = uid
-	v.Version = version
-	v.BearerToken = bearerToken
-	v.XSync = xSync
+	v := &committeeservice.JoinCommitteeOptionalBody{}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	res := &committeeservice.JoinCommitteePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.Version = version
+	res.BearerToken = bearerToken
+	res.XSync = xSync
 
-	return v, nil
+	return res, nil
 }
 
 // BuildLeaveCommitteePayload builds the payload for the committee-service

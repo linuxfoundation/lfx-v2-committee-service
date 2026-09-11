@@ -348,6 +348,20 @@ type RejectApplicationRequestBody struct {
 	Notify *bool `form:"notify,omitempty" json:"notify,omitempty" xml:"notify,omitempty"`
 }
 
+// JoinCommitteeRequestBody is the type of the "committee-service" service
+// "join-committee" endpoint HTTP request body.
+type JoinCommitteeRequestBody struct {
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+}
+
 // CreateCommitteeLinkRequestBody is the type of the "committee-service"
 // service "create-committee-link" endpoint HTTP request body.
 type CreateCommitteeLinkRequestBody struct {
@@ -7326,14 +7340,31 @@ func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string,
 
 // NewJoinCommitteePayload builds a committee-service service join-committee
 // endpoint payload.
-func NewJoinCommitteePayload(uid string, version string, bearerToken *string, xSync bool) *committeeservice.JoinCommitteePayload {
-	v := &committeeservice.JoinCommitteePayload{}
-	v.UID = uid
-	v.Version = version
-	v.BearerToken = bearerToken
-	v.XSync = xSync
+func NewJoinCommitteePayload(body *JoinCommitteeRequestBody, uid string, version string, bearerToken *string, xSync bool) *committeeservice.JoinCommitteePayload {
+	v := &committeeservice.JoinCommitteeOptionalBody{}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+	res := &committeeservice.JoinCommitteePayload{
+		Body: v,
+	}
+	res.UID = uid
+	res.Version = version
+	res.BearerToken = bearerToken
+	res.XSync = xSync
 
-	return v
+	return res
 }
 
 // NewLeaveCommitteePayload builds a committee-service service leave-committee
@@ -8138,6 +8169,22 @@ func ValidateRejectApplicationRequestBody(body *RejectApplicationRequestBody) (e
 	if body.ReviewerNotes != nil {
 		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	return
+}
+
+// ValidateJoinCommitteeRequestBody runs the validations defined on
+// Join-CommitteeRequestBody
+func ValidateJoinCommitteeRequestBody(body *JoinCommitteeRequestBody) (err error) {
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
 		}
 	}
 	return

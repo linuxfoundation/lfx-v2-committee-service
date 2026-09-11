@@ -9,7 +9,7 @@ This document describes how committee membership is acquired, including the full
 Committees support four membership modes, configured via the `join_mode` field on the committee (stored on `CommitteeBase`):
 
 | `join_mode` | How members join |
-|-------------|-----------------|
+| ------------- | ----------------- |
 | `closed` | Admin creates members directly via `POST /committees/{uid}/members` |
 | `invite_only` | Admin creates an invite; invitee accepts it |
 | `application` | User submits an application; reviewer approves it |
@@ -24,6 +24,7 @@ Only one mode is active at a time. Endpoints that don't match the active `join_m
 When `join_mode: closed`, membership is entirely admin-controlled. There is no self-service path for users.
 
 **How it works:**
+
 - Admin calls `POST /committees/{uid}/members` with the new member's details.
 - The member is created immediately with `status: Active`.
 - Invites and applications are not accepted (`403 Forbidden`).
@@ -46,7 +47,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 ### Endpoints
 
 | Method | Path | Actor | Description |
-|--------|------|-------|-------------|
+| -------- | ------ | ------- | ------------- |
 | `POST` | `/committees/{uid}/invites` | Admin | Create a new invite (or reinstate a revoked one) |
 | `GET` | `/committees/{uid}/invites/{invite_uid}` | Admin | Retrieve an invite |
 | `POST` | `/committees/{uid}/invites/{invite_uid}/accept` | Invitee | Accept a pending or declined invite |
@@ -56,6 +57,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 ### Rules
 
 **Creating an invite** (`POST /committees/{uid}/invites`):
+
 - Creates a new invite with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
 - The service resolves the acting user (the authenticated principal) into an `inviter` object (`name`, `username`, `email`, `avatar`) and persists it on the invite, and sets `expires_at` to `created_at + 30 days` (mirroring the invite-service default token TTL). Both are indexed so the invitee can see who invited them and when the invite expires in-app, independent of email delivery. Inviter resolution is best-effort (`resolveInviterUser` in `cmd/committee-api/service/committee_service.go`): `username` is always the principal, while `name`/`avatar` (auth-service profile metadata) and `email` (primary email) degrade to empty on lookup failure. When there is no principal, `inviter` is omitted. On reinstate of a revoked invite, both `inviter` and `expires_at` are refreshed to the re-inviting actor and a fresh 30-day window.
@@ -67,7 +69,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   The request includes six `CustomClaims` (JWT `map[string]string`) so the BFF ([lfx-self-serve](https://github.com/linuxfoundation/lfx-self-serve)) can accept the invite on LFID registration without a secondary email-indexed fetch:
 
   | Claim key | Value | Notes |
-  |---|---|---|
+  | --- | --- | --- |
   | `committee_invite_uid` | `invite.UID` | UID of this specific committee invite record; lets the BFF resolve the exact invite without an email query |
   | `organization_required` | `"true"` / `"false"` | String-formatted bool (Go `map[string]string` constraint); derived from `invite.OrganizationRequired` |
   | `committee_name` | `invite.CommitteeName` | Used by the BFF as the org-collection dialog header |
@@ -78,6 +80,7 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
   All variable-length claims (`committee_name`, `organization_name`, `organization_id`, `organization_website`) are validated against the invite-service's 1024-byte per-claim limit before dispatch. Values that would exceed the limit are omitted (sent as empty string) and a warning is logged — relaying a truncated value is worse than omitting it, because the consumer treats non-empty claims as authoritative. **Note:** these custom claims are only present on invites dispatched via the API (`POST /committees/{uid}/invites`); the NATS-triggered `sendMemberInvite` path does not include them.
 
 **Accepting an invite** (`POST .../accept`):
+
 - Only the invitee can accept their own invite. The caller's email is resolved via the two-phase identity resolution described in [Identity Resolution](#identity-resolution): auth-service primary email (primary path) or the Heimdall JWT `email` claim (fallback for new accounts not yet propagated).
 - Optional body field `organization` replaces the stored invite organization when the payload includes an `id`; otherwise the invite record organization is used as-is (no field-level merging).
 - Allowed from: `pending`, `declined`.
@@ -88,11 +91,13 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 - Returns the created or existing committee member.
 
 **Declining an invite** (`POST .../decline`):
+
 - Only the invitee can decline.
 - Allowed from: `pending` only.
 - A declined invite can later be accepted or revoked.
 
 **Revoking an invite** (`DELETE /committees/{uid}/invites/{invite_uid}`):
+
 - Admin action.
 - Allowed from: `pending`, `declined`.
 - Blocked from: `accepted` (member already exists), `revoked` (already revoked).
@@ -113,7 +118,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 ### Endpoints
 
 | Method | Path | Actor | Description |
-|--------|------|-------|-------------|
+| -------- | ------ | ------- | ------------- |
 | `POST` | `/committees/{uid}/applications` | Applicant | Submit an application (or reinstate a rejected one) |
 | `GET` | `/committees/{uid}/applications/{application_uid}` | Admin / Applicant | Retrieve an application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/approve` | Reviewer | Approve a pending application |
@@ -122,6 +127,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 ### Rules
 
 **Submitting an application** (`POST /committees/{uid}/applications`):
+
 - Only available when `join_mode: application`.
 - The applicant's identity is resolved via the two-phase strategy described in [Identity Resolution](#identity-resolution) (auth-service primary path with JWT email claim fallback).
 - Creates a new application with `status: pending`.
@@ -131,17 +137,20 @@ rejected ──reapply──▶ pending  (reinstates existing record)
   - Any other status (`pending`, `approved`) — returns `409 Conflict`.
 
 **Approving an application** (`POST .../approve`):
+
 - Only allowed when `status: pending`.
 - On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry.
 - The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
 **Rejecting an application** (`POST .../reject`):
+
 - Only allowed when `status: pending`.
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
 
 **Email notifications (opt-in via `notify` request field, default `false`):**
+
 - **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
 - **Approved** — when `ApproveApplication` is called with `notify: true` and succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address. The generic member-added role notification is suppressed for LFID applicants when `notify: true` (the application-accepted email covers the same intent); email-only applicants still receive the invite-service invite.
 - **Rejected** — when `RejectApplication` is called with `notify: true` and succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
@@ -155,7 +164,10 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 When `join_mode: open`, any authenticated user can join without an invite or approval.
 
 **How it works:**
+
 - User calls `POST /committees/{uid}/join`.
+- Optional body field `organization` (`id`, `name`, `website`) stores the caller's confirmed organization on the new member record when provided. This is the organization the user entered in the join dialog. Committees with `enable_voting` or `business_email_required` reject the join with `400 Bad Request` when no usable organization is supplied (either an organization `id`, or both `name` and `website`) — the same gate applied to invites and applications.
+- When the body is omitted or carries no organization, the member's organization is populated only by the normal `enrichMemberOrganization` fallback (profile metadata, `name` only); non-gated committees join successfully as before.
 - A committee member is created immediately with `status: Active`.
 
 ---
@@ -193,12 +205,12 @@ Pending invite state is owned by the **invite service** (and committee invite en
 ### Overview
 
 | Context | Trigger | No LFID (`username` empty) | Has LFID |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Settings Writers / Auditors | `committee_settings.updated` diff | Send invite via invite service (`Manage` / `View` role) | Direct role-notification email |
 | Committee Members | `committee_member.created` | Send invite via invite service (`Member` role) | Direct member notification email |
 
 | User state | `username` field | Action |
-|---|---|---|
+| --- | --- | --- |
 | Has LFID | non-empty | Send a direct role-notification email via the email service |
 | No LFID | empty | Send an invite request to the invite service |
 
@@ -213,7 +225,7 @@ The invite service delivers the invite email. When the user completes LFID signu
 **Request payload** (`inviteapi.SendInviteRequest`, structured fields):
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | `recipient.email` | User's email address |
 | `recipient.name` | User's display name (FirstName + LastName); empty string when no real name is available, which causes the invite-service to render "Hi," with no recipient name |
 | `inviter.name` | Actor's display name resolved via auth-service; empty string when the acting user is unknown or the lookup fails, which causes the invite-service to use its `HasInviter=false` branch: "You've been invited to join …" |
@@ -312,7 +324,7 @@ nats kv get --server "$NATS_URL" committee-members <member_uid>
 ### Committee Invite API vs LFID Invite Flow
 
 | Mechanism | Records | Acceptance path |
-|---|---|---|
+| --- | --- | --- |
 | Committee invite API (`POST /committees/{uid}/invites`) | `CommitteeInvite` + member on accept | HTTP accept endpoint creates member immediately |
 | LFID invite flow (this section) | Email-only Writers, Auditors, Members | `lfx.invite-service.invite_accepted` enriches matching rows with `username` |
 
@@ -325,12 +337,14 @@ Both the member-create and member-delete endpoints accept an `X-Skip-Notificatio
 ### Member created (`POST /committees/{uid}/members`)
 
 When `X-Skip-Notification: true` is set:
+
 - `CommitteeMemberCreatedEventData.SkipNotification` is set to `true` in the `committee_member.created` NATS event payload.
 - `HandleCommitteeMemberCreated` short-circuits before sending either the direct notification email or the invite-service invite.
 
 ### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
 
 When `X-Skip-Notification: true` is set:
+
 - `CommitteeMemberDeletedEventData.SkipNotification` is set to `true` in the `committee_member.deleted` NATS event payload.
 - `HandleCommitteeMemberDeleted` short-circuits before sending the removal notification email.
 
@@ -343,6 +357,7 @@ When `X-Skip-Notification: true` is set:
 ### Scope
 
 `skip_notification` only gates the **notification email** for the affected member. It does not suppress:
+
 - Indexer messages (`lfx.index.*`) — those are always published.
 - FGA access-control messages — those are always published.
 - Settings-change emails (`HandleCommitteeSettingsUpdated`) — those are not gated by this flag.

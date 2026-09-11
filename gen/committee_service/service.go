@@ -1280,6 +1280,19 @@ type GroupWeeklyBriefWithReadonlyAttributes struct {
 	Revision *uint64
 }
 
+// Optional join-committee request body.
+type JoinCommitteeOptionalBody struct {
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
+}
+
 // JoinCommitteePayload is the payload type of the committee-service service
 // join-committee method.
 type JoinCommitteePayload struct {
@@ -1294,6 +1307,8 @@ type JoinCommitteePayload struct {
 	XSync bool
 	// Committee UID -- v2 uid, not related to v1 id directly
 	UID string
+	// Optional JSON body
+	Body *JoinCommitteeOptionalBody
 }
 
 // A single entry in a committee's key-dates timeline.
