@@ -55,5 +55,14 @@ func (m *MockOrgCommitteeSeatReader) ListOrgCommitteeSeats(_ context.Context, or
 			Role: model.CommitteeMemberRole{Name: "None"}, AppointedBy: "Membership Entitlement",
 			Voting: model.CommitteeMemberVotingInfo{Status: "Observer"}, Organization: org,
 		}},
+		// A seat stored with blank role/voting/appointed_by, as accept-invite, approve-application and
+		// join produce; the read path must emit "None" for each so generated clients accept the page.
+		{CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "11111111-1111-4111-8111-000000000015", CommitteeUID: "aaaaaaaa-0000-4000-8000-00000000c005",
+			CommitteeName: "Outreach Committee", CommitteeCategory: "Working Group",
+			FirstName: "First", LastName: "Last", Email: "first.last@example.com", JobTitle: "Community Manager",
+			Role: model.CommitteeMemberRole{Name: ""}, AppointedBy: "",
+			Voting: model.CommitteeMemberVotingInfo{Status: ""}, Organization: org,
+		}},
 	}, nil
 }
