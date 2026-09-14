@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	client "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/client"
+	server "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -152,6 +155,8 @@ func TestGetOrgCommitteeSeats(t *testing.T) {
 		assert.False(t, res.Seats[1].IsOrgEditable)
 		require.NotNil(t, res.Seats[1].Reason)
 		assert.NotEmpty(t, *res.Seats[1].Reason)
+		// Its fixture stores no voting status; the wire value must be the enum default, not "".
+		assert.Equal(t, "None", res.Seats[1].VotingStatus)
 
 		// Org + project family forwarded to the reader unchanged.
 		assert.Equal(t, testOrgSFID, reader.gotOrg)
@@ -427,5 +432,207 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		require.Len(t, writer.deleteCalls, 2)
 		assert.Equal(t, "m-1", writer.deleteCalls[0].uid)   // old member
 		assert.Equal(t, "m-new", writer.deleteCalls[1].uid) // rollback of created member
+	})
+}
+
+func TestOrgSeatFromMember_DefaultsBlankEnums(t *testing.T) {
+	base := func() model.CommitteeMemberBase {
+		return model.CommitteeMemberBase{
+			UID:          "11111111-1111-4111-8111-000000000021",
+			CommitteeUID: "aaaaaaaa-0000-4000-8000-00000000b0a4",
+			FirstName:    "First",
+			LastName:     "Last",
+			Email:        "first.last@example.com",
+			Organization: model.CommitteeMemberOrganization{ID: testOrgSFID},
+		}
+	}
+	cases := []struct {
+		name         string
+		role         string
+		voting       string
+		appointedBy  string
+		wantRole     string
+		wantVoting   string
+		wantAppt     string
+		wantEditable bool
+	}{
+		{
+			name: "all three blank default to None and the seat is not editable",
+			role: "", voting: "", appointedBy: "",
+			wantRole: "None", wantVoting: "None", wantAppt: "None", wantEditable: false,
+		},
+		{
+			name: "whitespace-only values default to None and the seat is not editable",
+			role: "  ", voting: "  ", appointedBy: "  ",
+			wantRole: "None", wantVoting: "None", wantAppt: "None", wantEditable: false,
+		},
+		{
+			name: "populated enum values pass through unchanged and the seat is editable",
+			role: "Director", voting: "Voting Rep", appointedBy: "Membership Entitlement",
+			wantRole: "Director", wantVoting: "Voting Rep", wantAppt: "Membership Entitlement", wantEditable: true,
+		},
+		{
+			// Surrounding whitespace is trimmed so the wire value matches the enum and agrees with
+			// isMembershipEntitlement, which already ignores it when computing editability.
+			name: "padded enum values are trimmed and the seat is editable",
+			role: " Director ", voting: "\tVoting Rep\n", appointedBy: " Membership Entitlement ",
+			wantRole: "Director", wantVoting: "Voting Rep", wantAppt: "Membership Entitlement", wantEditable: true,
+		},
+		{
+			name: "entitlement seat with blank role and voting is editable with None for both",
+			role: "", voting: "", appointedBy: "Membership Entitlement",
+			wantRole: "None", wantVoting: "None", wantAppt: "Membership Entitlement", wantEditable: true,
+		},
+		{
+			name: "an explicit None appointment type is not an entitlement",
+			role: "Director", voting: "Voting Rep", appointedBy: "None",
+			wantRole: "Director", wantVoting: "Voting Rep", wantAppt: "None", wantEditable: false,
+		},
+		{
+			// Documents the limitation: only blanks are defaulted. A non-blank legacy value that is
+			// not in the enum is passed through untouched (no case-folding, no mapping) and is NOT
+			// asserted to validate against the generated enum.
+			name: "non-blank non-enum values pass through unchanged",
+			role: "member", voting: "voting", appointedBy: "community",
+			wantRole: "member", wantVoting: "voting", wantAppt: "community", wantEditable: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b := base()
+			b.Role = model.CommitteeMemberRole{Name: c.role}
+			b.Voting = model.CommitteeMemberVotingInfo{Status: c.voting}
+			b.AppointedBy = c.appointedBy
+
+			seat := orgSeatFromMember(&model.CommitteeMember{CommitteeMemberBase: b})
+
+			assert.Equal(t, c.wantRole, seat.RoleName)
+			assert.Equal(t, c.wantVoting, seat.VotingStatus)
+			assert.Equal(t, c.wantAppt, seat.AppointedBy)
+			assert.Equal(t, c.wantEditable, seat.IsOrgEditable)
+			if c.wantEditable {
+				assert.Nil(t, seat.Reason)
+			} else {
+				require.NotNil(t, seat.Reason)
+				assert.NotEmpty(t, *seat.Reason)
+			}
+		})
+	}
+}
+
+// TestGetOrgCommitteeSeats_RoundTripValidatesAgainstGeneratedClient serialises a page that contains
+// members stored with blank or padded enum fields through the generated server response body, then decodes and
+// validates it with the generated client validator — the same validation every Goa-generated consumer
+// (lfx-mcp included) runs before it accepts the page. Blank stored values used to reach the wire as ""
+// and fail the whole page on the enum check.
+func TestGetOrgCommitteeSeats_RoundTripValidatesAgainstGeneratedClient(t *testing.T) {
+	member := func(uid, first, last, email, role, voting, appointedBy string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:               uid,
+			CommitteeUID:      "aaaaaaaa-0000-4000-8000-00000000b0a4",
+			CommitteeName:     "Governing Board",
+			CommitteeCategory: "Board",
+			FirstName:         first,
+			LastName:          last,
+			Email:             email,
+			Username:          "first-last",
+			Avatar:            "https://example.com/avatar.png",
+			Role:              model.CommitteeMemberRole{Name: role},
+			Voting:            model.CommitteeMemberVotingInfo{Status: voting},
+			AppointedBy:       appointedBy,
+			Organization:      model.CommitteeMemberOrganization{ID: testOrgSFID},
+			ProjectUID:        "11111111-1111-4111-8111-0000000000a1",
+			ProjectSlug:       "test-project",
+		}}
+	}
+	members := []*model.CommitteeMember{
+		member("11111111-1111-4111-8111-000000000031", "First", "Last", "first.last@example.com", "", "", ""),
+		member("11111111-1111-4111-8111-000000000032", "Second", "Last", "second.last@example.com", "  ", "  ", "  "),
+		member("11111111-1111-4111-8111-000000000033", "Third", "Last", "third.last@example.com", "Director", "Voting Rep", "Membership Entitlement"),
+		member("11111111-1111-4111-8111-000000000034", "Fourth", "Last", "fourth.last@example.com", " Director ", " Voting Rep ", " Membership Entitlement "),
+	}
+
+	t.Run("page with blank stored enums validates against the generated client", func(t *testing.T) {
+		reader := &stubOrgSeatReader{members: members}
+		svc := &committeeServicesrvc{orgSeatReader: reader}
+
+		page, err := svc.GetOrgCommitteeSeats(context.Background(), &committeeservice.GetOrgCommitteeSeatsPayload{
+			UID:         testOrgSFID,
+			ProjectUids: []string{"11111111-1111-4111-8111-0000000000a1"},
+		})
+		require.NoError(t, err)
+		require.Len(t, page.Seats, 4)
+
+		body := server.NewGetOrgCommitteeSeatsResponseBody(page)
+		raw, err := json.Marshal(body)
+		require.NoError(t, err)
+
+		var cb client.GetOrgCommitteeSeatsResponseBody
+		require.NoError(t, json.Unmarshal(raw, &cb))
+		require.NoError(t, client.ValidateGetOrgCommitteeSeatsResponseBody(&cb))
+
+		require.Len(t, cb.Seats, 4)
+		for i, want := range []struct{ role, voting, appt string }{
+			{"None", "None", "None"},
+			{"None", "None", "None"},
+			{"Director", "Voting Rep", "Membership Entitlement"},
+			{"Director", "Voting Rep", "Membership Entitlement"}, // padded values trimmed
+		} {
+			require.NotNil(t, cb.Seats[i].RoleName)
+			require.NotNil(t, cb.Seats[i].VotingStatus)
+			require.NotNil(t, cb.Seats[i].AppointedBy)
+			assert.Equal(t, want.role, *cb.Seats[i].RoleName, "seat %d role_name", i)
+			assert.Equal(t, want.voting, *cb.Seats[i].VotingStatus, "seat %d voting_status", i)
+			assert.Equal(t, want.appt, *cb.Seats[i].AppointedBy, "seat %d appointed_by", i)
+		}
+	})
+
+	// Negative controls: a hand-built client body with one blank enum field must be rejected by the
+	// generated validator, naming that field. This proves the round-trip above would have failed
+	// before orgSeatFromMember defaulted blanks to "None".
+	t.Run("generated client rejects a blank enum field", func(t *testing.T) {
+		validSeat := func() *client.OrgCommitteeSeatResponseBody {
+			uid := "11111111-1111-4111-8111-000000000041"
+			cuid := "aaaaaaaa-0000-4000-8000-00000000b0a4"
+			cname := "Governing Board"
+			ccat := "Board"
+			first := "First"
+			last := "Last"
+			email := "first.last@example.com"
+			role := "Director"
+			voting := "Voting Rep"
+			appt := "Membership Entitlement"
+			org := testOrgSFID
+			editable := true
+			return &client.OrgCommitteeSeatResponseBody{
+				UID: &uid, CommitteeUID: &cuid, CommitteeName: &cname, CommitteeCategory: &ccat,
+				FirstName: &first, LastName: &last, Email: &email,
+				RoleName: &role, VotingStatus: &voting, AppointedBy: &appt,
+				OrganizationID: &org, IsOrgEditable: &editable,
+			}
+		}
+		// Sanity: the valid seat validates, so any failure below is caused by the blank alone.
+		require.NoError(t, client.ValidateGetOrgCommitteeSeatsResponseBody(
+			&client.GetOrgCommitteeSeatsResponseBody{Seats: []*client.OrgCommitteeSeatResponseBody{validSeat()}}))
+
+		blank := ""
+		cases := []struct {
+			field string
+			mut   func(s *client.OrgCommitteeSeatResponseBody)
+		}{
+			{"role_name", func(s *client.OrgCommitteeSeatResponseBody) { s.RoleName = &blank }},
+			{"voting_status", func(s *client.OrgCommitteeSeatResponseBody) { s.VotingStatus = &blank }},
+			{"appointed_by", func(s *client.OrgCommitteeSeatResponseBody) { s.AppointedBy = &blank }},
+		}
+		for _, c := range cases {
+			t.Run(c.field, func(t *testing.T) {
+				seat := validSeat()
+				c.mut(seat)
+				err := client.ValidateGetOrgCommitteeSeatsResponseBody(
+					&client.GetOrgCommitteeSeatsResponseBody{Seats: []*client.OrgCommitteeSeatResponseBody{seat}})
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), c.field)
+			})
+		}
 	})
 }

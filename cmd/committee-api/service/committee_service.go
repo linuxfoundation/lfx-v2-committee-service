@@ -453,9 +453,31 @@ func isMembershipEntitlement(appointedBy string) bool {
 	return strings.EqualFold(strings.TrimSpace(appointedBy), "Membership Entitlement")
 }
 
+// seatEnumNone is the Default the seat DTO declares for role_name, voting_status and
+// appointed_by (cmd/committee-api/design/type.go). The three attributes are Required, so
+// Goa generates no zero-fill for them; a member stored with a blank value (accept-invite,
+// approve-application and join build members without one) would otherwise be serialised
+// as "" and rejected by every generated client's enum validation, failing the whole page.
+const seatEnumNone = "None"
+
+// seatEnumOrNone returns v with surrounding whitespace trimmed, or seatEnumNone when v is
+// blank (empty or whitespace-only). Trimming keeps the wire value consistent with
+// isMembershipEntitlement, which ignores surrounding whitespace, so is_org_editable and the
+// emitted appointed_by always agree. Beyond trimming, non-blank values are passed through
+// untouched: no case-folding and no enum mapping.
+func seatEnumOrNone(v string) string {
+	t := strings.TrimSpace(v)
+	if t == "" {
+		return seatEnumNone
+	}
+	return t
+}
+
 // orgSeatFromMember maps a domain committee member to the Org Lens seat DTO, computing the
 // endpoint-derived is_org_editable / reason from the appointment type.
 func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeSeat {
+	// Editability is derived from the RAW appointment type (isMembershipEntitlement is
+	// case/space-insensitive) before any enum defaulting is applied to the wire value.
 	editable := isMembershipEntitlement(m.AppointedBy)
 	seat := &committeeservice.OrgCommitteeSeat{
 		UID:               m.UID,
@@ -465,9 +487,9 @@ func orgSeatFromMember(m *model.CommitteeMember) *committeeservice.OrgCommitteeS
 		FirstName:         m.FirstName,
 		LastName:          m.LastName,
 		Email:             m.Email,
-		RoleName:          m.Role.Name,
-		VotingStatus:      m.Voting.Status,
-		AppointedBy:       m.AppointedBy,
+		RoleName:          seatEnumOrNone(m.Role.Name),
+		VotingStatus:      seatEnumOrNone(m.Voting.Status),
+		AppointedBy:       seatEnumOrNone(m.AppointedBy),
 		OrganizationID:    utils.NormalizeAccountSFID(m.Organization.ID),
 		IsOrgEditable:     editable,
 	}
