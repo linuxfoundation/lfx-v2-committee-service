@@ -526,15 +526,16 @@ func TestOrgSeatFromMember_DefaultsBlankEnums(t *testing.T) {
 // (lfx-mcp included) runs before it accepts the page. Blank stored values used to reach the wire as ""
 // and fail the whole page on the enum check.
 func TestGetOrgCommitteeSeats_RoundTripValidatesAgainstGeneratedClient(t *testing.T) {
-	member := func(uid, first, last, email, role, voting, appointedBy string) *model.CommitteeMember {
+	// All members carry the canonical placeholder identity; their UIDs keep them distinct.
+	member := func(uid, role, voting, appointedBy string) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:               uid,
 			CommitteeUID:      "aaaaaaaa-0000-4000-8000-00000000b0a4",
 			CommitteeName:     "Governing Board",
 			CommitteeCategory: "Board",
-			FirstName:         first,
-			LastName:          last,
-			Email:             email,
+			FirstName:         "First",
+			LastName:          "Last",
+			Email:             "first.last@example.com",
 			Username:          "first-last",
 			Avatar:            "https://example.com/avatar.png",
 			Role:              model.CommitteeMemberRole{Name: role},
@@ -546,10 +547,10 @@ func TestGetOrgCommitteeSeats_RoundTripValidatesAgainstGeneratedClient(t *testin
 		}}
 	}
 	members := []*model.CommitteeMember{
-		member("11111111-1111-4111-8111-000000000031", "First", "Last", "first.last@example.com", "", "", ""),
-		member("11111111-1111-4111-8111-000000000032", "Second", "Last", "second.last@example.com", "  ", "  ", "  "),
-		member("11111111-1111-4111-8111-000000000033", "Third", "Last", "third.last@example.com", "Director", "Voting Rep", "Membership Entitlement"),
-		member("11111111-1111-4111-8111-000000000034", "Fourth", "Last", "fourth.last@example.com", " Director ", " Voting Rep ", " Membership Entitlement "),
+		member("11111111-1111-4111-8111-000000000031", "", "", ""),
+		member("11111111-1111-4111-8111-000000000032", "  ", "  ", "  "),
+		member("11111111-1111-4111-8111-000000000033", "Director", "Voting Rep", "Membership Entitlement"),
+		member("11111111-1111-4111-8111-000000000034", " Director ", " Voting Rep ", " Membership Entitlement "),
 	}
 
 	t.Run("page with blank stored enums validates against the generated client", func(t *testing.T) {
