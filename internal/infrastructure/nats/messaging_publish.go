@@ -117,8 +117,14 @@ func (m *messagePublisher) publish(ctx context.Context, subject string, message 
 }
 
 // Indexer publishes an indexer message to the given NATS subject for search index updates.
-func (m *messagePublisher) Indexer(ctx context.Context, subject string, message any, sync bool) error {
-	return m.publish(ctx, subject, message, "indexer", sync)
+// The sync flag is intentionally ignored: the indexer now consumes messages from a
+// JetStream durable stream. With JetStream and AckExplicitPolicy, msg.Ack() sends to
+// the $JS.ACK... internal address — not the original publisher reply inbox — so
+// conn.Request() callers would never receive a reply and would time out. Indexer
+// messages are always published fire-and-forget; delivery guarantees are provided by
+// the JetStream stream (durable, at-least-once, exponential-backoff NAK on failure).
+func (m *messagePublisher) Indexer(ctx context.Context, subject string, message any, _ bool) error {
+	return m.publish(ctx, subject, message, "indexer", false)
 }
 
 // publishAccessAsync marshals and core-publishes an FGA access message to subject.
