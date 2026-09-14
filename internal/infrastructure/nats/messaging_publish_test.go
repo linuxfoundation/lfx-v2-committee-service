@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -120,12 +121,13 @@ func TestMessagePublisher_AccessCommandsPublishWithoutReply(t *testing.T) {
 
 // TestMessagePublisher_IndexerIgnoresSyncFlag verifies that Indexer() always
 // publishes fire-and-forget regardless of the sync argument. With
-// lfx-v2-indexer-service#68, the indexer is a JetStream durable consumer;
-// conn.Request() on JetStream-captured subjects receives a PubAck (not the
-// indexer's reply), so the sync path is broken. Reverting Indexer() to call
-// requestWithSpan must not silently re-break it — this test guards that.
+// lfx-v2-indexer-service#68, the indexer is a JetStream durable consumer.
+// The old QueueSubscribeWithReply consumer that replied "OK" to request inboxes
+// is gone; JetStream msg.Ack() sends to $JS.ACK..., not the original reply-to,
+// so conn.Request() calls on the indexer subject time out. Reverting Indexer()
+// to call requestWithSpan must not silently re-break it — this test guards that.
 func TestMessagePublisher_IndexerIgnoresSyncFlag(t *testing.T) {
-	subject := "lfx.index.committee"
+	subject := constants.IndexCommitteeSubject
 	message := map[string]string{"uid": "committee-1"}
 
 	for _, syncFlag := range []bool{false, true} {
