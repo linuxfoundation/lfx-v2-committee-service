@@ -34,7 +34,7 @@ Each message carries `object_type`, `operation`, and a `data` map. The sections 
 
 For HTTP committee and committee-invite writes, `update_access` publication remains best-effort. An immediate readiness, serialization, or NATS publish error is logged, but preserves the endpoint's existing response behavior after the resource operation succeeds.
 
-Committee deletion preserves its stricter existing error behavior: storage deletion occurs first, then an immediate NATS readiness, serialization, or core-publish error is returned to the HTTP layer. Making `delete_access` asynchronous eliminates its FGA request/reply and reply-timeout errors; indexer publishes are also fire-and-forget and no longer surface errors synchronously. The defensive committee-invite delete branch remains best-effort and logs publication failures.
+Committee deletion preserves its stricter existing error behavior: storage deletion occurs first, then an immediate NATS readiness, serialization, or core-publish error is returned to the HTTP layer. Making `delete_access` asynchronous eliminates its FGA request/reply and reply-timeout errors; indexer publishes are also fire-and-forget (no request/reply path), so their reply-timeout and request/reply errors are also eliminated — but immediate readiness, serialization, and core-publish errors still surface synchronously from `Indexer`. The defensive committee-invite delete branch remains best-effort and logs publication failures.
 
 A successful core publish means only that the NATS client accepted the message for delivery (no immediate client-side error); it is not a broker acknowledgement, and it does not mean that fga-sync or OpenFGA finished processing it.
 

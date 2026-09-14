@@ -145,8 +145,10 @@ func TestMessagePublisher_IndexerIgnoresSyncFlag(t *testing.T) {
 }
 
 // TestMessagePublisher_AccessMethodsErrors covers the shared readiness, serialization,
-// and core-publish failure paths for UpdateAccess, DeleteAccess, MemberPut, and
-// MemberRemove, which all funnel through the same publishAccessAsync helper.
+// and core-publish failure paths for UpdateAccess, DeleteAccess, MemberPut,
+// MemberRemove, and Indexer, which all funnel through the same publish/publishMessage
+// helpers. Indexer is included here to catch regressions in its error-propagation path
+// independent of sync-flag behaviour (covered by TestMessagePublisher_IndexerIgnoresSyncFlag).
 func TestMessagePublisher_AccessMethodsErrors(t *testing.T) {
 	methods := []struct {
 		name    string
@@ -156,6 +158,11 @@ func TestMessagePublisher_AccessMethodsErrors(t *testing.T) {
 		{name: "DeleteAccess", publish: func(p *messagePublisher) func(context.Context, any) error { return p.DeleteAccess }},
 		{name: "MemberPut", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberPut }},
 		{name: "MemberRemove", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberRemove }},
+		{name: "Indexer", publish: func(p *messagePublisher) func(context.Context, any) error {
+			return func(ctx context.Context, msg any) error {
+				return p.Indexer(ctx, constants.IndexCommitteeSubject, msg, false)
+			}
+		}},
 	}
 
 	tests := []struct {
