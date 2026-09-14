@@ -6,6 +6,23 @@ This document is the authoritative reference for all data the committee service 
 
 ---
 
+## Delivery
+
+All indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
+`lfx-v2-indexer-service#68` migrated the indexer from a core NATS queue subscription to a JetStream
+durable consumer. Under JetStream with `AckExplicitPolicy`, `msg.Ack()` sends to the internal
+`$JS.ACK...` address — not the original publisher reply inbox — so `conn.Request()` callers would never
+receive a reply and would time out.
+
+The `sync bool` parameter accepted by `messagePublisher.Indexer` is intentionally ignored; it is kept
+in the signature to avoid rippling call-site changes. Delivery guarantees are provided by the JetStream
+stream: durable consumer, at-least-once delivery, exponential-backoff NAK on handler failure.
+
+`conn.Publish` returns after the NATS client buffers the message locally — it is not a broker
+acknowledgement and does not confirm that the JetStream stream has accepted the message.
+
+---
+
 ## Resource Types
 
 - [Committee](#committee)

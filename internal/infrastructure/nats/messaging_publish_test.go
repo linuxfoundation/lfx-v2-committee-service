@@ -6,9 +6,11 @@ package nats
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	fgaconstants "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/constants"
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -117,9 +119,36 @@ func TestMessagePublisher_AccessCommandsPublishWithoutReply(t *testing.T) {
 	}
 }
 
+// TestMessagePublisher_IndexerIgnoresSyncFlag verifies that Indexer() always
+// publishes fire-and-forget regardless of the sync argument. With
+// lfx-v2-indexer-service#68, the indexer is a JetStream durable consumer.
+// The old QueueSubscribeWithReply consumer that replied "OK" to request inboxes
+// is gone; JetStream msg.Ack() sends to $JS.ACK..., not the original reply-to,
+// so conn.Request() calls on the indexer subject time out. Reverting Indexer()
+// to call requestWithSpan must not silently re-break it — this test guards that.
+func TestMessagePublisher_IndexerIgnoresSyncFlag(t *testing.T) {
+	subject := constants.IndexCommitteeSubject
+	message := map[string]string{"uid": "committee-1"}
+
+	for _, syncFlag := range []bool{false, true} {
+		t.Run(fmt.Sprintf("sync=%v uses publish not request", syncFlag), func(t *testing.T) {
+			client := &publisherClientStub{}
+			publisher := &messagePublisher{client: client}
+
+			err := publisher.Indexer(context.Background(), subject, message, syncFlag)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, client.published, "expected exactly one publish call")
+			assert.Zero(t, client.requested, "expected no request/reply call")
+		})
+	}
+}
+
 // TestMessagePublisher_AccessMethodsErrors covers the shared readiness, serialization,
-// and core-publish failure paths for UpdateAccess, DeleteAccess, MemberPut, and
-// MemberRemove, which all funnel through the same publishAccessAsync helper.
+// and core-publish failure paths for UpdateAccess, DeleteAccess, MemberPut,
+// MemberRemove, and Indexer, which all funnel through the same publish/publishMessage
+// helpers. Indexer is included here to catch regressions in its error-propagation path
+// independent of sync-flag behaviour (covered by TestMessagePublisher_IndexerIgnoresSyncFlag).
 func TestMessagePublisher_AccessMethodsErrors(t *testing.T) {
 	methods := []struct {
 		name    string
@@ -129,6 +158,11 @@ func TestMessagePublisher_AccessMethodsErrors(t *testing.T) {
 		{name: "DeleteAccess", publish: func(p *messagePublisher) func(context.Context, any) error { return p.DeleteAccess }},
 		{name: "MemberPut", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberPut }},
 		{name: "MemberRemove", publish: func(p *messagePublisher) func(context.Context, any) error { return p.MemberRemove }},
+		{name: "Indexer", publish: func(p *messagePublisher) func(context.Context, any) error {
+			return func(ctx context.Context, msg any) error {
+				return p.Indexer(ctx, constants.IndexCommitteeSubject, msg, false)
+			}
+		}},
 	}
 
 	tests := []struct {
