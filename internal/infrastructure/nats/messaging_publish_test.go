@@ -6,6 +6,7 @@ package nats
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -113,6 +114,30 @@ func TestMessagePublisher_AccessCommandsPublishWithoutReply(t *testing.T) {
 			}
 			assert.Contains(t, spanNames, "nats.publish")
 			assert.NotContains(t, spanNames, "nats.request")
+		})
+	}
+}
+
+// TestMessagePublisher_IndexerIgnoresSyncFlag verifies that Indexer() always
+// publishes fire-and-forget regardless of the sync argument. With
+// lfx-v2-indexer-service#68, the indexer is a JetStream durable consumer;
+// conn.Request() on JetStream-captured subjects receives a PubAck (not the
+// indexer's reply), so the sync path is broken. Reverting Indexer() to call
+// requestWithSpan must not silently re-break it — this test guards that.
+func TestMessagePublisher_IndexerIgnoresSyncFlag(t *testing.T) {
+	subject := "lfx.index.committee"
+	message := map[string]string{"uid": "committee-1"}
+
+	for _, syncFlag := range []bool{false, true} {
+		t.Run(fmt.Sprintf("sync=%v uses publish not request", syncFlag), func(t *testing.T) {
+			client := &publisherClientStub{}
+			publisher := &messagePublisher{client: client}
+
+			err := publisher.Indexer(context.Background(), subject, message, syncFlag)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, client.published, "expected exactly one publish call")
+			assert.Zero(t, client.requested, "expected no request/reply call")
 		})
 	}
 }
