@@ -626,3 +626,92 @@ func TestMessageRequest_UserMetadataByPrincipal(t *testing.T) {
 		})
 	}
 }
+
+// TestMessageRequest_ProjectLookup covers the project-service response discrimination
+// logic introduced by LFXV2-1747 for both the shared get path (Slug, Name) and Writers.
+func TestMessageRequest_ProjectLookup(t *testing.T) {
+	setupProjectGet := func(t *testing.T, subject string, responder func(uid string) []byte) *messageRequest {
+		t.Helper()
+		_, url := startTestNATSServer(t)
+		nc, err := nats.Connect(url)
+		require.NoError(t, err)
+		t.Cleanup(nc.Close)
+		_, err = nc.Subscribe(subject, func(msg *nats.Msg) {
+			_ = msg.Respond(responder(string(msg.Data)))
+		})
+		require.NoError(t, err)
+		require.NoError(t, nc.Flush())
+		return &messageRequest{client: &NATSClient{conn: nc, timeout: 2 * time.Second}}
+	}
+
+	t.Run("Slug - plain success", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetSlugSubject, func(string) []byte { return []byte("kubernetes") })
+		slug, err := r.Slug(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.NoError(t, err)
+		assert.Equal(t, "kubernetes", slug)
+	})
+
+	t.Run("Slug - not_found returns NotFound error", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetSlugSubject, func(string) []byte {
+			return []byte(`{"error":"not_found","message":"project not found"}`)
+		})
+		_, err := r.Slug(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.True(t, errors.As(err, &nf), "not_found code must map to NotFound, got %T: %v", err, err)
+	})
+
+	t.Run("Slug - internal code returns Unexpected, not NotFound", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetSlugSubject, func(string) []byte {
+			return []byte(`{"error":"internal","message":"internal server error"}`)
+		})
+		_, err := r.Slug(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.False(t, errors.As(err, &nf), "internal code must NOT look like NotFound — callers must distinguish a transient failure from a confirmed absence")
+		var unexpected pkgerrors.Unexpected
+		assert.True(t, errors.As(err, &unexpected), "internal code must map to Unexpected, got %T: %v", err, err)
+	})
+
+	t.Run("Name - not_found returns NotFound error", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetNameSubject, func(string) []byte {
+			return []byte(`{"error":"not_found"}`)
+		})
+		_, err := r.Name(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.True(t, errors.As(err, &nf), "not_found code must map to NotFound, got %T: %v", err, err)
+	})
+
+	t.Run("Writers - plain success", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetWritersSubject, func(string) []byte {
+			return []byte(`[{"username":"alice","name":"Alice Example","email":"alice@example.com"}]`)
+		})
+		writers, err := r.Writers(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.NoError(t, err)
+		require.Len(t, writers, 1)
+		assert.Equal(t, "alice", writers[0].Username)
+	})
+
+	t.Run("Writers - not_found returns NotFound error", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetWritersSubject, func(string) []byte {
+			return []byte(`{"error":"not_found"}`)
+		})
+		_, err := r.Writers(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.True(t, errors.As(err, &nf), "not_found code must map to NotFound, got %T: %v", err, err)
+	})
+
+	t.Run("Writers - internal code returns Unexpected, not NotFound", func(t *testing.T) {
+		r := setupProjectGet(t, constants.ProjectGetWritersSubject, func(string) []byte {
+			return []byte(`{"error":"internal"}`)
+		})
+		_, err := r.Writers(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.False(t, errors.As(err, &nf), "internal code must NOT look like NotFound")
+		var unexpected pkgerrors.Unexpected
+		assert.True(t, errors.As(err, &unexpected), "internal code must map to Unexpected, got %T: %v", err, err)
+	})
+}
