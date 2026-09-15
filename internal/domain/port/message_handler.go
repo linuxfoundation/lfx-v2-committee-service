@@ -15,6 +15,11 @@ type CommitteeAttributeHandler interface {
 	// Success reply: JSON-encoded GetCommitteeProjectResponse with ProjectUID set.
 	// Not-found reply: JSON-encoded GetCommitteeProjectResponse with Error set to "not found".
 	HandleCommitteeGetProject(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeExists checks whether a live committee already exists for a given
+	// project UID + name pair.
+	// Request payload: JSON-encoded CommitteeExistsRequest (pkg/api).
+	// Reply: JSON-encoded CommitteeExistsResponse. Exists=false is a normal (non-error) reply.
+	HandleCommitteeExists(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // CommitteeMemberHandler handles member-related messages: responding to external

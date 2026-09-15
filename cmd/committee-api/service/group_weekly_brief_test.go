@@ -62,6 +62,10 @@ func (r *stubCommitteeReader) ListMembersByCommittee(_ context.Context, _ string
 
 func (r *stubCommitteeReader) ListAllUIDs(_ context.Context) ([]string, error) { panic("not used") }
 
+func (r *stubCommitteeReader) FindUIDByProjectAndName(_ context.Context, _, _ string) (string, error) {
+	panic("not used")
+}
+
 func (r *stubCommitteeReader) GetBaseAttributeValue(_ context.Context, _, _ string) (any, error) {
 	panic("not used")
 }

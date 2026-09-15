@@ -3130,6 +3130,152 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	return b
 }
 
+func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
+	ctx := context.Background()
+
+	testCommitteeUID := uuid.New().String()
+	testProjectUID := uuid.New().String()
+	testCommittee := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        testCommitteeUID,
+			ProjectUID: testProjectUID,
+			Name:       "Test Committee",
+		},
+	}
+
+	tests := []struct {
+		name             string
+		setupMock        func(mockRepo *mock.MockRepository)
+		messageData      []byte
+		expectedError    bool
+		errorType        interface{}
+		validateResponse func(*testing.T, []byte)
+	}{
+		{
+			name: "success - committee exists, returns committee UID",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+				ProjectUID: testProjectUID,
+				Name:       "Test Committee",
+			}),
+			expectedError: false,
+			validateResponse: func(t *testing.T, response []byte) {
+				var resp committeeapi.CommitteeExistsResponse
+				require.NoError(t, json.Unmarshal(response, &resp))
+				assert.True(t, resp.Exists)
+				assert.Equal(t, testCommitteeUID, resp.CommitteeUID)
+				assert.Empty(t, resp.Error)
+			},
+		},
+		{
+			name: "not found - no committee for project and name",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+				ProjectUID: testProjectUID,
+				Name:       "Some Other Committee",
+			}),
+			expectedError: false,
+			validateResponse: func(t *testing.T, response []byte) {
+				var resp committeeapi.CommitteeExistsResponse
+				require.NoError(t, json.Unmarshal(response, &resp))
+				assert.False(t, resp.Exists)
+				assert.Empty(t, resp.CommitteeUID)
+				assert.Empty(t, resp.Error)
+			},
+		},
+		{
+			name: "not found - same name but different project",
+			setupMock: func(mockRepo *mock.MockRepository) {
+				mockRepo.ClearAll()
+				mockRepo.AddCommittee(testCommittee)
+			},
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+				ProjectUID: uuid.New().String(),
+				Name:       "Test Committee",
+			}),
+			expectedError: false,
+			validateResponse: func(t *testing.T, response []byte) {
+				var resp committeeapi.CommitteeExistsResponse
+				require.NoError(t, json.Unmarshal(response, &resp))
+				assert.False(t, resp.Exists)
+				assert.Empty(t, resp.CommitteeUID)
+			},
+		},
+		{
+			name:          "malformed JSON payload - returns validation error",
+			setupMock:     func(mockRepo *mock.MockRepository) {},
+			messageData:   []byte(`not-json`),
+			expectedError: true,
+			errorType:     errs.Validation{},
+			validateResponse: func(t *testing.T, response []byte) {
+				assert.Nil(t, response)
+			},
+		},
+		{
+			name:      "invalid project UUID in payload - returns validation error",
+			setupMock: func(mockRepo *mock.MockRepository) {},
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+				ProjectUID: "not-a-uuid",
+				Name:       "Test Committee",
+			}),
+			expectedError: true,
+			errorType:     errs.Validation{},
+			validateResponse: func(t *testing.T, response []byte) {
+				assert.Nil(t, response)
+			},
+		},
+		{
+			name:      "missing name in payload - returns validation error",
+			setupMock: func(mockRepo *mock.MockRepository) {},
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+				ProjectUID: testProjectUID,
+				Name:       "",
+			}),
+			expectedError: true,
+			errorType:     errs.Validation{},
+			validateResponse: func(t *testing.T, response []byte) {
+				assert.Nil(t, response)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			tt.setupMock(mockRepo)
+
+			handler := NewMessageHandlerOrchestrator(
+				WithCommitteeReaderForMessageHandler(
+					NewCommitteeReaderOrchestrator(
+						WithCommitteeReader(mockRepo),
+					),
+				),
+			)
+
+			mockMsg := newMockTransportMessenger(constants.CommitteeExistsSubject, tt.messageData)
+
+			response, err := handler.HandleCommitteeExists(ctx, mockMsg)
+
+			if tt.expectedError {
+				require.Error(t, err)
+				if tt.errorType != nil {
+					assert.IsType(t, tt.errorType, err)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateResponse(t, response)
+		})
+	}
+}
+
 func TestHandleUserDeleted(t *testing.T) {
 	ctx := context.Background()
 

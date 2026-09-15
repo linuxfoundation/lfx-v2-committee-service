@@ -21,6 +21,12 @@ const (
 	// Request/response types: pkg/api.GetCommitteeProjectRequest / pkg/api.GetCommitteeProjectResponse
 	CommitteeGetProjectSubject = "lfx.committee-api.get_project"
 
+	// CommitteeExistsSubject is the subject for checking whether a live committee
+	// already exists for a given project UID + name pair.
+	// The subject is of the form: lfx.committee-api.exists
+	// Request/response types: pkg/api.CommitteeExistsRequest / pkg/api.CommitteeExistsResponse
+	CommitteeExistsSubject = "lfx.committee-api.exists"
+
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"

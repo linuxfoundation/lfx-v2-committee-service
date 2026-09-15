@@ -93,3 +93,42 @@ func (h *committeeAttributeHandler) HandleCommitteeGetProject(ctx context.Contex
 
 	return json.Marshal(committeeapi.GetCommitteeProjectResponse{ProjectUID: committee.ProjectUID})
 }
+
+func (h *committeeAttributeHandler) HandleCommitteeExists(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	var req committeeapi.CommitteeExistsRequest
+	if err := json.Unmarshal(msg.Data(), &req); err != nil {
+		slog.ErrorContext(ctx, "failed to unmarshal exists request", "error", err)
+		return nil, errs.NewValidation("invalid exists request payload")
+	}
+
+	ctx = log.AppendCtx(ctx, slog.String("project_uid", req.ProjectUID))
+	ctx = log.AppendCtx(ctx, slog.String("name", req.Name))
+	slog.DebugContext(ctx, "committee exists request")
+
+	if _, err := uuid.Parse(req.ProjectUID); err != nil {
+		slog.ErrorContext(ctx, "invalid project UID in exists request", "error", err, "project_uid", req.ProjectUID)
+		return nil, errs.NewValidation("invalid project UID", err)
+	}
+
+	if req.Name == "" {
+		return nil, errs.NewValidation("name is required in exists request")
+	}
+
+	committeeUID, err := h.committeeReader.FindUIDByProjectAndName(ctx, req.ProjectUID, req.Name)
+	if err != nil {
+		var nf errs.NotFound
+		if stderrors.As(err, &nf) {
+			slog.DebugContext(ctx, "no committee found for exists request")
+			return json.Marshal(committeeapi.CommitteeExistsResponse{Exists: false})
+		}
+		slog.ErrorContext(ctx, "failed to look up committee by project and name for exists request",
+			"error", err,
+			"project_uid", req.ProjectUID,
+		)
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "committee exists response", "committee_uid", committeeUID)
+
+	return json.Marshal(committeeapi.CommitteeExistsResponse{Exists: true, CommitteeUID: committeeUID})
+}

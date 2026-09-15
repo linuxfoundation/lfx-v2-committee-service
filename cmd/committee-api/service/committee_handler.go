@@ -30,6 +30,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeGetNameSubject:              mhs.handleCommitteeGetName,
 		constants.CommitteeListMembersSubject:          mhs.handleCommitteeListMembers,
 		constants.CommitteeGetProjectSubject:           mhs.handleCommitteeGetProject,
+		constants.CommitteeExistsSubject:               mhs.handleCommitteeExists,
 		constants.MailingListCommitteeChangedSubject:   mhs.handleMailingListChanged,
 		constants.CommitteeUpdatedSubject:              mhs.handleCommitteeUpdated,
 		constants.CommitteeMemberCreatedSubject:        mhs.handleCommitteeMemberCreated,
@@ -124,6 +125,10 @@ func (mhs *MessageHandlerService) handleCommitteeApplicationUpdated(ctx context.
 
 func (mhs *MessageHandlerService) handleCommitteeGetProject(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleCommitteeGetProject(ctx, msg)
+}
+
+func (mhs *MessageHandlerService) handleCommitteeExists(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeExists(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {

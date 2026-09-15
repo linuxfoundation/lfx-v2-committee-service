@@ -101,6 +101,26 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 	return ssoGroupKey, nil
 }
 
+// FindUIDByProjectAndName looks up the UID of a live committee within a project by name,
+// reading the same project+name uniqueness index key that UniqueNameProject creates on
+// committee create and Delete removes on committee deletion. Returns errs.NotFound when
+// no live committee matches (including a committee that has since been deleted).
+func (s *storage) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
+
+	committee := &model.Committee{CommitteeBase: model.CommitteeBase{ProjectUID: projectUID, Name: name}}
+	nameIndexKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
+
+	entry, errGet := s.client.kvStore[constants.KVBucketNameCommittees].Get(ctx, nameIndexKey)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return "", errs.NewNotFound("committee not found for project and name")
+		}
+		return "", errs.NewUnexpected("failed to get committee name index", errGet)
+	}
+
+	return string(entry.Value()), nil
+}
+
 // get retrieves a model from the NATS KV store by bucket and UID.
 // It unmarshals the data into the provided model and returns the revision.
 // If the UID is empty, it returns a validation error.

@@ -277,6 +277,25 @@ func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, e
 	return 1, nil
 }
 
+// FindUIDByProjectAndName looks up the UID of a live committee within a project by name,
+// mirroring the real storage's project+name uniqueness index (keyed by BuildIndexKey).
+func (m *MockRepository) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
+	slog.DebugContext(ctx, "mock repository: finding committee uid by project and name",
+		"project_uid", projectUID,
+	)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := (&model.Committee{CommitteeBase: model.CommitteeBase{ProjectUID: projectUID, Name: name}}).BuildIndexKey(ctx)
+	committee, exists := m.committeeIndexKeys[key]
+	if !exists {
+		return "", errors.NewNotFound("committee not found for project and name")
+	}
+
+	return committee.CommitteeBase.UID, nil
+}
+
 // ListAllUIDs returns all committee UIDs from the mock repository.
 func (m *MockRepository) ListAllUIDs(ctx context.Context) ([]string, error) {
 	slog.DebugContext(ctx, "mock repository: listing all committee UIDs")
