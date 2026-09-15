@@ -5,7 +5,7 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -136,7 +136,15 @@ func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg por
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
-	errResponse := []byte(fmt.Sprintf(`{"error":"%s"}`, errorMsg))
+	errResponse, err := json.Marshal(struct {
+		Error string `json:"error"`
+	}{Error: errorMsg})
+	if err != nil {
+		// errorMsg is always a plain string, so this should be unreachable; fall back
+		// to a static, always-valid payload rather than risk emitting broken JSON.
+		slog.ErrorContext(ctx, "failed to marshal error response", "error", err)
+		errResponse = []byte(`{"error":"internal error"}`)
+	}
 	if err := msg.Respond(errResponse); err != nil {
 		slog.ErrorContext(ctx, "failed to send error response", "error", err)
 	}
