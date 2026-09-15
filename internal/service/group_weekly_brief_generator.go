@@ -152,13 +152,6 @@ func WithGroupWeeklyBriefPublisher(p port.CommitteePublisher) GroupWeeklyBriefGe
 	return func(g *groupWeeklyBriefGenerator) { g.publisher = p }
 }
 
-// WithCommitteeNameLookup wires the function the orchestrator uses to
-// hydrate committee and project names for the prompt. The lookup is optional —
-// if absent the brief still generates, just with generic labels.
-func WithCommitteeNameLookup(f func(ctx context.Context, uid string) (string, string, error)) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.committeeName = f }
-}
-
 // NewGroupWeeklyBriefGeneratorOrchestrator builds the orchestrator. All ports
 // except the lookup are required.
 func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorOption) GroupWeeklyBriefGenerator {
