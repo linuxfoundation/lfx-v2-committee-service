@@ -11,7 +11,6 @@ import (
 
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
@@ -148,16 +147,6 @@ func (s *committeeServicesrvc) stampAuditUsers(ctx context.Context) (*model.Comm
 	}
 	updated := model.CloneCommitteeUser(creator)
 	return creator, updated
-}
-
-// ResolveAuditUserProfile best-effort resolves a username into a full CommitteeUser via auth-service.
-func ResolveAuditUserProfile(ctx context.Context, reader port.UserReader, username string) *model.CommitteeUser {
-	username = strings.TrimSpace(username)
-	if username == "" || reader == nil {
-		return nil
-	}
-	svc := &committeeServicesrvc{userReader: reader}
-	return svc.enrichAuditUserIfMissing(ctx, &model.CommitteeUser{Username: username})
 }
 
 func committeeUserToGoa(u *model.CommitteeUser) *committeeservice.CommitteeUser {

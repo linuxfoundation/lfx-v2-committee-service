@@ -136,10 +136,3 @@ func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port
 		slog.ErrorContext(ctx, "failed to send error response", "error", err)
 	}
 }
-
-// NewMessageHandlerService creates a new message handler service
-func NewMessageHandlerService(messageHandler port.MessageHandler) *MessageHandlerService {
-	return &MessageHandlerService{
-		messageHandler: messageHandler,
-	}
-}
