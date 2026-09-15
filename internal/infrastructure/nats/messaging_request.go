@@ -16,6 +16,19 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
+// projectServiceErrorCode returns the error code from a project-service error
+// envelope ({"error":"not_found",...} or {"error":"internal",...}), or "" if
+// data is a normal success payload.
+func projectServiceErrorCode(data []byte) string {
+	var env struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(data, &env) != nil {
+		return ""
+	}
+	return env.Error
+}
+
 type messageRequest struct {
 	client *NATSClient
 }
@@ -26,6 +39,15 @@ func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, 
 	_, msg, err := m.client.requestWithSpan(ctx, subject, data)
 	if err != nil {
 		return "", err
+	}
+
+	// Project-service returns {"error":"<code>",...} on errors; any other response
+	// is a success value.
+	if code := projectServiceErrorCode(msg.Data); code != "" {
+		if code == "not_found" {
+			return "", errors.NewNotFound(fmt.Sprintf("project %s not found", uid))
+		}
+		return "", errors.NewUnexpected(fmt.Sprintf("project-service error for %s (code=%s)", uid, code))
 	}
 
 	attribute := string(msg.Data)
@@ -53,6 +75,15 @@ func (m *messageRequest) Writers(ctx context.Context, uid string) ([]model.Commi
 	_, msg, err := m.client.requestWithSpan(ctx, constants.ProjectGetWritersSubject, []byte(uid))
 	if err != nil {
 		return nil, fmt.Errorf("get_writers request failed for project %s: %w", uid, err)
+	}
+
+	// Project-service returns {"error":"<code>",...} on errors; any other response
+	// is a success value.
+	if code := projectServiceErrorCode(msg.Data); code != "" {
+		if code == "not_found" {
+			return nil, errors.NewNotFound(fmt.Sprintf("project %s not found", uid))
+		}
+		return nil, errors.NewUnexpected(fmt.Sprintf("project-service error for %s (code=%s)", uid, code))
 	}
 
 	var writers []model.CommitteeUser
