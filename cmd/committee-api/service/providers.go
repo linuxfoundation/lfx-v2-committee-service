@@ -1001,6 +1001,7 @@ func QueueSubscriptions(ctx context.Context, committeeReader port.CommitteeReade
 		constants.CommitteeGetNameSubject:              messageHandlerService.HandleMessage,
 		constants.CommitteeListMembersSubject:          messageHandlerService.HandleMessage,
 		constants.CommitteeGetProjectSubject:           messageHandlerService.HandleMessage,
+		constants.CommitteeExistsSubject:               messageHandlerService.HandleMessage,
 		constants.MailingListCommitteeChangedSubject:   messageHandlerService.HandleMessage,
 		constants.CommitteeUpdatedSubject:              messageHandlerService.HandleMessage,
 		constants.CommitteeMemberCreatedSubject:        messageHandlerService.HandleMessage,

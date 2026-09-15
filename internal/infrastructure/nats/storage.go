@@ -105,6 +105,13 @@ func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Commi
 // reading the same project+name uniqueness index key that UniqueNameProject creates on
 // committee create and Delete removes on committee deletion. Returns errs.NotFound when
 // no live committee matches (including a committee that has since been deleted).
+//
+// Index cleanup on delete/rename is best-effort (committee_writer.go logs failures and
+// continues rather than aborting), so the index key alone is not sufficient evidence that
+// a live committee exists: it may point at a UID that was deleted, or whose project/name
+// has since changed. The primary record is resolved and re-verified against the requested
+// project/name before reporting a hit, mirroring the stale-index defense already applied
+// in ListMembersByEmail.
 func (s *storage) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
 
 	committee := &model.Committee{CommitteeBase: model.CommitteeBase{ProjectUID: projectUID, Name: name}}
@@ -118,7 +125,26 @@ func (s *storage) FindUIDByProjectAndName(ctx context.Context, projectUID, name 
 		return "", errs.NewUnexpected("failed to get committee name index", errGet)
 	}
 
-	return string(entry.Value()), nil
+	uid := string(entry.Value())
+
+	base, _, errBase := s.GetBase(ctx, uid)
+	if errBase != nil {
+		var nf errs.NotFound
+		if errors.As(errBase, &nf) {
+			// Stale index key: the committee it points to was deleted and the
+			// secondary index cleanup either lagged or failed.
+			return "", errs.NewNotFound("committee not found for project and name")
+		}
+		return "", errs.NewUnexpected("failed to resolve committee for name index", errBase)
+	}
+
+	if base.ProjectUID != projectUID || base.Name != name {
+		// Stale index key: the committee was renamed or reparented and the old
+		// index entry either lagged or failed to be cleaned up.
+		return "", errs.NewNotFound("committee not found for project and name")
+	}
+
+	return uid, nil
 }
 
 // get retrieves a model from the NATS KV store by bucket and UID.
