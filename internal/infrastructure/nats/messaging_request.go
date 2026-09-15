@@ -52,7 +52,10 @@ func (m *messageRequest) get(ctx context.Context, subject, uid string) (string, 
 
 	attribute := string(msg.Data)
 	if attribute == "" {
-		return "", errors.NewNotFound(fmt.Sprintf("project attribute %s not found for uid: %s", subject, uid))
+		// An empty body is not a confirmed absence: only {"error":"not_found"}
+		// proves absence. An absent body is ambiguous (transport or dispatch
+		// failure) and must not be treated as a definitive not-found.
+		return "", errors.NewUnexpected(fmt.Sprintf("empty reply for project attribute %s uid: %s", subject, uid))
 	}
 
 	return attribute, nil

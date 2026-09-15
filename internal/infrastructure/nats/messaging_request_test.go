@@ -685,12 +685,12 @@ func TestMessageRequest_ProjectLookup(t *testing.T) {
 
 	t.Run("Writers - plain success", func(t *testing.T) {
 		r := setupProjectGet(t, constants.ProjectGetWritersSubject, func(string) []byte {
-			return []byte(`[{"username":"alice","name":"Alice Example","email":"alice@example.com"}]`)
+			return []byte(`[{"username":"alice-example","name":"Alice Example","email":"alice@example.com"}]`)
 		})
 		writers, err := r.Writers(context.Background(), "00000000-0000-0000-0000-000000000001")
 		require.NoError(t, err)
 		require.Len(t, writers, 1)
-		assert.Equal(t, "alice", writers[0].Username)
+		assert.Equal(t, "alice-example", writers[0].Username)
 	})
 
 	t.Run("Writers - not_found returns NotFound error", func(t *testing.T) {
@@ -713,5 +713,21 @@ func TestMessageRequest_ProjectLookup(t *testing.T) {
 		assert.False(t, errors.As(err, &nf), "internal code must NOT look like NotFound")
 		var unexpected pkgerrors.Unexpected
 		assert.True(t, errors.As(err, &unexpected), "internal code must map to Unexpected, got %T: %v", err, err)
+	})
+
+	t.Run("Slug - empty body returns Unexpected, not NotFound", func(t *testing.T) {
+		// Regression: empty body must not be treated as a confirmed absence.
+		// Only {"error":"not_found"} proves absence; an absent body is an
+		// ambiguous transport/dispatch failure.
+		r := setupProjectGet(t, constants.ProjectGetSlugSubject, func(string) []byte {
+			return []byte{}
+		})
+		_, err := r.Slug(context.Background(), "00000000-0000-0000-0000-000000000001")
+		require.Error(t, err)
+		var nf pkgerrors.NotFound
+		assert.False(t, errors.As(err, &nf),
+			"empty body must NOT map to NotFound — only {\"error\":\"not_found\"} is a confirmed absence")
+		var unexpected pkgerrors.Unexpected
+		assert.True(t, errors.As(err, &unexpected), "empty body must map to Unexpected, got %T: %v", err, err)
 	})
 }
