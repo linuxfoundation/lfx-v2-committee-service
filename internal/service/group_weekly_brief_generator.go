@@ -152,7 +152,7 @@ func WithGroupWeeklyBriefPublisher(p port.CommitteePublisher) GroupWeeklyBriefGe
 }
 
 // NewGroupWeeklyBriefGeneratorOrchestrator builds the orchestrator. All ports
-// except the lookup are required.
+// except the publisher are required.
 func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorOption) GroupWeeklyBriefGenerator {
 	g := &groupWeeklyBriefGenerator{}
 	for _, opt := range opts {
