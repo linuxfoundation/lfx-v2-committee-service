@@ -32,7 +32,7 @@ func TestHighestRole_CaseInsensitiveWriter(t *testing.T) {
 	assert.Equal(t, "WRITER", highestRole([]string{"WRITER"}))
 }
 
-func TestHighestRole_NoWriterReturnsFistElement(t *testing.T) {
+func TestHighestRole_NoWriterReturnsFirstElement(t *testing.T) {
 	// No Writer present → falls back to roles[0].
 	assert.Equal(t, "Auditor", highestRole([]string{"Auditor"}))
 	assert.Equal(t, "Member", highestRole([]string{"Member", "Auditor"}))

@@ -27,6 +27,7 @@ func TestValidation_Error(t *testing.T) {
 func TestValidation_ErrorWithWrapped(t *testing.T) {
 	err := NewValidation("invalid input", errSentinel)
 	assert.Equal(t, fmt.Sprintf("invalid input: %v", errSentinel), err.Error())
+	assert.True(t, errors.Is(err, errSentinel), "errors.Is must reach the wrapped cause")
 }
 
 func TestValidation_ErrorsAs(t *testing.T) {
@@ -41,6 +42,9 @@ func TestValidation_MultipleWrapped(t *testing.T) {
 	err := NewValidation("multi", errSentinel, second)
 	assert.Contains(t, err.Error(), "underlying cause")
 	assert.Contains(t, err.Error(), "second cause")
+	// errors.Join wraps both; errors.Is must find either cause through Unwrap.
+	assert.True(t, errors.Is(err, errSentinel), "errors.Is must reach the first joined cause")
+	assert.True(t, errors.Is(err, second), "errors.Is must reach the second joined cause")
 }
 
 func TestValidation_NoWrap_ReturnsNonNilError(t *testing.T) {
@@ -204,6 +208,7 @@ func TestUnexpected_ErrorWithWrapped(t *testing.T) {
 	err := NewUnexpected("something went wrong", errSentinel)
 	assert.Contains(t, err.Error(), "something went wrong")
 	assert.Contains(t, err.Error(), "underlying cause")
+	assert.True(t, errors.Is(err, errSentinel), "errors.Is must reach the wrapped cause")
 }
 
 func TestUnexpected_ErrorsAs(t *testing.T) {
