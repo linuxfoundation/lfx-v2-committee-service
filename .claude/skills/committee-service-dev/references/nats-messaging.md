@@ -19,6 +19,7 @@ Repo-local inventory of NATS subjects, queue groups, KV buckets, Object Stores, 
 "lfx.committee-api.get_name"                      // get committee name by UID
 "lfx.committee-api.list_members"                  // list committee members
 "lfx.committee-api.get_project"                   // resolve committee UID to owning project UID (pkg/api: GetCommitteeProjectRequest/Response)
+"lfx.committee-api.name_to_uid"                   // resolve committee UID from project UID + name (pkg/api: CommitteeNameToUIDRequest/Response)
 ```
 
 ### Inbound event subjects (consumed from other services)

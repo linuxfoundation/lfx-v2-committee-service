@@ -111,12 +111,11 @@ type ActivitySources struct {
 }
 
 type groupWeeklyBriefGenerator struct {
-	briefReader   port.GroupWeeklyBriefReader
-	briefWriter   port.GroupWeeklyBriefWriter
-	sources       ActivitySources
-	ai            port.AIAdapter
-	publisher     port.CommitteePublisher
-	committeeName func(ctx context.Context, uid string) (committeeName, projectName string, err error)
+	briefReader port.GroupWeeklyBriefReader
+	briefWriter port.GroupWeeklyBriefWriter
+	sources     ActivitySources
+	ai          port.AIAdapter
+	publisher   port.CommitteePublisher
 }
 
 // GroupWeeklyBriefGeneratorOption configures the orchestrator.
@@ -152,15 +151,8 @@ func WithGroupWeeklyBriefPublisher(p port.CommitteePublisher) GroupWeeklyBriefGe
 	return func(g *groupWeeklyBriefGenerator) { g.publisher = p }
 }
 
-// WithCommitteeNameLookup wires the function the orchestrator uses to
-// hydrate committee and project names for the prompt. The lookup is optional —
-// if absent the brief still generates, just with generic labels.
-func WithCommitteeNameLookup(f func(ctx context.Context, uid string) (string, string, error)) GroupWeeklyBriefGeneratorOption {
-	return func(g *groupWeeklyBriefGenerator) { g.committeeName = f }
-}
-
 // NewGroupWeeklyBriefGeneratorOrchestrator builds the orchestrator. All ports
-// except the lookup are required.
+// except the publisher are required.
 func NewGroupWeeklyBriefGeneratorOrchestrator(opts ...GroupWeeklyBriefGeneratorOption) GroupWeeklyBriefGenerator {
 	g := &groupWeeklyBriefGenerator{}
 	for _, opt := range opts {
@@ -593,17 +585,6 @@ func (g *groupWeeklyBriefGenerator) gatherAndGenerate(
 	memberCount int,
 	membersHidden bool,
 ) (briefText string, sourceRefs []model.SourceRef, privateSourcePresent bool, promptVersion, modelLabel string, err error) {
-	// Resolve names from the committee lookup if not supplied by the caller.
-	if (committeeName == "" || projectName == "") && g.committeeName != nil {
-		if cn, pn, errLookup := g.committeeName(ctx, committeeUID); errLookup == nil {
-			if committeeName == "" {
-				committeeName = cn
-			}
-			if projectName == "" {
-				projectName = pn
-			}
-		}
-	}
 	if len(summaries) > maxSummaryCount {
 		summaries = summaries[:maxSummaryCount]
 	}

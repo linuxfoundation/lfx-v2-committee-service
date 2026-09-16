@@ -15,6 +15,11 @@ type CommitteeAttributeHandler interface {
 	// Success reply: JSON-encoded GetCommitteeProjectResponse with ProjectUID set.
 	// Not-found reply: JSON-encoded GetCommitteeProjectResponse with Error set to "not found".
 	HandleCommitteeGetProject(ctx context.Context, msg TransportMessenger) ([]byte, error)
+	// HandleCommitteeNameToUID resolves a committee's UID from its project UID + name.
+	// Request payload: JSON-encoded CommitteeNameToUIDRequest (pkg/api).
+	// Reply: JSON-encoded CommitteeNameToUIDResponse. An empty CommitteeUID is a normal
+	// (non-error) miss.
+	HandleCommitteeNameToUID(ctx context.Context, msg TransportMessenger) ([]byte, error)
 }
 
 // CommitteeMemberHandler handles member-related messages: responding to external

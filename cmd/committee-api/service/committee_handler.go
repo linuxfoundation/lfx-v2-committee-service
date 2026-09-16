@@ -5,7 +5,7 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -30,6 +30,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeGetNameSubject:              mhs.handleCommitteeGetName,
 		constants.CommitteeListMembersSubject:          mhs.handleCommitteeListMembers,
 		constants.CommitteeGetProjectSubject:           mhs.handleCommitteeGetProject,
+		constants.CommitteeNameToUIDSubject:            mhs.handleCommitteeNameToUID,
 		constants.MailingListCommitteeChangedSubject:   mhs.handleMailingListChanged,
 		constants.CommitteeUpdatedSubject:              mhs.handleCommitteeUpdated,
 		constants.CommitteeMemberCreatedSubject:        mhs.handleCommitteeMemberCreated,
@@ -126,20 +127,27 @@ func (mhs *MessageHandlerService) handleCommitteeGetProject(ctx context.Context,
 	return mhs.messageHandler.HandleCommitteeGetProject(ctx, msg)
 }
 
+func (mhs *MessageHandlerService) handleCommitteeNameToUID(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeNameToUID(ctx, msg)
+}
+
 func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
 	return mhs.messageHandler.HandleUserDeleted(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
-	errResponse := []byte(fmt.Sprintf(`{"error":"%s"}`, errorMsg))
+	payload := struct {
+		Error string `json:"error"`
+	}{Error: errorMsg}
+
+	errResponse, err := json.Marshal(payload)
+	if err != nil {
+		// errorMsg is always a plain string, so this should be unreachable; fall back
+		// to a static, always-valid payload rather than risk emitting broken JSON.
+		slog.ErrorContext(ctx, "failed to marshal error response", "error", err)
+		errResponse = []byte(`{"error":"internal error"}`)
+	}
 	if err := msg.Respond(errResponse); err != nil {
 		slog.ErrorContext(ctx, "failed to send error response", "error", err)
-	}
-}
-
-// NewMessageHandlerService creates a new message handler service
-func NewMessageHandlerService(messageHandler port.MessageHandler) *MessageHandlerService {
-	return &MessageHandlerService{
-		messageHandler: messageHandler,
 	}
 }
