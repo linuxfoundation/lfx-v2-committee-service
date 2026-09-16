@@ -231,3 +231,7 @@ introduce a parallel sentinel-error family.
   settings split, ETag handling, per-sub-resource method structure.
 - `references/nats-messaging.md`: subjects, queue groups, KV buckets, Object
   Store, and streams owned or consumed by this service.
+- `references/invite-application-invariants.md`: agent-actionable invariants
+  for the invite and application state machines — what FGA tuples, indexer
+  publishes, and notifications must fire at each state transition. Use when
+  implementing or reviewing changes to join modes or invite/application flows.
