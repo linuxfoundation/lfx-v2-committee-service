@@ -32,6 +32,9 @@ type CommitteeDataReader interface {
 	GetBaseAttributeValue(ctx context.Context, uid string, attributeName string) (any, error)
 	// ListAllUIDs returns all active committee UIDs
 	ListAllUIDs(ctx context.Context) ([]string, error)
+	// FindUIDByProjectAndName looks up the UID of a live committee within a project by name.
+	// Returns a NotFound error when no live committee matches.
+	FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error)
 	// ListInvites retrieves all invites for a given committee UID
 	ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error)
 	// ListAllInvites retrieves every invite across all committees via a full bucket scan.
@@ -138,6 +141,21 @@ func (rc *committeeReaderOrchestrator) ListInvites(ctx context.Context, committe
 // ListAllInvites retrieves every invite across all committees via a full bucket scan.
 func (rc *committeeReaderOrchestrator) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite, error) {
 	return rc.committeeReader.ListAllInvites(ctx)
+}
+
+// FindUIDByProjectAndName looks up the UID of a live committee within a project by name.
+func (rc *committeeReaderOrchestrator) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
+	ctx = log.AppendCtx(ctx, slog.String("project_uid", projectUID))
+	slog.DebugContext(ctx, "executing find committee uid by project and name use case")
+
+	uid, err := rc.committeeReader.FindUIDByProjectAndName(ctx, projectUID, name)
+	if err != nil {
+		return "", err
+	}
+
+	slog.DebugContext(ctx, "committee found by project and name", "committee_uid", uid)
+
+	return uid, nil
 }
 
 // GetAttributeValue retrieves an attribute value by UID and returns the revision
