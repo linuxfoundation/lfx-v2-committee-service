@@ -79,6 +79,77 @@ if resp.Error != "" {
 
 ---
 
+## `lfx.committee-api.name_to_uid`
+
+Resolves a committee's UID from its project UID + committee name. Used by consumers (e.g. `lfx-v1-sync-helper`'s `--check-committee-names` backfill flag) to detect a lost forward-mapping case that needs repair rather than a duplicate create.
+
+**Subject constant:** `pkg/constants` — `CommitteeNameToUIDSubject`.  
+**Request/response types:** `pkg/api` — `CommitteeNameToUIDRequest`, `CommitteeNameToUIDResponse`.  
+Consumers should import both packages to use the typed structs and constant rather than hard-coding strings.
+
+### Request
+
+```json
+{ "project_uid": "<v2 UUID>", "name": "<committee name>" }
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `project_uid` | string (UUID v4) | yes | The v2 UID of the project to search within. |
+| `name` | string | yes | The committee name to match exactly against the committee's stored name. |
+
+### Response (success)
+
+```json
+{ "committee_uid": "<v2 UUID>" }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `committee_uid` | string (UUID v4) | The v2 UID of the matching committee. |
+
+### Response (not found)
+
+```json
+{}
+```
+
+Returned when no live committee matches the given project UID + name pair. This is not an error condition — both `committee_uid` and `error` are omitted (`omitempty`) from the reply.
+
+### Response (request error)
+
+```json
+{ "error": "<message>" }
+```
+
+Returned for malformed JSON, an invalid (non-UUID) `project_uid`, or an empty `name`. The `error` field describes the failure.
+
+### Example
+
+```go
+import committeeapi "github.com/linuxfoundation/lfx-v2-committee-service/pkg/api"
+import "github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+
+reqBytes, _ := json.Marshal(committeeapi.CommitteeNameToUIDRequest{ProjectUID: projectUID, Name: name})
+msg, err := nc.Request(constants.CommitteeNameToUIDSubject, reqBytes, 5*time.Second)
+if err != nil {
+    // NATS timeout or connection error
+}
+
+var resp committeeapi.CommitteeNameToUIDResponse
+if err := json.Unmarshal(msg.Data, &resp); err != nil {
+    // malformed reply
+}
+if resp.Error != "" {
+    // request validation error
+}
+if resp.CommitteeUID == "" {
+    // no live committee matches this project UID + name pair
+}
+```
+
+---
+
 ## `lfx.committee-api.get_name`
 
 Returns the display name of a committee.
