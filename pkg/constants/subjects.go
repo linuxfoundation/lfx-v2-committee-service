@@ -21,6 +21,13 @@ const (
 	// Request/response types: pkg/api.GetCommitteeProjectRequest / pkg/api.GetCommitteeProjectResponse
 	CommitteeGetProjectSubject = "lfx.committee-api.get_project"
 
+	// CommitteeNameToUIDSubject is the subject for resolving a committee's UID from its
+	// project UID + name, mirroring the uid-to-attribute direction of CommitteeGetNameSubject
+	// and the naming of ProjectSlugToUIDSubject.
+	// The subject is of the form: lfx.committee-api.name_to_uid
+	// Request/response types: pkg/api.CommitteeNameToUIDRequest / pkg/api.CommitteeNameToUIDResponse
+	CommitteeNameToUIDSubject = "lfx.committee-api.name_to_uid"
+
 	// ProjectGetNameSubject is the subject for the project get name.
 	// The subject is of the form: lfx.projects-api.get_name
 	ProjectGetNameSubject = "lfx.projects-api.get_name"

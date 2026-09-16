@@ -320,6 +320,10 @@ func (r *TestMockCommitteeReader) ListAllUIDs(ctx context.Context) ([]string, er
 	return nil, errs.NewNotFound("not implemented for this test")
 }
 
+func (r *TestMockCommitteeReader) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
+	return "", errs.NewNotFound("not implemented for this test")
+}
+
 func (r *TestMockCommitteeReader) GetSettings(ctx context.Context, committeeUID string) (*model.CommitteeSettings, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")
 }
