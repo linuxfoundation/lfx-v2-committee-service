@@ -14,23 +14,32 @@ encodes the invariants — what must be true after each transition.
 
 ## Join mode gate
 
-Every invite/application/join endpoint checks `join_mode` first. Calling an
-endpoint that does not match the active mode returns `403 Forbidden`. No state
-is created. When adding a new endpoint or modifying an existing one, verify
-the mode check is in place before any storage read or write.
+Only the **entry-point** endpoints that create new committee membership (or
+self-serve joins) check `join_mode` before touching storage. State-transition
+endpoints for existing invites and applications (`accept`, `decline`, `revoke`,
+`approve`, `reject`) do **not** gate on `join_mode` — they operate on an
+already-created record regardless of the current mode.
 
-| Mode | Allowed endpoints |
-|------|------------------|
-| `closed` | `POST /members` (admin only) |
-| `invite_only` | `POST /invites`, `POST /invites/{uid}/accept`, `POST /invites/{uid}/decline`, `DELETE /invites/{uid}` |
-| `application` | `POST /applications`, `POST /applications/{uid}/approve`, `POST /applications/{uid}/reject` |
-| `open` | `POST /join` |
+| Endpoint | Mode check | Behaviour when wrong mode |
+|----------|-----------|--------------------------|
+| `POST /applications` | `JoinMode != "application"` → `403` | No state created |
+| `POST /join` | `JoinMode != "open"` → `403` | No state created |
+| `POST /invites` | None | Admins can always create invites |
+| `POST /invites/{uid}/accept` | None | Operates on existing record |
+| `POST /invites/{uid}/decline` | None | Operates on existing record |
+| `DELETE /invites/{uid}` | None | Operates on existing record |
+| `POST /applications/{uid}/approve` | None | Operates on existing record |
+| `POST /applications/{uid}/reject` | None | Operates on existing record |
+| `POST /members` | None — FGA enforces admin-only | |
+
+When adding a new **entry-point** endpoint (one that creates a record from
+scratch), add a join_mode guard before the first storage read or write.
 
 ---
 
 ## Invite state machine
 
-```
+```text
 pending  ──accept──▶  accepted
 pending  ──decline──▶ declined
 pending  ──revoke──▶  revoked
@@ -73,8 +82,9 @@ revoked  ──POST /invites (same email)──▶ pending   (reinstate)
 |-----------------|-------|
 | `CommitteeInvite` status updated to `declined` | |
 | `lfx.index.committee_invite` published | |
+| `lfx.fga-sync.update_access` published (`committee_invite`, retaining `invitee` relation) | Keeps the tuple live so the invitee can still accept later; does not revoke access |
 
-**Caller:** invitee only. No FGA change — invitee relation stays (they can still accept later).
+**Caller:** invitee only. The `invitee` FGA relation is not removed — the `update_access` publish re-asserts it so the invitee can call `AcceptInvite` after declining.
 
 #### Revoke invite (`pending` or `declined`) → `revoked`
 
@@ -89,7 +99,7 @@ revoked  ──POST /invites (same email)──▶ pending   (reinstate)
 
 ## Application state machine
 
-```
+```text
 pending  ──approve──▶ approved
 pending  ──reject──▶  rejected
 rejected ──POST /applications (same email)──▶ pending  (reinstate)
