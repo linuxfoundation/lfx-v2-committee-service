@@ -9,7 +9,6 @@ import (
 	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	committeeapi "github.com/linuxfoundation/lfx-v2-committee-service/pkg/api"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -31,7 +30,7 @@ func (mhs *MessageHandlerService) HandleMessage(ctx context.Context, msg port.Tr
 		constants.CommitteeGetNameSubject:              mhs.handleCommitteeGetName,
 		constants.CommitteeListMembersSubject:          mhs.handleCommitteeListMembers,
 		constants.CommitteeGetProjectSubject:           mhs.handleCommitteeGetProject,
-		constants.CommitteeExistsSubject:               mhs.handleCommitteeExists,
+		constants.CommitteeNameToUIDSubject:            mhs.handleCommitteeNameToUID,
 		constants.MailingListCommitteeChangedSubject:   mhs.handleMailingListChanged,
 		constants.CommitteeUpdatedSubject:              mhs.handleCommitteeUpdated,
 		constants.CommitteeMemberCreatedSubject:        mhs.handleCommitteeMemberCreated,
@@ -128,8 +127,8 @@ func (mhs *MessageHandlerService) handleCommitteeGetProject(ctx context.Context,
 	return mhs.messageHandler.HandleCommitteeGetProject(ctx, msg)
 }
 
-func (mhs *MessageHandlerService) handleCommitteeExists(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
-	return mhs.messageHandler.HandleCommitteeExists(ctx, msg)
+func (mhs *MessageHandlerService) handleCommitteeNameToUID(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	return mhs.messageHandler.HandleCommitteeNameToUID(ctx, msg)
 }
 
 func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
@@ -137,17 +136,9 @@ func (mhs *MessageHandlerService) handleUserDeleted(ctx context.Context, msg por
 }
 
 func (mhs *MessageHandlerService) respondWithError(ctx context.Context, msg port.TransportMessenger, errorMsg string) {
-	// CommitteeExistsSubject is documented to always reply with CommitteeExistsResponse
-	// (Exists is non-omitempty), so error replies for it must preserve that shape rather
-	// than the generic {"error":...} envelope used for other subjects.
-	var payload any
-	if msg.Subject() == constants.CommitteeExistsSubject {
-		payload = committeeapi.CommitteeExistsResponse{Exists: false, Error: errorMsg}
-	} else {
-		payload = struct {
-			Error string `json:"error"`
-		}{Error: errorMsg}
-	}
+	payload := struct {
+		Error string `json:"error"`
+	}{Error: errorMsg}
 
 	errResponse, err := json.Marshal(payload)
 	if err != nil {

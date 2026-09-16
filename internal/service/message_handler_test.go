@@ -3130,7 +3130,7 @@ func mustMarshalGetProjectJSON(t *testing.T, v interface{}) []byte {
 	return b
 }
 
-func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
+func TestMessageHandlerOrchestratorHandleCommitteeNameToUID(t *testing.T) {
 	ctx := context.Background()
 
 	testCommitteeUID := uuid.New().String()
@@ -3157,15 +3157,14 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 				mockRepo.ClearAll()
 				mockRepo.AddCommittee(testCommittee)
 			},
-			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeNameToUIDRequest{
 				ProjectUID: testProjectUID,
 				Name:       "Test Committee",
 			}),
 			expectedError: false,
 			validateResponse: func(t *testing.T, response []byte) {
-				var resp committeeapi.CommitteeExistsResponse
+				var resp committeeapi.CommitteeNameToUIDResponse
 				require.NoError(t, json.Unmarshal(response, &resp))
-				assert.True(t, resp.Exists)
 				assert.Equal(t, testCommitteeUID, resp.CommitteeUID)
 				assert.Empty(t, resp.Error)
 			},
@@ -3176,15 +3175,14 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 				mockRepo.ClearAll()
 				mockRepo.AddCommittee(testCommittee)
 			},
-			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeNameToUIDRequest{
 				ProjectUID: testProjectUID,
 				Name:       "Some Other Committee",
 			}),
 			expectedError: false,
 			validateResponse: func(t *testing.T, response []byte) {
-				var resp committeeapi.CommitteeExistsResponse
+				var resp committeeapi.CommitteeNameToUIDResponse
 				require.NoError(t, json.Unmarshal(response, &resp))
-				assert.False(t, resp.Exists)
 				assert.Empty(t, resp.CommitteeUID)
 				assert.Empty(t, resp.Error)
 			},
@@ -3195,15 +3193,14 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 				mockRepo.ClearAll()
 				mockRepo.AddCommittee(testCommittee)
 			},
-			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeNameToUIDRequest{
 				ProjectUID: uuid.New().String(),
 				Name:       "Test Committee",
 			}),
 			expectedError: false,
 			validateResponse: func(t *testing.T, response []byte) {
-				var resp committeeapi.CommitteeExistsResponse
+				var resp committeeapi.CommitteeNameToUIDResponse
 				require.NoError(t, json.Unmarshal(response, &resp))
-				assert.False(t, resp.Exists)
 				assert.Empty(t, resp.CommitteeUID)
 			},
 		},
@@ -3220,7 +3217,7 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 		{
 			name:      "invalid project UUID in payload - returns validation error",
 			setupMock: func(mockRepo *mock.MockRepository) {},
-			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeNameToUIDRequest{
 				ProjectUID: "not-a-uuid",
 				Name:       "Test Committee",
 			}),
@@ -3233,7 +3230,7 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 		{
 			name:      "missing name in payload - returns validation error",
 			setupMock: func(mockRepo *mock.MockRepository) {},
-			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeExistsRequest{
+			messageData: mustMarshalGetProjectJSON(t, committeeapi.CommitteeNameToUIDRequest{
 				ProjectUID: testProjectUID,
 				Name:       "",
 			}),
@@ -3258,9 +3255,9 @@ func TestMessageHandlerOrchestratorHandleCommitteeExists(t *testing.T) {
 				),
 			)
 
-			mockMsg := newMockTransportMessenger(constants.CommitteeExistsSubject, tt.messageData)
+			mockMsg := newMockTransportMessenger(constants.CommitteeNameToUIDSubject, tt.messageData)
 
-			response, err := handler.HandleCommitteeExists(ctx, mockMsg)
+			response, err := handler.HandleCommitteeNameToUID(ctx, mockMsg)
 
 			if tt.expectedError {
 				require.Error(t, err)
