@@ -19,3 +19,10 @@ func (b base) error() string {
 	}
 	return fmt.Sprintf("%s: %v", b.message, b.err)
 }
+
+// Unwrap returns the underlying cause so that errors.Is and errors.As can
+// traverse the chain. When no cause was supplied the field is nil and the
+// standard library short-circuits normally.
+func (b base) Unwrap() error {
+	return b.err
+}

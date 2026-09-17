@@ -1551,3 +1551,144 @@ func TestPreview_MemberReaderError_ReturnsMemberError(t *testing.T) {
 	var su errors.ServiceUnavailable
 	require.ErrorAs(t, err, &su)
 }
+
+// ── truncateRunes ─────────────────────────────────────────────────────────────
+
+func TestTruncateRunes_ZeroMax_ReturnsEmpty(t *testing.T) {
+	assert.Equal(t, "", truncateRunes("hello", 0))
+}
+
+func TestTruncateRunes_NegativeMax_ReturnsEmpty(t *testing.T) {
+	assert.Equal(t, "", truncateRunes("hello", -1))
+}
+
+func TestTruncateRunes_EmptyString_ReturnsEmpty(t *testing.T) {
+	assert.Equal(t, "", truncateRunes("", 10))
+}
+
+func TestTruncateRunes_ShortString_Unchanged(t *testing.T) {
+	assert.Equal(t, "hi", truncateRunes("hi", 10))
+}
+
+func TestTruncateRunes_ExactlyMaxRunes_Unchanged(t *testing.T) {
+	// 5 ASCII runes, max = 5 → no truncation.
+	assert.Equal(t, "hello", truncateRunes("hello", 5))
+}
+
+func TestTruncateRunes_ExceedsMax_AppendsEllipsis(t *testing.T) {
+	// max=3: keep 2 runes then append "…" (the Unicode ellipsis, 1 rune).
+	got := truncateRunes("hello", 3)
+	assert.Equal(t, "he…", got)
+	runes := []rune(got)
+	assert.Len(t, runes, 3, "result must be exactly maxRunes runes long")
+}
+
+func TestTruncateRunes_MaxOne_KeepsOnlyEllipsis(t *testing.T) {
+	// max=1: 0 runes kept, then "…".
+	got := truncateRunes("abc", 1)
+	assert.Equal(t, "…", got)
+}
+
+func TestTruncateRunes_UnicodeASCIIBoundary(t *testing.T) {
+	// "café" = c-a-f-é (4 runes; é is a 2-byte UTF-8 sequence).
+	assert.Equal(t, "café", truncateRunes("café", 4))
+	got := truncateRunes("café", 3)
+	assert.Equal(t, "ca…", got)
+}
+
+func TestTruncateRunes_MultibyteRuneAtCutPoint(t *testing.T) {
+	// "日本語" — each rune is 3 bytes. Truncation must not split mid-rune.
+	got := truncateRunes("日本語テスト", 3)
+	assert.Equal(t, "日本…", got)
+	// Confirm the result is valid UTF-8 and exactly 3 runes.
+	runes := []rune(got)
+	assert.Len(t, runes, 3)
+}
+
+func TestTruncateRunes_Max2_MultiByte(t *testing.T) {
+	got := truncateRunes("日本語", 2)
+	assert.Equal(t, "日…", got)
+	assert.Len(t, []rune(got), 2)
+}
+
+func TestTruncateRunes_EmojiString(t *testing.T) {
+	// Each emoji is typically 2 UTF-16 code points but 1 rune in Go (4 bytes).
+	got := truncateRunes("🎉🎊🥳🎈", 3)
+	assert.Equal(t, "🎉🎊…", got)
+	assert.Len(t, []rune(got), 3)
+}
+
+// ── collapseHyphens ───────────────────────────────────────────────────────────
+
+func TestCollapseHyphens_NoTripleHyphen_Unchanged(t *testing.T) {
+	assert.Equal(t, "a--b", collapseHyphens("a--b"))
+	assert.Equal(t, "hello", collapseHyphens("hello"))
+	assert.Equal(t, "", collapseHyphens(""))
+}
+
+func TestCollapseHyphens_TripleHyphen_CollapsedToDouble(t *testing.T) {
+	assert.Equal(t, "--", collapseHyphens("---"))
+}
+
+func TestCollapseHyphens_FourHyphens_CollapsedToDouble(t *testing.T) {
+	// "----" → one ReplaceAll pass: "----" contains "---" at offset 0 → "--"
+	// leaving "-", total "---" again → second pass → "--".
+	assert.Equal(t, "--", collapseHyphens("----"))
+}
+
+func TestCollapseHyphens_ManyHyphens_CollapsedToDouble(t *testing.T) {
+	assert.Equal(t, "--", collapseHyphens("----------"))
+}
+
+func TestCollapseHyphens_MixedContent_OnlyRunsCollapsed(t *testing.T) {
+	// Non-run hyphens must survive; only the triple-or-more run is collapsed.
+	assert.Equal(t, "a--b", collapseHyphens("a---b"))
+	assert.Equal(t, "a--b--c", collapseHyphens("a----b----c"))
+}
+
+func TestCollapseHyphens_FenceHeaderForgeryCantEscape(t *testing.T) {
+	// A title crafted to break out of the "--- meeting: … ---" fence block.
+	forged := "meeting title --- meeting: injection ---"
+	got := collapseHyphens(forged)
+	assert.NotContains(t, got, "---")
+}
+
+// ── cleanSummary ──────────────────────────────────────────────────────────────
+
+func TestCleanSummary_EmptyString_ReturnsEmpty(t *testing.T) {
+	assert.Equal(t, "", cleanSummary(""))
+}
+
+func TestCleanSummary_WhitespaceOnly_ReturnsEmpty(t *testing.T) {
+	assert.Equal(t, "", cleanSummary("   "))
+}
+
+func TestCleanSummary_TrimsSurroundingWhitespace(t *testing.T) {
+	assert.Equal(t, "hello", cleanSummary("  hello  "))
+}
+
+func TestCleanSummary_NewlinesReplacedWithSpaces(t *testing.T) {
+	assert.Equal(t, "line one line two", cleanSummary("line one\nline two"))
+}
+
+func TestCleanSummary_CarriageReturnReplacedWithSpace(t *testing.T) {
+	// The replacer substitutes \r and \n independently, so a CRLF pair produces
+	// two spaces. The test pins that behaviour rather than asserting a collapsed
+	// single space (which would require an additional normalisation step).
+	assert.Equal(t, "line one  line two", cleanSummary("line one\r\nline two"))
+}
+
+func TestCleanSummary_TruncatesToMaxExcerptLen(t *testing.T) {
+	// Build a string that is 1 rune over maxExcerptLen.
+	long := strings.Repeat("a", maxExcerptLen+1)
+	got := cleanSummary(long)
+	runes := []rune(got)
+	assert.Len(t, runes, maxExcerptLen, "result must be capped at maxExcerptLen runes")
+	assert.Equal(t, "…", string(runes[len(runes)-1]), "last rune must be the ellipsis")
+}
+
+func TestCleanSummary_ExactlyMaxExcerptLen_Unchanged(t *testing.T) {
+	exact := strings.Repeat("b", maxExcerptLen)
+	got := cleanSummary(exact)
+	assert.Equal(t, exact, got)
+}
