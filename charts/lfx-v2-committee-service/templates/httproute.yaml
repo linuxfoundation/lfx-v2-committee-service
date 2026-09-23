@@ -6,6 +6,8 @@ kind: HTTPRoute
 metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
 spec:
   parentRefs:
   - group: gateway.networking.k8s.io

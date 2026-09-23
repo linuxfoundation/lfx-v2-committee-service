@@ -11,6 +11,8 @@ metadata:
   annotations:
     "helm.sh/resource-policy": keep
   {{- end }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
 spec:
   bucket: {{ .Values.nats.object_store_committee_documents.name }}
   storage: {{ .Values.nats.object_store_committee_documents.storage }}
