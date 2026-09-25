@@ -188,18 +188,36 @@ a change — is **not** covered here either. That is a matter for the general re
 
 ---
 
-## Deliberately NOT an entry here — needs a human decision
+## Quarantined — not enforced pending a human decision
 
-The PR #161 reply asserting that "`.claude/skills/` is internal Claude Code skill infrastructure, not
-maintained documentation for this repo" is **not** recorded as a false positive.
+Recorded 2026-09-25, salvaged from the retired `/committee-service-code-reviewer` skill, which carried both as
+"rules you must NOT enforce". They are **not** floor entries: a floor entry would resolve each contradiction by
+stealth, in the direction of whichever side wrote it. Until a human rules, no reviewer emits **or** suppresses a
+finding on either, in either direction, and neither may be cited as authority. Everything else in the files
+named below remains fully enforceable. See also the README's quarantine section.
 
-Adding it would suppress a rule that `.claude/skills/committee-service-dev/SKILL.md` line 156 states, and that
-the same maintainer's commit `ceab5a1` obeyed 21 minutes after the finding, citing the convention in its commit
-message. The contradiction is real and unresolved; a floor entry would resolve it by stealth, in the direction
-of whichever side wrote the reply.
+### Layering: invite/application state machine in the presentation layer
 
-Reviewers therefore refuse to emit **or** suppress findings on that rule until a human rules. See the
-README's quarantine section.
+**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("Generated code boundary") says of
+`cmd/committee-api/service/*`: "keep business logic in `internal/service/`, not in this layer." The same file
+("Contracts and chart wiring") says `docs/invite-application-flows.md` "must match the status transitions in
+`cmd/committee-api/service/committee_service.go`" — i.e. the invite/application state machine lives in the
+presentation layer, which is what the code does.
+
+**Status (2026-09-25): not enforced.** The rule surface contradicts itself and the code. Do not flag
+presentation-layer state-machine code as a layering violation, and do not flag moving it either.
+
+### Whether `.claude/skills/**` is maintained documentation
+
+**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("NATS, subjects, KV, and Object Store"): "When
+subjects, queue groups, payloads, KV buckets, Object Stores, or streams change, update
+`references/nats-messaging.md` in the same change."
+
+**Status (2026-09-25): not enforced.** A PR #161 reply asserted that "`.claude/skills/` is internal Claude Code
+skill infrastructure, not maintained documentation for this repo", and the same maintainer's commit `ceab5a1`
+obeyed the rule 21 minutes later, citing the convention in its commit message. The contradiction is real and
+unresolved. Do not emit a finding for a missing `nats-messaging.md` update, and do not emit one for making the
+update either.
 
 ---
 
