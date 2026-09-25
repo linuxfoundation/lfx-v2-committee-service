@@ -21,9 +21,10 @@ own merits and not assume a mechanism blocked its self-application. Closing that
 under `.github/**`, which is outside this directory's ownership; it is recorded here as a known limitation
 rather than silently implied to be handled.
 
-The repo-owned **code** brain does not read this file. It is gated by a different rule — every finding must
-quote a verbatim rule from the repo's written surface — so it has no floor step, and this file makes no
-promise about what it emits.
+The general reviewer (`/lfx-skills:lfx-general-code-review`) does not read this file: it leaves the
+knowledge base's pattern files to the learnings reviewer, and its conventions findings are gated by a
+different rule — every enforced rule must be quoted verbatim from the repo's written surface — so it has no
+floor step, and this file makes no promise about what it emits.
 
 ---
 
@@ -61,7 +62,7 @@ promise about what it emits.
 
 **Why false:** generic senior-review intuition is owned by the general reviewer (`/lfx-skills:lfx-general-code-review`). The learnings KB only ships findings that quote a repo-specific pattern entry. (Note: a nil-deref that panics on a Goa payload pointer IS in the KB — `goa-presentation/nil-nil-stub-or-deref` — so quote that entry when it applies; a generic nil-check elsewhere is not.)
 
-**Source:** the committee-service code-reviewer / general-reviewer scope split; playbook §2 hard gate "Repo-specific, not generic."
+**Source:** the learnings-reviewer / general-reviewer (`/lfx-skills:lfx-general-code-review`) scope split; playbook §2 hard gate "Repo-specific, not generic."
 
 **Carve-in — what "generic add-a-test" does NOT excuse.** Added 2026-07-30, because 13 Copilot findings in
 the 2026-07 window were test-related and most were substantive and acted on. This entry must not be used to
