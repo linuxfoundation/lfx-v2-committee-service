@@ -48,7 +48,7 @@ spec:
         - authorizer: openfga_check
           config:
             values:
-              relation: writer
+              relation: writer_guard
               object: "project:{{ "{{- .Request.Body.project_uid -}}" }}"
         {{- else }}
         {{/*
