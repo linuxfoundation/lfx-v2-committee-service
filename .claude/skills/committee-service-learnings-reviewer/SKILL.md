@@ -4,9 +4,9 @@
 name: committee-service-learnings-reviewer
 description: >
   Repo-owned reviewer skill `/committee-service-learnings-reviewer` for
-  lfx-v2-committee-service, the `repo_learnings` reviewer loaded through the
-  `/lfx-skills:lfx-local-review` lifecycle. Matches one pinned commit range —
-  normally a commit against its first parent — against the repo's canonical
+  lfx-v2-committee-service, the `repo_learnings` reviewer launched by the
+  repo's pre-PR review block (`CLAUDE.md`, "Pre-PR review"). Matches one pinned
+  commit range — normally the whole branch against its merge-base — against the repo's canonical
   empirical knowledge base at `docs/reviews/knowledge-base/` — patterns extracted
   from real PR review threads on this repo, each carrying the reviewer thread, the
   developer's fixing commit, and current-code status. Every finding quotes a
@@ -20,7 +20,8 @@ description: >
 
 # Committee service learnings brain — `repo_learnings`
 
-You are the **`repo_learnings`** role of `/lfx-skills:lfx-local-review`. You match one change
+You are the **`repo_learnings`** role of the repo's pre-PR review block
+(`CLAUDE.md`, "Pre-PR review"). You match one change
 against the **empirical** review surface of `lfx-v2-committee-service` — the
 shapes reviewers on this repo have actually flagged and that developers actually
 fixed.
@@ -39,10 +40,15 @@ local scratch pad.
 
 | Lane | Owner |
 |---|---|
-| Generic correctness, security, performance, tests, maintainability | the `general` role |
-| The repo's *written* rules — CLAUDE.md, the dev skill, contract docs, the RuleSet | the `repo_code` role |
+| Generic correctness, performance, tests, maintainability | the `general` role (`/lfx-skills:lfx-general-code-review`) |
+| The repo's *written* rules — CLAUDE.md, the dev skill, contract docs, the RuleSet | the `general` role, which reads them from this repo |
+| Generic security — auth/authz, secrets, input handling, infra config — not backed by a KB pattern | the `security` role (`/lfx-skills:lfx-security-engineer`) |
 | Branch shape, signing, commits, diff size | `/committee-service-pr-readiness` |
 | Headers, format, lint, build, tests | `/committee-service-preflight` |
+
+A security-shaped match you *can* quote from a KB entry — `logging-errors-secrets/pii-in-logs`,
+`logging-errors-secrets/no-raw-secret-or-url`, `goa-presentation/url-scheme-allowlist`, the
+`invite-application-flows/*` authorization entries — is yours, and is reported.
 
 An intuition that does not match a KB entry is not yours to ship. Drop it.
 
@@ -73,10 +79,11 @@ against staged or unstaged work.
 
 - **`target repo`** — absolute path to the repository. Work inside it.
 - **`target_sha`** — the commit under review.
-- **`base_sha`** — the pre-change base, supplied by the host. Normally
-  `target_sha`'s first parent; the caller may supply a different base directly. A
-  **root** commit has none, reported as `base_sha: none`, which is normal. You
-  never fetch, and never derive this yourself.
+- **`base_sha`** — the pre-change base, supplied by the host. Normally the
+  merge-base of the branch with the PR's base branch, as pinned by
+  `/lfx-skills:lfx-pre-pr-review`; the caller may supply a different base
+  directly. A **root** commit has none, reported as `base_sha: none`, which is
+  normal. You never fetch, and never derive this yourself.
 - **`extra: <free text>`** — an optional priority hint from the caller.
 
 Match exactly the supplied range. When `base_sha` is present, diff against it
@@ -87,10 +94,11 @@ git diff --stat <base_sha>..<target_sha>
 git diff <base_sha>..<target_sha>
 ```
 
-Use the diff, not `git show`, so a **merge** commit is compared against its first
-parent. `git show` renders a merge as a combined diff, which can print a stat with
-no patch for files inherited unchanged from one side — you would then match against
-nothing while real first-parent changes sat in the range.
+Use the diff, not `git show`: `git diff <base_sha> <target_sha>` compares exactly
+the two pinned endpoints, whatever `target_sha`'s parents are. `git show` renders a
+merge as a combined diff, which can print a stat with no patch for files inherited
+unchanged from one side — you would then match against nothing while real changes
+sat in the range.
 
 For a **root** commit (`base_sha: none`) there is nothing to diff against — match
 against the tree it introduces:
@@ -233,12 +241,14 @@ reads the delay as a defect and "fixes" it, and nobody mistakes the later case
 for a loophole:
 
 - It **cannot** suppress anything in a range whose supplied base predates it —
-  which includes the commit that adds it, whose first parent lacks it. This is the
+  which includes the branch that adds it: its `base_sha` is the merge-base with
+  the PR's base branch, and that merge-base lacks the waiver. This is the
   property that matters: a change can never waive a finding about itself.
-- It **can** apply to a later range whose supplied base already carries it. That is
-  correct, not a leak — relative to that range the waiver is pre-existing, both
-  revisions carry it, and it suppresses a finding about a change other than the one
-  that introduced it.
+- It **can** apply to a later range whose supplied base already carries it — a
+  branch forked after the waiver landed on the base branch. That is correct, not
+  a leak — relative to that range the waiver is pre-existing, both revisions
+  carry it, and it suppresses a finding about a change other than the one that
+  introduced it.
 
 Both cases follow from one question — does the *supplied* base carry it? — so you
 never need to reason about how the base was chosen.
@@ -306,7 +316,9 @@ The KB README records two unresolved contradictions in the repo's own rule
 surface: the `committee-service-dev` layering self-contradiction, and whether
 `.claude/skills/**` counts as maintained documentation. Until a human rules, you
 **neither emit nor suppress** findings that depend on either. Treat them as out of
-scope rather than deciding them by implication.
+scope rather than deciding them by implication. The `general` role does not read
+the KB; it sees the same status as a dated in-place note beside each rule in
+`.claude/skills/committee-service-dev/SKILL.md`.
 
 ## What never becomes a finding
 

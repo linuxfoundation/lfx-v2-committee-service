@@ -10,6 +10,8 @@ This file provides guidance to Claude Code when working with the LFX v2 Committe
 > **Repo-local skills (owned here, not in central `lfx-skills`):**
 >
 > - `/committee-service-dev` auto-attaches on Go, docs, and service-chart paths (`cmd/`, `internal/`, `pkg/`, `gen/`, `docs/`, `charts/lfx-v2-committee-service/`, `Makefile`, `go.mod`, `go.sum`, Goa design files) and owns generated-code boundary, logging via `pkg/log`, the `pkg/errors` family and its Goa mapping, request-context propagation via `pkg/constants`, NATS subject / KV / Object Store coding rules, committee-owned indexer and FGA contract docs, table-driven tests with `internal/infrastructure/mock` fakes, gofmt/golangci-lint hygiene, and license headers. See `.claude/skills/committee-service-dev/SKILL.md`.
+> - `/committee-service-learnings-reviewer`: the review knowledge-base reviewer launched by the [Pre-PR review](#pre-pr-review) block below; not invoked by hand.
+> - `/committee-service-pr-readiness` and `/committee-service-preflight`: PR-shape and mechanical pre-PR checks, run in that order as the Preflight value of the [Pre-PR review](#pre-pr-review) block below and also invocable by hand; they do not perform code review.
 >
 > If the plugin is missing, install with `/plugin marketplace add linuxfoundation/lfx-skills` then `/plugin install lfx-skills@lfx-skills`.
 
@@ -101,17 +103,26 @@ curl -s "https://go.dev/dl/?mode=json&include=all" \
   | sort -V | tail -1
 ```
 
-## Review lifecycle configuration
+## Pre-PR review
 
-Load and follow `/lfx-skills:lfx-local-review` as the sole owner of the review
-lifecycle. The values below configure that skill and do not replace or override
-its instructions.
+> **IMPORTANT — follow this exactly.** When the implementation is complete
+> and committed and you are about to open a PR:
+>
+> 1. **Review once.** Load `/lfx-skills:lfx-pre-pr-review` with the Skill
+>    tool and follow it: it tells you how to launch the reviewers. You run
+>    **one** review round of the whole branch and land **all accepted
+>    findings in exactly one fix commit** (none if there is nothing to fix).
+>    Do not work from memory: **load the skill before launching the
+>    reviewers**.
+> 2. **Preflight.** Run the `Preflight` value below and make it pass. It is
+>    deterministic checks, not a review: fix what it reports in its own
+>    commit(s), as many as it takes, and rerun it — never the reviewers.
+> 3. **Open the PR.** From then on there are **no local reviews of any
+>    kind** — iterate only on the PR's bot and human feedback, still running
+>    tests and checks.
 
-- repo code reviewer: `/committee-service-code-reviewer`
-- repo learnings reviewer: `/committee-service-learnings-reviewer`
-- readiness action: `/committee-service-pr-readiness origin/main`
-- preflight action: `/committee-service-preflight origin/main --report-only`
-- post-PR extension: `none`
+- KB review skill: `/committee-service-learnings-reviewer`
+- Preflight: `/committee-service-pr-readiness origin/main`, then `/committee-service-preflight origin/main --report-only`
 
 ## Boundaries
 
