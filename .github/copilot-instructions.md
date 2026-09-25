@@ -53,8 +53,8 @@ guide for the humans and local agents who *write* the code; `CLAUDE.md` also
 lists the authoritative repo docs. They are good evidence about what this
 codebase is supposed to look like, and you may use them that way when judging a
 diff. They are not the specification of your review. Anything in them about
-workflow — the post-commit reviewer subagents, the pre-PR branch sweep, the
-readiness and preflight steps, the repo-local skills under `.claude/skills/` —
+workflow — the pre-PR review subagents, the readiness and preflight steps, the
+repo-local skills under `.claude/skills/` —
 is a local development process that runs before a pull request is opened and
 that you are not executing. Do not follow it, and do not fault a PR for it. On
 any question of how to conduct this review, `.github/copilot-instructions.md`

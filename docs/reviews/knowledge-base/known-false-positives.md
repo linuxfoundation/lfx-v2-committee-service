@@ -59,7 +59,7 @@ promise about what it emits.
 
 **Pattern matched:** a bare "add a nil check", "add a unit test", "this comment should be capitalized / end with a period", "rename this variable", or "extract a helper" finding that does not tie to a committee-service contract, the `pkg/errors`/`pkg/redaction`/`pkg/constants` conventions, or a flow/chart-coupling rule.
 
-**Why false:** generic senior-review intuition is owned by `lfx-skills:lfx-general-code-reviewer`. The learnings KB only ships findings that quote a repo-specific pattern entry. (Note: a nil-deref that panics on a Goa payload pointer IS in the KB — `goa-presentation/nil-nil-stub-or-deref` — so quote that entry when it applies; a generic nil-check elsewhere is not.)
+**Why false:** generic senior-review intuition is owned by the general reviewer (`/lfx-skills:lfx-general-code-review`). The learnings KB only ships findings that quote a repo-specific pattern entry. (Note: a nil-deref that panics on a Goa payload pointer IS in the KB — `goa-presentation/nil-nil-stub-or-deref` — so quote that entry when it applies; a generic nil-check elsewhere is not.)
 
 **Source:** the committee-service code-reviewer / general-reviewer scope split; playbook §2 hard gate "Repo-specific, not generic."
 
@@ -183,7 +183,7 @@ where the accepted fix landed — never as an edit to the generated document, wh
 The generated file is evidence of the defect, not its location.
 
 **Boundary:** a generated document that is *stale* — missing an endpoint, or inconsistent with the design after
-a change — is **not** covered here either. That is a code-reviewer matter under the generated-code boundary rule.
+a change — is **not** covered here either. That is a matter for the general reviewer's written-conventions audit under the generated-code boundary rule.
 
 ---
 

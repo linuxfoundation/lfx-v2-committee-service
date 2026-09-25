@@ -4,9 +4,9 @@
 name: committee-service-learnings-reviewer
 description: >
   Repo-owned reviewer skill `/committee-service-learnings-reviewer` for
-  lfx-v2-committee-service, the `repo_learnings` reviewer loaded through the
-  `/lfx-skills:lfx-local-review` lifecycle. Matches one pinned commit range —
-  normally a commit against its first parent — against the repo's canonical
+  lfx-v2-committee-service, the `repo_learnings` reviewer launched by the
+  repo's pre-PR review block (`CLAUDE.md`, "Pre-PR review"). Matches one pinned
+  commit range — normally the whole branch against its merge-base — against the repo's canonical
   empirical knowledge base at `docs/reviews/knowledge-base/` — patterns extracted
   from real PR review threads on this repo, each carrying the reviewer thread, the
   developer's fixing commit, and current-code status. Every finding quotes a
@@ -20,7 +20,8 @@ description: >
 
 # Committee service learnings brain — `repo_learnings`
 
-You are the **`repo_learnings`** role of `/lfx-skills:lfx-local-review`. You match one change
+You are the **`repo_learnings`** role of the repo's pre-PR review block
+(`CLAUDE.md`, "Pre-PR review"). You match one change
 against the **empirical** review surface of `lfx-v2-committee-service` — the
 shapes reviewers on this repo have actually flagged and that developers actually
 fixed.
@@ -39,8 +40,8 @@ local scratch pad.
 
 | Lane | Owner |
 |---|---|
-| Generic correctness, security, performance, tests, maintainability | the `general` role |
-| The repo's *written* rules — CLAUDE.md, the dev skill, contract docs, the RuleSet | the `repo_code` role |
+| Generic correctness, security, performance, tests, maintainability | the `general` role (`/lfx-skills:lfx-general-code-review`) |
+| The repo's *written* rules — CLAUDE.md, the dev skill, contract docs, the RuleSet | the `general` role, which reads them from this repo |
 | Branch shape, signing, commits, diff size | `/committee-service-pr-readiness` |
 | Headers, format, lint, build, tests | `/committee-service-preflight` |
 

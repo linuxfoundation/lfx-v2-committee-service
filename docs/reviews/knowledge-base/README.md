@@ -6,7 +6,7 @@ cleared the promotion gate in the service-KB research playbook (maintained outsi
 
 The KB is the *empirical* surface — patterns the bots and reviewers have actually flagged on this repo. It
 does **not** duplicate generic correctness/security review, or the documented-rule-surface audit that the
-repo's code reviewer performs. Generic findings without a quotable pattern entry are dropped.
+general reviewer (`/lfx-skills:lfx-general-code-review`) performs. Generic findings without a quotable pattern entry are dropped.
 
 **This is the single canonical KB for the repo.** There is deliberately no second copy under any skill tree:
 a duplicated KB drifts, and the drifting copy is always the one a reviewer happens to read.
@@ -15,8 +15,9 @@ a duplicated KB drifts, and the drifting copy is always the one a reviewer happe
 
 Two consumers read this directory, and both benefit from it being current:
 
-- **Local pre-PR review** — the `repo_learnings` reviewer of `/lfx-skills:lfx-local-review`, the repo-owned
-  skill at `.claude/skills/committee-service-learnings-reviewer/SKILL.md`.
+- **Local pre-PR review** — the `repo_learnings` reviewer launched by the repo's pre-PR review block
+  (`CLAUDE.md`, "Pre-PR review"), the repo-owned skill at
+  `.claude/skills/committee-service-learnings-reviewer/SKILL.md`.
 - **The GitHub PR review surface** — `.github/skills/committee-service-code-review/SKILL.md` names this
   directory directly and treats `known-false-positives.md` as its posting floor.
 

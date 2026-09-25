@@ -10,6 +10,8 @@ This file provides guidance to Claude Code when working with the LFX v2 Committe
 > **Repo-local skills (owned here, not in central `lfx-skills`):**
 >
 > - `/committee-service-dev` auto-attaches on Go, docs, and service-chart paths (`cmd/`, `internal/`, `pkg/`, `gen/`, `docs/`, `charts/lfx-v2-committee-service/`, `Makefile`, `go.mod`, `go.sum`, Goa design files) and owns generated-code boundary, logging via `pkg/log`, the `pkg/errors` family and its Goa mapping, request-context propagation via `pkg/constants`, NATS subject / KV / Object Store coding rules, committee-owned indexer and FGA contract docs, table-driven tests with `internal/infrastructure/mock` fakes, gofmt/golangci-lint hygiene, and license headers. See `.claude/skills/committee-service-dev/SKILL.md`.
+> - `/committee-service-learnings-reviewer`: the review knowledge-base reviewer launched by the [Pre-PR review](#pre-pr-review) block below; not invoked by hand.
+> - `/committee-service-pr-readiness` and `/committee-service-preflight`: PR-shape and mechanical pre-PR checks a developer may invoke by hand; they do not perform code review.
 >
 > If the plugin is missing, install with `/plugin marketplace add linuxfoundation/lfx-skills` then `/plugin install lfx-skills@lfx-skills`.
 
@@ -101,17 +103,43 @@ curl -s "https://go.dev/dl/?mode=json&include=all" \
   | sort -V | tail -1
 ```
 
-## Review lifecycle configuration
+## Pre-PR review
 
-Load and follow `/lfx-skills:lfx-local-review` as the sole owner of the review
-lifecycle. The values below configure that skill and do not replace or override
-its instructions.
+Run **one** local review of the whole branch before opening the PR — never
+after individual commits, and never again once the PR exists.
 
-- repo code reviewer: `/committee-service-code-reviewer`
-- repo learnings reviewer: `/committee-service-learnings-reviewer`
-- readiness action: `/committee-service-pr-readiness origin/main`
-- preflight action: `/committee-service-preflight origin/main --report-only`
-- post-PR extension: `none`
+1. When the implementation is complete and committed, run `git fetch origin`
+   and pin the range: `base_sha=$(git merge-base origin/main HEAD)`,
+   `target_sha=$(git rev-parse HEAD)`.
+2. Launch **two** independent background subagents **in parallel**, one per
+   skill, each with `subagent_type: general-purpose`, `model: opus` (Opus 5.5),
+   `run_in_background: true`. Tell each to load exactly one skill with the
+   Skill tool and follow it: one loads `/lfx-skills:lfx-general-code-review`
+   (general quality plus this repo's written conventions, style and rules);
+   the other loads `/committee-service-learnings-reviewer` (this repo's review knowledge base). Give each
+   the full 40-character `base_sha` and `target_sha`, the instruction to review
+   exactly `git diff <base_sha> <target_sha>`, and the report-only rule: they
+   never edit, commit, push or write GitHub state.
+3. Wait for both reports. A failed, empty or `INCOMPLETE` report is **not** a
+   clean review: fix the cause and relaunch that reviewer once; if it fails
+   again, stop and tell the developer.
+4. Verify every finding against the code. Address every Critical and every
+   reasonable Important finding in **EXACTLY ONE fix commit** (signed and
+   DCO-signed-off). No fix commit if there is nothing to fix. Never one commit
+   per finding.
+5. Run `make check && make build && make build-cli && make test`. If it fails, fold the remedy into the fix commit with
+   `git commit --amend` (re-sign and re-sign-off); if review found nothing and
+   there is no fix commit yet, this remedy becomes the one fix commit. Rerun
+   the checks — but **do not rerun the reviewers**. The branch gains **at most one**
+   commit after the implementation — the single fix commit, or none at all —
+   never more.
+6. Open the PR.
+
+**Hard rules.** No local review runs after any individual commit. The
+reviewers are **never** rerun on the fix commit. From the moment the PR is
+open, **no local reviews of any kind**: iterate only on the PR's bot and human
+review feedback, still running tests and checks, and batch each round of fixes
+into as few commits as possible.
 
 ## Boundaries
 
