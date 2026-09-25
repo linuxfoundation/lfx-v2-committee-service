@@ -1,13 +1,14 @@
 # Known false positives — applied LAST in every review pass
 
-Findings that match any pattern below MUST be dropped, regardless of which source (rule file, checklist,
-pattern file) originally produced them. This list is the floor — even a quotable pattern doesn't survive if
-it matches a known false positive.
+Findings that match any pattern below MUST be dropped by the two surfaces that consume this file (named
+below), regardless of which pattern file or check originally produced them. This list is the floor — even a
+quotable pattern doesn't survive if it matches a known false positive.
 
 Consumed by two surfaces. The repo-owned local learnings brain
 (`.claude/skills/committee-service-learnings-reviewer/SKILL.md`) applies this file as its floor, reading it
-at **both** the reviewed commit and its pre-change base and suppressing only where the two agree — so a
-waiver added by the change under review cannot excuse it, and a waiver the change removes stops applying
+at **both** pinned endpoints of the reviewed range — `base_sha` (the branch's merge-base with the PR's base
+branch) and `target_sha` (the branch head) — and suppressing only where the two agree — so a
+waiver added by the branch under review cannot excuse it, and a waiver the branch removes stops applying
 immediately. The GitHub PR review surface
 (`.github/skills/committee-service-code-review/SKILL.md`) also consumes this directory and treats this
 file as a posting floor, by human-approved design. A change here therefore changes what both surfaces
@@ -24,7 +25,9 @@ rather than silently implied to be handled.
 The general reviewer (`/lfx-skills:lfx-general-code-review`) does not read this file: it leaves the
 knowledge base's pattern files to the learnings reviewer, and its conventions findings are gated by a
 different rule — every enforced rule must be quoted verbatim from the repo's written surface — so it has no
-floor step, and this file makes no promise about what it emits.
+floor step, and this file makes no promise about what it emits. Anything the general reviewer must *not*
+enforce therefore has to be written beside the rule itself, in the rule source it reads (see "Quarantined"
+below for the one case where that is done).
 
 ---
 
@@ -190,34 +193,42 @@ a change — is **not** covered here either. That is a matter for the general re
 
 ## Quarantined — not enforced pending a human decision
 
-Recorded 2026-09-25, salvaged from the retired `/committee-service-code-reviewer` skill, which carried both as
-"rules you must NOT enforce". They are **not** floor entries: a floor entry would resolve each contradiction by
-stealth, in the direction of whichever side wrote it. Until a human rules, no reviewer emits **or** suppresses a
-finding on either, in either direction, and neither may be cited as authority. Everything else in the files
-named below remains fully enforceable. See also the README's quarantine section.
+Recorded 2026-09-25, carried over from the retired `/committee-service-code-reviewer` skill, which carried both
+as "rules you must NOT enforce"; their source is that skill, not a PR thread (the one exception to this file's
+provenance rule, see "How to add a new entry"). They are **not** floor entries: a floor entry would resolve
+each contradiction by stealth, in the direction of whichever side wrote it. Until a human rules, neither the
+learnings reviewer nor the GitHub PR surface emits **or** suppresses a finding on either, in either direction,
+and neither may be cited as authority. The general reviewer does not read this file, so the same status is
+written in place, as a dated "Not enforced in review pending a decision" note directly under each rule in
+`.claude/skills/committee-service-dev/SKILL.md`; when a human rules, remove that note and this section
+together. Everything else in the files named below remains fully enforceable. See also the README's
+quarantine section.
 
 ### Layering: invite/application state machine in the presentation layer
 
-**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("Generated code boundary") says of
+**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("Generated code boundary", lines 74-76) says of
 `cmd/committee-api/service/*`: "keep business logic in `internal/service/`, not in this layer." The same file
-("Contracts and chart wiring") says `docs/invite-application-flows.md` "must match the status transitions in
-`cmd/committee-api/service/committee_service.go`" — i.e. the invite/application state machine lives in the
-presentation layer, which is what the code does.
+("Contracts and chart wiring", lines 179-180) says `docs/invite-application-flows.md` "must match the status
+transitions in `cmd/committee-api/service/committee_service.go`" — i.e. the invite/application state machine
+lives in the presentation layer, which is what the code does (the `invite.Status` / `app.Status` transitions
+are in `cmd/committee-api/service/committee_service.go`).
 
 **Status (2026-09-25): not enforced.** The rule surface contradicts itself and the code. Do not flag
 presentation-layer state-machine code as a layering violation, and do not flag moving it either.
 
 ### Whether `.claude/skills/**` is maintained documentation
 
-**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("NATS, subjects, KV, and Object Store"): "When
-subjects, queue groups, payloads, KV buckets, Object Stores, or streams change, update
+**Rule:** `.claude/skills/committee-service-dev/SKILL.md` ("NATS, subjects, KV, and Object Store", lines
+162-163): "When subjects, queue groups, payloads, KV buckets, Object Stores, or streams change, update
 `references/nats-messaging.md` in the same change."
 
-**Status (2026-09-25): not enforced.** A PR #161 reply asserted that "`.claude/skills/` is internal Claude Code
-skill infrastructure, not maintained documentation for this repo", and the same maintainer's commit `ceab5a1`
-obeyed the rule 21 minutes later, citing the convention in its commit message. The contradiction is real and
-unresolved. Do not emit a finding for a missing `nats-messaging.md` update, and do not emit one for making the
-update either.
+**Status (2026-09-25): not enforced.** A PR #161 thread reply on `pkg/constants/subjects.go`
+(2026-07-27T18:29Z) asserted that "`.claude/skills/` is internal Claude Code skill infrastructure, not
+maintained documentation for this repo", while the same maintainer's commit `ceab5a1` on that PR (authored
+2026-07-27T17:10Z, about 79 minutes earlier) obeyed the rule — its message ends "Document
+V1SyncHelperUserDeletedSubject in nats-messaging.md inbound inventory per SKILL.md convention". The
+contradiction is real and unresolved. Do not emit a finding for a missing `nats-messaging.md` update, and do not
+emit one for making the update either.
 
 ---
 
@@ -226,7 +237,10 @@ update either.
 When the bots (CodeRabbit `coderabbitai`, Copilot login `Copilot`/`copilot-pull-request-reviewer`) or a
 human reviewer surface a finding the team has explicitly decided is not relevant for this repo:
 
-1. Add an entry here with **Pattern matched**, **Why false**, and (where applicable) **Source**.
+1. Add an entry here with **Pattern matched**, **Why false**, and (where applicable) **Source**. The source
+   is a PR thread. **One exception:** the dated entries under "Quarantined" were carried over from the retired
+   `/committee-service-code-reviewer` skill on 2026-09-25 and are marked as such; any future carry-over from a
+   retired reviewer must be dated and marked the same way, and the README's Methodology section must record it.
 2. If the pattern was previously in a category `<file>.md`, remove it there — don't keep a pattern in both.
 3. Permanent bot quirks (CTA text, script dumps) are durable entries; one-off misreads need no entry.
 

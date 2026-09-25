@@ -34,8 +34,9 @@ So a missing KB entry means missing **local** coverage. It does not mean the PR 
 absence of an entry is not evidence that a shape is acceptable.
 
 The two consumers differ in **which revision they read the floor from**. Local review reads the pattern files
-at the commit under review, but reads the floor at **two** revisions — the pre-change base and the commit
-itself — and suppresses a finding only when **both** floors would suppress that exact finding. Each revision
+at the pinned head (`target_sha`), but reads the floor at **two** revisions — the pinned base (`base_sha`, the
+branch's merge-base with the PR's base branch) and the pinned head — and suppresses a finding only when **both**
+floors would suppress that exact finding. Each revision
 alone has a hole, and requiring both closes each with the other:
 
 | The reviewed range… | base floor | target floor | result |
@@ -48,10 +49,12 @@ Widening and narrowing behave the same way: they cannot hide a finding unless th
 suppresses it at both revisions. Coverage is judged per finding, semantically — the two floors are never
 diffed or byte-compared.
 
-Which reviewed range a **newly added** waiver reaches depends on that range's base. It cannot suppress
-anything in the commit that adds it. It *can* suppress in a later commit's review, whose parent already
-carries it — that is correct, not a leak, since the finding belongs to a different change. There is no
-cumulative branch pass to reason about: local review looks at one supplied range at a time.
+Which reviewed range a **newly added** waiver reaches depends on that range's supplied `base_sha`. It cannot
+suppress anything in the branch that adds it: that branch's `base_sha` is its merge-base with the PR's base
+branch, which lacks the waiver. It *can* suppress in the review of a later branch whose `base_sha` already
+carries it — one forked after the waiver landed on the base branch — and that is correct, not a leak, since the
+finding belongs to a different change. There is no commit-by-commit or cumulative pass to reason about: local
+review looks at one supplied `base_sha..target_sha` range at a time.
 
 Because the PR surface shares this KB, a change here changes what the PR bot posts. That is intended: one
 path, one truth. It also means an entry whose `Detect` is too broad costs real reviewer noise on every PR, so
@@ -103,6 +106,13 @@ This KB has been built in two passes. Both used the same promotion gate.
 against the tree, not already enforced by gofmt/lint/CI) + at least one value signal (recurrence ≥2 PRs,
 cost-of-miss, or acted-on authority). Every entry carries a real `PR #N file:line` citation + quoted phrase.
 
+**One exception to PR-thread provenance — 2026-09-25, carried over from the retired conventions reviewer.**
+When `/committee-service-code-reviewer` was retired in favour of the central general reviewer, its two
+"rules you must NOT enforce" were moved into [`known-false-positives.md`](known-false-positives.md) under
+"Quarantined". Their source is that retired skill, not a PR thread; each is dated and marked as such, and the
+"How to add a new entry" rule in that file records the same exception. They are quarantines, not floor entries,
+and did not pass the promotion gate above because they are not patterns.
+
 ## Categories
 
 **Each file's own `**Read when:**` header is the authoritative routing trigger — read it there, not here.**
@@ -147,16 +157,22 @@ the routing fact lives in exactly one place.
 
 Neither is encoded as a rule, in either direction, and neither may produce a finding until a human rules:
 
-1. **The `committee-service-dev` layering rule contradicts itself and the code.** Its lines 74-76 put business
-   logic in `internal/service/`, while lines 168-169 of the same file name
-   `cmd/committee-api/service/committee_service.go` as the file the invite/application flow doc must match —
-   and that is where the state machine actually lives.
-2. **Whether `.claude/skills/**` is maintained documentation.** `committee-service-dev/SKILL.md` line 156
-   requires `references/nats-messaging.md` to be updated alongside a subject or bucket change. A PR #161
-   thread reply asserted the opposite, 21 minutes before the same maintainer's commit `ceab5a1` obeyed the
-   rule and cited it in the commit message.
+1. **The `committee-service-dev` layering rule contradicts itself and the code.** Its "Generated code boundary"
+   bullet (lines 74-76) puts business logic in `internal/service/`, while its "Contracts and chart wiring"
+   bullet (lines 179-180) names `cmd/committee-api/service/committee_service.go` as the file the
+   invite/application flow doc must match — and that is where the state machine actually lives.
+2. **Whether `.claude/skills/**` is maintained documentation.** `committee-service-dev/SKILL.md` ("NATS,
+   subjects, KV, and Object Store", lines 162-163) requires `references/nats-messaging.md` to be updated
+   alongside a subject or bucket change. A PR #161 thread reply (2026-07-27T18:29Z) asserted the opposite,
+   while the same maintainer's commit `ceab5a1` on that PR (authored 2026-07-27T17:10Z) obeyed the rule and
+   cited it in the commit message.
 
-Recording a contradiction is not resolving it. Reviewers refuse findings on these two.
+Recording a contradiction is not resolving it. The learnings reviewer and the GitHub PR surface, which read
+this directory, refuse findings on these two. The general reviewer (`/lfx-skills:lfx-general-code-review`)
+does not read this directory; it sees the same status as a dated "Not enforced in review pending a decision"
+note placed directly beside each rule in `committee-service-dev/SKILL.md`, which is the rule source it does
+read. The status therefore lives with the rule; this section and the `known-false-positives.md` entries record
+the evidence.
 
 ## Deliberately excluded
 

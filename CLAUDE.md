@@ -11,7 +11,7 @@ This file provides guidance to Claude Code when working with the LFX v2 Committe
 >
 > - `/committee-service-dev` auto-attaches on Go, docs, and service-chart paths (`cmd/`, `internal/`, `pkg/`, `gen/`, `docs/`, `charts/lfx-v2-committee-service/`, `Makefile`, `go.mod`, `go.sum`, Goa design files) and owns generated-code boundary, logging via `pkg/log`, the `pkg/errors` family and its Goa mapping, request-context propagation via `pkg/constants`, NATS subject / KV / Object Store coding rules, committee-owned indexer and FGA contract docs, table-driven tests with `internal/infrastructure/mock` fakes, gofmt/golangci-lint hygiene, and license headers. See `.claude/skills/committee-service-dev/SKILL.md`.
 > - `/committee-service-learnings-reviewer`: the review knowledge-base reviewer launched by the [Pre-PR review](#pre-pr-review) block below; not invoked by hand.
-> - `/committee-service-pr-readiness` and `/committee-service-preflight`: PR-shape and mechanical pre-PR checks a developer may invoke by hand; they do not perform code review.
+> - `/committee-service-pr-readiness` and `/committee-service-preflight`: PR-shape and mechanical pre-PR checks, run in that order as the Preflight value of the [Pre-PR review](#pre-pr-review) block below and also invocable by hand; they do not perform code review.
 >
 > If the plugin is missing, install with `/plugin marketplace add linuxfoundation/lfx-skills` then `/plugin install lfx-skills@lfx-skills`.
 
@@ -118,7 +118,7 @@ curl -s "https://go.dev/dl/?mode=json&include=all" \
 > launching the reviewers, before the fix commit, before opening the PR.
 
 - KB review skill: `/committee-service-learnings-reviewer`
-- Preflight: `make check && make build && make build-cli && make test`
+- Preflight: `/committee-service-pr-readiness origin/main`, then `/committee-service-preflight origin/main --report-only`
 
 ## Boundaries
 

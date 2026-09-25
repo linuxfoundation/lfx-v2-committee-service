@@ -74,6 +74,13 @@ interfaces in `internal/domain/port/`.
 - `cmd/committee-api/service/*` (presentation layer) implements the Goa
   service interface and adapts to domain types; keep business logic in
   `internal/service/`, not in this layer.
+  - Not enforced in review pending a decision (2026-09-25): the
+    invite/application state machine lives in
+    `cmd/committee-api/service/committee_service.go`, which the
+    "Contracts and chart wiring" bullet below names as the source
+    `docs/invite-application-flows.md` must match. Do not flag that code as a
+    layering violation, and do not flag moving it either. See
+    `docs/reviews/knowledge-base/known-false-positives.md` ("Quarantined").
 - See `references/goa-patterns.md` for committee-service Goa specifics
   (base/settings split, per-sub-resource methods, ETag/If-Match handling).
 
@@ -154,6 +161,10 @@ introduce a parallel sentinel-error family.
   `internal/infrastructure/nats/`. Do not add a parallel shutdown.
 - When subjects, queue groups, payloads, KV buckets, Object Stores, or streams
   change, update `references/nats-messaging.md` in the same change.
+  - Not enforced in review pending a decision (2026-09-25): whether
+    `.claude/skills/**` counts as maintained documentation is contested. Do not
+    flag a missing `nats-messaging.md` update, and do not flag making one. See
+    `docs/reviews/knowledge-base/known-false-positives.md` ("Quarantined").
 - Local subject and bucket inventory: see `references/nats-messaging.md`.
 
 ## Contracts and chart wiring
