@@ -22,12 +22,13 @@ own merits and not assume a mechanism blocked its self-application. Closing that
 under `.github/**`, which is outside this directory's ownership; it is recorded here as a known limitation
 rather than silently implied to be handled.
 
-The general reviewer (`/lfx-skills:lfx-general-code-review`) does not read this file: it leaves the
-knowledge base's pattern files to the learnings reviewer, and its conventions findings are gated by a
-different rule — every enforced rule must be quoted verbatim from the repo's written surface — so it has no
-floor step, and this file makes no promise about what it emits. Anything the general reviewer must *not*
-enforce therefore has to be written beside the rule itself, in the rule source it reads (see "Quarantined"
-below for the one case where that is done).
+The general reviewer (`/lfx-skills:lfx-general-code-review`) and the security reviewer
+(`/lfx-skills:lfx-security-engineer`) do not read this file: they leave the knowledge base to the learnings
+reviewer, and the general reviewer's conventions findings are gated by a different rule — every enforced
+rule must be quoted verbatim from the repo's written surface — so neither has a floor step, and this file
+makes no promise about what they emit. Anything the general reviewer must *not* enforce therefore has to be
+written beside the rule itself, in the rule source it reads (see "Quarantined" below for the one case where
+that is done).
 
 ---
 

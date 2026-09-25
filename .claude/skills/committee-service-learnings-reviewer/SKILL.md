@@ -80,7 +80,7 @@ against staged or unstaged work.
 - **`target repo`** — absolute path to the repository. Work inside it.
 - **`target_sha`** — the commit under review.
 - **`base_sha`** — the pre-change base, supplied by the host. Normally the
-  merge-base of the branch with `origin/main`, as pinned by
+  merge-base of the branch with the PR's base branch, as pinned by
   `/lfx-skills:lfx-pre-pr-review`; the caller may supply a different base
   directly. A **root** commit has none, reported as `base_sha: none`, which is
   normal. You never fetch, and never derive this yourself.

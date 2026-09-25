@@ -169,9 +169,9 @@ Neither is encoded as a rule, in either direction, and neither may produce a fin
 
 Recording a contradiction is not resolving it. The learnings reviewer and the GitHub PR surface, which read
 this directory, refuse findings on these two. The general reviewer (`/lfx-skills:lfx-general-code-review`)
-does not read this directory; it sees the same status as a dated "Not enforced in review pending a decision"
-note placed directly beside each rule in `committee-service-dev/SKILL.md`, which is the rule source it does
-read. The status therefore lives with the rule; this section and the `known-false-positives.md` entries record
+and the security reviewer (`/lfx-skills:lfx-security-engineer`) do not read this directory; the general
+reviewer sees the same status as a dated "Not enforced in review pending a decision" note placed directly
+beside each rule in `committee-service-dev/SKILL.md`, which is the rule source it does read. The status therefore lives with the rule; this section and the `known-false-positives.md` entries record
 the evidence.
 
 ## Deliberately excluded

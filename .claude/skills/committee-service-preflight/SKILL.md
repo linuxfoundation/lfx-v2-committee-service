@@ -4,11 +4,10 @@
 name: committee-service-preflight
 description: >
   Mechanical pre-PR validation for lfx-v2-committee-service. Checks working
-  tree state, license headers, Go formatting, golangci-lint, MegaLinter when
-  Docker is available, API and CLI build, Go tests, repo-specific protected
-  files, commit verification, and PR change summary. Run after
-  /committee-service-pr-readiness has passed. Supports report-only or dry-run
-  mode when requested.
+  tree state, license headers, Go formatting, golangci-lint, API and CLI build,
+  Go tests, repo-specific protected files, commit verification, and PR change
+  summary. Run after /committee-service-pr-readiness has passed. Supports
+  report-only or dry-run mode when requested.
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write, AskUserQuestion
 ---
 
@@ -112,21 +111,6 @@ This uses `golangci-lint` pinned by `Makefile`. If the tool is missing, the
 Makefile may install it. If install or lint fails, report the exact failure and
 fix only clear mechanical issues such as unused imports introduced by the
 current change.
-
-## Check 3b - MegaLinter (CI parity, when Docker is available)
-
-CI runs MegaLinter (`.github/workflows/mega-linter.yml`, Go flavor, configured
-by `.mega-linter.yml`) over the whole tree — markdownlint, yamllint, cspell and
-the rest, not only golangci-lint. Reproduce it locally when Docker is running:
-
-```bash
-npx mega-linter-runner --flavor go
-```
-
-If Docker or `npx` is unavailable, report `SKIP MegaLinter - runs in CI` and
-continue; do not fail preflight on a missing runner. When it runs, report only
-hits in files the range touches (`git diff --name-only <base>...HEAD`);
-pre-existing hits elsewhere are called out, not fixed here.
 
 ## Check 4 - Build verification
 
@@ -239,7 +223,6 @@ PASS Working tree     - Clean, N commits ahead of origin/main
 PASS License headers  - make license-check passed
 PASS Formatting       - make fmt clean
 PASS Linting          - make lint passed
-SKIP MegaLinter       - Docker not available; runs in CI
 PASS Build            - API and CLI builds passed
 PASS Tests            - make test passed
 PASS Protected files  - docs/indexer-contract.md touched; called out for PR body
@@ -277,9 +260,8 @@ Verdict rules:
 
 This skill does:
 
-- Check working tree state, headers, formatting, lint (and MegaLinter when a
-  Docker runner is available), builds, tests, protected files, commits, and PR
-  summary.
+- Check working tree state, headers, formatting, lint, builds, tests, protected
+  files, commits, and PR summary.
 - Run `make fmt` and safe header fixes in default mode.
 - Run `make apigen` only when Goa design changed and default mode allows file
   rewrites.
