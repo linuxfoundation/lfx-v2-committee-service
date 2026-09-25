@@ -1,0 +1,209 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package model
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gosimple/slug"
+)
+
+const (
+	categoryGovernmentAdvisoryCouncil = "Government Advisory Council"
+)
+
+// Committee represents the core committee business entity
+type Committee struct {
+	CommitteeBase
+	*CommitteeSettings
+}
+
+// CommitteeBase represents the base committee attributes without settings
+type CommitteeBase struct {
+	UID              string           `json:"uid"`
+	ProjectUID       string           `json:"project_uid"`
+	ProjectName      string           `json:"project_name,omitempty"`
+	ProjectSlug      string           `json:"project_slug,omitempty"`
+	Name             string           `json:"name"`
+	Category         string           `json:"category"`
+	Description      string           `json:"description,omitempty"`
+	Website          *string          `json:"website,omitempty"`
+	MailingList      *string          `json:"mailing_list,omitempty"`
+	ChatChannel      *string          `json:"chat_channel,omitempty"`
+	EnableVoting     bool             `json:"enable_voting"`
+	SSOGroupEnabled  bool             `json:"sso_group_enabled"`
+	SSOGroupName     string           `json:"sso_group_name,omitempty"`
+	RequiresReview   bool             `json:"requires_review"`
+	Public           bool             `json:"public"`
+	JoinMode         string           `json:"join_mode,omitempty"`
+	Calendar         Calendar         `json:"calendar,omitempty"`
+	DisplayName      string           `json:"display_name,omitempty"`
+	ParentUID        *string          `json:"parent_uid,omitempty"`
+	Repository       *string          `json:"repository,omitempty"`
+	Scope            []string         `json:"scope,omitempty"`
+	Deliverables     []string         `json:"deliverables,omitempty"`
+	KeyDates         []KeyDate        `json:"key_dates,omitempty"`
+	ExternalSources  []ExternalSource `json:"external_sources,omitempty"`
+	Charter          *Charter         `json:"charter,omitempty"`
+	TotalMembers     int              `json:"total_members"`
+	TotalVotingRepos int              `json:"total_voting_repos"`
+	HasMailingList   bool             `json:"has_mailing_list"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+}
+
+// Calendar represents committee calendar settings
+type Calendar struct {
+	Public bool `json:"public"`
+}
+
+// KeyDate represents a single entry in a committee's key-dates timeline.
+type KeyDate struct {
+	Date  string `json:"date"`
+	Label string `json:"label"`
+}
+
+// Charter represents a committee's charter: a link to an externally hosted document, with
+// an audit trail of who last set or cleared it. Stays nil only until a charter is set for
+// the first time -- clearing it stamps URL back to "" rather than nilling the field out, so
+// Version climbs monotonically across set/clear/re-set cycles instead of resetting to 1.
+type Charter struct {
+	URL       string         `json:"url"`
+	Version   int            `json:"version"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedBy *CommitteeUser `json:"updated_by,omitempty"`
+}
+
+// ExternalSource represents a single source-labeled external entity linked to a
+// committee (e.g. an OCG group or event). External source data is linked activity
+// metadata only; it never overrides a committee's canonical category, governance
+// status, or other LFX-owned attributes.
+type ExternalSource struct {
+	Provider              string `json:"provider"`
+	EntityType            string `json:"entity_type"`
+	Label                 string `json:"label"`
+	URL                   string `json:"url"`
+	ExternalID            string `json:"external_id,omitempty"`
+	ExternalCategory      string `json:"external_category,omitempty"`
+	ExternalRegion        string `json:"external_region,omitempty"`
+	ExternalEventCategory string `json:"external_event_category,omitempty"`
+}
+
+// SSOGroupNameBuild builds the SSO group name for the committee based on the project slug and committee name.
+func (c *Committee) SSOGroupNameBuild(ctx context.Context, projectSlug string) error {
+
+	baseName := slug.Make(fmt.Sprintf("%s-%s", projectSlug, c.Name))
+
+	if c.SSOGroupName != "" {
+		suffix := strings.TrimPrefix(c.SSOGroupName, baseName)
+
+		if suffix == "" {
+			suffix = "1"
+		}
+		suffix = strings.Trim(suffix, "-")
+
+		// if the suffix is a number, we can increment it
+		num, err := strconv.Atoi(suffix)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to parse SSO group name suffix as number",
+				"error", err,
+				"ssogroup_name", c.SSOGroupName,
+			)
+			return fmt.Errorf("failed to parse SSO group name suffix: %w", err)
+
+		}
+
+		baseName = fmt.Sprintf("%s-%d", baseName, num+1)
+
+	}
+
+	c.SSOGroupName = baseName
+
+	return nil
+}
+
+// BuildIndexKey generates a SHA-256 hash for use as a NATS KV key.
+// This is necessary because the original input may contain special characters,
+// exceed length limits, or have inconsistent formatting, and we do not control its content.
+// Using a hash ensures a safe, fixed-length, and deterministic key.
+func (c *Committee) BuildIndexKey(ctx context.Context) string {
+	// Combine project_uid and committee name with a delimiter
+	data := fmt.Sprintf("%s|%s", c.ProjectUID, c.Name)
+
+	hash := sha256.Sum256([]byte(data))
+
+	key := hex.EncodeToString(hash[:])
+
+	slog.DebugContext(ctx, "index key built",
+		"project_uid", c.ProjectUID,
+		"committee_name", c.Name,
+		"key", key,
+	)
+
+	return key
+}
+
+// Tags generates a consistent set of tags for the committee.
+// IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
+// to ensure consumers understand how to use these tags for searching.
+func (c *Committee) Tags() []string {
+
+	var tags []string
+
+	if c == nil {
+		return nil
+	}
+
+	if c.ProjectUID != "" {
+		tag := fmt.Sprintf("project_uid:%s", c.ProjectUID)
+		tags = append(tags, tag)
+	}
+
+	if c.ProjectSlug != "" {
+		tag := fmt.Sprintf("project_slug:%s", c.ProjectSlug)
+		tags = append(tags, tag)
+	}
+
+	if c.ParentUID != nil {
+		tag := fmt.Sprintf("parent_uid:%s", *c.ParentUID)
+		tags = append(tags, tag)
+	}
+
+	if c.Category != "" {
+		tag := fmt.Sprintf("category:%s", c.Category)
+		tags = append(tags, tag)
+	}
+
+	if c.DisplayName != "" {
+		tag := fmt.Sprintf("display_name:%s", c.DisplayName)
+		tags = append(tags, tag)
+	}
+
+	if c.SSOGroupName != "" {
+		tag := fmt.Sprintf("sso_group_name:%s", c.SSOGroupName)
+		tags = append(tags, tag)
+	}
+
+	if c.CommitteeBase.UID != "" {
+		// without prefix
+		tags = append(tags, c.CommitteeBase.UID)
+		// with prefix
+		tag := fmt.Sprintf("committee_uid:%s", c.CommitteeBase.UID)
+		tags = append(tags, tag)
+	}
+
+	return tags
+}
+
+// IsGovernmentAdvisoryCouncil returns true if the committee is a Government Advisory Council
+func (c *Committee) IsGovernmentAdvisoryCouncil() bool {
+	return c.Category == categoryGovernmentAdvisoryCouncil
+}

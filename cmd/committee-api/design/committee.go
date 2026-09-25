@@ -1,0 +1,1765 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package design
+
+import (
+	"goa.design/goa/v3/dsl"
+)
+
+var _ = dsl.API("committee", func() {
+	dsl.Title("Committee Management Service")
+})
+
+// JWTAuth is the DSL JWT security type for authentication.
+var JWTAuth = dsl.JWTSecurity("jwt", func() {
+	dsl.Description("Heimdall authorization")
+})
+
+// Service describes the committee service
+var _ = dsl.Service("committee-service", func() {
+	dsl.Description("Committee management service")
+
+	// Base committee endpoints
+	// used by public users, readers, and writers.
+	dsl.Method("create-committee", func() {
+		dsl.Description("Create Committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+
+			CommitteeBaseAttributes()
+			CharterWriteAttribute()
+
+			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
+
+			WritersAttribute()
+			AuditorsAttribute()
+
+			dsl.Required("name", "category", "project_uid")
+		})
+
+		dsl.Result(CommitteeFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees")
+			dsl.Param("version:v")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+
+		})
+	})
+
+	dsl.Method("get-committee-base", func() {
+		dsl.Description("Get Committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-base", CommitteeBaseWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-base")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-base")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("update-committee-base", func() {
+		dsl.Description("Update Committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+
+			CommitteeUIDAttribute()
+			CommitteeBaseAttributes()
+			CharterWriteAttribute()
+
+			dsl.Required("name", "category", "project_uid")
+		})
+
+		dsl.Result(CommitteeBaseWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee", func() {
+		dsl.Description("Delete Committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Committee Settings endpoints
+	// used by writers and auditors.
+	dsl.Method("get-committee-settings", func() {
+		dsl.Description("Get Committee Settings")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-settings", CommitteeSettingsWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-settings")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/settings")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-settings")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("update-committee-settings", func() {
+		dsl.Description("Update Committee Settings")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+
+			CommitteeUIDAttribute()
+			CommitteeSettingsAttributes()
+			ChatWebhookURLAttribute()
+
+			WritersAttribute()
+			AuditorsAttribute()
+
+			dsl.Required("business_email_required")
+		})
+
+		dsl.Result(CommitteeSettingsWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/settings")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Health check endpoints
+	dsl.Method("readyz", func() {
+		dsl.Description("Check if the service is able to take inbound requests.")
+		dsl.Meta("swagger:generate", "false")
+		dsl.Result(dsl.Bytes, func() {
+			dsl.Example("OK")
+		})
+
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/readyz")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.ContentType("text/plain")
+			})
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("livez", func() {
+		dsl.Description("Check if the service is alive.")
+		dsl.Meta("swagger:generate", "false")
+		dsl.Result(dsl.Bytes, func() {
+			dsl.Example("OK")
+		})
+		dsl.HTTP(func() {
+			dsl.GET("/livez")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.ContentType("text/plain")
+			})
+		})
+	})
+
+	// Committee members Endpoints
+	// POST - Create committee member (requires essential fields)
+	dsl.Method("create-committee-member", func() {
+		dsl.Description("Add a new member to a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			SkipNotificationAttribute()
+			SkipEnrichmentAttribute()
+			CommitteeUIDAttribute()
+
+			CommitteeMemberCreateAttributes()
+
+			dsl.Required("version", "uid", "email")
+		})
+
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("Conflict", ConflictError, "Member already exists")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/members")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
+			dsl.Header("skip_enrichment:X-Skip-Enrichment")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// GET - Get single committee member
+	dsl.Method("get-committee-member", func() {
+		dsl.Description("Get a specific committee member by UID")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			MemberUIDAttribute()
+
+			dsl.Required("version", "uid", "member_uid")
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("member", CommitteeMemberFullWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("member")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Member not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/members/{member_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("member")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// GET - Org Lens Board & Committee tab (LFXV2-1865): list a B2B org's committee seats across
+	// the membership project family. Account-level read gated on b2b_org:{uid}#auditor by the
+	// Heimdall ruleset (b2b_org is ruleset-only). {uid} is the 18-char Salesforce Account SFID.
+	dsl.Method("get-org-committee-seats", func() {
+		dsl.Description("List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			dsl.Attribute("project_uids", dsl.ArrayOf(dsl.String), "Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to", func() {
+				dsl.Example([]string{"7cad5a8d-19d0-41a4-81a6-043453daf9ee"})
+			})
+			dsl.Attribute("page_size", dsl.Int, "Maximum seats to return in this page (default 100, max 500)", func() {
+				dsl.Minimum(1)
+				dsl.Maximum(500)
+				dsl.Example(100)
+			})
+			dsl.Attribute("page_token", dsl.String, "Opaque cursor returned by a previous call to fetch the next page", func() {
+				dsl.Example("eyJvIjoxMDB9")
+			})
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Result(OrgCommitteeSeatPageType)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/b2b-org/{uid}/seats")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("project_uids")
+			dsl.Param("page_size")
+			dsl.Param("page_token")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// PUT - Org Lens reassign (LFXV2-1865): atomically move a Membership-Entitlement committee seat
+	// to a new holder, preserving role/voting/appointed_by. Gated on b2b_org:{uid}#writer by the
+	// Heimdall ruleset + the service-side entitlement guard. {uid} is the 18-char SFID.
+	dsl.Method("reassign-org-committee-seat", func() {
+		dsl.Description("Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			B2BOrgSFIDAttribute()
+			MemberUIDAttribute()
+			// Reuse the shared committee_member attribute helpers (validation + docs stay in sync with
+			// the existing member endpoints). committee_uid is the seat's committee; first_name/
+			// last_name/email describe the replacement holder.
+			CommitteeUIDMemberAttribute()
+			FirstNameAttribute()
+			LastNameAttribute()
+			EmailAttribute()
+
+			dsl.Required("version", "uid", "member_uid", "committee_uid", "first_name", "last_name", "email")
+		})
+
+		dsl.Result(OrgCommitteeSeatType)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		// Generic description so the shared ForbiddenError OpenAPI schema is not polluted with
+		// seat-specific wording; the precise reason is returned at runtime in the message field.
+		dsl.Error("Forbidden", ForbiddenError, "Forbidden")
+		dsl.Error("NotFound", NotFoundError, "Seat not found")
+		dsl.Error("Conflict", ConflictError, "Concurrent modification")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/b2b-org/{uid}/seats/{member_uid}/reassign")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// PUT - Replace committee member (complete resource replacement)
+	// This endpoint follows PUT semantics: it replaces the entire member resource.
+	// All required fields must be provided, even if unchanged.
+	dsl.Method("update-committee-member", func() {
+		dsl.Description("Replace an existing committee member (requires complete resource)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+			SkipEnrichmentAttribute()
+			CommitteeUIDAttribute()
+			MemberUIDAttribute()
+
+			CommitteeMemberUpdateAttributes()
+
+			dsl.Required("version", "uid", "member_uid", "email")
+		})
+
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Member not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/members/{member_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_enrichment:X-Skip-Enrichment")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// DELETE - Remove committee member
+	dsl.Method("delete-committee-member", func() {
+		dsl.Description("Remove a member from a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+			SkipNotificationAttribute()
+			CommitteeUIDAttribute()
+			MemberUIDAttribute()
+
+			dsl.Required("version", "uid", "member_uid")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Member not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/members/{member_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("member_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Committee invite endpoints
+	dsl.Method("get-invite", func() {
+		dsl.Description("Get a single invite by UID")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			InviteUIDAttribute()
+
+			dsl.Required("version", "uid", "invite_uid")
+		})
+
+		dsl.Result(CommitteeInviteWithReadonlyAttributes)
+
+		dsl.Error("NotFound", NotFoundError, "Invite not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/invites/{invite_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("invite_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("create-invite", func() {
+		dsl.Description("Create an invite for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("invitee_email", dsl.String, "Email of the person to invite", func() {
+				dsl.Format(dsl.FormatEmail)
+				dsl.Example("invitee@example.com")
+			})
+			dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
+				dsl.Example("None")
+			})
+			OrganizationInfoAttributes()
+
+			dsl.Required("version", "uid", "invitee_email")
+		})
+
+		dsl.Result(CommitteeInviteWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("Conflict", ConflictError, "Invite already exists")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/invites")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("revoke-invite", func() {
+		dsl.Description("Revoke a pending invite")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			InviteUIDAttribute()
+
+			dsl.Required("version", "uid", "invite_uid")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Invite not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/invites/{invite_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("invite_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("accept-invite", func() {
+		dsl.Description("Accept a pending invite")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			InviteUIDAttribute()
+			dsl.Attribute("body", AcceptInviteOptionalBody, "Optional JSON body")
+
+			dsl.Required("version", "uid", "invite_uid")
+		})
+
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "You are not the invitee for this invite")
+		dsl.Error("NotFound", NotFoundError, "Invite not found")
+		dsl.Error("Conflict", ConflictError, "Invite already processed")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/invites/{invite_uid}/accept")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("invite_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Body("body")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("decline-invite", func() {
+		dsl.Description("Decline a pending invite")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			InviteUIDAttribute()
+
+			dsl.Required("version", "uid", "invite_uid")
+		})
+
+		dsl.Result(CommitteeInviteWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "You are not the invitee for this invite")
+		dsl.Error("NotFound", NotFoundError, "Invite not found")
+		dsl.Error("Conflict", ConflictError, "Invite already processed")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/invites/{invite_uid}/decline")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("invite_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Committee application endpoints
+	dsl.Method("get-application", func() {
+		dsl.Description("Get a single application by UID")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			ApplicationUIDAttribute()
+
+			dsl.Required("version", "uid", "application_uid")
+		})
+
+		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
+
+		dsl.Error("NotFound", NotFoundError, "Application not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/applications/{application_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("application_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("submit-application", func() {
+		dsl.Description("Submit an application to join a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("message", dsl.String, "Application message", func() {
+				dsl.MaxLength(2000)
+				dsl.Example("I would like to join the TSC to contribute my expertise.")
+			})
+
+			dsl.Attribute("notify", dsl.Boolean, "When true, send email notifications to committee writers about the new application. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			OrganizationInfoAttributes()
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Committee does not accept applications")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("Conflict", ConflictError, "Application already exists")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/applications")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("approve-application", func() {
+		dsl.Description("Approve a pending application")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			ApplicationUIDAttribute()
+
+			dsl.Attribute("reviewer_notes", dsl.String, "Notes from the reviewer", func() {
+				dsl.MaxLength(2000)
+				dsl.Example("Approved based on contribution history.")
+			})
+
+			dsl.Attribute("notify", dsl.Boolean, "When true, send an acceptance email to the applicant. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			dsl.Required("version", "uid", "application_uid")
+		})
+
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Application not found")
+		dsl.Error("Conflict", ConflictError, "Application already processed")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/applications/{application_uid}/approve")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("application_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("reject-application", func() {
+		dsl.Description("Reject a pending application")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			ApplicationUIDAttribute()
+
+			dsl.Attribute("reviewer_notes", dsl.String, "Notes from the reviewer", func() {
+				dsl.MaxLength(2000)
+				dsl.Example("Does not meet current requirements.")
+			})
+
+			dsl.Attribute("notify", dsl.Boolean, "When true, send a rejection email to the applicant. Defaults to false.", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			dsl.Required("version", "uid", "application_uid")
+		})
+
+		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Application not found")
+		dsl.Error("Conflict", ConflictError, "Application already processed")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/applications/{application_uid}/reject")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("application_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Self-join and leave endpoints
+	dsl.Method("join-committee", func() {
+		dsl.Description("Self-join a committee (only works when join_mode is open)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("body", JoinCommitteeOptionalBody, "Optional JSON body")
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Committee join_mode is not open")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("Conflict", ConflictError, "Already a member")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/join")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Body("body")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("leave-committee", func() {
+		dsl.Description("Leave a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Required("version", "uid")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Not a member of this committee")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/leave")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Committee Link endpoints ───
+
+	dsl.Method("get-committee-link", func() {
+		dsl.Description("Get a single link for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link", CommitteeLinkWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("list-committee-links", func() {
+		dsl.Description("List links for a committee, optionally filtered by folder")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("folder_uid", dsl.String, "Filter links to those inside a specific folder; omit to return all links", func() {
+				dsl.Format(dsl.FormatUUID)
+			})
+		})
+
+		dsl.Result(dsl.ArrayOf(CommitteeLinkWithReadonlyAttributes))
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/links")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("create-committee-link", func() {
+		dsl.Description("Add a URL link to a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the link", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Technical Architecture Decision Records")
+			})
+			dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+				dsl.MaxLength(2048)
+				dsl.Example("https://confluence.example.com/architecture-decisions")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description", func() {
+				dsl.MaxLength(2000)
+			})
+			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this link in", func() {
+				dsl.Format(dsl.FormatUUID)
+			})
+			XSyncAttribute()
+
+			dsl.Required("name", "url")
+		})
+
+		dsl.Result(CommitteeLinkWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/links")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-link", func() {
+		dsl.Description("Delete a link from a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+			XSyncAttribute()
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Committee Folder endpoints ───
+
+	dsl.Method("get-committee-link-folder", func() {
+		dsl.Description("Get a single folder for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-link-folder", CommitteeLinkFolderWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-link-folder")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-link-folder")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("list-committee-link-folders", func() {
+		dsl.Description("List all folders for a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+		})
+
+		dsl.Result(dsl.ArrayOf(CommitteeLinkFolderWithReadonlyAttributes))
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/folders")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("create-committee-link-folder", func() {
+		dsl.Description("Create a folder to organize committee links")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("name", dsl.String, "Folder name", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Meeting Notes")
+			})
+			XSyncAttribute()
+			dsl.Required("name")
+		})
+
+		dsl.Result(CommitteeLinkFolderWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Conflict", ConflictError, "Folder name already exists")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/folders")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-link-folder", func() {
+		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+			XSyncAttribute()
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Committee Document Endpoints ───
+
+	dsl.Method("upload-committee-document", func() {
+		dsl.Description("Upload a file document to a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the document", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Architecture Decision Record")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description", func() {
+				dsl.MaxLength(2000)
+			})
+			dsl.Attribute("folder_uid", dsl.String, "Optional folder UID to place this document in", func() {
+				dsl.Format(dsl.FormatUUID)
+				dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+			})
+			// File fields populated by the multipart decoder
+			dsl.Attribute("file_name", dsl.String, "Original file name (from the uploaded file part)")
+			dsl.Attribute("content_type", dsl.String, "MIME type of the uploaded file")
+			dsl.Attribute("file", dsl.Bytes, "File content")
+			XSyncAttribute()
+
+			dsl.Required("name", "uid", "file_name", "content_type", "file")
+		})
+
+		dsl.Result(CommitteeDocumentWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Conflict", ConflictError, "Document name already exists")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/documents")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.MultipartRequest()
+			dsl.Response(dsl.StatusCreated)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("get-committee-document", func() {
+		dsl.Description("Get metadata for a single committee document")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+		})
+
+		dsl.Result(func() {
+			dsl.Attribute("committee-document", CommitteeDocumentWithReadonlyAttributes)
+			ETagAttribute()
+			dsl.Required("committee-document")
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/documents/{document_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK, func() {
+				dsl.Body("committee-document")
+				dsl.Header("etag:ETag")
+			})
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("download-committee-document", func() {
+		dsl.Description("Download the file for a committee document")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+		})
+
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/documents/{document_uid}/download")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.SkipResponseBodyEncodeDecode()
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("delete-committee-document", func() {
+		dsl.Description("Delete a document from a committee")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+			IfMatchAttribute()
+			XSyncAttribute()
+
+			dsl.Required("uid", "document_uid", "if_match")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.DELETE("/committees/{uid}/documents/{document_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// ─── Working-Group Weekly Brief endpoints ───
+
+	dsl.Method("get-current-weekly-brief", func() {
+		dsl.Description("Get the working-group weekly brief for the UTC Sun→Sat window selected by the service. " +
+			"For Sunday–Friday this is the previous, completed week; on a Saturday it is the current (not-yet-completed) week. " +
+			"Returns 200 with a null brief and throttle when no draft exists (BFF contract — do not return 404).")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefCurrentResult)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks viewer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.GET("/committees/{uid}/weekly-briefs/current")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("generate-weekly-brief", func() {
+		dsl.Description("Asynchronously generate (or regenerate) the working-group weekly brief for the UTC Sun→Sat " +
+			"window selected by the service (Sunday–Friday → the previous, completed week; Saturday → the current, " +
+			"not-yet-completed week). Responds 202 with the brief in the \"generating\" state; the source gather + LLM call run " +
+			"out-of-band via a durable consumer. Clients poll GET /current to observe the terminal \"generated\" or " +
+			"\"error\" state — a window with no activity or an AI failure finalizes the brief as \"error\" rather than a " +
+			"synchronous error response. Per-committee/per-week throttle: 2 fresh generations and 3 regenerations, " +
+			"enforced synchronously. Returns 409 when an edited brief exists and force is not set, 429 when the " +
+			"throttle is exhausted.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("force", dsl.Boolean, "Force regeneration even if an edited brief exists", func() {
+				dsl.Default(false)
+				dsl.Example(false)
+			})
+
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefGenerateResult, func() {
+			dsl.Example("generating-state", map[string]any{
+				"brief": map[string]any{
+					"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+					"window_start":           "2026-05-10T00:00:00Z",
+					"window_end":             "2026-05-16T23:59:59.999999999Z",
+					"state":                  "generating",
+					"regeneration_count":     0,
+					"private_source_present": false,
+					"revision":               uint64(1),
+				},
+				"throttle": map[string]any{
+					"generates_used":      1,
+					"generates_limit":     2,
+					"regenerations_used":  0,
+					"regenerations_limit": 3,
+					"window_resets_at":    "2026-05-17T00:00:00Z",
+				},
+			})
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("EditedBriefExists", GroupWeeklyBriefEditedExistsError, "An edited brief exists and force is not set")
+		dsl.Error("ThrottleExceeded", GroupWeeklyBriefThrottleExceededError, "Per-committee/per-week generation or regeneration limit exhausted")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/generate")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			// Let Goa derive the request body from the unmapped attribute
+			// ("force"). An explicit inline dsl.Body here makes Goa encode the
+			// whole payload (`body := p`), leaking the bearer token/uid/version
+			// into the JSON body; the implicit form generates a dedicated
+			// {force} request-body type instead.
+			dsl.Response(dsl.StatusAccepted)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("EditedBriefExists", dsl.StatusConflict)
+			dsl.Response("ThrottleExceeded", dsl.StatusTooManyRequests)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("preview-generate-weekly-brief", func() {
+		dsl.Description("Synchronously gather sources and call the AI adapter for the UTC Sun→Sat window " +
+			"selected by the service, returning the generated brief text without persisting anything. " +
+			"No throttle is consumed, no brief state is changed, and no KV write occurs. " +
+			"Use this to inspect generator output before triggering a real generation. " +
+			"Responds 200 with the brief text and source refs; 404 when the window has no activity.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Required("uid")
+		})
+
+		dsl.Result(GroupWeeklyBriefPreviewResult)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found or no activity in the current window")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/preview-generate")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("update-current-weekly-brief", func() {
+		dsl.Description("Save chair-edited brief text for the UTC Sun→Sat window selected by the service " +
+			"(Sunday–Friday → the previous, completed week; Saturday → the current, not-yet-completed week). " +
+			"Overwrites brief_text and transitions the brief to the \"edited\" state, preserving source_refs. " +
+			"Optimistic concurrency: the caller echoes the revision from GET /current; a stale revision returns " +
+			"409 with the current revision so the client can refetch and retry. Returns 404 when no brief exists " +
+			"for the window (generate one first), 400 when brief_text is empty.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("brief_text", dsl.String, "Edited brief body markdown text", func() {
+				dsl.MaxLength(20000)
+				dsl.Example("## This week\n\n- Shipped the thing.")
+			})
+			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from the brief being edited (GET /current)", func() {
+				dsl.Minimum(1)
+				dsl.Example(uint64(7))
+			})
+
+			dsl.Required("uid", "brief_text", "revision")
+		})
+
+		dsl.Result(GroupWeeklyBriefWithReadonlyAttributes, func() {
+			dsl.Example("edited-state", map[string]any{
+				"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+				"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+				"window_start":           "2026-05-10T00:00:00Z",
+				"window_end":             "2026-05-16T23:59:59.999999999Z",
+				"state":                  "edited",
+				"brief_text":             "## This week\n\n- Shipped the thing.",
+				"regeneration_count":     0,
+				"private_source_present": false,
+				"revision":               uint64(8),
+			})
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "brief_text is empty or invalid")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found, or no brief exists for the current window")
+		dsl.Error("RevisionConflict", GroupWeeklyBriefRevisionConflictError, "The revision token is stale; the brief was edited concurrently")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/weekly-briefs/current")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			// Let Goa derive the request body from the unmapped attributes
+			// (brief_text, revision). An explicit inline dsl.Body here makes Goa
+			// encode the whole payload, leaking the bearer token/uid/version into
+			// the JSON body; the implicit form generates a dedicated
+			// {brief_text, revision} request-body type instead. Mirrors generate.
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	dsl.Method("share-weekly-brief-to-chat", func() {
+		dsl.Description("Post the current weekly brief to the committee's configured Slack Incoming Webhook URL. " +
+			"Only Slack Incoming Webhooks (hooks.slack.com) are currently supported; other chat platforms are not supported. " +
+			"The caller must supply the revision from GET /current as an optimistic-concurrency guard. " +
+			"Returns 404 when no brief exists for the current window, 400 when the brief is not in a " +
+			"shareable state (generated, edited, or approved), 409 when the revision is stale, " +
+			"422 when no chat webhook URL is configured in committee settings.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token from GET /current", func() {
+				dsl.Minimum(1)
+				dsl.Example(uint64(7))
+			})
+			dsl.Required("uid", "revision")
+		})
+
+		dsl.Error("BadRequest", BadRequestError, "Brief is not in a shareable state")
+		dsl.Error("Forbidden", ForbiddenError, "Caller lacks writer access on the committee")
+		dsl.Error("NotFound", NotFoundError, "Committee not found, or no brief exists for the current window")
+		dsl.Error("RevisionConflict", GroupWeeklyBriefRevisionConflictError, "The revision token is stale")
+		dsl.Error("NoChatWebhook", NoChatWebhookError, "No chat webhook URL is configured for this committee")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/weekly-briefs/share-to-chat")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusNoContent)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("RevisionConflict", dsl.StatusConflict)
+			dsl.Response("NoChatWebhook", dsl.StatusUnprocessableEntity)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
+	// Serve the file gen/http/openapi3.json for requests sent to /openapi.json.
+	dsl.Files("/_committees/openapi.json", "gen/http/openapi.json", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/_committees/openapi.yaml", "gen/http/openapi.yaml", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/_committees/openapi3.json", "gen/http/openapi3.json", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+	dsl.Files("/_committees/openapi3.yaml", "gen/http/openapi3.yaml", func() {
+		dsl.Meta("swagger:generate", "false")
+	})
+})

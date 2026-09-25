@@ -1,0 +1,1689 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package design
+
+import (
+	"goa.design/goa/v3/dsl"
+)
+
+// CommitteeBase is the DSL type for a committee base.
+var CommitteeBase = dsl.Type("committee-base", func() {
+	dsl.Description("A base representation of LFX committees without sub-objects.")
+
+	CommitteeBaseAttributes()
+
+})
+
+// CommitteeBaseAttributes is the DSL attributes for a committee base.
+func CommitteeBaseAttributes() {
+	ProjectUIDAttribute()
+	NameAttribute()
+	CategoryAttribute()
+	DescriptionAttribute()
+	WebsiteAttribute()
+	MailingListAttribute()
+	ChatChannelAttribute()
+	EnableVotingAttribute()
+	SSOGroupEnabledAttribute()
+	RequiresReviewAttribute()
+	PublicAttribute()
+	CalendarAttribute()
+	DisplayNameAttribute()
+	ParentCommitteeUIDAttribute()
+	JoinModeAttribute()
+	RepositoryAttribute()
+	ScopeAttribute()
+	DeliverablesAttribute()
+	KeyDatesAttribute()
+	ExternalSourcesAttribute()
+}
+
+// CommitteeSettings is the DSL type for a committee settings.
+var CommitteeSettings = dsl.Type("committee-settings", func() {
+	dsl.Description("A representation of LF Committee settings.")
+
+	CommitteeSettingsAttributes()
+})
+
+// CommitteeSettingsAttributes is the DSL attributes for a committee settings.
+func CommitteeSettingsAttributes() {
+	BusinessEmailRequiredAttribute()
+	LastReviewedAtAttribute()
+	LastReviewedByAttribute()
+	MemberVisibilityAttribute()
+	ShowMeetingAttendeesAttribute()
+}
+
+// CommitteeFull is the DSL type for a committee full.
+var CommitteeFull = dsl.Type("committee-full", func() {
+	dsl.Description("A full representation of LFX committees with sub-objects.")
+
+	CommitteeBaseAttributes()
+
+	CommitteeSettingsAttributes()
+
+	WritersAttribute()
+	AuditorsAttribute()
+})
+
+// CommitteeBaseWithReadonlyAttributes is the DSL type for a committee base with readonly attributes such as UID, project name, and aggregate counts.
+var CommitteeBaseWithReadonlyAttributes = dsl.Type("committee-base-with-readonly-attributes", func() {
+	dsl.Description("A base representation of LFX committees with readonly attributes.")
+
+	CommitteeUIDAttribute()
+
+	CommitteeBaseAttributes()
+
+	ProjectNameAttribute()
+	SSOGroupNameAttribute()
+
+	TotalMembersAttribute()
+	TotalVotingReposAttribute()
+
+	HasMailingListAttribute()
+	CharterAttribute()
+
+})
+
+// CommitteeFullWithReadonlyAttributes is the DSL type for a complete committee representation combining base, settings, and readonly attributes.
+var CommitteeFullWithReadonlyAttributes = dsl.Type("committee-full-with-readonly-attributes", func() {
+	dsl.Description("A complete representation of LFX committees with base, settings and readonly attributes.")
+
+	CommitteeUIDAttribute()
+
+	CommitteeBaseAttributes()
+
+	SSOGroupNameAttribute()
+
+	TotalMembersAttribute()
+	TotalVotingReposAttribute()
+
+	// Include settings attributes for complete representation
+	CommitteeSettingsAttributes()
+
+	WritersAttribute()
+	AuditorsAttribute()
+
+	HasMailingListAttribute()
+	CharterAttribute()
+
+})
+
+// CommitteeSettingsWithReadonlyAttributes is the DSL type for committee settings with readonly attributes such as timestamps.
+var CommitteeSettingsWithReadonlyAttributes = dsl.Type("committee-settings-with-readonly-attributes", func() {
+	dsl.Description("A representation of LF Committee settings with readonly attributes.")
+
+	CommitteeUIDAttribute()
+
+	CommitteeSettingsAttributes()
+
+	WritersAttribute()
+	AuditorsAttribute()
+
+	HasChatWebhookAttribute()
+
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+
+})
+
+// CommitteeUIDAttribute is the DSL attribute for committee UID.
+func CommitteeUIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "Committee UID -- v2 uid, not related to v1 id directly", func() {
+		// Read-only attribute
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// ProjectUIDAttribute is the DSL attribute for project UID.
+func ProjectUIDAttribute() {
+	dsl.Attribute("project_uid", dsl.String, "Project UID this committee belongs to -- v2 uid, not related to v1 id directly", func() {
+		// Read-only attribute
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// ProjectNameAttribute is the DSL attribute for project name.
+func ProjectNameAttribute() {
+	dsl.Attribute("project_name", dsl.String, "The name of the project this committee belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Linux Foundation Project")
+	})
+}
+
+// ProjectSlugAttribute is the DSL attribute for project slug.
+func ProjectSlugAttribute() {
+	dsl.Attribute("project_slug", dsl.String, "The slug of the project this committee belongs to", func() {
+		dsl.Example("example-foundation")
+	})
+}
+
+// NameAttribute is the DSL attribute for committee name.
+func NameAttribute() {
+	dsl.Attribute("name", dsl.String, "The name of the committee", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Technical Steering Committee")
+	})
+}
+
+// CategoryAttribute is the DSL attribute for committee category.
+func CategoryAttribute() {
+	dsl.Attribute("category", dsl.String, "The category of the committee", func() {
+		dsl.Enum(
+			"Ambassador",
+			"Board",
+			"Code of Conduct",
+			"Committers",
+			"Expert Group",
+			"Finance Committee",
+			"Government Advisory Council",
+			"Legal Committee",
+			"Maintainers",
+			"Marketing Committee/Sub Committee",
+			"Marketing Mailing List",
+			"Marketing Oversight Committee/Marketing Advisory Committee",
+			"Newsletter",
+			"Other",
+			"Product Security",
+			"Special Interest Group",
+			"Technical Advisory Committee",
+			"Technical Mailing List",
+			"Technical Oversight Committee",
+			"Technical Steering Committee",
+			"Working Group",
+		)
+		dsl.Example("Technical Steering Committee")
+	})
+}
+
+// DescriptionAttribute is the DSL attribute for committee description.
+func DescriptionAttribute() {
+	dsl.Attribute("description", dsl.String, "The description of the committee", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Main technical oversight committee for the project")
+	})
+}
+
+// urlPattern validates an HTTP(S) URL (used by website and repository attributes).
+// The scheme is mandatory to reject non-HTTP schemes (e.g. javascript:, data:) that
+// would otherwise pass dsl.FormatURI as syntactically valid URIs.
+const urlPattern = `^https?://[^\s/$.?#][^\s]*$`
+
+// slackWebhookURLPattern validates a Slack Incoming Webhook URL or an empty string.
+// Restricts the hostname to hooks.slack.com so the API enforces at write time the
+// same host allowlist that WebhookSender.Send enforces at send time.
+// Empty string is the explicit clear signal (see ChatWebhookURLAttribute).
+const slackWebhookURLPattern = `^$|^https://hooks\.slack\.com/[^\s]*$`
+
+// WebsiteAttribute is the DSL attribute for committee website.
+func WebsiteAttribute() {
+	dsl.Attribute("website", dsl.String, "The website URL of the committee", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.Example("https://committee.example.org")
+	})
+}
+
+// RepositoryAttribute is the DSL attribute for committee repository URL.
+func RepositoryAttribute() {
+	dsl.Attribute("repository", dsl.String, "The URL of the committee's code repository", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.Example("https://github.com/example/repo")
+	})
+}
+
+// ScopeAttribute is the DSL attribute for committee scope bullet points.
+func ScopeAttribute() {
+	dsl.Attribute("scope", dsl.ArrayOf(dsl.String), "The scope of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Define governance for the project", "Review and approve major architectural changes"})
+	})
+}
+
+// DeliverablesAttribute is the DSL attribute for committee deliverables bullet points.
+func DeliverablesAttribute() {
+	dsl.Attribute("deliverables", dsl.ArrayOf(dsl.String), "The deliverables of the committee, as a list of bullet points", func() {
+		dsl.MaxLength(50)
+		dsl.Elem(func() {
+			dsl.MaxLength(500)
+		})
+		dsl.Example([]string{"Quarterly technical roadmap", "Annual governance review"})
+	})
+}
+
+// keyDateFormatPattern validates a month-only date in YYYY-MM format.
+const keyDateFormatPattern = `^\d{4}-(0[1-9]|1[0-2])$`
+
+// KeyDateType is the DSL type for a single entry in a committee's key-dates timeline.
+var KeyDateType = dsl.Type("key-date", func() {
+	dsl.Description("A single entry in a committee's key-dates timeline.")
+	dsl.Attribute("date", dsl.String, "The month of the key date, in YYYY-MM format", func() {
+		dsl.Pattern(keyDateFormatPattern)
+		dsl.Example("2026-04")
+	})
+	dsl.Attribute("label", dsl.String, "Label describing the key date", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Charter renewal")
+	})
+	dsl.Required("date", "label")
+})
+
+// KeyDatesAttribute is the DSL attribute for a committee's key-dates timeline.
+func KeyDatesAttribute() {
+	dsl.Attribute("key_dates", dsl.ArrayOf(KeyDateType), "Timeline of important dates for the committee", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{"date": "2026-04", "label": "Charter renewal"},
+		})
+	})
+}
+
+// charterURLPattern validates an HTTP(S) URL or an empty string.
+// Empty string is the explicit clear signal, mirroring slackWebhookURLPattern: once a charter
+// has ever been set for a committee, clearing it is a stamped update to url: "", not a return
+// to an absent charter (see CharterWriteAttribute).
+const charterURLPattern = `^$|^https?://[^\s/$.?#][^\s]*$`
+
+// CharterType is the DSL type for a committee's charter as returned from GET/PUT results.
+// Present once a charter has ever existed for the committee -- including after removal, where
+// url is "" but version/updated_at/updated_by remain populated from the last change.
+var CharterType = dsl.Type("charter", func() {
+	dsl.Description("A committee's charter: a link to an externally hosted document, with an audit trail of who last set or cleared it.")
+	dsl.Attribute("url", dsl.String, "URL of the externally hosted charter document. Empty once the charter has been cleared.", func() {
+		dsl.Pattern(charterURLPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://example.org/governance/charter.pdf")
+	})
+	dsl.Attribute("version", dsl.Int, "Number of times the charter has been set or cleared. Never resets, including across a clear followed by a re-set.", func() {
+		dsl.Minimum(1)
+		dsl.Example(1)
+	})
+	dsl.Attribute("updated_at", dsl.String, "When the charter was last set or cleared", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-09-06T00:00:00Z")
+	})
+	dsl.Attribute("updated_by", PublicAuditUserType, "User who last set or cleared the charter")
+	dsl.Required("url", "version", "updated_at")
+})
+
+// CharterWriteType is the DSL type for a committee's charter as accepted in create/update
+// payloads. Only url is writable -- version/updated_at/updated_by are stamped server-side.
+// url is required within the object: omit the whole "charter" key for no change, send it with
+// url to set or clear -- an empty charter object would otherwise silently collapse to a no-op.
+var CharterWriteType = dsl.Type("charter-write", func() {
+	dsl.Description("Payload shape for setting or clearing a committee's charter. Send an empty url to clear a previously set charter.")
+	dsl.Attribute("url", dsl.String, "URL of the externally hosted charter document. Send an empty string to clear a previously set charter.", func() {
+		dsl.Pattern(charterURLPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://example.org/governance/charter.pdf")
+	})
+	dsl.Required("url")
+})
+
+// CharterAttribute is the DSL attribute for a committee's charter, result side.
+func CharterAttribute() {
+	dsl.Attribute("charter", CharterType, "The committee's charter")
+}
+
+// CharterWriteAttribute is the DSL attribute for a committee's charter, payload side.
+func CharterWriteAttribute() {
+	dsl.Attribute("charter", CharterWriteType, "The committee's charter")
+}
+
+// ExternalSourceType is the DSL type for a single external source linked to a committee.
+var ExternalSourceType = dsl.Type("external-source", func() {
+	dsl.Description("A single source-labeled external entity linked to a committee (e.g. an OCG group or event).")
+	dsl.Attribute("provider", dsl.String, "The external platform that owns this linked entity", func() {
+		dsl.Enum("ocg")
+		dsl.Example("ocg")
+	})
+	dsl.Attribute("entity_type", dsl.String, "The type of entity in the external platform", func() {
+		dsl.Enum("community", "group", "event")
+		dsl.Example("group")
+	})
+	dsl.Attribute("label", dsl.String, "Human-readable label for the linked external entity", func() {
+		dsl.MaxLength(200)
+		dsl.Example("CNCF Meetup - San Francisco")
+	})
+	dsl.Attribute("url", dsl.String, "The URL of the linked external entity", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.MaxLength(2048)
+		dsl.Example("https://community.cncf.io/cncf-meetup-san-francisco/")
+	})
+	dsl.Attribute("external_id", dsl.String, "The identifier of the entity within the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("cncf-meetup-san-francisco")
+	})
+	dsl.Attribute("external_category", dsl.String, "The community-managed category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Meetup")
+	})
+	dsl.Attribute("external_region", dsl.String, "The community-managed region of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("North America")
+	})
+	dsl.Attribute("external_event_category", dsl.String, "The community-managed event category of the entity in the external platform", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Virtual")
+	})
+	dsl.Required("provider", "entity_type", "label", "url")
+})
+
+// ExternalSourcesAttribute is the DSL attribute for a committee's linked external sources.
+func ExternalSourcesAttribute() {
+	dsl.Attribute("external_sources", dsl.ArrayOf(ExternalSourceType), "External source-labeled entities linked to this committee (e.g. OCG groups or events)", func() {
+		dsl.MaxLength(50)
+		dsl.Example([]map[string]interface{}{
+			{
+				"provider":    "ocg",
+				"entity_type": "group",
+				"label":       "CNCF Meetup - San Francisco",
+				"url":         "https://community.cncf.io/cncf-meetup-san-francisco/",
+			},
+		})
+	})
+}
+
+// EnableVotingAttribute is the DSL attribute for enabling voting.
+func EnableVotingAttribute() {
+	dsl.Attribute("enable_voting", dsl.Boolean, "Whether voting is enabled for this committee", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// BusinessEmailRequiredAttribute is the DSL attribute for business email requirement.
+func BusinessEmailRequiredAttribute() {
+	dsl.Attribute("business_email_required", dsl.Boolean, "Whether business email is required for committee members", func() {
+		dsl.Default(false)
+		dsl.Example(false)
+	})
+}
+
+// SSOGroupEnabledAttribute is the DSL attribute for SSO group enablement.
+func SSOGroupEnabledAttribute() {
+	dsl.Attribute("sso_group_enabled", dsl.Boolean, "Whether SSO group integration is enabled", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// SSOGroupNameAttribute is the DSL attribute for SSO group name.
+func SSOGroupNameAttribute() {
+	dsl.Attribute("sso_group_name", dsl.String, "The name of the SSO group - read-only", func() {
+		dsl.Example("lfx-committee-group")
+	})
+}
+
+// RequiresReviewAttribute is the DSL attribute for committee review requirement.
+func RequiresReviewAttribute() {
+	dsl.Attribute("requires_review", dsl.Boolean, "Whether this committee is expected to be reviewed", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// PublicAttribute is the DSL attribute for public visibility.
+func PublicAttribute() {
+	dsl.Attribute("public", dsl.Boolean, "General committee visibility/access permissions", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// CalendarAttribute is the DSL attribute for calendar settings.
+func CalendarAttribute() {
+	dsl.Attribute("calendar", func() {
+		dsl.Description("Settings related to the committee calendar")
+		CalendarPublicAttribute()
+	})
+}
+
+// CalendarPublicAttribute is the DSL attribute for calendar public visibility.
+func CalendarPublicAttribute() {
+	dsl.Attribute("public", dsl.Boolean, "Whether the committee calendar is publicly visible", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// LastReviewedAtAttribute is the DSL attribute for last review timestamp.
+func LastReviewedAtAttribute() {
+	dsl.Attribute("last_reviewed_at", dsl.String, "The timestamp when the committee was last reviewed in RFC3339 format", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2025-08-04T09:00:00Z")
+	})
+}
+
+// LastReviewedByAttribute is the DSL attribute for last review user.
+func LastReviewedByAttribute() {
+	dsl.Attribute("last_reviewed_by", dsl.String, "The user ID who last reviewed this committee", func() {
+		dsl.Example("user_id_12345")
+	})
+}
+
+// DisplayNameAttribute is the DSL attribute for display name.
+func DisplayNameAttribute() {
+	dsl.Attribute("display_name", dsl.String, "The display name of the committee", func() {
+		dsl.MaxLength(100)
+		dsl.Example("TSC Committee Calendar")
+	})
+}
+
+// ParentCommitteeUIDAttribute is the DSL attribute for parent committee UID.
+func ParentCommitteeUIDAttribute() {
+	dsl.Attribute("parent_uid", dsl.String, "The UID of the parent committee -- v2 uid, not related to v1 id directly, should be empty if there is none", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("90b147f2-7cdd-157a-a2f4-9d4a567123fc")
+	})
+}
+
+// TotalMembersAttribute is the DSL attribute for total members count.
+func TotalMembersAttribute() {
+	dsl.Attribute("total_members", dsl.Int, "The total number of members in this committee", func() {
+		dsl.Minimum(0)
+		dsl.Example(15)
+	})
+}
+
+// TotalVotingReposAttribute is the DSL attribute for total voting repositories count.
+func TotalVotingReposAttribute() {
+	dsl.Attribute("total_voting_repos", dsl.Int, "The total number of repositories with voting permissions for this committee", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+}
+
+// CommitteeUserType is the DSL type for a user object in writers/auditors lists.
+// Pending invite state is owned by the invite service (committee invite endpoints), not embedded here.
+var CommitteeUserType = dsl.Type("committee-user", func() {
+	dsl.Description("A user object stored in writers or auditors lists.")
+	AvatarAttribute()
+	dsl.Attribute("email", dsl.String, "The user's email address", func() {
+		dsl.Example("first.last@example.com")
+	})
+	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
+		dsl.Example("First Last")
+	})
+	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
+		dsl.Example("first-last")
+	})
+})
+
+// PublicAuditUserType is the DSL type for an audit-user reference on a field that is visible on
+// the anonymous-accessible committee GET endpoint (e.g. the charter). Omits email -- unlike
+// CommitteeUserType's writers/auditors lists, which are only ever returned from
+// authenticated/authorized endpoints, this shape can reach anonymous viewers of public committees.
+var PublicAuditUserType = dsl.Type("public-audit-user", func() {
+	dsl.Description("A user reference shown on publicly-visible committee fields, without contact details.")
+	AvatarAttribute()
+	dsl.Attribute("name", dsl.String, "Display name of the user", func() {
+		dsl.Example("First Last")
+	})
+	dsl.Attribute("username", dsl.String, "User identifier (LF ID / sub)", func() {
+		dsl.Example("first-last")
+	})
+})
+
+// ResourceAuditUserAttributes adds created_by and updated_by user profile objects.
+func ResourceAuditUserAttributes() {
+	dsl.Attribute("created_by", CommitteeUserType, "User who created this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+}
+
+// WritersAttribute is the DSL attribute for committee writers.
+func WritersAttribute() {
+	dsl.Attribute("writers", dsl.ArrayOf(CommitteeUserType), "Users who can edit/modify this committee", func() {
+		dsl.Example([]map[string]interface{}{
+			{"avatar": "https://example.com/avatar.png", "email": "alice@example.com", "name": "Alice Johnson", "username": "manager_user_id1"},
+		})
+	})
+}
+
+// VersionAttribute is the DSL attribute for API version.
+func VersionAttribute() {
+	dsl.Attribute("version", dsl.String, "Version of the API", func() {
+		dsl.Example("1")
+		dsl.Enum("1")
+	})
+}
+
+// ETagAttribute is the DSL attribute for ETag header.
+func ETagAttribute() {
+	dsl.Attribute("etag", dsl.String, "ETag header value", func() {
+		dsl.Example("123")
+	})
+}
+
+// IfMatchAttribute is the DSL attribute for If-Match header (for conditional requests).
+func IfMatchAttribute() {
+	dsl.Attribute("if_match", dsl.String, "If-Match header value for conditional requests", func() {
+		dsl.Example("123")
+	})
+}
+
+// BearerTokenAttribute is the DSL attribute for bearer token.
+func BearerTokenAttribute() {
+	dsl.Token("bearer_token", dsl.String, func() {
+		dsl.Description("JWT token issued by Heimdall")
+		dsl.Example("eyJhbGci...")
+	})
+}
+
+// XSyncAttribute is the DSL attribute for X-Sync header (for synchronous/asynchronous operations).
+func XSyncAttribute() {
+	dsl.Attribute("x_sync", dsl.Boolean, "Requests synchronous processing for applicable downstream operations. Indexer messages are always published fire-and-forget regardless of this flag (see indexer-contract.md); this header no longer affects indexer delivery. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// SkipNotificationAttribute is the DSL attribute for suppressing the member notification email
+// (whether the member is being added or removed).
+func SkipNotificationAttribute() {
+	dsl.Attribute("skip_notification", dsl.Boolean, "When true, suppress the notification email sent to the committee member (whether added or removed)", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// SkipEnrichmentAttribute is the DSL attribute for skipping auth-service enrichment on
+// committee member writes (email→username lookup and profile metadata backfill).
+func SkipEnrichmentAttribute() {
+	dsl.Attribute("skip_enrichment", dsl.Boolean, "When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// CreatedAtAttribute is the DSL attribute for creation timestamp.
+func CreatedAtAttribute() {
+	dsl.Attribute("created_at", dsl.String, "The timestamp when the resource was created (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-01-15T10:30:00Z")
+	})
+}
+
+// UpdatedAtAttribute is the DSL attribute for update timestamp.
+func UpdatedAtAttribute() {
+	dsl.Attribute("updated_at", dsl.String, "The timestamp when the resource was last updated (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-06-20T14:45:30Z")
+	})
+}
+
+// LastAuditedByAttribute is the DSL attribute for last audited by user.
+func LastAuditedByAttribute() {
+	dsl.Attribute("last_audited_by", dsl.String, "The user ID who last audited the committee", func() {
+		dsl.Example("user_id_12345")
+	})
+}
+
+// LastAuditedTimeAttribute is the DSL attribute for last audit timestamp.
+func LastAuditedTimeAttribute() {
+	dsl.Attribute("last_audited_time", dsl.String, "The timestamp when the committee was last audited", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-05-10T09:15:00Z")
+	})
+}
+
+// AuditorsAttribute is the DSL attribute for committee auditors.
+func AuditorsAttribute() {
+	dsl.Attribute("auditors", dsl.ArrayOf(CommitteeUserType), "Users who can audit this committee", func() {
+		dsl.Example([]map[string]interface{}{
+			{"avatar": "https://example.com/avatar.png", "email": "john@example.com", "name": "John Doe", "username": "auditor_user_id1"},
+		})
+	})
+}
+
+// Committee Member Types and Attributes
+
+// CommitteeMemberBase is the DSL type for a committee member base.
+var CommitteeMemberBase = dsl.Type("committee-member-base", func() {
+	dsl.Description("A base representation of committee members.")
+
+	CommitteeMemberBaseAttributes()
+})
+
+// CommitteeMemberBaseAttributes defines the base attributes for a committee member.
+func CommitteeMemberBaseAttributes() {
+	UsernameAttribute()
+	EmailAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	JobTitleAttribute()
+	LinkedInProfileAttribute()
+	RoleInfoAttributes()
+	AppointedByAttribute()
+	StatusAttribute()
+	VotingInfoAttributes()
+	OrganizationInfoAttributes()
+}
+
+// CommitteeMemberFull is the DSL type for a complete committee member.
+var CommitteeMemberFull = dsl.Type("committee-member-full", func() {
+	dsl.Description("A complete representation of committee members with all attributes.")
+
+	CommitteeMemberBaseAttributes()
+})
+
+// CommitteeMemberFullWithReadonlyAttributes is the DSL type for a complete committee member with readonly attributes.
+var CommitteeMemberFullWithReadonlyAttributes = dsl.Type("committee-member-full-with-readonly-attributes", func() {
+	dsl.Description("A complete representation of committee members with readonly attributes.")
+
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
+	CommitteeMemberBaseAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// B2BOrgSFIDAttribute is the DSL attribute for the B2B org UID — the 18-char Salesforce Account
+// SFID (the canonical b2b_org uid per spec 002; NOT a v2 UUID, so no FormatUUID). LFXV2-1865.
+// The SFID is a well-defined 18-char alphanumeric string, so it's validated with a Pattern.
+func B2BOrgSFIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)", func() {
+		dsl.Pattern("^[A-Za-z0-9]{18}$")
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+}
+
+// OrgCommitteeSeatType is one org-scoped committee seat row returned by get-org-committee-seats
+// (Org Lens Board & Committee tab, LFXV2-1865). Flat DTO mirroring committee_member with the
+// endpoint-derived is_org_editable / reason. Reuses the shared committee_member attribute helpers
+// so the DTO stays in sync with the existing member endpoints.
+var OrgCommitteeSeatType = dsl.Type("org-committee-seat", func() {
+	dsl.Description("An organization's committee seat for the Org Lens Board & Committee tab.")
+	CommitteeMemberUIDAttribute()
+	CommitteeUIDMemberAttribute()
+	CommitteeNameMemberAttribute()
+	CommitteeCategoryMemberAttribute()
+	// project_uid / project_slug are optional foundation (project) tags for the seat's committee,
+	// set only when present on the model so a missing value is omitted rather than serialized empty.
+	ProjectUIDAttribute()
+	ProjectSlugAttribute()
+	FirstNameAttribute()
+	LastNameAttribute()
+	EmailAttribute()
+	JobTitleAttribute()
+	// role_name / voting_status / appointed_by are flat in this DTO (the BFF consumes flat fields), but
+	// mirror the canonical committee_member attribute definitions — same descriptions, enums, and
+	// defaults — so the generated documentation stays consistent with the member endpoints. The enums
+	// reuse the shared committeeRoleNameEnum / committeeVotingStatusEnum vars (single-sourced with the
+	// canonical attributes); appointed_by reuses the shared AppointedByAttribute directly.
+	dsl.Attribute("role_name", dsl.String, "Committee role name", func() {
+		dsl.Enum(committeeRoleNameEnum...)
+		dsl.Default("None")
+		dsl.Example("Chair")
+	})
+	dsl.Attribute("voting_status", dsl.String, "Voting status", func() {
+		dsl.Enum(committeeVotingStatusEnum...)
+		dsl.Default("None")
+		dsl.Example("Voting Rep")
+	})
+	AppointedByAttribute()
+	dsl.Attribute("organization_id", dsl.String, "Holding organization SFID", func() {
+		dsl.Example("001B000000IqhSLIAZ")
+	})
+	dsl.Attribute("is_org_editable", dsl.Boolean, "Whether the org can reassign this seat (appointed_by == Membership Entitlement)", func() {
+		dsl.Example(true)
+	})
+	dsl.Attribute("reason", dsl.String, "Why the seat is not editable (empty when editable)", func() {
+		dsl.Example("This seat is foundation-controlled.")
+	})
+	// Optional/additive — intentionally not in Required (avatar enriched at write-time; username powers the derived-avatar render).
+	AvatarAttribute()
+	UsernameAttribute()
+	dsl.Required("uid", "committee_uid", "committee_name", "committee_category", "first_name", "last_name", "email", "role_name", "voting_status", "appointed_by", "organization_id", "is_org_editable")
+})
+
+// OrgCommitteeSeatPageType is the paginated result of get-org-committee-seats: a page of seats plus an
+// opaque next-page cursor (LFXV2-1865). The cursor is empty/omitted when there are no further results.
+var OrgCommitteeSeatPageType = dsl.Type("org-committee-seat-page", func() {
+	dsl.Description("A page of an organization's committee seats with an optional next-page cursor.")
+	dsl.Attribute("seats", dsl.ArrayOf(OrgCommitteeSeatType), "The committee seats in this page")
+	dsl.Attribute("page_token", dsl.String, "Opaque cursor for the next page; empty when there are no more results", func() {
+		dsl.Example("eyJvIjoxMDB9")
+	})
+	dsl.Required("seats")
+})
+
+// CommitteeMemberCreateAttributes defines attributes for creating a committee member.
+func CommitteeMemberCreateAttributes() {
+	CommitteeMemberBaseAttributes()
+}
+
+// CommitteeMemberUpdateAttributes defines attributes for updating a committee member.
+func CommitteeMemberUpdateAttributes() {
+	CommitteeMemberBaseAttributes()
+}
+
+// AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).
+// Mapped via dsl.Body with the attribute left optional so the generated server decoder
+// tolerates a missing body (io.EOF) for backward compatibility. Note: Goa marks any
+// non-empty body as a required requestBody in the OpenAPI specs, and its generated
+// client/CLI assume a body is present — generated consumers must send at least "{}".
+// Raw HTTP clients may omit the body entirely.
+var AcceptInviteOptionalBody = dsl.Type("accept-invite-optional-body", func() {
+	dsl.Description("Optional accept-invite request body.")
+	OrganizationInfoAttributes()
+})
+
+// JoinCommitteeOptionalBody is an optional HTTP body for join-committee (organization only).
+// Mapped via dsl.Body with the attribute left optional so the generated server decoder
+// tolerates a missing body (io.EOF) for backward compatibility. Note: Goa marks any
+// non-empty body as a required requestBody in the OpenAPI specs, and its generated
+// client/CLI assume a body is present — generated consumers must send at least "{}".
+// Raw HTTP clients may omit the body entirely.
+var JoinCommitteeOptionalBody = dsl.Type("join-committee-optional-body", func() {
+	dsl.Description("Optional join-committee request body.")
+	OrganizationInfoAttributes()
+})
+
+// Organization Information Attributes
+func OrganizationInfoAttributes() {
+	dsl.Attribute("organization", func() {
+		dsl.Description("Organization information for the committee member")
+		OrganizationIDAttribute()
+		OrganizationNameAttribute()
+		OrganizationWebsiteAttribute()
+	})
+}
+
+// Role Information Attributes
+func RoleInfoAttributes() {
+	dsl.Attribute("role", func() {
+		dsl.Description("Committee role information")
+		RoleNameAttribute()
+		RoleStartDateAttribute()
+		RoleEndDateAttribute()
+	})
+}
+
+// Voting Information Attributes
+func VotingInfoAttributes() {
+	dsl.Attribute("voting", func() {
+		dsl.Description("Voting information for the committee member")
+		VotingStatusAttribute()
+		VotingStartDateAttribute()
+		VotingEndDateAttribute()
+	})
+}
+
+// Committee Member Specific Attributes
+
+// CommitteeMemberUIDAttribute is the DSL attribute for committee member UID.
+func CommitteeMemberUIDAttribute() {
+	dsl.Attribute("uid", dsl.String, "Committee member UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeUIDAttribute is the DSL attribute for committee UID.
+func CommitteeUIDMemberAttribute() {
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeNameMemberAttribute is the DSL attribute for committee name in member context.
+func CommitteeNameMemberAttribute() {
+	dsl.Attribute("committee_name", dsl.String, "The name of the committee this member belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Technical Steering Committee")
+	})
+}
+
+// CommitteeCategoryMemberAttribute is the DSL attribute for committee category in member context.
+func CommitteeCategoryMemberAttribute() {
+	dsl.Attribute("committee_category", dsl.String, "The category of the committee this member belongs to", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Board")
+	})
+}
+
+// MemberUIDAttribute is the DSL attribute for member UID in URL paths.
+func MemberUIDAttribute() {
+	dsl.Attribute("member_uid", dsl.String, "Committee member UID -- v2 uid, not related to v1 id directly", func() {
+		dsl.Example("2200b646-fbb2-4de7-ad80-fd195a874baf")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// UsernameAttribute is the DSL attribute for username.
+func UsernameAttribute() {
+	dsl.Attribute("username", dsl.String, "User's LF ID", func() {
+		dsl.MaxLength(100)
+		dsl.Example("user123")
+	})
+}
+
+// AvatarAttribute is the DSL attribute for a user's avatar image URL.
+// Value is enriched at write-time from the auth-service profile picture; empty when the user has none.
+func AvatarAttribute() {
+	dsl.Attribute("avatar", dsl.String, "URL to the user's avatar image; empty when none.", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Example("https://example.com/avatar.png")
+	})
+}
+
+// EmailAttribute is the DSL attribute for email.
+func EmailAttribute() {
+	dsl.Attribute("email", dsl.String, "Primary email address", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("user@example.com")
+	})
+}
+
+// FirstNameAttribute is the DSL attribute for first name.
+func FirstNameAttribute() {
+	dsl.Attribute("first_name", dsl.String, "First name", func() {
+		dsl.MaxLength(100)
+		dsl.Example("John")
+	})
+}
+
+// LastNameAttribute is the DSL attribute for last name.
+func LastNameAttribute() {
+	dsl.Attribute("last_name", dsl.String, "Last name", func() {
+		dsl.MaxLength(100)
+		dsl.Example("Doe")
+	})
+}
+
+// JobTitleAttribute is the DSL attribute for job title.
+func JobTitleAttribute() {
+	dsl.Attribute("job_title", dsl.String, "Job title at organization", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Chief Technology Officer")
+	})
+}
+
+// LinkedInProfileAttribute is the DSL attribute for LinkedIn profile URL.
+func LinkedInProfileAttribute() {
+	dsl.Attribute("linkedin_profile", dsl.String, "LinkedIn profile URL", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(`^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$`)
+		dsl.Example("https://www.linkedin.com/in/johndoe")
+	})
+}
+
+// committeeRoleNameEnum is the single source of committee role-name enum values, shared by the
+// canonical RoleNameAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeRoleNameEnum = []any{
+	"Chair",
+	"Developer Seat",
+	"TAC/TOC Representative",
+	"Director",
+	"Lead",
+	"None",
+	"Secretary",
+	"Technical Lead",
+	"Treasurer",
+	"Vice Chair",
+	"LF Staff",
+}
+
+// committeeVotingStatusEnum is the single source of voting-status enum values, shared by the canonical
+// VotingStatusAttribute and the flat org-committee-seat DTO so the two stay in sync.
+var committeeVotingStatusEnum = []any{
+	"Alternate Voting Rep",
+	"Observer",
+	"Voting Rep",
+	"Emeritus",
+	"None",
+}
+
+// RoleNameAttribute is the DSL attribute for committee role name.
+func RoleNameAttribute() {
+	dsl.Attribute("name", dsl.String, "Committee role name", func() {
+		dsl.Enum(committeeRoleNameEnum...)
+		dsl.Default("None")
+		dsl.Example("Chair")
+	})
+}
+
+// RoleStartDateAttribute is the DSL attribute for role start date.
+func RoleStartDateAttribute() {
+	dsl.Attribute("start_date", dsl.String, "Role start date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2023-01-01")
+	})
+}
+
+// RoleEndDateAttribute is the DSL attribute for role end date.
+func RoleEndDateAttribute() {
+	dsl.Attribute("end_date", dsl.String, "Role end date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2024-12-31")
+	})
+}
+
+// AppointedByAttribute is the DSL attribute for appointed by.
+func AppointedByAttribute() {
+	dsl.Attribute("appointed_by", dsl.String, "How the member was appointed", func() {
+		dsl.Enum(
+			"Community",
+			"Membership Entitlement",
+			"Vote of End User Member Class",
+			"Vote of TSC Committee",
+			"Vote of TAC Committee",
+			"Vote of Academic Member Class",
+			"Vote of Lab Member Class",
+			"Vote of Marketing Committee",
+			"Vote of Governing Board",
+			"Vote of General Member Class",
+			"Vote of End User Committee",
+			"Vote of TOC Committee",
+			"Vote of Gold Member Class",
+			"Vote of Silver Member Class",
+			"Vote of Strategic Membership Class",
+			"None",
+		)
+		dsl.Default("None")
+		dsl.Example("Community")
+	})
+}
+
+// StatusAttribute is the DSL attribute for member status.
+func StatusAttribute() {
+	dsl.Attribute("status", dsl.String, "Member status", func() {
+		dsl.Enum("Active", "Inactive")
+		dsl.Default("Active")
+		dsl.Example("Active")
+	})
+}
+
+// VotingStatusAttribute is the DSL attribute for voting status.
+func VotingStatusAttribute() {
+	dsl.Attribute("status", dsl.String, "Voting status", func() {
+		dsl.Enum(committeeVotingStatusEnum...)
+		dsl.Default("None")
+		dsl.Example("Voting Rep")
+	})
+}
+
+// VotingStartDateAttribute is the DSL attribute for voting start date.
+func VotingStartDateAttribute() {
+	dsl.Attribute("start_date", dsl.String, "Voting start date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2023-01-01")
+	})
+}
+
+// VotingEndDateAttribute is the DSL attribute for voting end date.
+func VotingEndDateAttribute() {
+	dsl.Attribute("end_date", dsl.String, "Voting end date", func() {
+		dsl.Format(dsl.FormatDate)
+		dsl.Example("2024-12-31")
+	})
+}
+
+// Organization Specific Attributes
+
+// OrganizationNameAttribute is the DSL attribute for organization name.
+func OrganizationNameAttribute() {
+	dsl.Attribute("name", dsl.String, "Organization name", func() {
+		dsl.MaxLength(200)
+		dsl.Example("The Linux Foundation")
+	})
+}
+
+// OrganizationWebsiteAttribute is the DSL attribute for organization website.
+func OrganizationWebsiteAttribute() {
+	dsl.Attribute("website", dsl.String, "Organization website URL", func() {
+		dsl.Format(dsl.FormatURI)
+		dsl.Pattern(urlPattern)
+		dsl.Example("https://linuxfoundation.org")
+	})
+}
+
+// OrganizationIDAttribute is the DSL attribute for organization ID.
+func OrganizationIDAttribute() {
+	dsl.Attribute("id", dsl.String, "Organization ID", func() {
+		dsl.Example("org-123456")
+	})
+}
+
+// MemberVisibilityAttribute is the DSL attribute for the member visibility setting
+func MemberVisibilityAttribute() {
+	dsl.Attribute("member_visibility", dsl.String, "Dertermines the visibility level of members profiles to other members of the same committee", func() {
+		dsl.Enum("hidden", "basic_profile")
+		dsl.Default("hidden")
+		dsl.Example("hidden")
+	})
+}
+
+// ShowMeetingAttendeesAttribute is the DSL attribute for the default meeting attendees visibility setting.
+func ShowMeetingAttendeesAttribute() {
+	dsl.Attribute("show_meeting_attendees", dsl.Boolean, "Determines the default show_meeting_attendees setting on meetings this committee is connected to", func() {
+		dsl.Default(false)
+		dsl.Example(false)
+	})
+}
+
+// JoinModeAttribute is the DSL attribute for committee join mode.
+func JoinModeAttribute() {
+	dsl.Attribute("join_mode", dsl.String, "How new members can join this committee", func() {
+		dsl.Enum("open", "invite_only", "application", "closed")
+		dsl.Default("invite_only")
+		dsl.Example("open")
+	})
+}
+
+// MailingListAttribute is the DSL attribute for committee mailing list email.
+func MailingListAttribute() {
+	dsl.Attribute("mailing_list", dsl.String, "The mailing list email address for the committee", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("tsc@lists.example.org")
+	})
+}
+
+// HasMailingListAttribute is the DSL attribute indicating whether a committee has any associated mailing lists.
+func HasMailingListAttribute() {
+	dsl.Attribute("has_mailing_list", dsl.Boolean, "Whether the committee has any associated mailing lists", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// ChatChannelAttribute is the DSL attribute for committee chat channel.
+func ChatChannelAttribute() {
+	dsl.Attribute("chat_channel", dsl.String, "The chat channel URL or identifier for the committee", func() {
+		dsl.MaxLength(500)
+		dsl.Example("https://slack.example.org/channels/tsc")
+	})
+}
+
+// HasChatWebhookAttribute is the DSL attribute indicating whether a committee has a chat webhook configured.
+// This is a computed read-only boolean: true when chat_webhook_url is set and non-empty, false otherwise.
+// The raw URL is never returned; use this field to decide whether to show the "Share to Slack" action.
+func HasChatWebhookAttribute() {
+	dsl.Attribute("has_chat_webhook", dsl.Boolean, "Whether the committee has a Slack webhook configured for sharing the weekly brief. "+
+		"True when chat_webhook_url is set to a non-empty value; false otherwise. The raw URL is never returned.", func() {
+		dsl.Default(false)
+		dsl.Example(true)
+	})
+}
+
+// ChatWebhookURLAttribute is the DSL attribute for the committee's Slack Incoming Webhook URL.
+// This field is write-only: accepted on create and PUT settings, never returned from GET.
+// Update semantics: omit or send null to preserve the stored URL; send "" to clear it.
+// Only Slack Incoming Webhooks (hooks.slack.com) are supported. Other chat platforms
+// are not supported and URLs pointing to other hosts are rejected at both write and send time.
+func ChatWebhookURLAttribute() {
+	dsl.Attribute("chat_webhook_url", dsl.String, "Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. "+
+		"Write-only: never returned from GET. "+
+		"Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. "+
+		"Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.", func() {
+		dsl.Pattern(slackWebhookURLPattern)
+		dsl.MaxLength(500)
+	})
+}
+
+// InviteUIDAttribute is the DSL attribute for invite UID in URL paths.
+func InviteUIDAttribute() {
+	dsl.Attribute("invite_uid", dsl.String, "Committee invite UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// ApplicationUIDAttribute is the DSL attribute for application UID in URL paths.
+func ApplicationUIDAttribute() {
+	dsl.Attribute("application_uid", dsl.String, "Committee application UID", func() {
+		dsl.Example("b2c3d4e5-f6a7-8901-bcde-f12345678901")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeInviteWithReadonlyAttributes is the DSL type for a committee invite with readonly attributes.
+var CommitteeInviteWithReadonlyAttributes = dsl.Type("committee-invite-with-readonly-attributes", func() {
+	dsl.Description("A representation of a committee invite with readonly attributes.")
+
+	dsl.Attribute("uid", dsl.String, "Invite UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("committee_name", dsl.String, "Name of the committee at the time the invite was created", func() {
+		dsl.Example("Technical Steering Committee")
+	})
+	dsl.Attribute("organization_required", dsl.Boolean, "Whether the invitee must supply an organization when accepting. True when the committee has voting enabled or requires a business email.", func() {
+		dsl.Example(false)
+	})
+	dsl.Attribute("invitee_email", dsl.String, "Email of the invited person", func() {
+		dsl.Format(dsl.FormatEmail)
+		dsl.Example("invitee@example.com")
+	})
+	dsl.Attribute("role", dsl.String, "Suggested role for the invitee", func() {
+		dsl.Example("None")
+	})
+	OrganizationInfoAttributes()
+	dsl.Attribute("status", dsl.String, "Invite status", func() {
+		dsl.Enum("pending", "accepted", "declined", "revoked")
+		dsl.Default("pending")
+		dsl.Example("pending")
+	})
+	dsl.Attribute("inviter", CommitteeUserType, "The user who created the invite (read-only)", func() {
+		dsl.Example(map[string]interface{}{
+			"username": "first-last",
+			"name":     "First Last",
+			"email":    "first.last@example.com",
+			"avatar":   "https://example.com/avatar.png",
+		})
+	})
+	dsl.Attribute("expires_at", dsl.String, "The timestamp when the invite link expires (read-only)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2023-02-14T10:30:00Z")
+	})
+	CreatedAtAttribute()
+})
+
+// CommitteeApplicationWithReadonlyAttributes is the DSL type for a committee application with readonly attributes.
+var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application-with-readonly-attributes", func() {
+	dsl.Description("A representation of a committee application with readonly attributes.")
+
+	dsl.Attribute("uid", dsl.String, "Application UID", func() {
+		dsl.Example("b2c3d4e5-f6a7-8901-bcde-f12345678901")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("applicant_email", dsl.String, "Applicant email address", func() {
+		dsl.Example("user@example.com")
+	})
+	dsl.Attribute("message", dsl.String, "Application message from the applicant", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("I would like to join the TSC to contribute my expertise.")
+	})
+	dsl.Attribute("status", dsl.String, "Application status", func() {
+		dsl.Enum("pending", "approved", "rejected")
+		dsl.Default("pending")
+		dsl.Example("pending")
+	})
+	dsl.Attribute("reviewer_notes", dsl.String, "Notes from the reviewer", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Approved based on contribution history.")
+	})
+	OrganizationInfoAttributes()
+	CreatedAtAttribute()
+})
+
+// Errors
+// BadRequestError is the DSL type for a bad request error.
+var BadRequestError = dsl.Type("bad-request-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("The request was invalid.")
+	})
+	dsl.Required("message")
+})
+
+// NotFoundError is the DSL type for a not found error.
+var NotFoundError = dsl.Type("not-found-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("The resource was not found.")
+	})
+	dsl.Required("message")
+})
+
+// ConflictError is the DSL type for a conflict error.
+var ConflictError = dsl.Type("conflict-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("The resource already exists.")
+	})
+	dsl.Required("message")
+})
+
+// ForbiddenError is the DSL type for a forbidden error.
+var ForbiddenError = dsl.Type("forbidden-error", func() {
+	dsl.Description("Forbidden")
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("You do not have permission to perform this action.")
+	})
+	dsl.Required("message")
+})
+
+// InternalServerError is the DSL type for an internal server error.
+var InternalServerError = dsl.Type("internal-server-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("An internal server error occurred.")
+	})
+	dsl.Required("message")
+})
+
+// ServiceUnavailableError is the DSL type for a service unavailable error.
+var ServiceUnavailableError = dsl.Type("service-unavailable-error", func() {
+	dsl.Attribute("message", dsl.String, "Error message", func() {
+		dsl.Example("The service is unavailable.")
+	})
+	dsl.Required("message")
+})
+
+// ─── Committee Link and Folder Types ───
+
+// LinkUIDAttribute is the DSL attribute for link UID in URL paths.
+func LinkUIDAttribute() {
+	dsl.Attribute("link_uid", dsl.String, "Committee link UID", func() {
+		dsl.Example("c1d2e3f4-a5b6-7890-cdef-123456789012")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// FolderUIDAttribute is the DSL attribute for folder UID in URL paths.
+func FolderUIDAttribute() {
+	dsl.Attribute("folder_uid", dsl.String, "Committee folder UID", func() {
+		dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeLinkFolderWithReadonlyAttributes is the DSL type for a committee link folder.
+var CommitteeLinkFolderWithReadonlyAttributes = dsl.Type("committee-link-folder-with-readonly-attributes", func() {
+	dsl.Description("A folder for organizing committee links.")
+
+	dsl.Attribute("uid", dsl.String, "Folder UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("name", dsl.String, "Folder name", func() {
+		dsl.MaxLength(200)
+		dsl.Example("Meeting Notes")
+	})
+	ResourceAuditUserAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// CommitteeLinkWithReadonlyAttributes is the DSL type for a committee link.
+var CommitteeLinkWithReadonlyAttributes = dsl.Type("committee-link-with-readonly-attributes", func() {
+	dsl.Description("A URL link associated with a committee.")
+
+	dsl.Attribute("uid", dsl.String, "Link UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("c1d2e3f4-a5b6-7890-cdef-123456789012")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("folder_uid", dsl.String, "Optional folder UID this link belongs to", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+	})
+	dsl.Attribute("name", dsl.String, "Display name for the link", func() {
+		dsl.MaxLength(500)
+		dsl.Example("Technical Architecture Decision Records")
+	})
+	dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+		dsl.MaxLength(2048)
+		dsl.Example("https://confluence.example.com/architecture-decisions")
+	})
+	dsl.Attribute("description", dsl.String, "Optional description", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Confluence wiki — architecture decisions log")
+	})
+	ResourceAuditUserAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})
+
+// ─── Working-Group Weekly Brief Types ───
+
+// GroupWeeklyBriefSourceRef is a reference to one source document considered
+// by the weekly-brief generator.
+var GroupWeeklyBriefSourceRef = dsl.Type("group-weekly-brief-source-ref", func() {
+	dsl.Description("Reference to a source document considered by the weekly-brief generator.")
+	dsl.Attribute("kind", dsl.String, "Source category (meeting, mailing-list, doc, …)", func() {
+		dsl.Example("meeting")
+	})
+	dsl.Attribute("id", dsl.String, "Source-system identifier (URL or UID)", func() {
+		dsl.Example("https://meet.example.org/abc123")
+	})
+	dsl.Attribute("title", dsl.String, "Short human label for the source", func() {
+		dsl.Example("2026-05-12 weekly sync")
+	})
+	dsl.Attribute("excerpt", dsl.String, "Excerpt consumed by the generator", func() {
+		dsl.MaxLength(5000)
+	})
+})
+
+// GroupWeeklyBriefWithReadonlyAttributes is the Goa type for a weekly brief.
+var GroupWeeklyBriefWithReadonlyAttributes = dsl.Type("group-weekly-brief-with-readonly-attributes", func() {
+	dsl.Description("A working-group weekly brief for a single committee and Sun→Sat window.")
+	dsl.Attribute("uid", dsl.String, "Brief UID", func() {
+		dsl.Example("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID this brief belongs to", func() {
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+		dsl.Format(dsl.FormatUUID)
+	})
+	dsl.Attribute("window_start", dsl.String, "UTC Sunday 00:00:00 marking the start of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-10T00:00:00Z")
+	})
+	dsl.Attribute("window_end", dsl.String, "Inclusive UTC end of the window — Saturday 23:59:59.999999999 (nanosecond precision)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-16T23:59:59.999999999Z")
+	})
+	dsl.Attribute("state", dsl.String, "Lifecycle state", func() {
+		dsl.Enum("empty", "generating", "generated", "edited", "approved", "error")
+		dsl.Example("generated")
+	})
+	dsl.Attribute("error_reason", dsl.String, `Machine-readable reason for the error state; absent when the brief is not in the error state or the reason is empty. Supported values: "no_sources" (generator found no source material), "ai_error" (AI call failed).`, func() {
+		dsl.Example("no_sources")
+	})
+	dsl.Attribute("brief_text", dsl.String, "Brief body markdown text", func() {
+		dsl.MaxLength(20000)
+	})
+	dsl.Attribute("source_refs", dsl.ArrayOf(GroupWeeklyBriefSourceRef), "Sources considered by the generator")
+	dsl.Attribute("prompt_version", dsl.String, "Prompt version used by the generator", func() {
+		dsl.Example("v1")
+	})
+	dsl.Attribute("model", dsl.String, "AI model used by the generator", func() {
+		dsl.Example("fake")
+	})
+	dsl.Attribute("regeneration_count", dsl.Int, "Number of regenerations triggered in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("private_source_present", dsl.Boolean, "Whether any non-public source was used", func() {
+		dsl.Example(false)
+	})
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+	dsl.Attribute("last_edited_at", dsl.String, "Timestamp of the most recent chair edit via PUT /current; absent if never edited", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-18T14:03:00Z")
+	})
+	dsl.Attribute("last_edited_by", dsl.String, "LFX username of the caller who last edited the brief; absent if never edited", func() {
+		dsl.Example("jsmith")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Optimistic-concurrency token. Echo this back in PUT /current; a stale value yields 409.", func() {
+		dsl.Minimum(1)
+		dsl.Example(uint64(7))
+	})
+	dsl.Example("error-state", map[string]any{
+		"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+		"window_start":           "2026-05-10T00:00:00Z",
+		"window_end":             "2026-05-16T23:59:59.999999999Z",
+		"state":                  "error",
+		"error_reason":           "no_sources",
+		"regeneration_count":     0,
+		"private_source_present": false,
+		"revision":               uint64(1),
+	})
+})
+
+// GroupWeeklyBriefThrottleAttributes is the Goa type for the throttle counters
+// returned alongside the brief: generates_used / regenerations_used with their
+// limits, plus window_resets_at.
+var GroupWeeklyBriefThrottleAttributes = dsl.Type("group-weekly-brief-throttle", func() {
+	dsl.Description("Per-committee/per-week regeneration throttle counters.")
+	dsl.Attribute("generates_used", dsl.Int, "Number of fresh generations used in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("generates_limit", dsl.Int, "Maximum fresh generations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Number of regenerations used in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Maximum regenerations allowed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+})
+
+// GroupWeeklyBriefCurrentResult is the envelope returned by
+// GET /committees/{uid}/weekly-briefs/current. brief and throttle are both
+// nullable; on a miss BOTH are null and the HTTP status is 200 (NOT 404).
+//
+// The attributes are intentionally NOT Required: marking them Required forces
+// the generated client validation to reject a valid `{"brief":null,"throttle":null}`
+// miss response (MissingFieldError). Instead, an explicit json struct tag
+// without `omitempty` (via Meta) keeps the keys present and serializes a nil
+// pointer as `null`, matching the documented BFF contract without breaking
+// client decoding.
+var GroupWeeklyBriefCurrentResult = dsl.Type("group-weekly-brief-current-result", func() {
+	dsl.Description("Envelope returned by GET /committees/{uid}/weekly-briefs/current. On a miss, both attributes are null and the response status is 200.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The weekly brief, or null if none exists for the current window", func() {
+		dsl.Meta("struct:tag:json", "brief")
+	})
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Throttle counters for the current window, or null", func() {
+		dsl.Meta("struct:tag:json", "throttle")
+	})
+})
+
+// GroupWeeklyBriefGenerateResult is the envelope returned by
+// POST /committees/{uid}/weekly-briefs/generate.
+var GroupWeeklyBriefGenerateResult = dsl.Type("group-weekly-brief-generate-result", func() {
+	dsl.Description("Envelope returned by POST /committees/{uid}/weekly-briefs/generate. Both brief and throttle are populated on success.")
+	dsl.Attribute("brief", GroupWeeklyBriefWithReadonlyAttributes, "The newly generated (or regenerated) brief")
+	dsl.Attribute("throttle", GroupWeeklyBriefThrottleAttributes, "Updated throttle counters for the current window")
+	dsl.Example("generating-state", map[string]any{
+		"brief": map[string]any{
+			"uid":                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			"committee_uid":          "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+			"window_start":           "2026-05-10T00:00:00Z",
+			"window_end":             "2026-05-16T23:59:59.999999999Z",
+			"state":                  "generating",
+			"regeneration_count":     0,
+			"private_source_present": false,
+			"revision":               uint64(1),
+		},
+		"throttle": map[string]any{
+			"generates_used":      1,
+			"generates_limit":     2,
+			"regenerations_used":  0,
+			"regenerations_limit": 3,
+			"window_resets_at":    "2026-05-17T00:00:00Z",
+		},
+	})
+})
+
+// GroupWeeklyBriefPreviewResult is the envelope returned by
+// POST /committees/{uid}/weekly-briefs/preview-generate.
+var GroupWeeklyBriefPreviewResult = dsl.Type("group-weekly-brief-preview-result", func() {
+	dsl.Description("Envelope returned by POST /committees/{uid}/weekly-briefs/preview-generate. " +
+		"Contains the generated brief text and metadata without persisting anything.")
+	dsl.Attribute("brief_text", dsl.String, "Generated brief body markdown text", func() {
+		dsl.MaxLength(20000)
+		dsl.Example("The committee met on 2026-08-27 to review the Q3 roadmap...")
+	})
+	dsl.Attribute("source_refs", dsl.ArrayOf(GroupWeeklyBriefSourceRef), "Sources considered by the generator")
+	dsl.Attribute("private_source_present", dsl.Boolean, "Whether any non-public source was used", func() {
+		dsl.Example(false)
+	})
+	dsl.Attribute("window_start", dsl.String, "UTC Sunday 00:00:00 marking the start of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-08-23T00:00:00Z")
+	})
+	dsl.Attribute("window_end", dsl.String, "Inclusive UTC end of the window", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-08-29T23:59:59.999999999Z")
+	})
+	dsl.Attribute("prompt_version", dsl.String, "Prompt version used by the generator", func() {
+		dsl.Example("v1")
+	})
+	dsl.Attribute("model", dsl.String, "AI model used by the generator", func() {
+		dsl.Example("claude-sonnet-4-6")
+	})
+	dsl.Example("preview", map[string]any{
+		"brief_text":             "The committee met on 2026-08-27...",
+		"private_source_present": false,
+		"window_start":           "2026-08-23T00:00:00Z",
+		"window_end":             "2026-08-29T23:59:59.999999999Z",
+		"prompt_version":         "v1",
+		"model":                  "claude-sonnet-4-6",
+	})
+})
+
+// GroupWeeklyBriefThrottleExceededError is the 429 body. It carries the throttle
+// counters so the BFF can render a precise "try again at" hint without a second
+// round-trip.
+var GroupWeeklyBriefThrottleExceededError = dsl.Type("group-weekly-brief-throttle-exceeded-error", func() {
+	dsl.Description("Returned when the per-committee/per-week generation or regeneration limit is exhausted.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("throttle_exceeded")
+		dsl.Example("throttle_exceeded")
+	})
+	dsl.Attribute("generates_used", dsl.Int, "Fresh generations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("generates_limit", dsl.Int, "Fresh-generation limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(2)
+	})
+	dsl.Attribute("regenerations_used", dsl.Int, "Regenerations consumed in this window", func() {
+		dsl.Minimum(0)
+		dsl.Example(0)
+	})
+	dsl.Attribute("regenerations_limit", dsl.Int, "Regeneration limit per window", func() {
+		dsl.Minimum(0)
+		dsl.Example(3)
+	})
+	dsl.Attribute("window_resets_at", dsl.String, "Timestamp when the window resets (next UTC Sunday 00:00:00)", func() {
+		dsl.Format(dsl.FormatDateTime)
+		dsl.Example("2026-05-24T00:00:00Z")
+	})
+	dsl.Required("code", "generates_used", "generates_limit", "regenerations_used", "regenerations_limit", "window_resets_at")
+})
+
+// GroupWeeklyBriefEditedExistsError is the 409 body returned when a brief in
+// the "edited" state already exists for this window and the caller did not
+// pass force=true.
+var GroupWeeklyBriefEditedExistsError = dsl.Type("group-weekly-brief-edited-exists-error", func() {
+	dsl.Description("Returned when an edited brief already exists for this window and force was not set.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("edited_brief_exists")
+		dsl.Example("edited_brief_exists")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Current revision of the edited brief", func() {
+		dsl.Example(uint64(7))
+	})
+	dsl.Required("code", "revision")
+})
+
+// GroupWeeklyBriefRevisionConflictError is the 409 body returned by
+// PUT /committees/{uid}/weekly-briefs/current when the caller's revision token
+// is stale (the brief was edited concurrently). It carries the current
+// server-side revision so the client can refetch via GET /current and retry.
+var GroupWeeklyBriefRevisionConflictError = dsl.Type("group-weekly-brief-revision-conflict-error", func() {
+	dsl.Description("Returned when the caller's revision token does not match the brief's current revision.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("revision_conflict")
+		dsl.Example("revision_conflict")
+	})
+	dsl.Attribute("revision", dsl.UInt64, "Current server-side revision of the brief", func() {
+		dsl.Example(uint64(8))
+	})
+	dsl.Required("code", "revision")
+})
+
+// NoChatWebhookError is the 409 body returned by
+// POST /committees/{uid}/weekly-briefs/share-to-chat when no chat_webhook_url
+// is configured in the committee settings.
+var NoChatWebhookError = dsl.Type("no-chat-webhook-error", func() {
+	dsl.Description("Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.")
+	dsl.Attribute("code", dsl.String, "Stable machine code", func() {
+		dsl.Enum("no_chat_webhook")
+		dsl.Example("no_chat_webhook")
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable description")
+	dsl.Required("code", "message")
+})
+
+// ─── Committee Document Types ───
+
+// DocumentUIDAttribute is the DSL attribute for document UID in URL paths.
+func DocumentUIDAttribute() {
+	dsl.Attribute("document_uid", dsl.String, "Committee document UID", func() {
+		dsl.Example("d1e2f3a4-b5c6-7890-defa-123456789012")
+		dsl.Format(dsl.FormatUUID)
+	})
+}
+
+// CommitteeDocumentWithReadonlyAttributes is the DSL type for a committee document.
+var CommitteeDocumentWithReadonlyAttributes = dsl.Type("committee-document-with-readonly-attributes", func() {
+	dsl.Description("A file document associated with a committee.")
+
+	dsl.Attribute("uid", dsl.String, "Document UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("d1e2f3a4-b5c6-7890-defa-123456789012")
+	})
+	dsl.Attribute("committee_uid", dsl.String, "Committee UID", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("folder_uid", dsl.String, "Optional folder UID this document belongs to", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+	})
+	dsl.Attribute("name", dsl.String, "Display name for the document", func() {
+		dsl.MaxLength(500)
+		dsl.Example("Architecture Decision Record")
+	})
+	dsl.Attribute("description", dsl.String, "Optional description", func() {
+		dsl.MaxLength(2000)
+		dsl.Example("Technical architecture decisions for Q1 2025")
+	})
+	dsl.Attribute("file_name", dsl.String, "Original file name", func() {
+		dsl.MaxLength(500)
+		dsl.Example("architecture-decisions-q1-2025.pdf")
+	})
+	dsl.Attribute("file_size", dsl.Int64, "File size in bytes", func() {
+		dsl.Minimum(0)
+		dsl.Example(int64(204800))
+	})
+	dsl.Attribute("content_type", dsl.String, "MIME type of the file", func() {
+		dsl.Example("application/pdf")
+	})
+	ResourceAuditUserAttributes()
+	CreatedAtAttribute()
+	UpdatedAtAttribute()
+})

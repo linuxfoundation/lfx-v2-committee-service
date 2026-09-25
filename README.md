@@ -1,0 +1,157 @@
+# LFX V2 Committee Service
+
+This repository contains the source code for the LFX v2 platform committee service.
+
+## Overview
+
+The LFX v2 Committee Service is a RESTful API service that manages committees and their members within the Linux Foundation's LFX platform. It provides endpoints for creating, reading, updating, and deleting committees and committee members with built-in authorization and audit capabilities. Committees are associated with projects and can have hierarchical structures with parent-child relationships.
+
+## File Structure
+
+```bash
+├── .github/                        # GitHub files
+│   └── workflows/                  # GitHub Actions workflow files
+├── charts/                         # Helm charts for running the service in kubernetes
+├── cmd/                            # Services and tools (main packages)
+│   ├── committee-api/              # Committee service code
+│   │   ├── design/                 # API design specifications (Goa)
+│   │   ├── service/                # Service implementation
+│   │   ├── main.go                 # Application entry point
+│   │   └── http.go                 # HTTP server setup
+│   └── committee-cli/              # committee-cli operational tool
+│       └── commands/               # Command and subcommand implementations
+├── docs/                           # Feature and flow documentation
+├── gen/                            # Generated code from Goa design
+├── internal/                       # Internal service packages
+│   ├── domain/                     # Domain logic layer (business logic)
+│   │   ├── model/                  # Domain models and entities
+│   │   └── port/                   # Repository and service interfaces
+│   ├── service/                    # Service logic layer (use cases)
+│   ├── infrastructure/             # Infrastructure layer
+│   │   ├── auth/                   # Authentication implementations
+│   │   ├── nats/                   # NATS storage implementation
+│   │   └── mock/                   # Mock implementations for testing
+│   └── middleware/                 # HTTP middleware components
+└── pkg/                            # Shared packages
+```
+
+## Key Features
+
+- **RESTful API**: Full CRUD operations for committee and committee member management
+- **NATS Messaging**: Inter-service communication for committee data retrieval via NATS subjects
+- **Committee Hierarchies**: Support for parent-child committee relationships
+- **Member Management**: Comprehensive committee member operations including roles, voting status, and organization details
+- **Project Integration**: Committees are associated with projects for organizational structure
+- **Clean Architecture**: Follows clean architecture principles with clear separation of domain, service, and infrastructure layers
+- **NATS Storage**: Uses NATS key-value buckets for persistent committee data storage
+- **Authorization**: JWT-based authentication with Heimdall middleware integration
+- **OpenFGA Support**: Fine-grained authorization control for committee access (configurable)
+- **Health Checks**: Built-in `/livez` and `/readyz` endpoints
+- **Request Tracking**: Automatic request ID generation and propagation
+- **Structured Logging**: JSON-formatted logs with contextual information
+- **Committee Settings**: Configurable voting, membership, and access control settings
+
+## Documentation
+
+- [Invite & Application Flows](docs/invite-application-flows.md) — membership modes, invite/application lifecycle, state transitions, and edge cases
+- [Indexer Contract](docs/indexer-contract.md) — authoritative reference for all messages sent to the indexer service
+- [FGA Contract](docs/fga-contract.md) — authoritative reference for all messages sent to the fga-sync service
+- [NATS Request-Reply Subjects](docs/nats-request-reply.md) — synchronous request/reply subjects served by this service for inter-service queries
+- [Committee CLI](cmd/committee-cli/README.md) — operational tool for running data repair and sync tasks against the service
+
+## Releases
+
+### Creating a Release
+
+To create a new release of the committee service:
+
+1. **Update the chart version** in `charts/lfx-v2-committee-service/Chart.yaml` prior to any project releases, or if any
+   change is made to the chart manifests or configuration:
+
+   ```yaml
+   version: 0.2.0  # Increment this version
+   appVersion: "latest"  # Keep this as "latest"
+   ```
+
+2. **After the pull request is merged**, create a GitHub release and choose the
+   option for GitHub to also tag the repository. The tag must follow the format
+   `v{version}` (e.g., `v0.2.0`). This tag does _not_ have to match the chart
+   version: it is the version for the project release, which will dynamically
+   update the `appVersion` in the released chart.
+
+3. **The GitHub Actions workflow will automatically**:
+   - Gate the release on the weekly-brief live LLM eval — see [Release gate](#release-gate-weekly-brief-live-llm-eval) below
+   - Build and publish the container images (committee-api and committee-cli)
+   - Package and publish the Helm chart to GitHub Pages
+   - Publish the chart to GitHub Container Registry (GHCR)
+   - Sign the chart with Cosign
+   - Generate SLSA provenance
+   - Dispatch `create-version-bump-pr.yml` on `lfx-v2-argocd` so staging and
+     prod image tags and chart pins are opened as a pull request
+
+### Release gate: weekly-brief live LLM eval
+
+Every `v*` tag push runs the [working-group weekly-brief live LLM eval suite](evals/weekly-brief/README.md)
+as a hard gate before any images, Helm charts, SBOMs, or cosign signatures
+are published. The wiring lives in
+[`.github/workflows/ko-build-tag.yaml`](.github/workflows/ko-build-tag.yaml),
+which invokes the reusable
+[`.github/workflows/weekly-brief-eval-live.yml`](.github/workflows/weekly-brief-eval-live.yml)
+as a `needs:` dependency of the `publish` job. A failing eval aborts the
+release.
+
+Configuration in CI is **not via GitHub repository secrets**:
+
+- `LITELLM_BASE_URL` and `LITELLM_MODEL` are pinned in the workflow's
+  `env:` block. To change the endpoint or model, edit
+  [`.github/workflows/weekly-brief-eval-live.yml`](.github/workflows/weekly-brief-eval-live.yml)
+  and merge the change — defaults are
+  `https://litellm.dev.v2.cluster.linuxfound.info` and `claude-sonnet-4-6`.
+- `LITELLM_API_KEY` is fetched from **AWS Secrets Manager** at
+  `/cloudops/managed-secrets/litellm/lfx-one-cicd`, via the OIDC role
+  `arn:aws:iam::450177423209:role/lfx-v2-github-actions`. To rotate the
+  key, update the AWS Secrets Manager entry — no workflow change required.
+
+`ko-build-tag.yaml` grants the calling `eval-live` job
+`permissions: id-token: write` so the called workflow's OIDC token
+exchange with AWS can succeed; a reusable workflow cannot elevate
+permissions beyond what its caller grants.
+
+Missing credentials fail the workflow loudly rather than silently skipping
+(the live test calls `t.Fatalf` under `-tags=live`). To validate against a
+specific endpoint before cutting a release, run the workflow on demand via
+**Actions → Weekly-Brief Live Eval → Run workflow**.
+
+### Important Notes
+
+- The `appVersion` in `Chart.yaml` should always remain `"latest"` in the committed code.
+- During the release process, the `ko-build-tag.yaml` workflow automatically overrides the `appVersion` with the actual tag version (e.g., `v0.2.0` becomes `0.2.0`).
+- Only update the chart `version` field when making releases - this represents the Helm chart version.
+- The container image tags are automatically managed by the consolidated CI/CD pipeline using the git tag.
+- Both container images (committee-api) and the Helm chart are published together in a single workflow.
+
+## Development
+
+To contribute to this repository:
+
+1. Fork the repository
+2. Commit your changes to a feature branch in your fork. Ensure your commits
+   are signed with the [Developer Certificate of Origin
+   (DCO)](https://developercertificate.org/).
+   You can use the `git commit -s` command to sign your commits.
+3. Ensure the chart version in `charts/lfx-v2-committee-service/Chart.yaml` has been
+   updated following semantic version conventions if you are making changes to the chart.
+4. Submit your pull request
+
+For detailed development instructions, including local setup, testing, and API development guidelines, see the [Committee API README](cmd/committee-api/README.md).
+
+## License
+
+Copyright The Linux Foundation and each contributor to LFX.
+
+This project’s source code is licensed under the MIT License. A copy of the
+license is available in `LICENSE`.
+
+This project’s documentation is licensed under the Creative Commons Attribution
+4.0 International License \(CC-BY-4.0\). A copy of the license is available in
+`LICENSE-docs`.

@@ -1,0 +1,2246 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package service
+
+import (
+	"testing"
+	"time"
+
+	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+	server "github.com/linuxfoundation/lfx-v2-committee-service/gen/http/committee_service/server"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestConvertPayloadToDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected *model.Committee
+	}{
+		{
+			name: "complete payload conversion",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:            "project-123",
+				Name:                  "Test Committee",
+				Category:              "governance",
+				Description:           stringPtr("Test description"),
+				Website:               stringPtr("https://example.com"),
+				EnableVoting:          true,
+				SsoGroupEnabled:       true,
+				RequiresReview:        true,
+				Public:                true,
+				DisplayName:           stringPtr("Test Display Name"),
+				ParentUID:             stringPtr("parent-123"),
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				Writers:               []*committeeservice.CommitteeUser{{Username: stringPtr("writer1")}, {Username: stringPtr("writer2")}},
+				Auditors:              []*committeeservice.CommitteeUser{{Username: stringPtr("auditor1")}, {Username: stringPtr("auditor2")}},
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: true,
+				},
+			},
+			expected: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID:      "project-123",
+					Name:            "Test Committee",
+					Category:        "governance",
+					Description:     "Test description",
+					Website:         stringPtr("https://example.com"),
+					EnableVoting:    true,
+					SSOGroupEnabled: true,
+					RequiresReview:  true,
+					Public:          true,
+					DisplayName:     "Test Display Name",
+					ParentUID:       stringPtr("parent-123"),
+					Calendar: model.Calendar{
+						Public: true,
+					},
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					BusinessEmailRequired: true,
+					LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+					LastReviewedBy:        stringPtr("user-123"),
+					Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+					Auditors:              []model.CommitteeUser{{Username: "auditor1"}, {Username: "auditor2"}},
+				},
+			},
+		},
+		{
+			name: "minimal payload conversion",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:            "project-123",
+				Name:                  "Minimal Committee",
+				Category:              "technical",
+				EnableVoting:          false,
+				SsoGroupEnabled:       false,
+				RequiresReview:        false,
+				Public:                false,
+				BusinessEmailRequired: false,
+			},
+			expected: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID:      "project-123",
+					Name:            "Minimal Committee",
+					Category:        "technical",
+					EnableVoting:    false,
+					SSOGroupEnabled: false,
+					RequiresReview:  false,
+					Public:          false,
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					BusinessEmailRequired: false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToDomain(tt.payload)
+
+			assert.Equal(t, tt.expected.CommitteeBase, result.CommitteeBase)
+			assert.Equal(t, tt.expected.CommitteeSettings, result.CommitteeSettings)
+		})
+	}
+}
+
+func TestConvertPayloadToBase(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected model.CommitteeBase
+	}{
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: model.CommitteeBase{},
+		},
+		{
+			name: "complete base payload",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:      "project-123",
+				Name:            "Test Committee",
+				Category:        "governance",
+				Description:     stringPtr("Test description"),
+				Website:         stringPtr("https://example.com"),
+				EnableVoting:    true,
+				SsoGroupEnabled: true,
+				RequiresReview:  true,
+				Public:          true,
+				DisplayName:     stringPtr("Test Display Name"),
+				ParentUID:       stringPtr("parent-123"),
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: true,
+				},
+			},
+			expected: model.CommitteeBase{
+				ProjectUID:      "project-123",
+				Name:            "Test Committee",
+				Category:        "governance",
+				Description:     "Test description",
+				Website:         stringPtr("https://example.com"),
+				EnableVoting:    true,
+				SSOGroupEnabled: true,
+				RequiresReview:  true,
+				Public:          true,
+				DisplayName:     "Test Display Name",
+				ParentUID:       stringPtr("parent-123"),
+				Calendar: model.Calendar{
+					Public: true,
+				},
+			},
+		},
+		{
+			name: "payload without optional fields",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:      "project-123",
+				Name:            "Minimal Committee",
+				Category:        "technical",
+				EnableVoting:    false,
+				SsoGroupEnabled: false,
+				RequiresReview:  false,
+				Public:          false,
+			},
+			expected: model.CommitteeBase{
+				ProjectUID:      "project-123",
+				Name:            "Minimal Committee",
+				Category:        "technical",
+				EnableVoting:    false,
+				SSOGroupEnabled: false,
+				RequiresReview:  false,
+				Public:          false,
+			},
+		},
+		{
+			name: "payload with nil calendar",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:      "project-123",
+				Name:            "Test Committee",
+				Category:        "governance",
+				EnableVoting:    true,
+				SsoGroupEnabled: false,
+				RequiresReview:  false,
+				Public:          true,
+				Calendar:        nil,
+			},
+			expected: model.CommitteeBase{
+				ProjectUID:      "project-123",
+				Name:            "Test Committee",
+				Category:        "governance",
+				EnableVoting:    true,
+				SSOGroupEnabled: false,
+				RequiresReview:  false,
+				Public:          true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected *model.CommitteeSettings
+	}{
+		{
+			name: "complete settings payload",
+			payload: &committeeservice.CreateCommitteePayload{
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				Writers:               []*committeeservice.CommitteeUser{{Username: stringPtr("writer1")}, {Username: stringPtr("writer2")}},
+				Auditors:              []*committeeservice.CommitteeUser{{Username: stringPtr("auditor1")}, {Username: stringPtr("auditor2")}},
+			},
+			expected: &model.CommitteeSettings{
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+				Auditors:              []model.CommitteeUser{{Username: "auditor1"}, {Username: "auditor2"}},
+			},
+		},
+		{
+			name: "minimal settings payload",
+			payload: &committeeservice.CreateCommitteePayload{
+				BusinessEmailRequired: false,
+			},
+			expected: &model.CommitteeSettings{
+				BusinessEmailRequired: false,
+			},
+		},
+		{
+			name: "payload with empty LastReviewedAt",
+			payload: &committeeservice.CreateCommitteePayload{
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr(""),
+				LastReviewedBy:        stringPtr("user-123"),
+			},
+			expected: &model.CommitteeSettings{
+				BusinessEmailRequired: true,
+				LastReviewedBy:        stringPtr("user-123"),
+			},
+		},
+		{
+			name: "payload with nil LastReviewedAt",
+			payload: &committeeservice.CreateCommitteePayload{
+				BusinessEmailRequired: true,
+				LastReviewedAt:        nil,
+				LastReviewedBy:        stringPtr("user-123"),
+			},
+			expected: &model.CommitteeSettings{
+				BusinessEmailRequired: true,
+				LastReviewedBy:        stringPtr("user-123"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToSettings(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateBase(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeBasePayload
+		expected *model.Committee
+	}{
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: &model.Committee{},
+		},
+		{
+			name: "complete update base payload",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:             stringPtr("committee-123"),
+				ProjectUID:      "project-123",
+				Name:            "Updated Committee",
+				Category:        "governance",
+				Description:     stringPtr("Updated description"),
+				Website:         stringPtr("https://updated.com"),
+				EnableVoting:    true,
+				SsoGroupEnabled: true,
+				RequiresReview:  true,
+				Public:          true,
+				DisplayName:     stringPtr("Updated Display Name"),
+				ParentUID:       stringPtr("parent-456"),
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: false,
+				},
+			},
+			expected: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:             "committee-123",
+					ProjectUID:      "project-123",
+					Name:            "Updated Committee",
+					Category:        "governance",
+					Description:     "Updated description",
+					Website:         stringPtr("https://updated.com"),
+					EnableVoting:    true,
+					SSOGroupEnabled: true,
+					RequiresReview:  true,
+					Public:          true,
+					DisplayName:     "Updated Display Name",
+					ParentUID:       stringPtr("parent-456"),
+					Calendar: model.Calendar{
+						Public: false,
+					},
+				},
+				CommitteeSettings: nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeSettingsPayload
+		existing *model.CommitteeSettings
+		expected *model.CommitteeSettings
+	}{
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: &model.CommitteeSettings{},
+		},
+		{
+			name: "complete update settings payload",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:                   stringPtr("committee-123"),
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-456"),
+				Writers:               []*committeeservice.CommitteeUser{{Username: stringPtr("writer3")}, {Username: stringPtr("writer4")}},
+				Auditors:              []*committeeservice.CommitteeUser{{Username: stringPtr("auditor3")}, {Username: stringPtr("auditor4")}},
+			},
+			expected: &model.CommitteeSettings{
+				UID:                   "committee-123",
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-456"),
+				Writers:               []model.CommitteeUser{{Username: "writer3"}, {Username: "writer4"}},
+				Auditors:              []model.CommitteeUser{{Username: "auditor3"}, {Username: "auditor4"}},
+			},
+		},
+		{
+			name: "existing user matched by email — name updated from payload",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:     stringPtr("committee-123"),
+				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com"), Name: stringPtr("Updated Name")}},
+			},
+			existing: &model.CommitteeSettings{
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Old Name"}},
+			},
+			expected: &model.CommitteeSettings{
+				UID:     "committee-123",
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com", Name: "Updated Name"}},
+			},
+		},
+		{
+			name: "no existing — writer created from payload only",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:     stringPtr("committee-123"),
+				Writers: []*committeeservice.CommitteeUser{{Email: stringPtr("nolfid@example.com")}},
+			},
+			existing: nil,
+			expected: &model.CommitteeSettings{
+				UID:     "committee-123",
+				Writers: []model.CommitteeUser{{Email: "nolfid@example.com"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateSettings(tt.payload, tt.existing)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertDomainToFullResponse(t *testing.T) {
+	createdAt := time.Now()
+	updatedAt := createdAt.Add(time.Hour)
+
+	tests := []struct {
+		name     string
+		domain   *model.Committee
+		expected *committeeservice.CommitteeFullWithReadonlyAttributes
+	}{
+		{
+			name: "complete domain to response conversion",
+			domain: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:              "committee-123",
+					ProjectUID:       "project-123",
+					ProjectName:      "Test Project",
+					Name:             "Test Committee",
+					Category:         "governance",
+					Description:      "Test description",
+					Website:          stringPtr("https://example.com"),
+					EnableVoting:     true,
+					SSOGroupEnabled:  true,
+					SSOGroupName:     "test-sso-group",
+					RequiresReview:   true,
+					Public:           true,
+					DisplayName:      "Test Display Name",
+					ParentUID:        stringPtr("parent-123"),
+					TotalMembers:     10,
+					TotalVotingRepos: 5,
+					Calendar: model.Calendar{
+						Public: true,
+					},
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID:                   "committee-123",
+					BusinessEmailRequired: true,
+					LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+					LastReviewedBy:        stringPtr("user-123"),
+					Writers:               []model.CommitteeUser{{Username: "writer1"}, {Username: "writer2"}},
+					Auditors:              []model.CommitteeUser{{Username: "auditor1"}, {Username: "auditor2"}},
+					CreatedAt:             createdAt,
+					UpdatedAt:             updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeFullWithReadonlyAttributes{
+				UID:              stringPtr("committee-123"),
+				ProjectUID:       stringPtr("project-123"),
+				Name:             stringPtr("Test Committee"),
+				Category:         stringPtr("governance"),
+				Description:      stringPtr("Test description"),
+				Website:          stringPtr("https://example.com"),
+				EnableVoting:     true,
+				SsoGroupEnabled:  true,
+				SsoGroupName:     stringPtr("test-sso-group"),
+				RequiresReview:   true,
+				Public:           true,
+				DisplayName:      stringPtr("Test Display Name"),
+				ParentUID:        stringPtr("parent-123"),
+				TotalMembers:     intPtr(10),
+				TotalVotingRepos: intPtr(5),
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: true,
+				},
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				Writers:               []*committeeservice.CommitteeUser{{Username: stringPtr("writer1")}, {Username: stringPtr("writer2")}},
+				Auditors:              []*committeeservice.CommitteeUser{{Username: stringPtr("auditor1")}, {Username: stringPtr("auditor2")}},
+			},
+		},
+		{
+			name: "domain without settings",
+			domain: &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:         "committee-456",
+					ProjectUID:  "project-456",
+					Name:        "Minimal Committee",
+					Category:    "technical",
+					Description: "Minimal description",
+					Calendar: model.Calendar{
+						Public: false,
+					},
+				},
+				CommitteeSettings: nil,
+			},
+			expected: &committeeservice.CommitteeFullWithReadonlyAttributes{
+				UID:         stringPtr("committee-456"),
+				ProjectUID:  stringPtr("project-456"),
+				Name:        stringPtr("Minimal Committee"),
+				Category:    stringPtr("technical"),
+				Description: stringPtr("Minimal description"),
+				// Optional fields with empty values should be nil
+				DisplayName:      nil,
+				SsoGroupName:     nil,
+				TotalMembers:     nil,
+				TotalVotingRepos: nil,
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertDomainToFullResponse(tt.domain)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertBaseToResponse(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     *model.CommitteeBase
+		expected *committeeservice.CommitteeBaseWithReadonlyAttributes
+	}{
+		{
+			name: "complete base to response conversion",
+			base: &model.CommitteeBase{
+				UID:              "committee-123",
+				ProjectUID:       "project-123",
+				ProjectName:      "Test Project",
+				Name:             "Test Committee",
+				Category:         "governance",
+				Description:      "Test description",
+				Website:          stringPtr("https://example.com"),
+				EnableVoting:     true,
+				SSOGroupEnabled:  true,
+				SSOGroupName:     "test-sso-group",
+				RequiresReview:   true,
+				Public:           true,
+				DisplayName:      "Test Display Name",
+				ParentUID:        stringPtr("parent-123"),
+				TotalMembers:     15,
+				TotalVotingRepos: 8,
+				Calendar: model.Calendar{
+					Public: true,
+				},
+			},
+			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
+				UID:              stringPtr("committee-123"),
+				ProjectUID:       stringPtr("project-123"),
+				ProjectName:      stringPtr("Test Project"),
+				Name:             stringPtr("Test Committee"),
+				Category:         stringPtr("governance"),
+				Description:      stringPtr("Test description"),
+				Website:          stringPtr("https://example.com"),
+				EnableVoting:     true,
+				SsoGroupEnabled:  true,
+				SsoGroupName:     stringPtr("test-sso-group"),
+				RequiresReview:   true,
+				Public:           true,
+				DisplayName:      stringPtr("Test Display Name"),
+				ParentUID:        stringPtr("parent-123"),
+				TotalMembers:     intPtr(15),
+				TotalVotingRepos: intPtr(8),
+				Calendar: &struct {
+					Public bool
+				}{
+					Public: true,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertBaseToResponse(tt.base)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertSettingsToResponse(t *testing.T) {
+	createdAt := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2023, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		settings *model.CommitteeSettings
+		expected *committeeservice.CommitteeSettingsWithReadonlyAttributes
+	}{
+		{
+			name: "complete settings to response conversion",
+			settings: &model.CommitteeSettings{
+				UID:                   "committee-123",
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				CreatedAt:             createdAt,
+				UpdatedAt:             updatedAt,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:                   stringPtr("committee-123"),
+				BusinessEmailRequired: true,
+				LastReviewedAt:        stringPtr("2023-01-01T00:00:00Z"),
+				LastReviewedBy:        stringPtr("user-123"),
+				CreatedAt:             stringPtr("2023-01-01T12:00:00Z"),
+				UpdatedAt:             stringPtr("2023-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "settings with zero timestamps",
+			settings: &model.CommitteeSettings{
+				UID:                   "committee-456",
+				BusinessEmailRequired: false,
+				CreatedAt:             time.Time{},
+				UpdatedAt:             time.Time{},
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:                   stringPtr("committee-456"),
+				BusinessEmailRequired: false,
+			},
+		},
+		{
+			name: "has_chat_webhook true when webhook URL is set",
+			settings: &model.CommitteeSettings{
+				UID:            "committee-789",
+				ChatWebhookURL: stringPtr("webhook-url-placeholder"),
+				CreatedAt:      createdAt,
+				UpdatedAt:      updatedAt,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:            stringPtr("committee-789"),
+				HasChatWebhook: true,
+				CreatedAt:      stringPtr("2023-01-01T12:00:00Z"),
+				UpdatedAt:      stringPtr("2023-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "has_chat_webhook false when webhook URL is empty string",
+			settings: &model.CommitteeSettings{
+				UID:            "committee-000",
+				ChatWebhookURL: stringPtr(""),
+				CreatedAt:      createdAt,
+				UpdatedAt:      updatedAt,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:            stringPtr("committee-000"),
+				HasChatWebhook: false,
+				CreatedAt:      stringPtr("2023-01-01T12:00:00Z"),
+				UpdatedAt:      stringPtr("2023-01-02T12:00:00Z"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertSettingsToResponse(tt.settings)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberPayloadToDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: &model.CommitteeMember{},
+		},
+		{
+			name: "complete member payload conversion",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-123",
+				Email:       "john.doe@example.com",
+				Username:    stringPtr("johndoe"),
+				FirstName:   stringPtr("John"),
+				LastName:    stringPtr("Doe"),
+				JobTitle:    stringPtr("Software Engineer"),
+				AppointedBy: "committee-chair",
+				Status:      "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "contributor",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      stringPtr("abc"),
+					Name:    stringPtr("Test Organization"),
+					Website: stringPtr("https://test-org.com"),
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-123",
+					Email:        "john.doe@example.com",
+					Username:     "johndoe",
+					FirstName:    "John",
+					LastName:     "Doe",
+					JobTitle:     "Software Engineer",
+					AppointedBy:  "committee-chair",
+					Status:       "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "contributor",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status:    "eligible",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Organization: model.CommitteeMemberOrganization{
+						ID:      "abc",
+						Name:    "Test Organization",
+						Website: "https://test-org.com",
+					},
+				},
+			},
+		},
+		{
+			name: "minimal member payload conversion",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-456",
+				Email:       "minimal@example.com",
+				AppointedBy: "chair",
+				Status:      "pending",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-456",
+					Email:        "minimal@example.com",
+					AppointedBy:  "chair",
+					Status:       "pending",
+				},
+			},
+		},
+		{
+			name: "member payload with nil optional fields",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:          "committee-789",
+				Email:        "test@example.com",
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				AppointedBy:  "chair",
+				Status:       "active",
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-789",
+					Email:        "test@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+				},
+			},
+		},
+		{
+			name: "member payload with partial role information",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-abc",
+				Email:       "partial@example.com",
+				AppointedBy: "chair",
+				Status:      "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "maintainer",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   nil,
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-abc",
+					Email:        "partial@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "maintainer",
+						StartDate: "2024-01-01",
+						EndDate:   "",
+					},
+				},
+			},
+		},
+		{
+			name: "member payload with partial organization information",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:         "committee-def",
+				Email:       "org@example.com",
+				AppointedBy: "chair",
+				Status:      "active",
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					Name:    stringPtr("Partial Org"),
+					Website: nil,
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-def",
+					Email:        "org@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					Organization: model.CommitteeMemberOrganization{
+						Name:    "Partial Org",
+						Website: "",
+					},
+				},
+			},
+		},
+		{
+			name: "member payload with skip_notification set",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:              "committee-skip",
+				Email:            "skip@example.com",
+				AppointedBy:      "chair",
+				Status:           "active",
+				SkipNotification: true,
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "committee-skip",
+					Email:        "skip@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+				},
+				SkipNotification: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberPayloadToDomain(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberDomainToFullResponse(t *testing.T) {
+	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		member   *model.CommitteeMember
+		expected *committeeservice.CommitteeMemberFullWithReadonlyAttributes
+	}{
+		{
+			name:     "nil member",
+			member:   nil,
+			expected: nil,
+		},
+		{
+			name: "complete member domain to response conversion",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:         "member-123",
+					Username:    "johndoe",
+					Email:       "john.doe@example.com",
+					FirstName:   "John",
+					LastName:    "Doe",
+					JobTitle:    "Senior Software Engineer",
+					AppointedBy: "committee-chair",
+					Status:      "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "maintainer",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status:    "eligible",
+						StartDate: "2024-01-01",
+						EndDate:   "2024-12-31",
+					},
+					Organization: model.CommitteeMemberOrganization{
+						ID:      "org-123",
+						Name:    "Test Organization",
+						Website: "https://test-org.com",
+					},
+					CommitteeUID: "committee-123",
+					CreatedAt:    createdAt,
+					UpdatedAt:    updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:          stringPtr("member-123"),
+				CommitteeUID: stringPtr("committee-123"),
+				Username:     stringPtr("johndoe"),
+				Email:        stringPtr("john.doe@example.com"),
+				FirstName:    stringPtr("John"),
+				LastName:     stringPtr("Doe"),
+				JobTitle:     stringPtr("Senior Software Engineer"),
+				AppointedBy:  "committee-chair",
+				Status:       "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "maintainer",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   stringPtr("2024-12-31"),
+				},
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      stringPtr("org-123"),
+					Name:    stringPtr("Test Organization"),
+					Website: stringPtr("https://test-org.com"),
+				},
+				CreatedAt: stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt: stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "minimal member domain to response conversion",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					Email:        "minimal@example.com",
+					AppointedBy:  "chair",
+					Status:       "pending",
+					CommitteeUID: "committee-456",
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:          stringPtr("member-456"),
+				CommitteeUID: stringPtr("committee-456"),
+				Email:        stringPtr("minimal@example.com"),
+				AppointedBy:  "chair",
+				Status:       "pending",
+				// Optional fields with empty values should be nil
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
+			},
+		},
+		{
+			name: "member with zero timestamps",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-789",
+					Email:        "timestamps@example.com",
+					AppointedBy:  "chair",
+					Status:       "active",
+					CommitteeUID: "committee-789",
+					CreatedAt:    time.Time{},
+					UpdatedAt:    time.Time{},
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:          stringPtr("member-789"),
+				CommitteeUID: stringPtr("committee-789"),
+				Email:        stringPtr("timestamps@example.com"),
+				AppointedBy:  "chair",
+				Status:       "active",
+				// Optional fields with empty values should be nil
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
+				// CreatedAt and UpdatedAt should be nil when timestamps are zero
+				CreatedAt: nil,
+				UpdatedAt: nil,
+			},
+		},
+		{
+			name: "member with partial role and voting info",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:         "member-partial",
+					Email:       "partial@example.com",
+					AppointedBy: "chair",
+					Status:      "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "contributor",
+						StartDate: "2024-01-01",
+						// EndDate is empty
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status: "eligible",
+						// StartDate and EndDate are empty
+					},
+					CommitteeUID: "committee-partial",
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:          stringPtr("member-partial"),
+				CommitteeUID: stringPtr("committee-partial"),
+				Email:        stringPtr("partial@example.com"),
+				AppointedBy:  "chair",
+				Status:       "active",
+				// Optional fields with empty values should be nil
+				Username:  nil,
+				FirstName: nil,
+				LastName:  nil,
+				JobTitle:  nil,
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "contributor",
+					StartDate: stringPtr("2024-01-01"),
+					EndDate:   nil, // Empty dates should be nil
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: nil, // Empty dates should be nil
+					EndDate:   nil,
+				},
+				Organization: nil, // Empty organization should be nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberDomainToFullResponse(tt.member)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateMember(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name: "complete payload conversion",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:         "committee-123",
+				MemberUID:   "member-456",
+				Username:    stringPtr("testuser"),
+				Email:       "test@example.com",
+				FirstName:   stringPtr("John"),
+				LastName:    stringPtr("Doe"),
+				JobTitle:    stringPtr("Engineer"),
+				AppointedBy: "admin",
+				Status:      "active",
+				Role: &struct {
+					Name      string
+					StartDate *string
+					EndDate   *string
+				}{
+					Name:      "Chair",
+					StartDate: stringPtr("2023-01-01"),
+					EndDate:   stringPtr("2024-01-01"),
+				},
+				Voting: &struct {
+					Status    string
+					StartDate *string
+					EndDate   *string
+				}{
+					Status:    "eligible",
+					StartDate: stringPtr("2023-01-01"),
+					EndDate:   stringPtr("2024-01-01"),
+				},
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      stringPtr("org-123"),
+					Name:    stringPtr("Test Org"),
+					Website: stringPtr("https://testorg.com"),
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					CommitteeUID: "committee-123",
+					Username:     "testuser",
+					Email:        "test@example.com",
+					FirstName:    "John",
+					LastName:     "Doe",
+					JobTitle:     "Engineer",
+					AppointedBy:  "admin",
+					Status:       "active",
+					Role: model.CommitteeMemberRole{
+						Name:      "Chair",
+						StartDate: "2023-01-01",
+						EndDate:   "2024-01-01",
+					},
+					Voting: model.CommitteeMemberVotingInfo{
+						Status:    "eligible",
+						StartDate: "2023-01-01",
+						EndDate:   "2024-01-01",
+					},
+					Organization: model.CommitteeMemberOrganization{
+						ID:      "org-123",
+						Name:    "Test Org",
+						Website: "https://testorg.com",
+					},
+				},
+			},
+		},
+		{
+			name: "minimal payload conversion",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:         "committee-123",
+				MemberUID:   "member-456",
+				Email:       "minimal@example.com",
+				AppointedBy: "admin",
+				Status:      "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					CommitteeUID: "committee-123",
+					Email:        "minimal@example.com",
+					AppointedBy:  "admin",
+					Status:       "active",
+				},
+			},
+		},
+		{
+			name:     "nil payload",
+			payload:  nil,
+			expected: &model.CommitteeMember{},
+		},
+		{
+			name: "payload with nil optional fields",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:          "committee-123",
+				MemberUID:    "member-456",
+				Email:        "test@example.com",
+				AppointedBy:  "admin",
+				Status:       "active",
+				Username:     nil,
+				FirstName:    nil,
+				LastName:     nil,
+				JobTitle:     nil,
+				Role:         nil,
+				Voting:       nil,
+				Organization: nil,
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					CommitteeUID: "committee-123",
+					Email:        "test@example.com",
+					AppointedBy:  "admin",
+					Status:       "active",
+				},
+			},
+		},
+		{
+			name: "payload with partial organization",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:         "committee-123",
+				MemberUID:   "member-456",
+				Email:       "test@example.com",
+				AppointedBy: "admin",
+				Status:      "active",
+				Organization: &struct {
+					ID      *string
+					Name    *string
+					Website *string
+				}{
+					ID:      stringPtr("org-123"),
+					Name:    stringPtr("Partial Org"),
+					Website: nil,
+				},
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-456",
+					CommitteeUID: "committee-123",
+					Email:        "test@example.com",
+					AppointedBy:  "admin",
+					Status:       "active",
+					Organization: model.CommitteeMemberOrganization{
+						ID:   "org-123",
+						Name: "Partial Org",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateMember(tt.payload)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberPayloadToDomain_LinkedInProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name: "member with valid LinkedIn profile URL",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "john@example.com",
+				Username:        stringPtr("johndoe"),
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/johndoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "john@example.com",
+					Username:        "johndoe",
+					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with LinkedIn profile URL without https",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "jane@example.com",
+				Username:        stringPtr("janedoe"),
+				LinkedinProfile: stringPtr("linkedin.com/in/janedoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "jane@example.com",
+					Username:        "janedoe",
+					LinkedInProfile: "linkedin.com/in/janedoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with LinkedIn profile URL with country subdomain",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "bob@example.com",
+				Username:        stringPtr("bobsmith"),
+				LinkedinProfile: stringPtr("https://uk.linkedin.com/in/bobsmith"),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "bob@example.com",
+					Username:        "bobsmith",
+					LinkedInProfile: "https://uk.linkedin.com/in/bobsmith",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member without LinkedIn profile (nil)",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "nolinkedin@example.com",
+				Username:        stringPtr("nolinkedin"),
+				LinkedinProfile: nil,
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "nolinkedin@example.com",
+					Username:        "nolinkedin",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "member with empty LinkedIn profile string",
+			payload: &committeeservice.CreateCommitteeMemberPayload{
+				UID:             "committee-123",
+				Email:           "emptylinkedin@example.com",
+				Username:        stringPtr("emptylinkedin"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "chair",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID:    "committee-123",
+					Email:           "emptylinkedin@example.com",
+					Username:        "emptylinkedin",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberPayloadToDomain(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertMemberDomainToFullResponse_LinkedInProfile(t *testing.T) {
+	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		member   *model.CommitteeMember
+		expected *committeeservice.CommitteeMemberFullWithReadonlyAttributes
+	}{
+		{
+			name: "member with LinkedIn profile",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-123",
+					Username:        "johndoe",
+					Email:           "john@example.com",
+					LinkedInProfile: "https://www.linkedin.com/in/johndoe",
+					AppointedBy:     "chair",
+					Status:          "active",
+					CommitteeUID:    "committee-123",
+					CreatedAt:       createdAt,
+					UpdatedAt:       updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:             stringPtr("member-123"),
+				CommitteeUID:    stringPtr("committee-123"),
+				Username:        stringPtr("johndoe"),
+				Email:           stringPtr("john@example.com"),
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/johndoe"),
+				AppointedBy:     "chair",
+				Status:          "active",
+				CreatedAt:       stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt:       stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+		{
+			name: "member without LinkedIn profile (empty string)",
+			member: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-456",
+					Email:           "nolinkedin@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "chair",
+					Status:          "active",
+					CommitteeUID:    "committee-456",
+					CreatedAt:       createdAt,
+					UpdatedAt:       updatedAt,
+				},
+			},
+			expected: &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
+				UID:             stringPtr("member-456"),
+				CommitteeUID:    stringPtr("committee-456"),
+				Email:           stringPtr("nolinkedin@example.com"),
+				LinkedinProfile: nil, // Empty string should result in nil
+				AppointedBy:     "chair",
+				Status:          "active",
+				CreatedAt:       stringPtr("2024-01-01T12:00:00Z"),
+				UpdatedAt:       stringPtr("2024-01-02T12:00:00Z"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertMemberDomainToFullResponse(tt.member)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeMemberPayload
+		expected *model.CommitteeMember
+	}{
+		{
+			name: "update with LinkedIn profile",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           "test@example.com",
+				LinkedinProfile: stringPtr("https://www.linkedin.com/in/testuser"),
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-456",
+					CommitteeUID:    "committee-123",
+					Email:           "test@example.com",
+					LinkedInProfile: "https://www.linkedin.com/in/testuser",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "update without LinkedIn profile",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-789",
+				Email:           "nolinkedin@example.com",
+				LinkedinProfile: nil,
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-789",
+					CommitteeUID:    "committee-123",
+					Email:           "nolinkedin@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+		{
+			name: "update clearing LinkedIn profile with empty string",
+			payload: &committeeservice.UpdateCommitteeMemberPayload{
+				UID:             "committee-123",
+				MemberUID:       "member-999",
+				Email:           "clear@example.com",
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+			},
+			expected: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             "member-999",
+					CommitteeUID:    "committee-123",
+					Email:           "clear@example.com",
+					LinkedInProfile: "",
+					AppointedBy:     "admin",
+					Status:          "active",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateMember(tt.payload)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToBase_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected model.CommitteeBase
+	}{
+		{
+			name: "committee with populated metadata fields",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1", "scope item 2"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+					{Date: "2026-06", Label: "Review"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            stringPtr("cncf-meetup-san-francisco"),
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("in-person"),
+					},
+				},
+			},
+			expected: model.CommitteeBase{
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1", "scope item 2"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+					{Date: "2026-06", Label: "Review"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            "cncf-meetup-san-francisco",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "in-person",
+					},
+				},
+			},
+		},
+		{
+			name: "committee without any metadata fields",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: model.CommitteeBase{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateBase_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeBasePayload
+		expected model.CommitteeBase
+	}{
+		{
+			name: "update with populated metadata fields",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:          stringPtr("committee-123"),
+				ProjectUID:   "project-123",
+				Name:         "Updated Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1", "deliverable 2"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-02", Label: "Milestone"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "event",
+						Label:                 "CNCF Meetup - Austin",
+						URL:                   "https://community.cncf.io/cncf-meetup-austin/",
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("virtual"),
+					},
+				},
+			},
+			expected: model.CommitteeBase{
+				UID:          "committee-123",
+				ProjectUID:   "project-123",
+				Name:         "Updated Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1", "deliverable 2"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-02", Label: "Milestone"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "event",
+						Label:                 "CNCF Meetup - Austin",
+						URL:                   "https://community.cncf.io/cncf-meetup-austin/",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "virtual",
+					},
+				},
+			},
+		},
+		{
+			name: "update without metadata fields clears them",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Updated Committee",
+				Category:   "governance",
+			},
+			expected: model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Updated Committee",
+				Category:   "governance",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.CommitteeBase)
+		})
+	}
+}
+
+func TestConvertBaseToResponse_CommitteeMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     *model.CommitteeBase
+		expected *committeeservice.CommitteeBaseWithReadonlyAttributes
+	}{
+		{
+			name: "base with populated metadata fields",
+			base: &model.CommitteeBase{
+				UID:          "committee-123",
+				ProjectUID:   "project-123",
+				Name:         "Test Committee",
+				Category:     "governance",
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []model.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+				},
+				ExternalSources: []model.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            "cncf-meetup-san-francisco",
+						ExternalCategory:      "meetup",
+						ExternalRegion:        "north-america",
+						ExternalEventCategory: "in-person",
+					},
+				},
+			},
+			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
+				UID:          stringPtr("committee-123"),
+				ProjectUID:   stringPtr("project-123"),
+				Name:         stringPtr("Test Committee"),
+				Category:     stringPtr("governance"),
+				Repository:   stringPtr("https://github.com/example/repo"),
+				Scope:        []string{"scope item 1"},
+				Deliverables: []string{"deliverable 1"},
+				KeyDates: []*committeeservice.KeyDate{
+					{Date: "2026-01", Label: "Kickoff"},
+				},
+				ExternalSources: []*committeeservice.ExternalSource{
+					{
+						Provider:              "ocg",
+						EntityType:            "group",
+						Label:                 "CNCF Meetup - San Francisco",
+						URL:                   "https://community.cncf.io/cncf-meetup-san-francisco/",
+						ExternalID:            stringPtr("cncf-meetup-san-francisco"),
+						ExternalCategory:      stringPtr("meetup"),
+						ExternalRegion:        stringPtr("north-america"),
+						ExternalEventCategory: stringPtr("in-person"),
+					},
+				},
+				Calendar: &struct {
+					Public bool
+				}{},
+			},
+		},
+		{
+			name: "base without any metadata fields",
+			base: &model.CommitteeBase{
+				UID:        "committee-456",
+				ProjectUID: "project-456",
+				Name:       "Minimal Committee",
+				Category:   "technical",
+			},
+			expected: &committeeservice.CommitteeBaseWithReadonlyAttributes{
+				UID:        stringPtr("committee-456"),
+				ProjectUID: stringPtr("project-456"),
+				Name:       stringPtr("Minimal Committee"),
+				Category:   stringPtr("technical"),
+				Calendar: &struct {
+					Public bool
+				}{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertBaseToResponse(tt.base)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertPayloadToBase_Charter(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.CreateCommitteePayload
+		expected *model.Charter
+	}{
+		{
+			name: "charter with url set",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
+			},
+			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
+		},
+		{
+			name: "charter absent",
+			payload: &committeeservice.CreateCommitteePayload{
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertPayloadToUpdateBase_Charter(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *committeeservice.UpdateCommitteeBasePayload
+		expected *model.Charter
+	}{
+		{
+			name: "charter with url set",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: "https://example.org/governance/charter.pdf"},
+			},
+			expected: &model.Charter{URL: "https://example.org/governance/charter.pdf"},
+		},
+		{
+			name: "charter cleared with empty url",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter:    &committeeservice.CharterWrite{URL: ""},
+			},
+			expected: &model.Charter{URL: ""},
+		},
+		{
+			name: "charter absent",
+			payload: &committeeservice.UpdateCommitteeBasePayload{
+				UID:        stringPtr("committee-123"),
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertPayloadToUpdateBase(tt.payload)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertBaseToResponse_Charter(t *testing.T) {
+	updatedAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		base     *model.CommitteeBase
+		expected *committeeservice.Charter
+	}{
+		{
+			name: "charter with full audit trail omits email from the public response",
+			base: &model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter: &model.Charter{
+					URL:       "https://example.org/governance/charter.pdf",
+					Version:   3,
+					UpdatedAt: updatedAt,
+					UpdatedBy: &model.CommitteeUser{
+						Username: "first-last",
+						Name:     "First Last",
+						Email:    "first.last@example.com",
+						Avatar:   "https://example.com/avatar.png",
+					},
+				},
+			},
+			expected: &committeeservice.Charter{
+				URL:       "https://example.org/governance/charter.pdf",
+				Version:   3,
+				UpdatedAt: "2026-09-06T12:00:00Z",
+				UpdatedBy: &committeeservice.PublicAuditUser{
+					Username: stringPtr("first-last"),
+					Name:     stringPtr("First Last"),
+					Avatar:   stringPtr("https://example.com/avatar.png"),
+				},
+			},
+		},
+		{
+			name: "charter cleared -- url empty but audit trail retained",
+			base: &model.CommitteeBase{
+				UID:        "committee-123",
+				ProjectUID: "project-123",
+				Name:       "Test Committee",
+				Category:   "governance",
+				Charter: &model.Charter{
+					URL:       "",
+					Version:   2,
+					UpdatedAt: updatedAt,
+				},
+			},
+			expected: &committeeservice.Charter{
+				URL:       "",
+				Version:   2,
+				UpdatedAt: "2026-09-06T12:00:00Z",
+			},
+		},
+		{
+			name: "charter never set",
+			base: &model.CommitteeBase{
+				UID:        "committee-456",
+				ProjectUID: "project-456",
+				Name:       "Minimal Committee",
+				Category:   "technical",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &committeeServicesrvc{}
+			result := svc.convertBaseToResponse(tt.base)
+
+			assert.Equal(t, tt.expected, result.Charter)
+		})
+	}
+}
+
+func TestConvertDomainToFullResponse_Charter(t *testing.T) {
+	updatedAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+
+	domain := &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-123",
+			ProjectUID: "project-123",
+			Name:       "Test Committee",
+			Category:   "governance",
+			Charter: &model.Charter{
+				URL:       "https://example.org/governance/charter.pdf",
+				Version:   1,
+				UpdatedAt: updatedAt,
+				UpdatedBy: &model.CommitteeUser{Username: "first-last"},
+			},
+		},
+	}
+
+	svc := &committeeServicesrvc{}
+	result := svc.convertDomainToFullResponse(domain)
+
+	assert.Equal(t, &committeeservice.Charter{
+		URL:       "https://example.org/governance/charter.pdf",
+		Version:   1,
+		UpdatedAt: "2026-09-06T12:00:00Z",
+		UpdatedBy: &committeeservice.PublicAuditUser{Username: stringPtr("first-last")},
+	}, result.Charter)
+}
+
+// TestValidateCreateCommitteeRequestBody_Metadata exercises the Goa-generated
+// validation for the new repository/key_dates fields on the
+// create-committee request body.
+func TestValidateCreateCommitteeRequestBody_Metadata(t *testing.T) {
+	validBody := func() *server.CreateCommitteeRequestBody {
+		return &server.CreateCommitteeRequestBody{
+			Name:         stringPtr("Test Committee"),
+			Category:     stringPtr("Board"),
+			ProjectUID:   stringPtr("5cf83bea-3f3d-4c1e-9c4e-000000000001"),
+			EnableVoting: boolPtr(true),
+		}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*server.CreateCommitteeRequestBody)
+		wantErr bool
+	}{
+		{
+			name:    "valid body with no metadata fields",
+			mutate:  func(_ *server.CreateCommitteeRequestBody) {},
+			wantErr: false,
+		},
+		{
+			name: "invalid repository URL rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				repo := "  "
+				b.Repository = &repo
+			},
+			wantErr: true,
+		},
+		{
+			name: "key_dates entry with non YYYY-MM date rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("2026-13-01"),
+						Label: stringPtr("Kickoff"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid key_dates accepted",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("2026-06"),
+						Label: stringPtr("Review"),
+					},
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with invalid url scheme rejected",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("javascript:alert(1)")}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with empty url accepted -- clear signal",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("")}
+			},
+			wantErr: false,
+		},
+		{
+			name: "charter with valid https url accepted",
+			mutate: func(b *server.CreateCommitteeRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("https://example.org/governance/charter.pdf")}
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := validBody()
+			tt.mutate(body)
+
+			err := server.ValidateCreateCommitteeRequestBody(body)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateUpdateCommitteeBaseRequestBody_Metadata exercises the same
+// validation on the update-committee-base request body, confirming the
+// update path enforces the identical rules as create.
+func TestValidateUpdateCommitteeBaseRequestBody_Metadata(t *testing.T) {
+	validBody := func() *server.UpdateCommitteeBaseRequestBody {
+		return &server.UpdateCommitteeBaseRequestBody{
+			Name:       stringPtr("Test Committee"),
+			Category:   stringPtr("Board"),
+			ProjectUID: stringPtr("5cf83bea-3f3d-4c1e-9c4e-000000000001"),
+		}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*server.UpdateCommitteeBaseRequestBody)
+		wantErr bool
+	}{
+		{
+			name:    "valid body with no metadata fields",
+			mutate:  func(_ *server.UpdateCommitteeBaseRequestBody) {},
+			wantErr: false,
+		},
+		{
+			name: "invalid repository URL rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				repo := "  "
+				b.Repository = &repo
+			},
+			wantErr: true,
+		},
+		{
+			name: "key_dates entry with non YYYY-MM date rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.KeyDates = []*server.KeyDateRequestBody{
+					{
+						Date:  stringPtr("06-2026"),
+						Label: stringPtr("Kickoff"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid url rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("ocg"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("javascript:alert(1)"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "external_sources entry with invalid provider rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.ExternalSources = []*server.ExternalSourceRequestBody{
+					{
+						Provider:   stringPtr("unknown"),
+						EntityType: stringPtr("group"),
+						Label:      stringPtr("CNCF Meetup"),
+						URL:        stringPtr("https://community.cncf.io/cncf-meetup-san-francisco/"),
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with invalid url scheme rejected",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("javascript:alert(1)")}
+			},
+			wantErr: true,
+		},
+		{
+			name: "charter with empty url accepted -- clear signal",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("")}
+			},
+			wantErr: false,
+		},
+		{
+			name: "charter with valid https url accepted",
+			mutate: func(b *server.UpdateCommitteeBaseRequestBody) {
+				b.Charter = &server.CharterWriteRequestBody{URL: stringPtr("https://example.org/governance/charter.pdf")}
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := validBody()
+			tt.mutate(body)
+
+			err := server.ValidateUpdateCommitteeBaseRequestBody(body)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateKeyDateRequestBody_InvalidDate confirms ValidateKeyDateRequestBody
+// rejects a date that isn't in YYYY-MM form.
+func TestValidateKeyDateRequestBody_InvalidDate(t *testing.T) {
+	err := server.ValidateKeyDateRequestBody(&server.KeyDateRequestBody{
+		Date:  stringPtr("2026-1"),
+		Label: stringPtr("Kickoff"),
+	})
+	assert.Error(t, err)
+}
+
+// Helper functions for creating pointers to primitives
+func stringPtr(s string) *string {
+	return &s
+}
+
+func intPtr(i int) *int {
+	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}

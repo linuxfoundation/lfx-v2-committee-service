@@ -1,0 +1,386 @@
+# Committee API
+
+This directory contains the Committee API service. The service provides comprehensive committee management functionality including:
+
+- It serves HTTP requests via Traefik to perform CRUD operations on committee data
+- Manages committee base information (name, category, description, settings, etc.)
+- Handles committee settings including voting configurations, member management, and access controls
+- Manages committee members including their roles, voting status, organization details, and appointment information
+- Handles invite, application, open-join, and self-leave membership flows
+- Stores committee links, link folders, and document metadata/files
+- Integrates with project services to ensure committee-project relationships
+
+Applications with a BFF should use the REST API with HTTP requests to perform the needed operations on committees, while other resource API services can communicate with this service as needed.
+
+This service contains the following API endpoints:
+
+- `/committees`
+  - `POST`: create a new committee with base information and settings
+  - `GET /{uid}`: retrieve committee base information by UID (includes public data like name, category, description, voting settings, etc.)
+  - `PUT /{uid}`: update committee base information
+  - `DELETE /{uid}`: delete a committee by UID
+
+- `/committees/{uid}/settings`
+  - `GET`: retrieve committee settings by committee UID (includes sensitive data like writers, auditors, business email requirements)
+  - `PUT`: update committee settings
+
+- `/committees/{uid}/members`
+  - `POST`: add a new member to a committee (requires email and other member details)
+  - `GET /{member_uid}`: retrieve a specific committee member by member UID
+  - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
+  - `DELETE /{member_uid}`: remove a member from a committee
+
+- `/committees/{uid}/invites`
+  - `POST`: create an invite, or reinstate a revoked invite for the same email
+  - `GET /{invite_uid}`: retrieve an invite
+  - `POST /{invite_uid}/accept`: accept a pending or declined invite
+  - `POST /{invite_uid}/decline`: decline a pending invite
+  - `DELETE /{invite_uid}`: revoke a pending or declined invite
+
+- `/committees/{uid}/applications`
+  - `POST`: submit an application, or reinstate a rejected application
+  - `GET /{application_uid}`: retrieve an application
+  - `POST /{application_uid}/approve`: approve a pending application and create the member
+  - `POST /{application_uid}/reject`: reject a pending application
+
+- `/committees/{uid}/links`
+  - `GET`: list committee links
+  - `POST`: create a committee link
+  - `GET /{link_uid}`: retrieve a committee link
+  - `DELETE /{link_uid}`: delete a committee link
+
+- `/committees/{uid}/folders`
+  - `GET`: list committee link folders
+  - `POST`: create a committee link folder
+  - `GET /{folder_uid}`: retrieve a committee link folder
+  - `DELETE /{folder_uid}`: delete a committee link folder
+
+- `/committees/{uid}/documents`
+  - `POST`: upload a committee document using multipart form data
+  - `GET /{document_uid}`: retrieve committee document metadata
+  - `GET /{document_uid}/download`: download the stored document file
+  - `DELETE /{document_uid}`: delete committee document metadata and file data
+
+- `/committees/{uid}/join`
+  - `POST`: join an open committee as the authenticated user
+
+- `/committees/{uid}/leave`
+  - `DELETE`: leave a committee as the authenticated user
+
+## NATS Messaging Interface
+
+In addition to HTTP endpoints, this service provides NATS messaging capabilities for inter-service communication. Other LFX services can send requests via NATS subjects to retrieve committee data.
+
+### Supported NATS Subjects
+
+| Subject | Purpose | Request Format | Response Format |
+|---------|---------|----------------|----------------|
+| `lfx.committee-api.get_name` | Get committee name by UID | Committee UID (string) | Committee name (string) |
+| `lfx.committee-api.list_members` | List all members of a committee | Committee UID (string) | JSON array of committee members |
+
+### Usage Examples
+
+#### Get Committee Name
+```bash
+# Send request with committee UID as message data
+nats request lfx.committee-api.get_name "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
+# Response: "Technical Steering Committee"
+```
+
+#### List Committee Members
+```bash
+# Send request with committee UID as message data
+nats request lfx.committee-api.list_members "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
+# Response: JSON array of CommitteeMember objects
+```
+
+### Error Handling
+
+NATS message responses follow this format:
+- **Success**: Direct data response (string for name, JSON for members)
+- **Error**: JSON object with error message: `{"error": "error description"}`
+
+Common error scenarios:
+- Invalid UUID format: `{"error": "invalid UUID format"}`
+- Committee not found: `{"error": "committee with UID <uid> not found"}`
+- Committee has no members: `[]` (empty array for list_members)
+
+## File Structure
+
+```bash
+├── design/                         # Goa design files
+│   ├── committee.go                # Goa committee service specification
+│   └── type.go                     # Goa data types and models
+├── service/                        # Service implementation (presentation layer)
+│   ├── committee_service.go        # Committee, member, invite/application, link, and document service implementation
+│   ├── error.go                    # Error handling utilities
+│   └── providers.go                # Dependency injection providers
+├── main.go                         # Application startup and dependency injection
+├── http.go                         # HTTP server setup and configuration
+└── README.md                       # This documentation
+
+# Dependencies from internal/ packages:
+# - internal/service/              # Business logic and use case orchestration (committee, member, link, and document operations)
+# - internal/domain/               # Domain models, ports, and business rules
+# - internal/infrastructure/       # Infrastructure implementations (NATS storage, Auth, Messaging)
+# - internal/middleware/           # HTTP middleware components
+```
+
+## Architecture
+
+This service follows clean architecture principles with clear separation of concerns:
+
+### Layers
+
+1. **Presentation Layer** (`cmd/committee-api/`)
+   - `committeeServicesrvc` struct implements the Goa-generated service interface
+   - HTTP endpoint handlers for committee operations (`service/committee_service.go`)
+   - HTTP server setup and configuration (`http.go`)
+   - Dependency injection and startup (`main.go`)
+
+2. **Service/Use Case Layer** (`internal/service/`)
+   - `CommitteeWriter` orchestrates committee creation, updates, and deletion
+   - `CommitteeReader` orchestrates committee data retrieval operations
+   - `CommitteeMemberWriter` orchestrates committee member creation, updates, and deletion
+   - `LinkWriter` / `LinkReader` orchestrate committee links and link folders
+   - `DocumentWriter` / `DocumentReader` orchestrate committee document metadata and file storage
+   - `MessageHandler` processes committee-related events and notifications
+   - Contains business logic for committee, member, invite/application, link, and document operations
+   - Validates business rules and coordinates between domain and infrastructure
+
+3. **Domain Layer** (`internal/domain/`)
+   - Domain models (`model/`) - committee base, settings, member, invite/application, link, and document entities
+   - Port interfaces (`port/`) - committee, member, link, document, publisher, auth, and peer-service interfaces
+   - Business rules and domain-specific validation for committee resources
+
+4. **Infrastructure Layer** (`internal/infrastructure/`)
+   - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
+   - JWT authentication implementation (`auth/`)
+   - Mock implementations for testing (`mock/`)
+   - Messaging infrastructure
+
+### Key Benefits
+
+- **Storage Independence**: Can switch from NATS to PostgreSQL without changing business logic
+- **Testability**: Each layer can be tested in isolation using comprehensive mocks
+- **Maintainability**: Clear separation of concerns and dependency direction
+- **Scalability**: Support for committee hierarchies, complex organizational structures, and member management
+- **Integration**: Seamless integration with project services, member data, and external authentication systems
+
+### Indexer Contract
+
+This service indexes committee data into the indexer service, making it searchable via the query service.
+
+Create and update indexer messages include an `IndexingConfig` that provides the metadata controlling how the document is stored, searched, and access-checked in the index. Delete messages omit `IndexingConfig` — only the object ID is needed to remove the document. For the full field reference and message format details, see the [indexer service client guide](https://github.com/linuxfoundation/lfx-v2-indexer-service/blob/main/docs/client-guide.md).
+
+For the data schemas, tags, access control values, parent references, and fulltext fields for all resource types — see [`docs/indexer-contract.md`](../../docs/indexer-contract.md).
+
+## Development
+
+### Prerequisites
+
+- [**Go**](https://go.dev/): the service is built with the Go programming language [[Install](https://go.dev/doc/install)]
+- [**Kubernetes**](https://kubernetes.io/): used for deployment of resources [[Install](https://kubernetes.io/releases/download/)]
+- [**Helm**](https://helm.sh/): used to manage kubernetes applications [[Install](https://helm.sh/docs/intro/install/)]
+- [**NATS**](https://docs.nats.io/): used to communicate with other LFX V2 services [[Install](https://docs.nats.io/running-a-nats-service/introduction/installation)]
+- [**GOA Framework**](https://goa.design/): used for API code generation
+
+#### GOA Framework
+
+Follow the [GOA installation guide](https://goa.design/docs/2-getting-started/1-installation/) to install GOA:
+
+```bash
+go install goa.design/goa/v3/cmd/goa@latest
+```
+
+Verify the installation:
+
+```bash
+goa version
+```
+
+### Building and Development
+
+#### 1. Generate Code
+
+The service uses GOA to generate API code from the design specification. Run the following command to generate all necessary code:
+
+```bash
+make apigen
+
+# or directly run the "goa gen" command
+goa gen github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/design
+```
+
+This command generates:
+
+- HTTP server and client code
+- OpenAPI specification
+- Service interfaces and types
+- Transport layer implementations
+
+#### 2. Set up resources and external services
+
+The service relies on some resources and external services being spun up prior to running this service.
+
+- [NATS service](https://docs.nats.io/): ensure you have a NATS server instance running and set the `NATS_URL` environment variable with the URL of the server
+
+    ```bash
+    export NATS_URL=nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+    ```
+
+- [NATS key-value bucket](https://docs.nats.io/nats-concepts/jetstream/key-value-store): once you have a NATS service running, you need to create buckets used by the committee service.
+
+    ```bash
+    # if using the nats cli tool
+    nats kv add committees --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
+    nats kv add committee-settings --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
+    nats kv add committee-members --history=20 --storage=file --max-value-size=10485760 --max-bucket-size=1073741824
+    ```
+
+#### 3. Export environment variables
+
+|Environment Variable Name|Description|Default|Required|
+|-----------------------|--------------------|-----------|-----|
+|PORT|the port for http requests to the committee service API|8080|false|
+|NATS_URL|the URL of the nats server instance|nats://localhost:4222|false|
+|LOG_LEVEL|the log level for outputted logs|info|false|
+|LOG_ADD_SOURCE|whether to add the source field to outputted logs|false|false|
+|AUTH_SOURCE|the authentication service implementation to use: `jwt` (verify real JWTs) or `mock` (bypass auth for local development)|jwt|false|
+|JWKS_URL|the URL to the endpoint for verifying ID tokens and JWT access tokens||required when `AUTH_SOURCE=jwt`|
+|JWT_AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|required when `AUTH_SOURCE=jwt`|
+|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal for local development (bypasses JWT validation when set; mirrors project-service). Works with the default `AUTH_SOURCE=jwt`. Also used when `AUTH_SOURCE=mock`||false|
+|JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL|optional email returned with the mock principal for audit stamps and invite flows||false|
+
+#### 4. Development Workflow
+
+1. **Make design or implementation changes**: Edit files in the `design/` directory for design changes, and edit the other files for implementation changes.
+
+2. **Regenerate code**: Run `make apigen` after design changes
+
+3. **Build the service**:
+
+   ```bash
+   make build
+   ```
+
+4. **Run the service**:
+
+   ```bash
+   make run
+
+   # or run with debug logs enabled
+   LOG_LEVEL=debug make run
+
+   # or run with the go command to set custom flags
+   # -bind string   interface to bind on (default "*")
+   # -d          enable debug logging (default false)
+   # -p    string   listen port (default "8080")
+   go run
+   ```
+
+   Once the service is running, make a request to the `/livez` endpoint to ensure that the service is alive.
+
+   ```bash
+    curl http://localhost:8080/livez
+   ```
+
+   You should get a 200 status code response with a text/plain content payload of `OK`.
+
+5. **Run tests**:
+
+   ```bash
+   make test
+
+   # or run go test to set custom flags
+   go test . -v
+   ```
+
+6. **Lint the code**
+
+   ```bash
+   # From the root of the directory, run megalinter (https://megalinter.io/latest/mega-linter-runner/) to ensure the code passes the linter checks. The CI/CD has a check that uses megalinter.
+   npx mega-linter-runner .
+   ```
+
+7. **Docker build + K8**
+
+    ```bash
+    # Build the dockerfile (from the root of the repo)
+    docker build -t lfx-v2-committee-service:<release_number> .
+    ```
+
+    **Using default values** (suitable for a shared/staging cluster with existing NATS buckets and Heimdall):
+
+    ```bash
+    # Install the helm chart using default values
+    make helm-install
+
+    # Update an already-installed chart
+    make helm-install
+    ```
+
+    **Using a local values override** (recommended for local development — lets you customise image tag, disable auth, etc.):
+
+    ```bash
+    # 1. Copy the example local values file (only needed once)
+    cp charts/lfx-v2-committee-service/values.local.example.yaml \
+       charts/lfx-v2-committee-service/values.local.yaml
+
+    # 2. Edit values.local.yaml to suit your environment, then install:
+    make helm-install-local
+
+    # Preview what Kubernetes manifests will be rendered without installing:
+    make helm-templates-local
+    ```
+
+    > `values.local.yaml` is gitignored — your local overrides will never be committed.
+
+    ```bash
+    # Check that the REST API is accessible by hitting the `/livez` endpoint (you should get a response of OK if it is working):
+    #
+    # Note: replace the hostname with the host from ./charts/lfx-v2-committee-service/templates/httproute.yaml
+    curl http://lfx-api.k8s.orb.local/livez
+    ```
+
+### Authorization with OpenFGA
+
+When deployed via Kubernetes, the committee service uses OpenFGA for fine-grained authorization control. The authorization is handled by Heimdall middleware before requests reach the service.
+
+#### Configuration
+
+OpenFGA authorization is controlled by the `openfga.enabled` value in the Helm chart:
+
+```yaml
+# In values.yaml or via --set flag
+openfga:
+  enabled: true  # Enable OpenFGA authorization (default)
+  # enabled: false  # Disable for local development only
+```
+
+#### Local Development
+
+For local development without OpenFGA:
+
+1. Set `openfga.enabled: false` in your Helm values
+2. All requests will be allowed through (after JWT authentication)
+3. **Warning**: Never disable OpenFGA in production environments
+
+### Add new API endpoints
+
+Note: follow the [Development Workflow](#4-development-workflow) section on how to run the service code
+
+1. **Update design files**: Edit the committee design file in `design/committee.go` to include specification of the new endpoint with all of its supported parameters, responses, and errors, etc.
+2. **Regenerate code**: Run `make apigen` after design changes to generate the new Goa interfaces and types
+3. **Implement code**: Implement the new endpoint in `service/` following the existing patterns. Add the necessary business logic to the use case layer in `internal/service/` if needed. Include comprehensive tests for the new endpoint.
+4. **Update heimdall ruleset**: Ensure that `/charts/lfx-v2-committee-service/templates/ruleset.yaml` has the route and method for the endpoint set so that authentication is configured when deployed. If the endpoint modifies data (PUT, DELETE, PATCH), consider adding OpenFGA authorization checks in the ruleset for proper access control
+
+### Adding New Business Logic
+
+For complex committee operations that require multiple steps or external service integration:
+
+1. **Extend Use Cases**: Add new methods to the `CommitteeWriter` interface in `internal/service/`
+2. **Update Domain Models**: Modify committee models in `internal/domain/model/` if new data structures are needed  
+3. **Extend Port Interfaces**: Update port interfaces in `internal/domain/port/` to support new storage or external service operations
+4. **Implement Infrastructure**: Add concrete implementations in `internal/infrastructure/` for new external service integrations
+5. **Add Tests**: Create comprehensive unit tests with mocks for all new components

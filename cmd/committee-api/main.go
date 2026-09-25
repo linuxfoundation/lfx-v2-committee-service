@@ -1,0 +1,259 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-api/service"
+	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
+
+	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+
+	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
+
+	"goa.design/clue/debug"
+)
+
+// Build-time variables set via ldflags
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
+const (
+	defaultPort = "8080"
+	// gracefulShutdownSeconds should be higher than NATS client
+	// request timeout, and lower than the pod or liveness probe's
+	// terminationGracePeriodSeconds.
+	gracefulShutdownSeconds = 25
+)
+
+func init() {
+	// slog is the standard library logger, we use it to log errors and
+	logging.InitStructureLogConfig()
+}
+
+func main() {
+	// Define command line flags, add any other flag required to configure the
+	// service.
+	var (
+		dbgF = flag.Bool("d", false, "enable debug logging")
+		port = flag.String("p", defaultPort, "listen port")
+		bind = flag.String("bind", "*", "interface to bind on")
+	)
+	flag.Usage = func() {
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
+	flag.Parse()
+
+	ctx := context.Background()
+
+	// Set up OpenTelemetry SDK.
+	// Command-line/environment OTEL_SERVICE_VERSION takes precedence over
+	// the build-time Version variable.
+	otelConfig := utils.OTelConfigFromEnv()
+	if otelConfig.ServiceVersion == "" {
+		otelConfig.ServiceVersion = Version
+	}
+	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
+	if err != nil {
+		slog.ErrorContext(ctx, "error setting up OpenTelemetry SDK", "error", err)
+		os.Exit(1)
+	}
+	// Handle shutdown properly so nothing leaks.
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownSeconds*time.Second)
+		defer cancel()
+		if shutdownErr := otelShutdown(ctx); shutdownErr != nil {
+			slog.ErrorContext(ctx, "error shutting down OpenTelemetry SDK", "error", shutdownErr)
+		}
+	}()
+
+	slog.InfoContext(ctx, "Starting committee service",
+		"bind", *bind,
+		"http-port", *port,
+		"graceful-shutdown-seconds", gracefulShutdownSeconds,
+	)
+
+	// Initialize the repositories based on configuration
+	committeeRetriever := service.CommitteeReaderImpl(ctx)
+	committeeWriter := service.CommitteeWriterImpl(ctx)
+	projectRetriever := service.ProjectRetrieverImpl(ctx)
+	userReader := service.UserReaderImpl(ctx)
+	committeePublisher := service.CommitteePublisherImpl(ctx)
+	authService := service.AuthServiceImpl(ctx)
+	storage := service.CommitteeReaderWriterImpl(ctx)
+	linkStorage := service.CommitteeLinkReaderWriterImpl(ctx)
+	docStorage := service.CommitteeDocumentReaderWriterImpl(ctx)
+
+	// Initialize the service with use cases
+	writeCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
+		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
+		usecaseSvc.WithCommitteeWriter(committeeWriter),
+		usecaseSvc.WithProjectRetriever(projectRetriever),
+		usecaseSvc.WithUserReader(userReader),
+		usecaseSvc.WithCommitteePublisher(committeePublisher),
+		usecaseSvc.WithB2BOrgResolver(service.B2BOrgResolverImpl(ctx)),
+	)
+
+	readCommitteeUseCase := usecaseSvc.NewCommitteeReaderOrchestrator(
+		usecaseSvc.WithCommitteeReader(committeeRetriever),
+	)
+
+	linkReaderUseCase := usecaseSvc.NewLinkReaderOrchestrator(
+		usecaseSvc.WithLinkReader(linkStorage),
+	)
+
+	linkWriterUseCase := usecaseSvc.NewLinkWriterOrchestrator(
+		usecaseSvc.WithLinkWriter(linkStorage),
+		usecaseSvc.WithLinkReaderForWriter(linkStorage),
+		usecaseSvc.WithLinkPublisher(committeePublisher),
+	)
+
+	docReaderUseCase := usecaseSvc.NewDocumentReaderOrchestrator(
+		usecaseSvc.WithDocumentReader(docStorage),
+	)
+
+	docWriterUseCase := usecaseSvc.NewDocumentWriterOrchestrator(
+		usecaseSvc.WithDocumentWriter(docStorage),
+		usecaseSvc.WithDocumentReaderForWriter(docStorage),
+		usecaseSvc.WithDocumentPublisher(committeePublisher),
+	)
+
+	weeklyBriefReader := service.GroupWeeklyBriefReaderImpl(ctx)
+	weeklyBriefReaderUseCase := usecaseSvc.NewGroupWeeklyBriefReaderOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReader(weeklyBriefReader),
+	)
+	aiAdapter := service.AIAdapterImpl(ctx)
+	weeklyBriefWriter := service.GroupWeeklyBriefWriterImpl(ctx)
+	meetingSource := service.MeetingSourceImpl(ctx)
+	mailingListSource := service.MailingListSourceImpl(ctx)
+	voteSource := service.VoteSourceImpl(ctx)
+	weeklyMemberReader := service.CommitteeWeeklyMemberReaderImpl(ctx)
+	orgCommitteeSeatReader := service.OrgCommitteeSeatReaderImpl(ctx)
+
+	weeklyBriefGeneratorUseCase := usecaseSvc.NewGroupWeeklyBriefGeneratorOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForGenerator(weeklyBriefReader),
+		usecaseSvc.WithGroupWeeklyBriefWriter(weeklyBriefWriter),
+		usecaseSvc.WithActivitySources(usecaseSvc.ActivitySources{
+			Meetings:           meetingSource,
+			AISummaries:        service.MeetingAISummarySourceImpl(ctx),
+			MailingLists:       mailingListSource,
+			Votes:              voteSource,
+			VoteResults:        service.VoteResultSourceImpl(ctx),
+			Surveys:            service.SurveySourceImpl(ctx),
+			ProjectMemberships: service.ProjectMembershipSourceImpl(ctx),
+			MemberReader:       weeklyMemberReader,
+		}),
+		usecaseSvc.WithAIAdapter(aiAdapter),
+		usecaseSvc.WithGroupWeeklyBriefPublisher(committeePublisher),
+	)
+
+	weeklyBriefWriterUseCase := usecaseSvc.NewGroupWeeklyBriefWriterOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForWriter(weeklyBriefReader),
+		usecaseSvc.WithGroupWeeklyBriefWriterForWriter(weeklyBriefWriter),
+		usecaseSvc.WithGroupWeeklyBriefPublisherForWriter(committeePublisher),
+	)
+
+	weeklyBriefSharerUseCase := usecaseSvc.NewGroupWeeklyBriefSharerOrchestrator(
+		usecaseSvc.WithGroupWeeklyBriefReaderForSharer(weeklyBriefReader),
+		usecaseSvc.WithCommitteeSettingsReaderForSharer(readCommitteeUseCase),
+		usecaseSvc.WithSlackSenderForSharer(service.SlackSenderImpl(ctx)),
+	)
+
+	committeeServiceSvc := service.NewCommitteeService(
+		writeCommitteeUseCase,
+		readCommitteeUseCase,
+		authService,
+		storage,
+		committeePublisher,
+		service.InviteSenderImpl(ctx),
+		service.LFXSelfServeBaseURL(),
+		userReader,
+		linkReaderUseCase,
+		linkWriterUseCase,
+		docReaderUseCase,
+		docWriterUseCase,
+		weeklyBriefReaderUseCase,
+		weeklyBriefGeneratorUseCase,
+		weeklyBriefWriterUseCase,
+		weeklyBriefSharerUseCase,
+		orgCommitteeSeatReader,
+	)
+
+	// Wrap the services in endpoints that can be invoked from other services
+	// potentially running in different processes.
+	committeeServiceEndpoints := committeeservice.NewEndpoints(committeeServiceSvc)
+	committeeServiceEndpoints.Use(debug.LogPayloads())
+
+	// Create channel used by both the signal handler and server goroutines
+	// to notify the main goroutine when to stop the server.
+	// Buffered channel prevents deadlock if NATS startup fails before HTTP server starts
+	errc := make(chan error, 1)
+
+	// Setup interrupt handler. This optional step configures the process so
+	// that SIGINT and SIGTERM signals cause the services to stop gracefully.
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+		errc <- fmt.Errorf("%s", <-c)
+	}()
+
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(ctx)
+
+	// Start the servers and send errors (if any) to the error channel.
+	addr := ":" + *port
+	if *bind != "*" {
+		addr = *bind + ":" + *port
+	}
+
+	// Start NATS subscriptions
+	if err := service.QueueSubscriptions(ctx, committeeRetriever); err != nil {
+		slog.ErrorContext(ctx, "failed to start queue subscriptions", "error", err)
+		errc <- fmt.Errorf("failed to start queue subscriptions: %w", err)
+	}
+
+	handleHTTPServer(ctx, addr, committeeServiceEndpoints, &wg, errc, *dbgF)
+
+	// Wait for signal.
+	slog.InfoContext(ctx, "received shutdown signal, stopping servers",
+		"signal", <-errc,
+	)
+
+	// Send cancellation signal to the goroutines.
+	cancel()
+
+	// Create a timeout context for graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), gracefulShutdownSeconds*time.Second)
+	defer shutdownCancel()
+
+	// Wait for all goroutines to finish with timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		slog.InfoContext(ctx, "graceful shutdown completed")
+	case <-shutdownCtx.Done():
+		slog.WarnContext(ctx, "graceful shutdown timed out")
+	}
+
+	slog.InfoContext(ctx, "exited")
+}

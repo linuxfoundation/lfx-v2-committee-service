@@ -1,0 +1,26 @@
+{
+  "name": "low_data_week",
+  "description": "Sparse week: one meeting with a whitespace-only summary; no other activity. Orchestrator must still produce a brief (NOT 422) because at least one source exists.",
+  "committee_uid": "c-low-data",
+  "committee_name": "Working Group Beta",
+  "project_name": "LFX Demo Project",
+  "now": "2026-05-20T12:00:00Z",
+  "window_start": "2026-05-10T00:00:00Z",
+  "window_end": "2026-05-16T23:59:59Z",
+  "meetings": [
+    {
+      "uid": "m-301",
+      "title": "Weekly sync",
+      "start_time": "2026-05-11T15:00:00Z",
+      "summary": "   ",
+      "private": false,
+      "url": "https://example.invalid/meetings/m-301"
+    }
+  ],
+  "members": {
+    "joined": [],
+    "updated": []
+  },
+  "mailing_lists": [],
+  "votes": []
+}

@@ -1,0 +1,152 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package model
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+const (
+	// MaxDocumentFileSize is the maximum allowed file size for document uploads (10MB).
+	MaxDocumentFileSize = 10 * 1024 * 1024
+)
+
+// AllowedDocumentContentTypes is the set of MIME types permitted for document uploads.
+var AllowedDocumentContentTypes = map[string]bool{
+	"application/pdf": true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // .docx
+	"application/msword": true, // .doc
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true, // .xlsx
+	"application/vnd.ms-excel": true, // .xls
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation": true, // .pptx
+	"application/vnd.ms-powerpoint":                                             true, // .ppt
+	"text/plain":                                                                true,
+	"text/csv":                                                                  true,
+	"image/png":                                                                 true,
+	"image/jpeg":                                                                true,
+	"image/gif":                                                                 true,
+	"application/zip":                                                           true,
+}
+
+// CommitteeDocument represents a file attachment associated with a committee.
+// Metadata is stored in NATS KV; file data is stored in NATS Object Store.
+type CommitteeDocument struct {
+	UID          string         `json:"uid"`
+	CommitteeUID string         `json:"committee_uid"`
+	FolderUID    *string        `json:"folder_uid,omitempty"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	FileName     string         `json:"file_name"`
+	FileSize     int64          `json:"file_size"`
+	ContentType  string         `json:"content_type"`
+	CreatedBy    *CommitteeUser `json:"created_by,omitempty"`
+	UpdatedBy    *CommitteeUser `json:"updated_by,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+type committeeDocumentJSON struct {
+	UID                string         `json:"uid"`
+	CommitteeUID       string         `json:"committee_uid"`
+	FolderUID          *string        `json:"folder_uid,omitempty"`
+	Name               string         `json:"name"`
+	Description        string         `json:"description,omitempty"`
+	FileName           string         `json:"file_name"`
+	FileSize           int64          `json:"file_size"`
+	ContentType        string         `json:"content_type"`
+	CreatedBy          *CommitteeUser `json:"created_by,omitempty"`
+	UpdatedBy          *CommitteeUser `json:"updated_by,omitempty"`
+	UploadedByUsername string         `json:"uploaded_by_username,omitempty"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+func (d *CommitteeDocument) UnmarshalJSON(data []byte) error {
+	var raw committeeDocumentJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	d.UID = raw.UID
+	d.CommitteeUID = raw.CommitteeUID
+	d.FolderUID = raw.FolderUID
+	d.Name = raw.Name
+	d.Description = raw.Description
+	d.FileName = raw.FileName
+	d.FileSize = raw.FileSize
+	d.ContentType = raw.ContentType
+	d.CreatedBy = raw.CreatedBy
+	d.UpdatedBy = raw.UpdatedBy
+	d.CreatedAt = raw.CreatedAt
+	d.UpdatedAt = raw.UpdatedAt
+	d.CreatedBy, d.UpdatedBy = NormalizeLegacyAuditUsers(d.CreatedBy, d.UpdatedBy, "", raw.UploadedByUsername)
+	return nil
+}
+
+func (d *CommitteeDocument) MarshalJSON() ([]byte, error) {
+	if d == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(&committeeDocumentJSON{
+		UID:          d.UID,
+		CommitteeUID: d.CommitteeUID,
+		FolderUID:    d.FolderUID,
+		Name:         d.Name,
+		Description:  d.Description,
+		FileName:     d.FileName,
+		FileSize:     d.FileSize,
+		ContentType:  d.ContentType,
+		CreatedBy:    d.CreatedBy,
+		UpdatedBy:    d.UpdatedBy,
+		CreatedAt:    d.CreatedAt,
+		UpdatedAt:    d.UpdatedAt,
+	})
+}
+
+// BuildIndexKey returns a SHA-256 hash of committeeUID|name for document name uniqueness enforcement.
+// NOTE: Name comparison is case-sensitive (consistent with folder pattern). If case-insensitive
+// uniqueness is needed in the future, apply strings.ToLower(d.Name) here.
+func (d *CommitteeDocument) BuildIndexKey(_ context.Context) string {
+	data := fmt.Sprintf("%s|%s", d.CommitteeUID, d.Name)
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
+}
+
+// Tags generates a consistent set of tags for the committee document.
+// IMPORTANT: If you modify this method, please update the Committee Tags documentation in the README.md
+// to ensure consumers understand how to use these tags for searching.
+func (d *CommitteeDocument) Tags() []string {
+	if d == nil {
+		return nil
+	}
+
+	var tags []string
+
+	if d.UID != "" {
+		tags = append(tags, d.UID)
+		tags = append(tags, fmt.Sprintf("committee_document_uid:%s", d.UID))
+	}
+
+	if d.CommitteeUID != "" {
+		tags = append(tags, fmt.Sprintf("committee_uid:%s", d.CommitteeUID))
+	}
+
+	if d.FolderUID != nil && *d.FolderUID != "" {
+		tags = append(tags, fmt.Sprintf("folder_uid:%s", *d.FolderUID))
+	}
+
+	if d.ContentType != "" {
+		tags = append(tags, fmt.Sprintf("content_type:%s", d.ContentType))
+	}
+
+	if username := AuditCreatorUsername(d.CreatedBy); username != "" {
+		tags = append(tags, fmt.Sprintf("uploaded_by:%s", username))
+	}
+
+	return tags
+}

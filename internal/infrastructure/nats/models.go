@@ -1,0 +1,122 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package nats
+
+import (
+	"encoding/json"
+	"strings"
+	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+)
+
+// Config represents NATS configuration
+type Config struct {
+	// URL is the NATS server URL
+	URL string `json:"url"`
+	// Timeout is the request timeout duration
+	Timeout time.Duration `json:"timeout"`
+	// MaxReconnect is the maximum number of reconnection attempts
+	MaxReconnect int `json:"max_reconnect"`
+	// ReconnectWait is the time to wait between reconnection attempts
+	ReconnectWait time.Duration `json:"reconnect_wait"`
+}
+
+// AccessCheckNATSRequest represents a NATS request for access checking
+type AccessCheckNATSRequest struct {
+	// Subject is the NATS subject for the request
+	Subject string `json:"subject"`
+	// Message is the serialized request data
+	Message []byte `json:"message"`
+	// Timeout is the request timeout duration
+	Timeout time.Duration `json:"timeout"`
+}
+
+// AccessCheckNATSResponse represents a NATS response for access checking
+type AccessCheckNATSResponse map[string]string
+
+// ErrorMessageNATSResponse represents a NATS response for error message
+type ErrorMessageNATSResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+}
+
+// UserEmailsNATSRequestUser holds the user field for a UserEmailsNATSRequest.
+type UserEmailsNATSRequestUser struct {
+	AuthToken string `json:"auth_token"`
+}
+
+// UserEmailsNATSRequest is the payload sent to lfx.auth-service.user_emails.read.
+// The auth-service expects JSON with auth_token set to the caller's Auth0 subject (auth0|{userID}).
+type UserEmailsNATSRequest struct {
+	User UserEmailsNATSRequestUser `json:"user"`
+}
+
+// UserEmailsNATSResponse represents the response from lfx.auth-service.user_emails.read
+type UserEmailsNATSResponse struct {
+	Success bool                    `json:"success"`
+	Error   string                  `json:"error,omitempty"`
+	Data    *UserEmailsNATSDataBody `json:"data,omitempty"`
+}
+
+// UserEmailsNATSDataBody holds the email payload from the auth-service user_emails response
+type UserEmailsNATSDataBody struct {
+	PrimaryEmail    string                    `json:"primary_email"`
+	AlternateEmails []UserEmailsNATSAlternate `json:"alternate_emails"`
+}
+
+// UserEmailsNATSAlternate represents a single alternate email entry
+type UserEmailsNATSAlternate struct {
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
+}
+
+// UserMetadataNATSResponse represents the response from lfx.auth-service.user_metadata.read
+type UserMetadataNATSResponse struct {
+	Success bool                      `json:"success"`
+	Error   string                    `json:"error,omitempty"`
+	Data    *UserMetadataNATSDataBody `json:"data,omitempty"`
+}
+
+// UserMetadataNATSDataBody holds the profile fields from the auth-service user_metadata response
+type UserMetadataNATSDataBody struct {
+	Picture       *string `json:"picture,omitempty"`
+	Zoneinfo      *string `json:"zoneinfo,omitempty"`
+	Name          *string `json:"name,omitempty"`
+	GivenName     *string `json:"given_name,omitempty"`
+	FamilyName    *string `json:"family_name,omitempty"`
+	JobTitle      *string `json:"job_title,omitempty"`
+	Organization  *string `json:"organization,omitempty"`
+	Country       *string `json:"country,omitempty"`
+	StateProvince *string `json:"state_province,omitempty"`
+	City          *string `json:"city,omitempty"`
+	Address       *string `json:"address,omitempty"`
+	PostalCode    *string `json:"postal_code,omitempty"`
+	PhoneNumber   *string `json:"phone_number,omitempty"`
+	TShirtSize    *string `json:"t_shirt_size,omitempty"`
+}
+
+// CheckError parses a JSON message and returns an error if the operation was unsuccessful.
+func (e ErrorMessageNATSResponse) CheckError(message string) error {
+	if errUnmarshal := json.Unmarshal([]byte(message), &e); errUnmarshal != nil {
+		return errors.NewUnexpected("failed to parse NATS error response", errUnmarshal)
+	}
+	if !e.Success {
+		if isUserMissError(e.Error) {
+			return errors.NewNotFound(e.Error)
+		}
+		return errors.NewUnexpected(e.Error)
+	}
+	return nil
+}
+
+// isUserMissError reports whether an auth-service error envelope denotes a genuine "no such user"
+// miss (so callers skip the principal) rather than a transient failure they must surface/retry.
+// Auth-service phrases the miss differently per lookup path: a username search returns "user not
+// found", while an auth0| sub get-by-id returns "The user does not exist."; both mean the principal
+// has no resolvable account. Transient errors (e.g. Auth0 "too_many"/rate limits) match neither.
+func isUserMissError(errMsg string) bool {
+	lower := strings.ToLower(errMsg)
+	return strings.Contains(lower, "not found") || strings.Contains(lower, "does not exist")
+}

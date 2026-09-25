@@ -1,0 +1,33 @@
+{
+  "name": "ai_summaries_week",
+  "description": "A week where AI-generated meeting summaries are the only activity source. Verifies summary-only brief generation, private_source_present=true, and meeting-summary source refs.",
+  "committee_uid": "c-summaries",
+  "committee_name": "Security Working Group",
+  "project_name": "LFX Demo Project",
+  "now": "2026-05-20T12:00:00Z",
+  "window_start": "2026-05-10T00:00:00Z",
+  "window_end": "2026-05-16T23:59:59Z",
+  "meetings": [],
+  "members": {
+    "joined": [],
+    "updated": []
+  },
+  "mailing_lists": [],
+  "votes": [],
+  "ai_summaries": [
+    {
+      "meeting_and_occurrence_id": "zoom-123-abc",
+      "title": "Weekly Security Sync",
+      "start_time": "2026-05-12T15:00:00Z",
+      "content": "## Topics Discussed\n- Reviewed open CVEs in the dependency tree\n- Discussed timeline for patching 2.3.x\n\n## Decisions\n- Patch release 2.3.1 to ship by May 19\n\n## Next Steps\n- Open patch PR by May 14\n- Review meeting scheduled for May 15",
+      "private": false
+    },
+    {
+      "meeting_and_occurrence_id": "zoom-456-def",
+      "title": "Threat Model Review",
+      "start_time": "2026-05-14T16:00:00Z",
+      "content": "## Topics Discussed\n- Updated threat model for the auth service\n- Identified two new attack vectors in the token refresh flow\n\n## Decisions\n- Add rate limiting to the token refresh endpoint\n- Document mitigations in the security runbook\n\n## Next Steps\n- Runbook update due May 21\n- Follow-up review in two weeks",
+      "private": false
+    }
+  ]
+}

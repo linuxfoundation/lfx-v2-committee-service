@@ -1,0 +1,412 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package model
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+
+	"github.com/go-viper/mapstructure/v2"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
+)
+
+// MessageAction is a type for the action of a project message.
+type MessageAction string
+
+// MessageAction constants for the action of a project message.
+const (
+	// ActionCreated is the action for a resource creation message.
+	ActionCreated MessageAction = "created"
+	// ActionUpdated is the action for a resource update message.
+	ActionUpdated MessageAction = "updated"
+	// ActionDeleted is the action for a resource deletion message.
+	ActionDeleted MessageAction = "deleted"
+)
+
+// CommitteeMemberMessageData is a wrapper that contains context for publishing messages
+type CommitteeMemberMessageData struct {
+	Member    *CommitteeMember
+	OldMember *CommitteeMember // Only used for ActionUpdated
+	// SkipNotification carries request-scoped intent to suppress the member
+	// notification into the committee_member.created event payload.
+	SkipNotification bool
+}
+
+// CommitteeMemberCreatedEventData is the payload for committee_member.created events.
+// It embeds the member (flattened in JSON, so consumers that decode a plain
+// CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
+type CommitteeMemberCreatedEventData struct {
+	*CommitteeMember
+	SkipNotification bool   `json:"skip_notification,omitempty"`
+	CreatedBy        string `json:"created_by,omitempty"`
+}
+
+// CommitteeMemberDeletedEventData is the payload for committee_member.deleted events.
+// It embeds the member (flattened in JSON, so consumers that decode a plain
+// CommitteeMember keep working) and adds the request-scoped SkipNotification flag.
+type CommitteeMemberDeletedEventData struct {
+	*CommitteeMember
+	SkipNotification bool `json:"skip_notification,omitempty"`
+}
+
+// CommitteeIndexerMessage is a NATS message schema for sending messages related to committees CRUD operations.
+type CommitteeIndexerMessage struct {
+	Action  MessageAction     `json:"action"`
+	Headers map[string]string `json:"headers"`
+	Data    any               `json:"data"`
+	// Tags is a list of tags to be set on the indexed resource for search.
+	Tags []string `json:"tags"`
+	// IndexingConfig provides indexing metadata for the resource.
+	// Callers building a CommitteeIndexerMessage must populate IndexingConfig for create and update actions;
+	// it is omitted for delete actions.
+	IndexingConfig *indexerTypes.IndexingConfig `json:"indexing_config,omitempty"`
+}
+
+// Build populates the CommitteeIndexerMessage with authorization headers from the context
+// and converts the input into the payload format expected by the indexer service.
+func (c *CommitteeIndexerMessage) Build(ctx context.Context, input any) (*CommitteeIndexerMessage, error) {
+
+	headers := make(map[string]string)
+	if authorization, ok := ctx.Value(constants.AuthorizationContextID).(string); ok {
+		headers[constants.AuthorizationHeader] = authorization
+	}
+	if principal, ok := ctx.Value(constants.PrincipalContextID).(string); ok {
+		headers[constants.XOnBehalfOfHeader] = principal
+	}
+	c.Headers = headers
+
+	var payload any
+
+	switch c.Action {
+	case ActionCreated, ActionUpdated:
+		data, err := json.Marshal(input)
+		if err != nil {
+			slog.ErrorContext(ctx, "error marshalling data into JSON", "error", err)
+			return nil, err
+		}
+		var jsonData any
+		if err := json.Unmarshal(data, &jsonData); err != nil {
+			slog.ErrorContext(ctx, "error unmarshalling data into JSON", "error", err)
+			return nil, err
+		}
+		// Decode the JSON data into a map[string]any since that is what the indexer expects.
+		config := mapstructure.DecoderConfig{
+			TagName: "json",
+			Result:  &payload,
+		}
+		decoder, err := mapstructure.NewDecoder(&config)
+		if err != nil {
+			slog.ErrorContext(ctx, "error creating decoder", "error", err)
+			return nil, err
+		}
+		err = decoder.Decode(jsonData)
+		if err != nil {
+			slog.ErrorContext(ctx, "error decoding data", "error", err)
+			return nil, err
+		}
+	case ActionDeleted:
+		// The data should just be a string of the UID being deleted.
+		payload = input
+	}
+
+	c.Data = payload
+
+	return c, nil
+
+}
+
+// CommitteeMemberUpdateEventData represents the data structure for committee member update events
+type CommitteeMemberUpdateEventData struct {
+	MemberUID string           `json:"member_uid"`
+	OldMember *CommitteeMember `json:"old_member"`
+	Member    *CommitteeMember `json:"member"`
+}
+
+// CommitteeEvent represents a generic event emitted for committee service operations
+type CommitteeEvent struct {
+	// EventType identifies the type of event (e.g., committee_member.created)
+	EventType string `json:"event_type"`
+	// Subject is the subject of the event (e.g. lfx.committee-api.committee_member.created)
+	Subject string `json:"subject"`
+	// Timestamp is when the event occurred
+	Timestamp time.Time `json:"timestamp"`
+	// Version is the event schema version
+	Version string `json:"version"`
+	// Data contains the event data
+	Data any `json:"data,omitempty"`
+}
+
+// ResourceType is a type for the resource type of a committee event.
+type ResourceType string
+
+// ResourceType constants for the resource type of a committee event.
+const (
+	ResourceCommitteeMember      ResourceType = "committee_member"
+	ResourceCommittee            ResourceType = "committee"
+	ResourceCommitteeSettings    ResourceType = "committee_settings"
+	ResourceCommitteeDocument    ResourceType = "committee_document"
+	ResourceCommitteeLink        ResourceType = "committee_link"
+	ResourceCommitteeApplication ResourceType = "committee_application"
+)
+
+// CommitteeSettingsUpdateEventData carries the before and after images of a committee settings update.
+// Consumers diff OldSettings vs Settings to detect newly added Writers or Auditors.
+type CommitteeSettingsUpdateEventData struct {
+	CommitteeUID  string             `json:"committee_uid"`
+	OldSettings   *CommitteeSettings `json:"old_settings"`
+	Settings      *CommitteeSettings `json:"settings"`
+	CommitteeName string             `json:"committee_name"`
+	// UpdatedBy is the principal (username or Auth0 sub) who triggered the settings change.
+	UpdatedBy string `json:"updated_by,omitempty"`
+}
+
+// CommitteeUpdateEventData carries the before and after images of a committee update.
+// Consumers use the two images to decide independently what side-effects to apply.
+type CommitteeUpdateEventData struct {
+	CommitteeUID string         `json:"committee_uid"`
+	OldCommittee *CommitteeBase `json:"old_committee"`
+	Committee    *CommitteeBase `json:"committee"`
+}
+
+// RequiresMemberSync reports whether the update changed any field that is
+// denormalized onto member documents. Returns false if either image is nil.
+func (e *CommitteeUpdateEventData) RequiresMemberSync() bool {
+	if e.OldCommittee == nil || e.Committee == nil {
+		return false
+	}
+	return e.OldCommittee.Name != e.Committee.Name ||
+		e.OldCommittee.Category != e.Committee.Category ||
+		e.OldCommittee.ProjectUID != e.Committee.ProjectUID ||
+		e.OldCommittee.ProjectSlug != e.Committee.ProjectSlug
+}
+
+// Build creates a CommitteeEvent from the resource type, action and input data
+func (e *CommitteeEvent) Build(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	e.buildVersion()
+	e.buildTimestamp()
+
+	// Build events depending on the resource type
+	switch resource {
+	case ResourceCommitteeMember:
+		return e.buildCommitteeMembers(ctx, resource, action, input)
+	case ResourceCommittee:
+		return e.buildCommittee(ctx, resource, action, input)
+	case ResourceCommitteeSettings:
+		return e.buildCommitteeSettings(ctx, resource, action, input)
+	case ResourceCommitteeDocument:
+		return e.buildCommitteeDocument(ctx, resource, action, input)
+	case ResourceCommitteeLink:
+		return e.buildCommitteeLink(ctx, resource, action, input)
+	case ResourceCommitteeApplication:
+		return e.buildCommitteeApplication(ctx, resource, action, input)
+	default:
+		return nil, fmt.Errorf("unsupported resource type: %s", resource)
+	}
+}
+
+func (e *CommitteeEvent) buildVersion() {
+	e.Version = "1"
+}
+
+func (e *CommitteeEvent) buildTimestamp() {
+	e.Timestamp = time.Now().UTC()
+}
+
+func (e *CommitteeEvent) buildEventType(resource ResourceType, action MessageAction) {
+	e.EventType = fmt.Sprintf("%s.%s", resource, action)
+}
+
+func (e *CommitteeEvent) buildCommitteeMembers(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeMemberCreatedSubject
+	case ActionUpdated:
+		e.Subject = constants.CommitteeMemberUpdatedSubject
+	case ActionDeleted:
+		e.Subject = constants.CommitteeMemberDeletedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	// Handle different input types based on action
+	switch action {
+	case ActionCreated:
+		// For create, expect CommitteeMemberCreatedEventData (member plus skip flag)
+		createData, ok := input.(*CommitteeMemberCreatedEventData)
+		if !ok || createData == nil || createData.CommitteeMember == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMemberCreatedEventData",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type, got %T", input)
+		}
+		e.Data = createData
+	case ActionDeleted:
+		// For delete, expect CommitteeMemberDeletedEventData which carries the member
+		// plus the request-scoped skip_notification flag.
+		deletedData, ok := input.(*CommitteeMemberDeletedEventData)
+		if !ok || deletedData == nil || deletedData.CommitteeMember == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMemberDeletedEventData",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type, got %T", input)
+		}
+		e.Data = deletedData
+	case ActionUpdated:
+		// For updates, expect CommitteeMemberUpdateEventData
+		updateData, ok := input.(*CommitteeMemberUpdateEventData)
+		if !ok || updateData == nil {
+			slog.ErrorContext(ctx, "invalid input type for CommitteeEvent update",
+				"resource", resource,
+				"action", action,
+				"expected", "*CommitteeMemberUpdateEventData",
+				"got", fmt.Sprintf("%T", input),
+			)
+			return nil, fmt.Errorf("invalid input type for update action, got %T", input)
+		}
+		e.Data = updateData
+	}
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommittee(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionUpdated:
+		e.Subject = constants.CommitteeUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	updateData, ok := input.(*CommitteeUpdateEventData)
+	if !ok || updateData == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeUpdateEventData",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
+	}
+	e.Data = updateData
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeSettings(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionUpdated:
+		e.Subject = constants.CommitteeSettingsUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_settings resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	updateData, ok := input.(*CommitteeSettingsUpdateEventData)
+	if !ok || updateData == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeSettingsUpdateEventData",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, errs.NewValidation(fmt.Sprintf("invalid input type, got %T", input))
+	}
+	e.Data = updateData
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeDocument(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeDocumentCreatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_document resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	doc, ok := input.(*CommitteeDocument)
+	if !ok || doc == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeDocument",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = doc
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeLink(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeLinkCreatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_link resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	link, ok := input.(*CommitteeLink)
+	if !ok || link == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeLink",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = link
+
+	return e, nil
+}
+
+func (e *CommitteeEvent) buildCommitteeApplication(ctx context.Context, resource ResourceType, action MessageAction, input any) (*CommitteeEvent, error) {
+	switch action {
+	case ActionCreated:
+		e.Subject = constants.CommitteeApplicationSubmittedSubject
+	case ActionUpdated:
+		e.Subject = constants.CommitteeApplicationUpdatedSubject
+	default:
+		return nil, fmt.Errorf("unsupported action for committee_application resource: %s", action)
+	}
+
+	e.buildEventType(resource, action)
+
+	application, ok := input.(*CommitteeApplication)
+	if !ok || application == nil {
+		slog.ErrorContext(ctx, "invalid input type for CommitteeEvent",
+			"resource", resource,
+			"action", action,
+			"expected", "*CommitteeApplication",
+			"got", fmt.Sprintf("%T", input),
+		)
+		return nil, fmt.Errorf("invalid input type, got %T", input)
+	}
+	e.Data = application
+
+	return e, nil
+}
