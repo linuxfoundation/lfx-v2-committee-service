@@ -19,6 +19,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"golang.org/x/sync/errgroup"
 )
 
 type storage struct {
@@ -764,10 +765,15 @@ func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.C
 	return key, nil
 }
 
+// orgMemberGetConcurrency bounds the parallel KV gets in ListMembersByOrganization. Large orgs hold
+// thousands of seats, so sequential gets (~1.7 ms each) dominate the org-seats read.
+const orgMemberGetConcurrency = 32
+
 // ListMembersByOrganization retrieves all committee members held by an organization (by the SFID on
 // committee_member.organization.id) using the by-organization secondary index. It performs a
 // server-side filtered scan of "lookup/committee-members-by-organization/<org_sfid>.*" so only the
-// org's members are fetched. The org SFID is normalized to its 18-char form before scanning.
+// org's members are fetched, then reads the member records with bounded concurrency. The org SFID is
+// normalized to its 18-char form before scanning.
 func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string) ([]*model.CommitteeMember, error) {
 	orgSFID = utils.NormalizeAccountSFID(orgSFID)
 	if orgSFID == "" {
@@ -783,37 +789,62 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 	}
 	defer func() { _ = keys.Stop() }()
 
-	var members []*model.CommitteeMember
-
 	// Each key is "lookup/committee-members-by-organization/<org_sfid>.<member_uid>".
 	// The member UID (a UUID, no dots) is the suffix after the last dot.
+	var memberUIDs []string
 	for key := range keys.Keys() {
 		dotIdx := strings.LastIndex(key, ".")
 		if dotIdx < 0 || dotIdx == len(key)-1 {
 			slog.WarnContext(ctx, "skipping malformed org member index key", "key", key, "org_sfid", orgSFID)
 			continue
 		}
-		memberUID := key[dotIdx+1:]
+		memberUIDs = append(memberUIDs, key[dotIdx+1:])
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, errs.NewUnexpected("context cancelled while listing member index keys for organization", err)
+	}
 
-		member := &model.CommitteeMember{}
-		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
-		if errGet != nil {
-			slog.WarnContext(ctx, "failed to get member while listing by organization",
-				"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
-			continue
+	// Each goroutine writes only its own slot, so no locking is needed; skipped entries stay nil.
+	fetched := make([]*model.CommitteeMember, len(memberUIDs))
+	var g errgroup.Group
+	g.SetLimit(orgMemberGetConcurrency)
+	for i, memberUID := range memberUIDs {
+		if ctx.Err() != nil {
+			break
 		}
+		g.Go(func() error {
+			member := &model.CommitteeMember{}
+			_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
+			if errGet != nil {
+				slog.WarnContext(ctx, "failed to get member while listing by organization",
+					"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+				return nil
+			}
 
-		// Defensive consistency check: the secondary index is a hint, the member record is the source
-		// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
-		// failed cleanup can leave an index key pointing at a member whose organization.id has since
-		// changed. Skip such entries so a stale key never leaks a seat into another org's list.
-		if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
-			slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
-				"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
-			continue
+			// Defensive consistency check: the secondary index is a hint, the member record is the source
+			// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
+			// failed cleanup can leave an index key pointing at a member whose organization.id has since
+			// changed. Skip such entries so a stale key never leaks a seat into another org's list.
+			if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
+				slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
+					"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
+				return nil
+			}
+
+			fetched[i] = member
+			return nil
+		})
+	}
+	_ = g.Wait() // workers skip per-member failures and never return an error
+	if err := ctx.Err(); err != nil {
+		return nil, errs.NewUnexpected("context cancelled while listing members by organization", err)
+	}
+
+	members := make([]*model.CommitteeMember, 0, len(fetched))
+	for _, member := range fetched {
+		if member != nil {
+			members = append(members, member)
 		}
-
-		members = append(members, member)
 	}
 
 	slog.DebugContext(ctx, "retrieved committee members by organization from NATS storage",
