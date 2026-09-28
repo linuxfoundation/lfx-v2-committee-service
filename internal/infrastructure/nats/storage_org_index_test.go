@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -287,21 +288,48 @@ func TestStorage_ListMembersByOrganization_FetchesWithBoundedConcurrency(t *test
 	assert.Equal(t, orgMemberGetConcurrency, kv.peak, "gets must run concurrently up to the bound and never exceed it")
 }
 
-// TestStorage_ListMembersByOrganization_CancelledContextReturnsError verifies a cancelled request does
-// not return a silently truncated seat list.
-func TestStorage_ListMembersByOrganization_CancelledContextReturnsError(t *testing.T) {
+// cancelDuringGetKV signals on the first Get, then holds every Get until its context is cancelled,
+// counting how many Gets were issued.
+type cancelDuringGetKV struct {
+	*mockKV
+	started     chan struct{}
+	startedOnce sync.Once
+	gets        atomic.Int32
+}
+
+func (c *cancelDuringGetKV) Get(ctx context.Context, _ string) (jetstream.KeyValueEntry, error) {
+	c.gets.Add(1)
+	c.startedOnce.Do(func() { close(c.started) })
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(5 * time.Second):
+		return nil, errors.New("context was never cancelled")
+	}
+}
+
+// TestStorage_ListMembersByOrganization_CancelledDuringFetchReturnsError verifies that cancelling the
+// request while member gets are in flight returns the context error (not a silently truncated seat
+// list) and stops issuing the gets still queued behind the concurrency bound.
+func TestStorage_ListMembersByOrganization_CancelledDuringFetchReturnsError(t *testing.T) {
 	const org = "001B000000IqhSLIAZ"
-	b, err := json.Marshal(orgMember("m-1", org))
-	require.NoError(t, err)
-	s := newTestStorageWithKV(&mockKV{
-		listKeys:   []string{fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, org, "m-1")},
-		getEntries: map[string]jetstream.KeyValueEntry{"m-1": &mockEntry{value: b, rev: 1}},
-	})
+	kv := &cancelDuringGetKV{mockKV: &mockKV{}, started: make(chan struct{})}
+	total := 3 * orgMemberGetConcurrency
+	for i := range total {
+		kv.listKeys = append(kv.listKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, org, fmt.Sprintf("m-%03d", i)))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	members, err := s.ListMembersByOrganization(ctx, org)
+	defer cancel()
+	go func() {
+		<-kv.started
+		cancel()
+	}()
+
+	members, err := newTestStorageWithKV(kv).ListMembersByOrganization(ctx, org)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, members)
+	assert.LessOrEqual(t, int(kv.gets.Load()), orgMemberGetConcurrency,
+		"only gets already in flight at cancellation may run; queued gets must not be issued")
 }

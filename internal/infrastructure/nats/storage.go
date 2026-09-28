@@ -780,6 +780,7 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 		return nil, errs.NewValidation("organization SFID cannot be empty")
 	}
 
+	start := time.Now()
 	slog.DebugContext(ctx, "listing committee members by organization from NATS storage", "org_sfid", orgSFID)
 
 	filter := fmt.Sprintf(constants.KVLookupMembersByOrganizationFilter, orgSFID)
@@ -813,11 +814,19 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 			break
 		}
 		g.Go(func() error {
+			// A queued worker may start after cancellation; don't issue a doomed KV read.
+			if ctx.Err() != nil {
+				return nil
+			}
 			member := &model.CommitteeMember{}
 			_, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, memberUID, member, false)
 			if errGet != nil {
-				slog.WarnContext(ctx, "failed to get member while listing by organization",
-					"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+				// On cancellation every in-flight get fails; the list call returns the ctx error below,
+				// so skip the per-member warn rather than logging one line per seat.
+				if ctx.Err() == nil {
+					slog.WarnContext(ctx, "failed to get member while listing by organization",
+						"member_uid", memberUID, "error", errGet, "org_sfid", orgSFID)
+				}
 				return nil
 			}
 
@@ -835,7 +844,9 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 			return nil
 		})
 	}
-	_ = g.Wait() // workers skip per-member failures and never return an error
+	if err := g.Wait(); err != nil {
+		return nil, errs.NewUnexpected("failed to get members for organization", err)
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, errs.NewUnexpected("context cancelled while listing members by organization", err)
 	}
@@ -848,7 +859,7 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 	}
 
 	slog.DebugContext(ctx, "retrieved committee members by organization from NATS storage",
-		"org_sfid", orgSFID, "member_count", len(members))
+		"org_sfid", orgSFID, "member_count", len(members), "duration_ms", time.Since(start).Milliseconds())
 
 	return members, nil
 }
