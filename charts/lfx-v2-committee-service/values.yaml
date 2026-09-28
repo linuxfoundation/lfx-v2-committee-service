@@ -72,6 +72,12 @@ service:
   # port is the service port
   port: 8080
 
+# networkPolicy restricts ingress to the service pods. Disabled for local development.
+networkPolicy:
+  enabled: false
+  ingress:
+    from: []
+
 serviceAccount:
   create: false
   name: ""
