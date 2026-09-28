@@ -4470,15 +4470,15 @@ paths:
                     - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 - name: page_size
                   in: query
-                  description: Maximum seats to return in this page (default 100, max 500)
+                  description: Maximum seats to return in this page (default 100, max 5000)
                   allowEmptyValue: true
                   schema:
                     type: integer
-                    description: Maximum seats to return in this page (default 100, max 500)
+                    description: Maximum seats to return in this page (default 100, max 5000)
                     example: 100
                     format: int64
                     minimum: 1
-                    maximum: 500
+                    maximum: 5000
                   example: 100
                 - name: page_token
                   in: query

@@ -1322,8 +1322,8 @@ func DecodeGetOrgCommitteeSeatsRequest(mux goahttp.Muxer, decoder func(*http.Req
 			}
 		}
 		if pageSize != nil {
-			if *pageSize > 500 {
-				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			if *pageSize > 5000 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 5000, false))
 			}
 		}
 		pageTokenRaw := qp.Get("page_token")
